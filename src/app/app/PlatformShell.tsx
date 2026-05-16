@@ -1,11 +1,11 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useSidebarFlip } from './sidebar-flip';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { usePagePermissions, type PageConfig } from '@/lib/PagePermissions';
-import { MARKETING_ADMISSIONS_DEPT_ID } from '@/lib/website-requests-auth';
 import { db } from '@/lib/db';
 import PageGuard from '@/lib/PageGuard';
 import PageViewers from './PageViewers';
@@ -179,6 +179,31 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M8.05 12.95 15.95 17.55" />
     </svg>
   ),
+  // Connect-4 — a 3-column board glyph with one filled chip,
+  // signalling "play / game" without leaning on a generic
+  // gamepad icon that would clash with the otherwise hand-drawn
+  // line-art set.
+  '/app/games/connect4': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <circle cx="8" cy="9" r="1.6" />
+      <circle cx="12" cy="9" r="1.6" />
+      <circle cx="16" cy="9" r="1.6" />
+      <circle cx="8" cy="15" r="1.6" />
+      <circle cx="12" cy="15" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="16" cy="15" r="1.6" />
+    </svg>
+  ),
+  // Hardware — laptop silhouette with a small line representing
+  // the screen-bezel hinge and a base stand, signalling "tracked
+  // physical asset" without leaning on a generic box icon.
+  '/app/hardware': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4" y="5" width="16" height="11" rx="1.5" />
+      <path d="M2 19h20" />
+      <path d="M10 16h4" />
+    </svg>
+  ),
   '/app/team': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
@@ -259,13 +284,19 @@ const pageIcons: Record<string, React.ReactNode> = {
     </svg>
   ),
   '/app/outreach': (
-    // Address book / contact card — distinct from the team-people
-    // icon so the two surfaces don't read as duplicates.
+    // Marketing (formerly Outreach) — megaphone glyph for broadcasting
+    // to referrers, leads, and downgraded partners.
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4" y="3" width="16" height="18" rx="2" />
-      <circle cx="12" cy="10" r="2.4" />
-      <path d="M8.5 17a3.5 3.5 0 017 0" />
-      <path d="M2 7h2M2 12h2M2 17h2" />
+      <path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z" />
+      <path d="M15 8a4 4 0 0 1 0 8" />
+      <path d="M18 5a8 8 0 0 1 0 14" />
+    </svg>
+  ),
+  '/app/donations': (
+    // Donations — hand offering a heart-coin so the icon conveys
+    // "philanthropy / giving" without leaning on a literal $.
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 11c0 5.5-7 10-7 10z" />
     </svg>
   ),
   '/app/incoming-users': (
@@ -334,6 +365,13 @@ const pageIcons: Record<string, React.ReactNode> = {
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <rect x="2" y="6" width="14" height="12" rx="2" />
       <path d="m22 8-6 4 6 4V8z" />
+    </svg>
+  ),
+  '/app/website': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18" />
+      <path d="M12 3a14 14 0 010 18M12 3a14 14 0 000 18" />
     </svg>
   ),
 };
@@ -434,7 +472,8 @@ function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
 }
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin, departmentId, status, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
+  const { user, loading, isAdmin, departmentId, status, userKind, sidebarRecentPaths, sidebarClickCount, recordSidebarVisit, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
+  const isAlumni = userKind === 'alumni';
   const { navPages, popupPages, isPageAllowedForDepartment, isPageAllowedForDepartmentSet, userOverrides, userExtraDepartmentIds } = usePagePermissions();
   const pathname = usePathname();
   const router = useRouter();
@@ -505,10 +544,16 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   //   2. Admin-only flag — non-admins can't see admin pages.
   //   3. Department allow-list — admins bypass; everyone else needs
   //      their dept on the page's allowed list (empty = unrestricted).
-  const canSeePage = (item: { path: string; adminOnly: boolean }) => {
+  const canSeePage = (item: { path: string; adminOnly: boolean; alumniOnly?: boolean }) => {
     const override = userOverrides[item.path];
     if (override === false) return false;
     if (override === true) return true;
+    // Alumni-only pages are exclusive: only user_kind='alumni' sees
+    // them, regardless of admin / super-admin / department rules.
+    if (item.alumniOnly) return isAlumni;
+    // Alumni only see pages explicitly marked alumni-only (handled
+    // above). Everything else in /app is staff-facing.
+    if (isAlumni) return false;
     if (item.adminOnly && !isAdmin) return false;
     if (isAdmin) return true;
     // Effective dept set = primary department_id + any extras a super
@@ -559,6 +604,17 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     if (!mobileMenuOpen) setMobileAccountOpen(false);
   }, [mobileMenuOpen]);
   const [navMounted, setNavMounted] = useState(false);
+  // Sidebar search query — filters the visible nav entries by label
+  // / path substring. Only shown while the rail is expanded; clears
+  // on Escape and on every route change so the next visit starts
+  // clean.
+  const [navSearch, setNavSearch] = useState('');
+  // Phase 1 of the sidebar travel-and-landing animation: a FLIP
+  // position tracker. Each rendered nav row calls flip.register
+  // with its DOM element; the hook measures positions after every
+  // commit and stashes per-row vertical deltas for the animation
+  // phases that follow.
+  const flip = useSidebarFlip();
   const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string } | null>(null);
 
   // Load departments for sidebar grouping. Hidden departments are
@@ -631,32 +687,114 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   //   2. `departmentId` — existing dept-based grouping from the DB.
   //   3. Ungrouped bucket at the very top of the sidebar.
   const visibleNavPages = navPages.filter(canSeePage);
-  const ungroupedPages = visibleNavPages.filter((p) => !p.departmentId && !p.navGroup);
 
-  // Preserve first-seen order of navGroups so Media shows up in the same
-  // spot across renders regardless of React's map ordering.
-  const navGroupLabels: string[] = [];
-  const navGroupPages: Record<string, PageConfig[]> = {};
-  for (const p of visibleNavPages) {
-    if (!p.navGroup) continue;
-    if (!navGroupPages[p.navGroup]) {
-      navGroupLabels.push(p.navGroup);
-      navGroupPages[p.navGroup] = [];
+  // RECENCY_VISIBLE_COUNT caps the top of the nav. Anything past
+  // this falls into the "Other pages" dropdown. Sized to 7 because
+  // that's the size most reps eyeball-scan without paging — same
+  // intuition as why phone numbers are 7 digits.
+  //
+  // The earlier "alpha mode" gate (sidebar_click_count <
+  // ALPHA_THRESHOLD → flat alpha list with no Other Pages) was
+  // removed so the overflow disclosure is reachable by every user
+  // from their first session, not only those who've crossed a
+  // lifetime click threshold. New users with no click history
+  // still see a sensible top N because the leftover-padding falls
+  // back to alphabetical order.
+  const RECENCY_VISIBLE_COUNT = 7;
+  // Both modes use a single recency stack: every page the user has
+  // clicked, newest first, with never-clicked pages tail-padded in
+  // alpha order. Clicking a page promotes it to position 1 and the
+  // page that was previously #1 slides to #2, the prior #2 to #3,
+  // etc. — the nav reads as "recently viewed". Alpha mode renders
+  // the whole stack; recency mode (once they cross
+  // ALPHA_THRESHOLD clicks) caps the visible portion to the top
+  // RECENCY_VISIBLE_COUNT and tucks the rest into Other pages.
+  const recencyOrderedPages = useMemo(() => {
+    // Home is permanently pinned to position 1 and excluded from
+    // recency reordering. Visiting Home still bumps its
+    // sidebar_recent_paths rank server-side (so it acts like a
+    // normal click for the click counter / Other-pages threshold),
+    // but visually it never leaves the top — the rest of the stack
+    // fills positions 2..N below it.
+    const HOME_PATH = '/app';
+    const homePage = visibleNavPages.find((p) => p.path === HOME_PATH);
+    const nonHomeVisible = visibleNavPages.filter((p) => p.path !== HOME_PATH);
+    const byPath = new Map(nonHomeVisible.map((p) => [p.path, p] as const));
+    const ranked: typeof visibleNavPages = [];
+    const seen = new Set<string>();
+    for (const path of sidebarRecentPaths) {
+      if (path === HOME_PATH) continue;
+      const hit = byPath.get(path);
+      if (hit && !seen.has(path)) {
+        ranked.push(hit);
+        seen.add(path);
+      }
     }
-    navGroupPages[p.navGroup].push(p);
-  }
-  const navGroupGroups = navGroupLabels.map((label) => ({
-    label,
-    pages: navGroupPages[label],
-  }));
+    const leftover = nonHomeVisible
+      .filter((p) => !seen.has(p.path))
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+    const tail = [...ranked, ...leftover];
+    return homePage ? [homePage, ...tail] : tail;
+  }, [visibleNavPages, sidebarRecentPaths]);
+  const recencyTopPages = recencyOrderedPages.slice(0, RECENCY_VISIBLE_COUNT);
 
-  const deptGroups: { dept: NavDepartment; pages: PageConfig[] }[] = [];
-  for (const dept of navDepartments) {
-    const deptPages = visibleNavPages.filter((p) => !p.navGroup && p.departmentId === dept.id);
-    if (deptPages.length > 0) {
-      deptGroups.push({ dept, pages: deptPages });
+  // Apply the sidebar search query — when there's anything typed,
+  // flatten the whole accessible-pages set to label/path matches
+  // and short-circuit the recency/Other split so every hit is
+  // visible at once. Empty query falls through to the normal
+  // top-7 + Other-pages layout.
+  const searchQuery = navSearch.trim().toLowerCase();
+  const searchMatchedPages = searchQuery
+    ? recencyOrderedPages.filter((p) =>
+        p.label.toLowerCase().includes(searchQuery)
+        || p.path.toLowerCase().includes(searchQuery),
+      )
+    : null;
+  // Spillover. Anything past the top-7 lives in the collapsible
+  // "Other pages" section. Still ordered by recency (most-recent
+  // first) so a page that just dropped out of the top-7 sits at the
+  // top of Other, matching the brief: "When a page goes to spot 8,
+  // put it in the top of other pages."
+  const recencyOtherPages = recencyOrderedPages.slice(RECENCY_VISIBLE_COUNT);
+  // Track the disclosure state for the Other pages section. Per-user
+  // persistence is overkill — a tab reload is cheap, and forgetting
+  // the collapsed state after each session matches how reps actually
+  // work the sidebar (open it when they need it, otherwise leave it).
+  const [otherPagesOpen, setOtherPagesOpen] = useState(false);
+  // Phase 9 — spillover animation. We can't observe the actual
+  // "page X just bumped to position 8" moment server-side (the API
+  // round-trip is fire-and-forget and the list mutates in one local
+  // setState), but we *can* react to a click happening while we're
+  // in recency mode AND Other has entries. When that combination
+  // is observed, we briefly pulse the Other-pages header so the
+  // user gets a visual cue that "something just landed in here".
+  // 1200ms is long enough to read, short enough to not feel sticky.
+  const [otherPagesFlash, setOtherPagesFlash] = useState(false);
+  const lastClickCountRef = useRef(sidebarClickCount);
+  useEffect(() => {
+    if (sidebarClickCount > lastClickCountRef.current && recencyOtherPages.length > 0) {
+      // Respect prefers-reduced-motion — skip the flash entirely so
+      // users who've opted out of non-essential motion don't get a
+      // pulsing background every time they click a nav entry.
+      const prefersReducedMotion = typeof window !== 'undefined'
+        && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+      if (!prefersReducedMotion) {
+        setOtherPagesFlash(true);
+        const t = window.setTimeout(() => setOtherPagesFlash(false), 1200);
+        lastClickCountRef.current = sidebarClickCount;
+        return () => window.clearTimeout(t);
+      }
     }
-  }
+    lastClickCountRef.current = sidebarClickCount;
+  }, [sidebarClickCount, recencyOtherPages.length]);
+
+  // Department / navGroup grouping is no longer rendered (Phase 5
+  // of the sidebar overhaul). PageConfig.departmentId still drives
+  // access control through canSeePage; we just don't visualise the
+  // grouping anymore. The navDepartments state + fetch is left in
+  // place because canSeePage chains into isPageAllowedForDepartment
+  // via the PagePermissions provider, which expects the department
+  // list to be loadable for permission editing.
 
   // Theme toggle removed — make sure no leftover localStorage value
   // re-applies the dark class after navigation, so the platform stays
@@ -833,6 +971,32 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           </Link>
         </div>
 
+        {/* Sidebar search — only visible inside the expanded rail.
+            Filters the visible page set by label / path substring.
+            Hidden in the collapsed (w-16) state via the same
+            group-hover/sidebar gate the Other-pages section uses,
+            so the icon-only rail isn't disrupted. */}
+        <div className="px-3 pt-1 pb-2 hidden group-hover/sidebar:block">
+          <label className="relative block">
+            <span aria-hidden className="absolute left-2.5 top-1/2 -translate-y-1/2 text-foreground/35">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="7" />
+                <path strokeLinecap="round" d="M21 21l-4.3-4.3" />
+              </svg>
+            </span>
+            <input
+              type="search"
+              value={navSearch}
+              onChange={(e) => setNavSearch(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Escape') setNavSearch(''); }}
+              placeholder="Search pages…"
+              className="sa-liquid-glass w-full pl-8 pr-2.5 py-1.5 rounded-xl text-[13px] placeholder:text-foreground/40"
+              style={{ fontFamily: 'var(--font-body)' }}
+              aria-label="Search pages"
+            />
+          </label>
+        </div>
+
         {/* Nav links — grouped by department */}
         <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
           {(() => {
@@ -840,11 +1004,60 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             const renderLink = (item: PageConfig) => {
               const idx = animIdx++;
               const isActive = pathname === item.path;
+              // External-URL entries (e.g. "Website" → marketing
+              // site) render as a target="_blank" anchor instead of
+              // a Next Link. The recency visit still fires so they
+              // participate in reordering like internal pages.
+              const commonClassName = `group/nav relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium overflow-hidden transition-all duration-500 ease-out motion-reduce:transition-none hover:shadow-[0_4px_14px_-6px_rgba(188,107,74,0.35)] ${
+                isActive
+                  ? 'bg-primary/12 text-primary shadow-[inset_0_0_0_1px_rgba(188,107,74,0.18)]'
+                  : 'text-foreground/60 hover:text-foreground'
+              } ${navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'}`;
+              const commonStyle = { fontFamily: 'var(--font-body)', transitionDelay: `${idx * 50}ms` } as const;
+              if (item.externalUrl) {
+                return (
+                  <a
+                    key={item.path}
+                    ref={(el) => flip.register(item.path, el)}
+                    href={item.externalUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); }}
+                    className={commonClassName}
+                    style={commonStyle}
+                  >
+                    {/* External-link svg slipped in next to the icon
+                        so the label still aligns with internal rows. */}
+                    <span className="text-foreground/40">
+                      {getPageIcon(item.path)}
+                    </span>
+                    <span className="flex-1 whitespace-nowrap transition-[opacity,transform] duration-200 ease-out opacity-0 group-hover/sidebar:opacity-100 group-hover/nav:translate-x-0.5">{item.label}</span>
+                    <svg className="w-3 h-3 text-foreground/35 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M14 3h7v7" />
+                      <path d="M21 3l-9 9" />
+                      <path d="M21 14v5a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h5" />
+                    </svg>
+                  </a>
+                );
+              }
               return (
                 <Link
                   key={item.path}
+                  ref={(el) => flip.register(item.path, el)}
                   href={item.path}
                   onClick={(e) => {
+                    // Tag the traveler so the FLIP hook can paint
+                    // a spotlight on it during its upcoming travel
+                    // (sidebar-flip Phase 5). Has to fire BEFORE
+                    // recordSidebarVisit because the state update
+                    // there schedules the re-render that the FLIP
+                    // hook reads markTraveler from.
+                    flip.markTraveler(item.path);
+                    // Record the click for the sidebar recency model
+                    // (Phase 3). Fires regardless of whether the route
+                    // actually changes — a re-click on the current page
+                    // still expresses preference.
+                    recordSidebarVisit(item.path);
                     // If we're already on this pathname but with a query
                     // string (e.g. /app/calls?tab=operators), Next.js's
                     // default Link behavior can skip the navigation and
@@ -856,12 +1069,8 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       router.replace(item.path, { scroll: false });
                     }
                   }}
-                  className={`group/nav relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium overflow-hidden transition-all duration-500 ease-out motion-reduce:transition-none hover:shadow-[0_4px_14px_-6px_rgba(188,107,74,0.35)] ${
-                    isActive
-                      ? 'bg-primary/12 text-primary shadow-[inset_0_0_0_1px_rgba(188,107,74,0.18)]'
-                      : 'text-foreground/60 hover:text-foreground'
-                  } ${navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'}`}
-                  style={{ fontFamily: 'var(--font-body)', transitionDelay: `${idx * 50}ms` }}
+                  className={commonClassName}
+                  style={commonStyle}
                 >
                   {/* Phase 2: sliding pill background — primary-tinted
                       gradient that grows from the left edge on hover.
@@ -943,68 +1152,64 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 </Link>
               );
             };
+            // When the search box has anything typed, the nav
+            // short-circuits to a flat result list. The top-7 /
+            // Other-pages split only makes sense for the
+            // unfiltered case; while searching we want every hit
+            // visible regardless of recency rank.
+            if (searchMatchedPages != null) {
+              if (searchMatchedPages.length === 0) {
+                return (
+                  <p className="px-3 py-2 text-[12px] text-foreground/45 italic hidden group-hover/sidebar:block" style={{ fontFamily: 'var(--font-body)' }}>
+                    No pages match &ldquo;{navSearch}&rdquo;
+                  </p>
+                );
+              }
+              return <>{searchMatchedPages.map(renderLink)}</>;
+            }
+            // Recency layout: top RECENCY_VISIBLE_COUNT pinned at
+            // the top, the rest tucked under an "Other pages"
+            // collapsible. Earlier this was gated behind an
+            // ALPHA_THRESHOLD click counter so new users got a
+            // flat alpha list — that gate was removed so Other
+            // Pages is reachable for every user from the first
+            // session, not only those who've crossed the threshold.
+            // Phase 7+: recency mode renders the top
+            // RECENCY_VISIBLE_COUNT entries above an "Other pages"
+            // collapsible. The Marketing-team "Website" external
+            // link, which used to hang off the dept group, now
+            // renders unconditionally at the bottom of the nav
+            // outside this switch — see the <a> below the </nav>.
             return (
               <>
-                {ungroupedPages.map(renderLink)}
-                {navGroupGroups.map(({ label, pages }) => {
-                  const hdrIdx = animIdx++;
-                  return (
-                    <div key={`nav-group-${label}`}>
-                      <p
-                        className={`px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35 transition-all duration-500 ease-out whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 ${navMounted ? 'translate-x-0' : '-translate-x-3'}`}
-                        style={{ fontFamily: 'var(--font-body)', transitionDelay: `${hdrIdx * 50}ms` }}
-                      >
-                        {label}
-                      </p>
-                      {pages.map(renderLink)}
-                    </div>
-                  );
-                })}
-                {deptGroups.map(({ dept, pages }) => {
-                  const hdrIdx = animIdx++;
-                  // Marketing & Admissions gets an extra "Website"
-                  // entry that opens the public marketing site in a
-                  // new tab. Hardcoded here because the rest of the
-                  // sidebar is internal-only — adding an
-                  // external_url field to PagePermissions for one
-                  // link would be over-engineering.
-                  const isMarketing = dept.id === MARKETING_ADMISSIONS_DEPT_ID;
-                  const websiteIdx = isMarketing ? animIdx++ : -1;
-                  return (
-                    <div key={dept.id}>
-                      <p
-                        className={`px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35 transition-all duration-500 ease-out whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 ${navMounted ? 'translate-x-0' : '-translate-x-3'}`}
-                        style={{ fontFamily: 'var(--font-body)', transitionDelay: `${hdrIdx * 50}ms` }}
-                      >
-                        {dept.name}
-                      </p>
-                      {pages.map(renderLink)}
-                      {isMarketing && (
-                        <a
-                          href="https://www.sevenarrowsrecoveryarizona.com/"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-500 ease-out text-foreground/60 hover:bg-warm-bg hover:text-foreground ${
-                            navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'
-                          }`}
-                          style={{ fontFamily: 'var(--font-body)', transitionDelay: `${websiteIdx * 50}ms` }}
-                        >
-                          <span className="text-foreground/40">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                              <circle cx="12" cy="12" r="9" />
-                              <path d="M3 12h18" />
-                              <path d="M12 3a14 14 0 010 18M12 3a14 14 0 000 18" />
-                            </svg>
-                          </span>
-                          <span className="flex-1 whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200">Website</span>
-                          <svg className="w-3.5 h-3.5 text-foreground/35 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                            <path d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-4.5-6H18m0 0v4.5m0-4.5L10.5 13.5" />
-                          </svg>
-                        </a>
-                      )}
-                    </div>
-                  );
-                })}
+                {recencyTopPages.map(renderLink)}
+                {recencyOtherPages.length > 0 && (
+                  // The rail is icon-only at rest; the Other-pages
+                  // section is text-first (label + chevron, plus
+                  // the items underneath which would otherwise
+                  // bleed icons into the w-16 gutter). Render the
+                  // whole subtree only when the rail is hovered
+                  // out to w-64 — `hidden group-hover/sidebar:block`
+                  // is more reliable than opacity+max-h here
+                  // because Tailwind's `hidden` class triggers
+                  // display:none, which hard-blocks layout for the
+                  // icon stack entirely.
+                  <div className="mt-2 pt-2 border-t border-foreground/10 hidden group-hover/sidebar:block">
+                    <button
+                      type="button"
+                      onClick={() => setOtherPagesOpen((v) => !v)}
+                      aria-expanded={otherPagesOpen}
+                      className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground/45 hover:bg-warm-bg/60 transition-colors ${otherPagesFlash ? 'bg-primary/10 ring-1 ring-primary/30' : ''}`}
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      <span>Other pages</span>
+                      <span aria-hidden className={`transition-transform duration-200 ${otherPagesOpen ? 'rotate-180' : ''}`}>▾</span>
+                    </button>
+                    {otherPagesOpen && (
+                      <div className="mt-0.5">{recencyOtherPages.map(renderLink)}</div>
+                    )}
+                  </div>
+                )}
               </>
             );
           })()}
@@ -1033,7 +1238,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 <Link
                   key={item.path}
                   href={item.path}
-                  onClick={() => setUserMenuOpen(false)}
+                  onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); setUserMenuOpen(false); }}
                   className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
@@ -1041,6 +1246,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   {item.label}
                 </Link>
               ))}
+              <ShowCursorsToggle />
               <button
                 onClick={() => { signOut(); setUserMenuOpen(false); }}
                 className="flex items-center gap-2.5 w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 transition-colors"
@@ -1157,105 +1363,69 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 </button>
               </div>
 
-              {/* Nav links — grouped by department.
-                  `min-h-0` is the critical bit for mobile scroll: in a
-                  flex column the default min-height is `auto`, which
-                  lets this nav grow to fit its content and disables
-                  the inner overflow-y-auto. min-h-0 lets it shrink
-                  below content height so the inner scroll engages. */}
+              {/* Nav links — flat alphabetical list (Phase 4/5 of the
+                  sidebar overhaul). Department / navGroup headers
+                  were dropped in Phase 5; the page_permissions data
+                  still owns dept membership for access control, the
+                  nav just doesn't visualise it anymore.
+                  `min-h-0` is the critical bit for mobile scroll: in
+                  a flex column the default min-height is `auto`,
+                  which lets this nav grow to fit its content and
+                  disables the inner overflow-y-auto. min-h-0 lets it
+                  shrink below content height so the inner scroll
+                  engages. */}
               <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-0.5">
-                {ungroupedPages.map((item) => {
-                  const isActive = pathname === item.path;
-                  return (
-                    <Link
-                      key={item.path}
-                      href={item.path}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
-                        isActive
-                          ? 'bg-primary/10 text-primary'
-                          : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
-                      }`}
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
-                        {getPageIcon(item.path)}
-                      </span>
-                      <span className="flex-1">{item.label}</span>
-                      {(navBadges[item.path] ?? 0) > 0 && (
-                        <span
-                          aria-label={`${navBadges[item.path]} new`}
-                          className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-bold tabular-nums"
-                        >
-                          {navBadges[item.path]! > 99 ? '99+' : navBadges[item.path]}
+                {(() => {
+                  const renderMobileLink = (item: PageConfig) => {
+                    const isActive = pathname === item.path;
+                    return (
+                      <Link
+                        key={item.path}
+                        href={item.path}
+                        onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
+                        className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
+                          isActive
+                            ? 'bg-primary/10 text-primary'
+                            : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
+                        }`}
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
+                          {getPageIcon(item.path)}
                         </span>
+                        <span className="flex-1">{item.label}</span>
+                        {(navBadges[item.path] ?? 0) > 0 && (
+                          <span
+                            aria-label={`${navBadges[item.path]} new`}
+                            className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-bold tabular-nums"
+                          >
+                            {navBadges[item.path]! > 99 ? '99+' : navBadges[item.path]}
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  };
+                  return (
+                    <>
+                      {recencyTopPages.map(renderMobileLink)}
+                      {recencyOtherPages.length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-foreground/10">
+                          <button
+                            type="button"
+                            onClick={() => setOtherPagesOpen((v) => !v)}
+                            aria-expanded={otherPagesOpen}
+                            className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-[12px] font-semibold uppercase tracking-[0.12em] text-foreground/45 hover:bg-warm-bg/60 ${otherPagesFlash ? 'bg-primary/10 ring-1 ring-primary/30' : ''}`}
+                            style={{ fontFamily: 'var(--font-body)' }}
+                          >
+                            <span>Other pages</span>
+                            <span aria-hidden className={`transition-transform duration-200 ${otherPagesOpen ? 'rotate-180' : ''}`}>▾</span>
+                          </button>
+                          {otherPagesOpen && <div className="mt-0.5">{recencyOtherPages.map(renderMobileLink)}</div>}
+                        </div>
                       )}
-                    </Link>
+                    </>
                   );
-                })}
-                {navGroupGroups.map(({ label, pages }) => (
-                  <div key={`mobile-nav-group-${label}`}>
-                    <p
-                      className="px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      {label}
-                    </p>
-                    {pages.map((item) => {
-                      const isActive = pathname === item.path;
-                      return (
-                        <Link
-                          key={item.path}
-                          href={item.path}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
-                            isActive
-                              ? 'bg-primary/10 text-primary'
-                              : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
-                          }`}
-                          style={{ fontFamily: 'var(--font-body)' }}
-                        >
-                          <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
-                            {getPageIcon(item.path)}
-                          </span>
-                          {item.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                ))}
-                {deptGroups.map(({ dept, pages }) => (
-                  <div key={dept.id}>
-                    <p
-                      className="px-3 pt-5 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground/35"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      {dept.name}
-                    </p>
-                    {pages.map((item) => {
-                      const isActive = pathname === item.path;
-                      return (
-                        <Link
-                          key={item.path}
-                          href={item.path}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
-                            isActive
-                              ? 'bg-primary/10 text-primary'
-                              : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
-                          }`}
-                          style={{ fontFamily: 'var(--font-body)' }}
-                        >
-                          <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
-                            {getPageIcon(item.path)}
-                          </span>
-                          {item.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                ))}
-
+                })()}
               </nav>
 
               {/* Account section — collapsed by default. Tapping the
@@ -1272,7 +1442,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                           <Link
                             key={item.path}
                             href={item.path}
-                            onClick={() => setMobileMenuOpen(false)}
+                            onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
                             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                               isActive
                                 ? 'bg-primary/10 text-primary'
@@ -1368,5 +1538,52 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
 
       </div>
     </div>
+  );
+}
+
+// Toggle row in the account popup menu. Lets each user opt in / out of
+// seeing other people's live cursors moving across the page. Choice is
+// localStorage-only — no per-user DB column — so it's instant and
+// survives reloads without a round-trip. PresenceCursors reads the
+// same key and listens for the 'show-cursors-change' CustomEvent so a
+// toggle here updates the renderer in real time, no reload needed.
+const SHOW_CURSORS_STORAGE_KEY = 'sa-show-other-cursors';
+function ShowCursorsToggle() {
+  const [on, setOn] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return true;
+    return window.localStorage.getItem(SHOW_CURSORS_STORAGE_KEY) !== 'off';
+  });
+
+  function toggle() {
+    const next = !on;
+    setOn(next);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(SHOW_CURSORS_STORAGE_KEY, next ? 'on' : 'off');
+      window.dispatchEvent(new CustomEvent('show-cursors-change', { detail: { on: next } }));
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={toggle}
+      role="menuitemcheckbox"
+      aria-checked={on}
+      className="flex items-center justify-between w-full gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
+      style={{ fontFamily: 'var(--font-body)' }}
+    >
+      <span className="inline-flex items-center gap-2.5">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l7.5 18 2.5-7 7-2.5L3 3z" />
+        </svg>
+        Teammates&apos; cursors
+      </span>
+      <span
+        className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${on ? 'bg-primary' : 'bg-foreground/20'}`}
+        aria-hidden
+      >
+        <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${on ? 'translate-x-3.5' : 'translate-x-0.5'}`} />
+      </span>
+    </button>
   );
 }

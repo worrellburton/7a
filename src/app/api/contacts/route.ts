@@ -11,8 +11,15 @@ export const dynamic = 'force-dynamic';
 
 interface ContactBody {
   name?: string;
+  company?: string | null;
+  company_website?: string | null;
+  type?: string | string[] | null;
+  specialty?: string | null;
+  rating?: string | null;
   role?: string | null;
   phone?: string | null;
+  phone_cell?: string | null;
+  phone_office?: string | null;
   email?: string | null;
   location?: string | null;
   notes?: string | null;
@@ -25,6 +32,25 @@ function trim(value: unknown, max = 600): string | null {
   return t.length > max ? t.slice(0, max) : t;
 }
 
+function normaliseTypeArray(value: unknown): string[] | null {
+  let raw: unknown[];
+  if (Array.isArray(value)) raw = value;
+  else if (typeof value === 'string') raw = value.split(',');
+  else return null;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of raw) {
+    if (typeof v !== 'string') continue;
+    const t = v.trim().slice(0, 60);
+    if (!t) continue;
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
+  }
+  return out.length === 0 ? null : out;
+}
+
 export async function GET(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -32,7 +58,7 @@ export async function GET(req: NextRequest) {
   const admin = getAdminSupabase();
   const { data, error } = await admin
     .from('contacts')
-    .select('id, name, role, phone, email, location, notes, source, source_partner_id, last_contact_at, last_contact_by, last_contact_method, last_contact_comments, created_at, updated_at')
+    .select('id, name, company, company_website, type, specialty, rating, role, phone, phone_cell, phone_office, email, location, formatted_address, place_id, tz, lat, lng, notes, source, source_partner_id, last_contact_at, last_contact_by, last_contact_method, last_contact_comments, created_at, updated_at')
     .order('last_contact_at', { ascending: false, nullsFirst: false })
     .order('name', { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -42,10 +68,22 @@ export async function GET(req: NextRequest) {
   type Row = {
     id: string;
     name: string;
+    company: string | null;
+    company_website: string | null;
+    type: string[] | null;
+    specialty: string | null;
+    rating: string | null;
     role: string | null;
     phone: string | null;
+    phone_cell: string | null;
+    phone_office: string | null;
     email: string | null;
     location: string | null;
+    formatted_address: string | null;
+    place_id: string | null;
+    tz: string | null;
+    lat: number | null;
+    lng: number | null;
     notes: string | null;
     source: string | null;
     source_partner_id: string | null;
@@ -71,8 +109,21 @@ export async function GET(req: NextRequest) {
       });
     }
   }
+  // Pull every partner.contact_id so the outreach grid knows which
+  // contacts already have a linked partner. Drives the "Add partner"
+  // vs. "View partner" affordance in the action menu — and lets us
+  // render a small badge in the row without a second round-trip.
+  const { data: partnerLinks } = await admin
+    .from('partners')
+    .select('id, contact_id')
+    .not('contact_id', 'is', null);
+  const partnerByContact = new Map<string, string>();
+  for (const p of (partnerLinks ?? []) as Array<{ id: string; contact_id: string }>) {
+    if (p.contact_id) partnerByContact.set(p.contact_id, p.id);
+  }
   const enriched = rows.map((r) => ({
     ...r,
+    partner_id: partnerByContact.get(r.id) ?? null,
     last_contact_by_name: r.last_contact_by ? userMap.get(r.last_contact_by)?.full_name ?? null : null,
     last_contact_by_avatar_url: r.last_contact_by ? userMap.get(r.last_contact_by)?.avatar_url ?? null : null,
   }));
@@ -93,8 +144,14 @@ export async function POST(req: NextRequest) {
     .from('contacts')
     .insert({
       name,
+      company: trim(body.company, 200),
+      company_website: trim(body.company_website, 500),
+      type: normaliseTypeArray(body.type),
+      specialty: trim(body.specialty, 200),
       role: trim(body.role, 200),
       phone: trim(body.phone, 60),
+      phone_cell: trim(body.phone_cell, 60),
+      phone_office: trim(body.phone_office, 60),
       email: trim(body.email, 200),
       location: trim(body.location, 200),
       notes: trim(body.notes, 4000),

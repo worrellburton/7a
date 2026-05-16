@@ -35,9 +35,9 @@ export default function PhilosophyCTA() {
           team is available around the clock.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center items-center" style={{ opacity: visible ? 1 : 0, transform: visible ? 'translateY(0)' : 'translateY(12px)', transition: 'all 0.95s cubic-bezier(0.16,1,0.3,1) 0.6s' }}>
-          <a href="tel:+18669964308" className="inline-flex items-center gap-2 bg-white text-primary-dark hover:bg-warm-bg rounded-full px-8 py-4 text-sm font-semibold shadow-[0_24px_50px_-20px_rgba(0,0,0,0.7)] transition-all" style={{ fontFamily: 'var(--font-body)' }}>
+          <a href="tel:+18667181665" className="inline-flex items-center gap-2 bg-white text-primary-dark hover:bg-warm-bg rounded-full px-8 py-4 text-sm font-semibold shadow-[0_24px_50px_-20px_rgba(0,0,0,0.7)] transition-all" style={{ fontFamily: 'var(--font-body)' }}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" /></svg>
-            Call (866) 996-4308
+            Call (866) 718-1665
           </a>
           <Link href="/admissions#verify" className="inline-flex items-center gap-2 border border-white/35 hover:border-white text-white hover:bg-white/10 rounded-full px-8 py-4 text-sm font-semibold transition-colors" style={{ fontFamily: 'var(--font-body)' }}>
             Verify Insurance

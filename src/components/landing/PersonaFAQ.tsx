@@ -302,7 +302,7 @@ export default function PersonaFAQ() {
                       style={{ fontFamily: 'var(--font-body)' }}
                     >
                       <a
-                        href="tel:+18669964308"
+                        href="tel:+18667181665"
                         className="text-primary font-semibold underline decoration-primary/30 hover:decoration-primary"
                       >
                         Call admissions to ask more

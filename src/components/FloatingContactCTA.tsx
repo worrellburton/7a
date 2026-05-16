@@ -30,7 +30,7 @@ export default function FloatingContactCTA() {
             Get in Touch
           </p>
           <a
-            href="tel:+18669964308"
+            href="tel:+18667181665"
             className="flex items-center gap-2.5 p-2.5 rounded-xl hover:bg-warm-bg transition-colors group"
           >
             <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
@@ -40,7 +40,7 @@ export default function FloatingContactCTA() {
             </div>
             <div>
               <p className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors" style={{ fontFamily: 'var(--font-body)' }}>Call Now</p>
-              <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>(866) 996-4308</p>
+              <p className="text-[10px] text-foreground/40" style={{ fontFamily: 'var(--font-body)' }}>(866) 718-1665</p>
             </div>
           </a>
           <button

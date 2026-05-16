@@ -7,7 +7,7 @@ import { faqPageSchema, medicalWebPageSchema, jsonLdScript } from '@/lib/seo/pag
 export const metadata: Metadata = {
   title: 'Alcohol Rehab in Arizona | Seven Arrows Recovery',
   description:
-    'JCAHO-accredited residential alcohol rehab in Arizona — trauma-informed care on a 160-acre Cochise County ranch with coordinated medical detox. (866) 996-4308.',
+    'JCAHO-accredited residential alcohol rehab in Arizona — trauma-informed care on a 160-acre Cochise County ranch with coordinated medical detox. (866) 718-1665.',
 };
 
 const faqJsonLd = faqPageSchema([
@@ -63,7 +63,7 @@ export default function AlcoholAddictionPage() {
           { label: 'Medical detox first', body: 'Alcohol withdrawal can be dangerous. Coordinated detox at a partner facility, then direct hand-off into residential.' },
           { label: 'Trauma-informed', body: 'Forward-Facing® Accelerated Recovery framework treats alcohol use and underlying trauma concurrently — not sequentially.' },
           { label: 'Somatic + experiential', body: 'Somatic experiencing, breathwork, equine-assisted psychotherapy — body-based modalities alongside traditional talk therapy.' },
-          { label: 'Insurance', body: 'Most major carriers accepted (Aetna, BCBS, Cigna, UHC, TRICARE). Free benefits verification: (866) 996-4308.' },
+          { label: 'Insurance', body: 'Most major carriers accepted (Aetna, BCBS, Cigna, UHC, TRICARE). Free benefits verification: (866) 718-1665.' },
         ]}
         sources={[
           { label: 'SAMHSA — Alcohol Use Disorder treatment', href: 'https://www.samhsa.gov/substance-use/treatment' },

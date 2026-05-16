@@ -13,12 +13,19 @@
 //     via Supabase realtime (Phase 7)
 //   * Map View placeholder rendered with specialty-clustered pins
 //     (Phase 9)
-//   * Downgrade to Contact action (Phase 9) with a confirmation
+//   * Remove partner action (Phase 9) with a confirmation
 //     dialog and a clean entity conversion through the API.
 
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DepartmentPageNav } from '../DepartmentPageNav';
+import { SearchSelectCell } from '@/components/SearchSelectCell';
+import {
+  ContactMethodPicker,
+  METHOD_TONES as SHARED_METHOD_TONES,
+  type ContactMethod as SharedContactMethod,
+} from '@/lib/contact-methods';
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -27,18 +34,30 @@ type PartnerType = (typeof PARTNER_TYPES)[number];
 
 const FACILITY_TYPES: ReadonlySet<string> = new Set(['Detox', 'RTC', 'Outpatient', 'Extended Care']);
 
-type ContactMethod = 'Phone' | 'In Person' | 'Left Message';
+type ContactMethod = SharedContactMethod;
 
-const METHOD_TONES: Record<ContactMethod, string> = {
-  Phone: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  'In Person': 'bg-blue-50 text-blue-700 border-blue-200',
-  'Left Message': 'bg-amber-50 text-amber-700 border-amber-200',
+type ContactRating = 'Tier 1' | 'Tier 2' | 'Tier 3';
+
+// Same palette as outreach RatingCell so the pill reads identically on
+// both surfaces. "Tier 1" gets the premium sheen via .sa-tier1-premium
+// already defined in globals.
+const RATING_TONES: Record<ContactRating, string> = {
+  'Tier 1': 'bg-emerald-50 text-emerald-700 border-emerald-200',
+  'Tier 2': 'bg-amber-50 text-amber-700 border-amber-200',
+  'Tier 3': 'bg-foreground/5 text-foreground/60 border-foreground/15',
 };
+const RATING_OPTIONS: ContactRating[] = ['Tier 1', 'Tier 2', 'Tier 3'];
+
+const METHOD_TONES = SHARED_METHOD_TONES;
 
 interface Partner {
   id: string;
   name: string;
   type: PartnerType;
+  // Outreach-style tier rating (Tier 1 / Tier 2 / Tier 3). Mirrors
+  // contacts.rating so the same pill renders here and on the
+  // outreach grid. NULL = unrated.
+  rating: ContactRating | null;
   specialty: string | null;
   location: string | null;
   poc: string | null;
@@ -71,9 +90,16 @@ interface ColumnDef {
   align?: 'left' | 'right';
 }
 
+// Column order mirrors the outreach identity strip — Name → Rating
+// → Website (Site) → Type → Specialty come first, then the partner-
+// specific fields (PoC, Contact info, Admissions line, …) flow in
+// after. The leading `priority` cell stays pinned far-left and is
+// not user-reorderable.
 const ALL_COLUMNS: ColumnDef[] = [
   { key: 'priority', label: '#', width: '52px', align: 'right' },
   { key: 'name', label: 'Name' },
+  { key: 'rating', label: 'Rating', width: '110px' },
+  { key: 'website', label: 'Site', width: '70px' },
   { key: 'type', label: 'Type', width: '130px' },
   { key: 'specialty', label: 'Specialty' },
   { key: 'location', label: 'Location' },
@@ -83,7 +109,6 @@ const ALL_COLUMNS: ColumnDef[] = [
   { key: 'cash_pay_rate', label: 'Cash rate', align: 'right', width: '110px' },
   { key: 'insurance', label: 'Insurance' },
   { key: 'levels_of_care', label: 'Levels of care' },
-  { key: 'website', label: 'Website' },
   { key: 'rep', label: 'Rep' },
   { key: 'notes', label: 'Notes' },
   { key: 'comments', label: 'Comments' },
@@ -122,6 +147,31 @@ const TYPE_TONES: Record<PartnerType, string> = {
 const LEVELS_OF_CARE_OPTIONS = ['Detox', 'Inpatient', 'Residential', 'PHP', 'IOP', 'OP', 'Sober Living'];
 const COMMON_INSURANCE = ['Aetna', 'BCBS', 'Cigna', 'UnitedHealthcare', 'Humana', 'TRICARE', 'Anthem', 'Medicaid', 'Self-Pay', 'Other'];
 
+// Per-column default widths in px. Used when the shared row in
+// `shared_grid_prefs.column_widths` doesn't yet have an entry for a
+// column. Mirrors the outreach grid's DEFAULT_COL_WIDTHS_PX so the two
+// surfaces feel like the same component.
+const DEFAULT_COL_WIDTHS_PX: Record<string, number> = {
+  priority: 52,
+  name: 220,
+  rating: 110,
+  website: 70,
+  type: 130,
+  specialty: 200,
+  location: 180,
+  poc: 180,
+  contact_info: 200,
+  admissions_line: 160,
+  cash_pay_rate: 110,
+  insurance: 200,
+  levels_of_care: 200,
+  rep: 160,
+  notes: 280,
+  comments: 280,
+};
+const RESIZE_MIN_PX = 70;
+const RESIZE_MAX_PX = 900;
+
 // ─── Page ───────────────────────────────────────────────────────
 
 export default function PartnershipsContent() {
@@ -130,6 +180,7 @@ export default function PartnershipsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'grid' | 'map'>('grid');
+  const [insightsOpen, setInsightsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [filterSpecialty, setFilterSpecialty] = useState<string>('');
   const [filterInsurance, setFilterInsurance] = useState<string>('');
@@ -145,6 +196,17 @@ export default function PartnershipsContent() {
   // Shared column prefs (visible + order). null until first load.
   const [visibleCols, setVisibleCols] = useState<string[] | null>(null);
   const [columnOrder, setColumnOrder] = useState<string[] | null>(null);
+  // Column widths in px keyed by column key. Empty / missing keys
+  // fall back to DEFAULT_COL_WIDTHS_PX. Updated optimistically while
+  // the user drags a resize handle and persisted on pointer-up;
+  // realtime updates from `shared_grid_prefs` overwrite this state so
+  // every admin sees the same layout in lockstep — same pattern as
+  // the outreach grid.
+  const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
+  // Guards a transient race: when the user is mid-drag, a realtime
+  // echo of our own width write can snap the column back to its
+  // pre-drag value before the drag ends.
+  const resizingRef = useRef(false);
 
   // Initial fetch + realtime subscriptions for partners + prefs.
   useEffect(() => {
@@ -165,6 +227,9 @@ export default function PartnershipsContent() {
       .then((json) => {
         if (cancelled || !json) return;
         applyPrefs(json.visible_columns, json.column_order);
+        if (json.column_widths && typeof json.column_widths === 'object') {
+          setColumnWidths(json.column_widths as Record<string, number>);
+        }
       });
 
     const channel = supabase
@@ -187,8 +252,12 @@ export default function PartnershipsContent() {
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'shared_grid_prefs', filter: 'scope=eq.partners' }, (payload) => {
-        const row = payload.new as { visible_columns: string[]; column_order: string[] } | null;
-        if (row) applyPrefs(row.visible_columns, row.column_order);
+        const row = payload.new as { visible_columns: string[]; column_order: string[]; column_widths?: Record<string, number> } | null;
+        if (!row) return;
+        applyPrefs(row.visible_columns, row.column_order);
+        if (row.column_widths && typeof row.column_widths === 'object' && !resizingRef.current) {
+          setColumnWidths(row.column_widths as Record<string, number>);
+        }
       })
       .subscribe();
     return () => {
@@ -222,6 +291,21 @@ export default function PartnershipsContent() {
           Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ visible_columns: visible, column_order: order }),
+      });
+    },
+    [session?.access_token],
+  );
+
+  // Save a single column's width to the shared prefs row. Same partial
+  // payload outreach uses — the prefs API merges into existing widths
+  // so a resize call doesn't clobber visibility/order, and vice versa.
+  const persistColumnWidth = useCallback(
+    async (key: string, widthPx: number) => {
+      if (!session?.access_token) return;
+      await fetch('/api/partnerships/prefs', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ column_widths: { [key]: Math.round(widthPx) } }),
       });
     },
     [session?.access_token],
@@ -345,6 +429,25 @@ export default function PartnershipsContent() {
     setEditing(null);
   }
 
+  // Inline patch used by the in-grid SearchSelectCell on the Specialty
+  // column — separate from handleUpdate because we don't want to touch
+  // the edit-modal state. Optimistic so the row jumps to its new
+  // specialty group immediately; realtime reconciles if the server
+  // pushes back something different.
+  async function onInlineSpecialty(id: string, next: string | null) {
+    if (!session?.access_token) return;
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, specialty: next } : r)));
+    const res = await fetch(`/api/partnerships/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ specialty: next }),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      alert(`Couldn't save specialty: ${json.error ?? res.status}`);
+    }
+  }
+
   async function handleLogContact(target: Partner, method: ContactMethod, comments: string) {
     if (!session?.access_token) return;
     const optimisticAt = new Date().toISOString();
@@ -405,9 +508,12 @@ export default function PartnershipsContent() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-[1600px] mx-auto pb-[max(1rem,env(safe-area-inset-bottom))]" style={{ fontFamily: 'var(--font-body)' }}>
+      <div className="mb-4">
+        <DepartmentPageNav />
+      </div>
       <header className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-foreground tracking-tight">Partnerships &amp; Referrals</h1>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight">BD Partnerships</h1>
           <p className="text-sm text-foreground/55 mt-0.5">
             Clinical partners and referral sources, grouped by specialty.
             {rows.length > 0 && (
@@ -416,6 +522,32 @@ export default function PartnershipsContent() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setView((v) => (v === 'map' ? 'grid' : 'map'))}
+            aria-pressed={view === 'map'}
+            className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2 rounded-lg border text-xs font-semibold uppercase tracking-wider transition-colors ${
+              view === 'map'
+                ? 'border-foreground bg-foreground text-white'
+                : 'border-black/10 bg-white text-foreground/70 hover:border-foreground/30 hover:text-foreground'
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13 6-3m-6 3V7m6 10 5.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-1.447-.894L15 4m0 13V4m-6 3 6-3" />
+            </svg>
+            Map
+          </button>
+          <button
+            type="button"
+            onClick={() => setInsightsOpen(true)}
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2 rounded-lg border border-black/10 bg-white text-foreground/70 text-xs font-semibold uppercase tracking-wider hover:border-foreground/30 hover:text-foreground transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 3v18h18" />
+              <path d="M7 15l4-6 4 4 5-9" />
+            </svg>
+            Insights
+          </button>
           <button
             type="button"
             onClick={() => setShowImport(true)}
@@ -469,7 +601,6 @@ export default function PartnershipsContent() {
         </div>
 
         <div className="sm:ml-auto flex items-center gap-2">
-          <ViewToggle value={view} onChange={setView} />
           {/* Manage Columns is for the desktop table; on mobile every
               field already shows in the per-partner card. */}
           <div className="hidden md:block">
@@ -488,22 +619,83 @@ export default function PartnershipsContent() {
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       )}
 
-      {view === 'grid' ? (
-        <PartnersGrid
-          loading={loading}
-          rows={groupedRows}
-          columns={visibleColumnsResolved}
-          onColDragStart={onColDragStart}
-          onColDrop={onColDrop}
-          onEdit={(p) => setEditing(p)}
-          onDowngrade={(p) => setDowngradeTarget(p)}
-          onLogContact={(p) => setLogTarget(p)}
-          onHistory={(p) => setHistoryTarget(p)}
-          actionMenuFor={actionMenuFor}
-          setActionMenuFor={setActionMenuFor}
-        />
-      ) : (
-        <PartnersMapView rows={filtered} />
+      <PartnersGrid
+        loading={loading}
+        rows={groupedRows}
+        columns={visibleColumnsResolved}
+        onColDragStart={onColDragStart}
+        onColDrop={onColDrop}
+        onEdit={(p) => setEditing(p)}
+        onDowngrade={(p) => setDowngradeTarget(p)}
+        onLogContact={(p) => setLogTarget(p)}
+        onHistory={(p) => setHistoryTarget(p)}
+        actionMenuFor={actionMenuFor}
+        setActionMenuFor={setActionMenuFor}
+        specialties={specialties}
+        onInlineSpecialty={onInlineSpecialty}
+        columnWidths={columnWidths}
+        onResizeColumn={(key, w) => setColumnWidths((prev) => ({ ...prev, [key]: Math.round(w) }))}
+        onCommitColumnWidth={(key, w) => { void persistColumnWidth(key, w); }}
+        onResizeStart={() => { resizingRef.current = true; }}
+        onResizeEnd={() => { resizingRef.current = false; }}
+      />
+
+      {view === 'map' && (
+        <div
+          className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center bg-black/50 p-0 sm:p-6"
+          onClick={() => setView('grid')}
+        >
+          <div
+            className="relative w-full max-w-6xl h-full sm:h-auto sm:max-h-[90vh] bg-white rounded-none sm:rounded-2xl shadow-xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-3 border-b border-black/10 shrink-0">
+              <h2 className="text-base font-semibold text-foreground">Partner map</h2>
+              <button
+                type="button"
+                onClick={() => setView('grid')}
+                className="text-foreground/50 hover:text-foreground transition-colors"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5">
+              <PartnersMapView rows={filtered} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {insightsOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center bg-black/50 p-0 sm:p-6"
+          onClick={() => setInsightsOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-3xl bg-white rounded-none sm:rounded-2xl shadow-xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-3 border-b border-black/10 shrink-0">
+              <h2 className="text-base font-semibold text-foreground">BD Partnerships insights</h2>
+              <button
+                type="button"
+                onClick={() => setInsightsOpen(false)}
+                className="text-foreground/50 hover:text-foreground transition-colors"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto p-6">
+              <PartnersInsightsView rows={filtered} />
+            </div>
+          </div>
+        </div>
       )}
 
       {showCreate && (
@@ -555,6 +747,85 @@ export default function PartnershipsContent() {
 
 // ─── Grid ───────────────────────────────────────────────────────
 
+// Right-edge column-resize grip rendered inside each <th>. The parent
+// <th> is positioned-relative + group/th so a faint hover affordance
+// shows on the handle without bleeding into the header label. Drag
+// updates the parent's columnWidths map; pointer-up triggers the
+// org-wide persist so every teammate's viewport hot-syncs via
+// realtime. Mirrors src/app/app/outreach/content.tsx's ResizeHandle.
+function ResizeHandle({
+  colKey,
+  onResize,
+  onCommit,
+  onStart,
+  onEnd,
+}: {
+  colKey: string;
+  onResize: (key: string, widthPx: number) => void;
+  onCommit: (key: string, widthPx: number) => void;
+  onStart: () => void;
+  onEnd: () => void;
+}) {
+  const [active, setActive] = useState(false);
+  const stateRef = useRef<{ startX: number; startWidth: number; lastWidth: number } | null>(null);
+
+  function findHeaderEl(currentTarget: HTMLElement): HTMLElement | null {
+    return currentTarget.closest(`th[data-col-key="${colKey}"]`) as HTMLElement | null;
+  }
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+    const headerEl = findHeaderEl(e.currentTarget);
+    if (!headerEl) return;
+    const startWidth = headerEl.getBoundingClientRect().width;
+    stateRef.current = { startX: e.clientX, startWidth, lastWidth: startWidth };
+    setActive(true);
+    onStart();
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const s = stateRef.current;
+    if (!s) return;
+    e.preventDefault();
+    const dx = e.clientX - s.startX;
+    const next = Math.max(RESIZE_MIN_PX, Math.min(RESIZE_MAX_PX, s.startWidth + dx));
+    s.lastWidth = next;
+    onResize(colKey, next);
+  }
+
+  function onPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    const s = stateRef.current;
+    if (!s) return;
+    const finalWidth = s.lastWidth;
+    stateRef.current = null;
+    setActive(false);
+    onEnd();
+    onCommit(colKey, finalWidth);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  }
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={`Resize ${colKey} column`}
+      draggable={false}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onDragStart={(e) => { e.preventDefault(); e.stopPropagation(); }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+      className={`absolute right-0 top-1 bottom-1 w-2 -mr-px rounded-full select-none cursor-col-resize touch-none transition-colors duration-150 ${active ? 'bg-[#bc6b4a]/80' : 'bg-transparent hover:bg-foreground/25 group-hover/th:bg-foreground/10'}`}
+    />
+  );
+}
+
 function PartnersGrid({
   loading,
   rows,
@@ -567,6 +838,13 @@ function PartnersGrid({
   onHistory,
   actionMenuFor,
   setActionMenuFor,
+  specialties,
+  onInlineSpecialty,
+  columnWidths,
+  onResizeColumn,
+  onCommitColumnWidth,
+  onResizeStart,
+  onResizeEnd,
 }: {
   loading: boolean;
   rows: { row: Partner; priority: number; isFirstOfGroup: boolean }[];
@@ -579,11 +857,30 @@ function PartnersGrid({
   onHistory: (p: Partner) => void;
   actionMenuFor: string | null;
   setActionMenuFor: (id: string | null) => void;
+  specialties: string[];
+  onInlineSpecialty: (id: string, next: string | null) => Promise<void> | void;
+  columnWidths: Record<string, number>;
+  onResizeColumn: (key: string, widthPx: number) => void;
+  onCommitColumnWidth: (key: string, widthPx: number) => void;
+  onResizeStart: () => void;
+  onResizeEnd: () => void;
 }) {
   return (
     <>
       <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10 bg-white">
-        <table className="w-full text-sm">
+        <table className="w-full text-sm table-fixed">
+        {/* <colgroup> drives actual column widths so resize is cheap
+            (only one node per column needs its width set, not every
+            cell). Mirrors the outreach grid pattern — widths come from
+            the shared `column_widths` map first, then per-column
+            defaults, then a sensible 180px fallback. */}
+        <colgroup>
+          {columns.map((c) => {
+            const w = columnWidths[c.key] ?? DEFAULT_COL_WIDTHS_PX[c.key] ?? 180;
+            return <col key={c.key} style={{ width: `${w}px` }} />;
+          })}
+          <col style={{ width: '40px' }} />
+        </colgroup>
         <thead className="bg-warm-bg/50 text-left text-[11px] uppercase tracking-wider text-foreground/55">
           <tr>
             {columns.map((c) => {
@@ -591,16 +888,29 @@ function PartnersGrid({
               return (
                 <th
                   key={c.key}
+                  data-col-key={c.key}
                   draggable={!isPriority}
                   onDragStart={() => onColDragStart(c.key)}
                   onDragOver={(e) => { if (!isPriority) e.preventDefault(); }}
                   onDrop={() => onColDrop(c.key)}
-                  className={`px-3 py-2 whitespace-nowrap select-none ${c.align === 'right' ? 'text-right' : ''} ${
+                  className={`group/th relative px-3 py-2 whitespace-nowrap select-none ${c.align === 'right' ? 'text-right' : ''} ${
                     isPriority ? 'sticky left-0 bg-warm-bg/50 z-10' : 'cursor-move'
                   }`}
-                  style={c.width ? { width: c.width } : undefined}
                 >
-                  {c.label}
+                  <span className="truncate">{c.label}</span>
+                  {/* Priority is a fixed slim column; no resize handle so
+                      the eye-anchor for "where am I in the list" never
+                      moves. Every other header gets a drag-to-resize
+                      handle, persisted org-wide via persistColumnWidth. */}
+                  {!isPriority && (
+                    <ResizeHandle
+                      colKey={c.key}
+                      onResize={onResizeColumn}
+                      onCommit={onCommitColumnWidth}
+                      onStart={onResizeStart}
+                      onEnd={onResizeEnd}
+                    />
+                  )}
                 </th>
               );
             })}
@@ -623,7 +933,7 @@ function PartnersGrid({
                     key={c.key}
                     className={`px-3 py-0 h-12 max-w-[260px] overflow-hidden whitespace-nowrap ${c.align === 'right' ? 'text-right' : ''} ${c.key === 'priority' ? 'sticky left-0 bg-white z-[1] font-semibold tabular-nums text-foreground/55' : ''}`}
                   >
-                    <CellRenderer column={c} partner={row} priority={priority} onEdit={onEdit} />
+                    <CellRenderer column={c} partner={row} priority={priority} onEdit={onEdit} specialties={specialties} onInlineSpecialty={onInlineSpecialty} />
                   </td>
                 ))}
                 <td className="px-2 py-0 h-12 text-right relative align-middle">
@@ -668,7 +978,7 @@ function PartnersGrid({
                         onClick={() => { setActionMenuFor(null); onDowngrade(row); }}
                         className="block w-full text-left px-3 py-2 text-xs text-rose-700 hover:bg-rose-50"
                       >
-                        Downgrade to Contact
+                        Remove partner
                       </button>
                     </div>
                   )}
@@ -718,11 +1028,15 @@ function CellRenderer({
   partner,
   priority,
   onEdit,
+  specialties,
+  onInlineSpecialty,
 }: {
   column: ColumnDef;
   partner: Partner;
   priority: number;
   onEdit: (p: Partner) => void;
+  specialties: string[];
+  onInlineSpecialty: (id: string, next: string | null) => Promise<void> | void;
 }) {
   switch (column.key) {
     case 'priority':
@@ -738,14 +1052,33 @@ function CellRenderer({
           {partner.name}
         </button>
       );
+    case 'rating': {
+      // Mirrors outreach's RatingCell pill (read-only here — the
+      // edit modal already exposes the field on partnerships and a
+      // future PR can swap this for the same inline picker).
+      if (!partner.rating) return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-foreground/5 text-foreground/45 border-foreground/15 whitespace-nowrap">— Set tier —</span>;
+      return (
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${RATING_TONES[partner.rating]} ${partner.rating === 'Tier 1' ? 'sa-tier1-premium' : ''}`}>
+          {partner.rating === 'Tier 1' && <span aria-hidden className="text-amber-500">★</span>}
+          {partner.rating}
+        </span>
+      );
+    }
     case 'type':
       return (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-semibold border ${TYPE_TONES[partner.type] ?? 'bg-warm-bg text-foreground/65 border-black/10'}`}>
+        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${TYPE_TONES[partner.type] ?? 'bg-warm-bg text-foreground/65 border-black/10'}`}>
           {partner.type}
         </span>
       );
     case 'specialty':
-      return <span className="text-foreground/75 truncate block">{partner.specialty || <Em />}</span>;
+      return (
+        <SearchSelectCell
+          value={partner.specialty}
+          options={specialties}
+          onSave={(next) => onInlineSpecialty(partner.id, next)}
+          placeholder="Set specialty…"
+        />
+      );
     case 'location':
       return <span className="text-foreground/65 truncate block">{partner.location || <Em />}</span>;
     case 'poc':
@@ -774,10 +1107,38 @@ function CellRenderer({
       return partner.levels_of_care && partner.levels_of_care.length > 0
         ? <BadgeList values={partner.levels_of_care} />
         : <Em />;
-    case 'website':
-      return partner.website
-        ? <a href={partner.website} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate inline-block max-w-[220px] align-middle">{partner.website.replace(/^https?:\/\//, '')}</a>
-        : <Em />;
+    case 'website': {
+      // Compact site icon, matching outreach's WebsiteCell visual.
+      // Empty rows render a faded globe (no link); filled rows render
+      // a clickable external-link icon with the URL exposed via hover
+      // title. Width is tight (70px) so the cell behaves like an
+      // affordance, not a wide text column.
+      if (!partner.website) {
+        return (
+          <span
+            className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/25"
+            title="No website"
+            aria-label="No website"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3.6 9h16.8M3.6 15h16.8M12 3a13.5 13.5 0 0 1 0 18M12 3a13.5 13.5 0 0 0 0 18"/></svg>
+          </span>
+        );
+      }
+      const href = /^https?:\/\//i.test(partner.website) ? partner.website : `https://${partner.website}`;
+      return (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          title={partner.website}
+          aria-label={`Open ${partner.website} in a new tab`}
+          className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/75 hover:text-primary hover:bg-warm-bg transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </a>
+      );
+    }
     case 'rep':
       return <span className="text-foreground/75 truncate block">{partner.rep || <Em />}</span>;
     case 'notes':
@@ -836,7 +1197,16 @@ function PartnerMobileCard({
             </button>
           </div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5">
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10.5px] font-semibold border ${TYPE_TONES[partner.type] ?? 'bg-warm-bg text-foreground/65 border-black/10'}`}>
+            {/* Mirror the outreach mobile card: rating + type pills sit
+                under the name in that order so the qualifier hierarchy
+                (who → how good → what they offer) reads in one glance. */}
+            {partner.rating && (
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${RATING_TONES[partner.rating]} ${partner.rating === 'Tier 1' ? 'sa-tier1-premium' : ''}`}>
+                {partner.rating === 'Tier 1' && <span aria-hidden className="text-amber-500">★</span>}
+                {partner.rating}
+              </span>
+            )}
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${TYPE_TONES[partner.type] ?? 'bg-warm-bg text-foreground/65 border-black/10'}`}>
               {partner.type}
             </span>
             {partner.location && (
@@ -957,7 +1327,7 @@ function PartnerMobileCard({
                   onClick={() => { setOpen(false); onDowngrade(); }}
                   className="block w-full text-left px-3 py-2 text-xs text-rose-700 hover:bg-rose-50"
                 >
-                  Downgrade to Contact
+                  Remove partner
                 </button>
               </div>
             </>
@@ -1186,6 +1556,99 @@ function PartnersMapView({ rows }: { rows: Partner[] }) {
   );
 }
 
+// ─── Insights view ──────────────────────────────────────────────
+
+function PartnersInsightsView({ rows }: { rows: Partner[] }) {
+  const stats = useMemo(() => {
+    const total = rows.length;
+    const tierCount = { 'Tier 1': 0, 'Tier 2': 0, 'Tier 3': 0, Unrated: 0 } as Record<string, number>;
+    const specialtyCount = new Map<string, number>();
+    const typeCount = new Map<string, number>();
+    let neverContacted = 0;
+    let contactedThisMonth = 0;
+    const now = Date.now();
+    const monthMs = 30 * 24 * 60 * 60 * 1000;
+    for (const r of rows) {
+      const key = r.rating ?? 'Unrated';
+      tierCount[key] = (tierCount[key] ?? 0) + 1;
+      if (r.specialty) specialtyCount.set(r.specialty, (specialtyCount.get(r.specialty) ?? 0) + 1);
+      if (r.type) typeCount.set(r.type, (typeCount.get(r.type) ?? 0) + 1);
+      if (!r.last_contact_at) {
+        neverContacted += 1;
+      } else if (now - new Date(r.last_contact_at).getTime() <= monthMs) {
+        contactedThisMonth += 1;
+      }
+    }
+    return {
+      total,
+      tierCount,
+      specialties: Array.from(specialtyCount.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6),
+      types: Array.from(typeCount.entries()).sort((a, b) => b[1] - a[1]),
+      neverContacted,
+      contactedThisMonth,
+    };
+  }, [rows]);
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <KpiTile label="Total partners" value={stats.total} />
+        <KpiTile label="Contacted this month" value={stats.contactedThisMonth} accent="text-emerald-600" />
+        <KpiTile label="Never contacted" value={stats.neverContacted} accent="text-amber-600" />
+        <KpiTile label="Tier 1" value={stats.tierCount['Tier 1'] ?? 0} accent="text-emerald-700" />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="rounded-xl border border-black/10 bg-white p-5">
+          <h3 className="text-sm font-semibold text-foreground mb-3">Tier mix</h3>
+          <ul className="space-y-2 text-sm">
+            {(['Tier 1', 'Tier 2', 'Tier 3', 'Unrated'] as const).map((t) => {
+              const count = stats.tierCount[t] ?? 0;
+              const pct = stats.total > 0 ? (count / stats.total) * 100 : 0;
+              return (
+                <li key={t}>
+                  <div className="flex justify-between text-[12.5px] mb-1">
+                    <span className="text-foreground/70">{t}</span>
+                    <span className="tabular-nums text-foreground/55">{count} · {pct.toFixed(0)}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-foreground/5 overflow-hidden">
+                    <div className="h-full bg-foreground/70 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        <div className="rounded-xl border border-black/10 bg-white p-5">
+          <h3 className="text-sm font-semibold text-foreground mb-3">Top specialties</h3>
+          {stats.specialties.length === 0 ? (
+            <p className="text-sm text-foreground/45">No specialty data yet.</p>
+          ) : (
+            <ul className="space-y-2 text-sm">
+              {stats.specialties.map(([label, count]) => (
+                <li key={label} className="flex justify-between">
+                  <span className="text-foreground/75 truncate pr-2">{label}</span>
+                  <span className="tabular-nums text-foreground/55">{count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function KpiTile({ label, value, accent }: { label: string; value: number; accent?: string }) {
+  return (
+    <div className="rounded-xl border border-black/10 bg-white px-4 py-3">
+      <p className="text-[10.5px] font-semibold uppercase tracking-wider text-foreground/45">{label}</p>
+      <p className={`text-2xl font-bold tabular-nums mt-1 ${accent ?? 'text-foreground'}`}>{value}</p>
+    </div>
+  );
+}
+
 // ─── Create / edit form ────────────────────────────────────────
 
 function PartnerForm({
@@ -1201,6 +1664,7 @@ function PartnerForm({
 }) {
   const [type, setType] = useState<PartnerType>((initial?.type as PartnerType) ?? 'Detox');
   const [name, setName] = useState(initial?.name ?? '');
+  const [rating, setRating] = useState<ContactRating | ''>(initial?.rating ?? '');
   const [specialty, setSpecialty] = useState(initial?.specialty ?? '');
   const [location, setLocation] = useState(initial?.location ?? '');
   const [poc, setPoc] = useState(initial?.poc ?? '');
@@ -1227,6 +1691,7 @@ function PartnerForm({
     const payload: Partial<Partner> = {
       name: name.trim(),
       type,
+      rating: rating || null,
       specialty: specialty.trim() || null,
       location: location.trim() || null,
       poc: poc.trim() || null,
@@ -1279,6 +1744,12 @@ function PartnerForm({
           <Field label="Type" required>
             <select value={type} onChange={(e) => setType(e.target.value as PartnerType)} className="form-input">
               {PARTNER_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </Field>
+          <Field label="Rating" hint="Mirrors outreach tier rating.">
+            <select value={rating} onChange={(e) => setRating(e.target.value as ContactRating | '')} className="form-input">
+              <option value="">— Set tier —</option>
+              {RATING_OPTIONS.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           </Field>
           <Field label="Specialty">
@@ -1422,22 +1893,7 @@ function LogContactModal({
             <label className="block text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-2">
               Method <span className="text-primary">*</span>
             </label>
-            <div className="flex flex-wrap gap-2">
-              {(['Phone', 'In Person', 'Left Message'] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMethod(m)}
-                  className={`px-3 py-2 rounded-lg text-sm font-semibold border transition-colors ${
-                    method === m
-                      ? `${METHOD_TONES[m]} ring-2 ring-offset-1 ring-current/20`
-                      : 'bg-white text-foreground/65 border-black/10 hover:bg-warm-bg/60'
-                  }`}
-                >
-                  {m}
-                </button>
-              ))}
-            </div>
+            <ContactMethodPicker value={method} onChange={setMethod} />
           </div>
           <div>
             <label className="block text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-1">
@@ -1648,10 +2104,10 @@ function DowngradeConfirm({
         <div className="sm:hidden -mt-2 mb-3 flex justify-center">
           <span className="block w-10 h-1 rounded-full bg-foreground/15" />
         </div>
-        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-rose-700 mb-1">Downgrade to contact</p>
+        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-rose-700 mb-1">Remove partner</p>
         <h3 className="text-lg font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{partner.name}</h3>
         <p className="mt-2 text-sm text-foreground/65 leading-snug">
-          The partner row will be removed from the active grid. Their PoC, contact info, and location move to a new entry in <span className="font-semibold text-foreground">Contacts</span>, with a note that it was downgraded from this partner.
+          The partner record will be deleted. The underlying outreach contact stays on <span className="font-semibold text-foreground">Outreach</span> with its full engagement history — you can add a partner back to them later if you change your mind.
         </p>
         <div className="mt-5 flex items-center justify-end gap-2">
           <button type="button" onClick={onCancel} className="px-4 py-2 rounded-lg text-xs font-semibold text-foreground/65 hover:bg-warm-bg/60">
@@ -1663,7 +2119,7 @@ function DowngradeConfirm({
             onClick={async () => { setSubmitting(true); try { await onConfirm(); } finally { setSubmitting(false); } }}
             className="px-4 py-2 rounded-lg bg-rose-600 text-white text-xs font-semibold uppercase tracking-wider hover:bg-rose-700 disabled:opacity-50"
           >
-            {submitting ? 'Working…' : 'Downgrade'}
+            {submitting ? 'Working…' : 'Remove partner'}
           </button>
         </div>
       </div>

@@ -21,10 +21,33 @@ export interface PageConfig {
   // the `page_permissions` DB table — so product areas like Media can hang
   // off a shared header without needing a fake department row.
   navGroup?: string | null;
+  // When true, the page is visible exclusively to users with
+  // user_kind='alumni'. Staff / admins / super-admins lose sidebar
+  // entry + route access. Defaults to false; toggled per-page from
+  // /app/admin/user-permissions → Alumni tab.
+  alumniOnly?: boolean;
+  // Optional external URL. When set, the sidebar renders this page
+  // as a target="_blank" anchor instead of an internal Link, and
+  // the recency click-tracker still records the sentinel path so
+  // it participates in reordering like any other nav entry.
+  externalUrl?: string;
 }
 
 const defaultPages: PageConfig[] = [
   { path: '/app', label: 'Home', adminOnly: false, section: 'nav', sort_order: 0, allowedDepartments: [], departmentId: null },
+  // Connect-4 tournament — team-bonding game shipped across 10 phases.
+  // Phase 1: page scaffold + schema. Visible to all staff so the
+  // tournament participant pool isn't gated unnecessarily.
+  { path: '/app/games/connect4', label: 'Connect-4', adminOnly: false, section: 'nav', sort_order: 99, allowedDepartments: [], departmentId: null },
+  // Hardware inventory — admin-only because the list contains PINs,
+  // account credentials, and asset values that aren't appropriate
+  // for general staff visibility.
+  { path: '/app/hardware', label: 'Hardware', adminOnly: true, section: 'nav', sort_order: 80, allowedDepartments: [], departmentId: null },
+  // External link to the marketing site. Routed through the sidebar
+  // like any other entry so it participates in recency reordering;
+  // the externalUrl field makes PlatformShell render it as an
+  // anchor (target=_blank) instead of an internal Link.
+  { path: '/app/website', label: 'Website', adminOnly: false, section: 'nav', sort_order: 99, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9', externalUrl: 'https://www.sevenarrowsrecoveryarizona.com/' },
   { path: '/app/facilities', label: 'Facilities', adminOnly: false, section: 'nav', sort_order: 1, allowedDepartments: [], departmentId: null },
   { path: '/app/compliance', label: 'Compliance', adminOnly: false, section: 'nav', sort_order: 2, allowedDepartments: [], departmentId: null },
   { path: '/app/groups', label: 'Groups', adminOnly: false, section: 'nav', sort_order: 3, allowedDepartments: [], departmentId: null },
@@ -41,8 +64,9 @@ const defaultPages: PageConfig[] = [
   { path: '/app/job-descriptions', label: 'Job Descriptions', adminOnly: false, section: 'nav', sort_order: 10, allowedDepartments: [], departmentId: null },
   { path: '/app/tours', label: 'Tours', adminOnly: false, section: 'nav', sort_order: 11, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/admissions', label: 'Admissions', adminOnly: false, section: 'nav', sort_order: 15, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
-  { path: '/app/partnerships', label: 'Partnerships', adminOnly: false, section: 'nav', sort_order: 15.5, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
-  { path: '/app/outreach', label: 'Outreach', adminOnly: false, section: 'nav', sort_order: 15.6, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/app/outreach', label: 'Marketing', adminOnly: false, section: 'nav', sort_order: 15.2, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/app/partnerships', label: 'BD Partnerships', adminOnly: false, section: 'nav', sort_order: 15.4, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/app/donations', label: 'Donations', adminOnly: false, section: 'nav', sort_order: 15.6, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/intake-paperwork', label: 'Intake Paperwork', adminOnly: false, section: 'nav', sort_order: 16, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/seo', label: 'SEO', adminOnly: false, section: 'nav', sort_order: 20, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/geo', label: 'GEO', adminOnly: false, section: 'nav', sort_order: 21, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
@@ -59,6 +83,11 @@ const defaultPages: PageConfig[] = [
   // in directly. Every /api/social-media/* route enforces the same
   // server-side via requireSuperAdmin.
   { path: '/app/social-media', label: 'Social Media', adminOnly: true, section: 'nav', sort_order: 25, allowedDepartments: [], departmentId: null },
+  // Content — super-admin-only AI blog pipeline. Same gating pattern
+  // as Social Media: adminOnly here for the sidebar, runtime
+  // is_super_admin check inside the page + every /api/content/*
+  // route via requireSuperAdmin.
+  { path: '/app/content', label: 'Content', adminOnly: true, section: 'nav', sort_order: 26, allowedDepartments: [], departmentId: null },
   { path: '/app/document-manager', label: 'Document Manager', adminOnly: false, section: 'nav', sort_order: 17, allowedDepartments: [], departmentId: null },
   // Org Chart is now accessed from inside another page (no longer in the popup menu).
   { path: '/app/reviews', label: 'Reviews', adminOnly: true, section: 'popup', sort_order: 6, allowedDepartments: [], departmentId: null },
@@ -209,7 +238,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
         const data = await db({
           action: 'select',
           table: 'page_permissions',
-          select: 'path, admin_only, section, sort_order, allowed_departments, department_id',
+          select: 'path, admin_only, section, sort_order, allowed_departments, department_id, alumni_only',
         });
 
         // Only apply DB overrides if query succeeded and returned data
@@ -235,6 +264,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
                   sort_order: typeof match.sort_order === 'number' ? match.sort_order : p.sort_order,
                   allowedDepartments: Array.isArray(match.allowed_departments) ? match.allowed_departments : [],
                   departmentId: match.department_id ?? null,
+                  alumniOnly: match.alumni_only === true,
                 };
               }
               return p;

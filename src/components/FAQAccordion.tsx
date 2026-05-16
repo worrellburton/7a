@@ -8,7 +8,7 @@ const faqs = [
   {
     question: 'Does Seven Arrows Recovery accept insurance?',
     answer:
-      'Yes. We work with most major insurance providers and our admissions team will verify your benefits before you arrive. We also offer private pay options and can discuss financing if needed. Call us at (866) 996-4308 for a free, confidential insurance verification.',
+      'Yes. We work with most major insurance providers and our admissions team will verify your benefits before you arrive. We also offer private pay options and can discuss financing if needed. Call us at (866) 718-1665 for a free, confidential insurance verification.',
   },
   {
     question: 'How long does treatment last?',
@@ -43,7 +43,7 @@ const faqs = [
   {
     question: 'How do I get started with admissions?',
     answer:
-      'Getting started is simple. Call our admissions line at (866) 996-4308 or fill out our online contact form. Our team will conduct a confidential assessment, verify your insurance, and help coordinate travel to our facility in southeastern Arizona. Many clients are admitted within 24 to 48 hours of their first call.',
+      'Getting started is simple. Call our admissions line at (866) 718-1665 or fill out our online contact form. Our team will conduct a confidential assessment, verify your insurance, and help coordinate travel to our facility in southeastern Arizona. Many clients are admitted within 24 to 48 hours of their first call.',
   },
   {
     question: 'Do you offer medical detox on-site?',

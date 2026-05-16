@@ -155,11 +155,11 @@ export default function FAQHero() {
               </svg>
             </a>
             <a
-              href="tel:+18669964308"
+              href="tel:+18667181665"
               className="inline-flex items-center gap-2 text-white/85 font-semibold border-b border-white/40 pb-1 tracking-[0.1em] uppercase text-[12px] hover:text-white hover:border-white transition-colors"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              Call (866) 996-4308
+              Call (866) 718-1665
             </a>
           </div>
         </div>

@@ -32,6 +32,20 @@ body {
   line-height: 1.6;
 }
 
+/* Tailwind v4 dropped the legacy `cursor: pointer` on buttons (and
+   role="button") and never set one on interactive anchors. Restore the
+   classic "if it does something on click, the cursor changes" UX
+   site-wide so every action button, icon-only button, dropdown
+   toggle, etc. signals affordance without needing an extra
+   cursor-pointer utility on every call site. Disabled / aria-disabled
+   stays on the default cursor so users see the difference. */
+button:not(:disabled):not([aria-disabled="true"]),
+[role="button"]:not(:disabled):not([aria-disabled="true"]),
+summary,
+a[href] {
+  cursor: pointer;
+}
+
 /* Admin portal: zoom everything ~20% smaller across the board on larger
    viewports. Using `zoom` scales Tailwind rem utilities, px values,
    spacing, and images together so pages feel 2-3 type-scale steps tighter
@@ -334,6 +348,70 @@ html:has(:target) {
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* ─── Mobile optimization · Phase 1 · tap-target floor ─────────── */
+/*
+ * iOS HIG and Material both call for a minimum 44×44 (or 48dp) touch
+ * target. The app surface accumulated a lot of compact text-only
+ * buttons (filter chips, "Add", tier pills, etc.) that read fine on
+ * desktop but undershoot the touch floor on phones. Rather than walk
+ * every call site, this scoped rule guarantees a minimum hit area
+ * on screens narrower than the md breakpoint (768px) for every
+ * interactive element inside the platform shell.
+ *
+ * `min-height: 44px` + `min-width: 44px` enforce the floor without
+ * changing visual size (padding still controls the painted shape —
+ * the hit area extends past the visible chrome where padding is too
+ * small). Icon-only buttons get an explicit larger hit slop via the
+ * `:not(.sa-tap-natural)` escape hatch so call sites with a known
+ * larger target (e.g. inline pill that already exceeds 44px from
+ * padding) can opt out by adding the class.
+ *
+ * Scoped to `[data-platform-main]` so the public marketing site —
+ * which has its own .btn-primary/.btn-outline system — isn't
+ * touched. Public surfaces get their own pass in Phase 7.
+ */
+@media (max-width: 767px) {
+  [data-platform-main] button:not(.sa-tap-natural),
+  [data-platform-main] [role="button"]:not(.sa-tap-natural),
+  [data-platform-main] a[href]:not(.sa-tap-natural):not(p a):not(li a),
+  [data-platform-main] summary:not(.sa-tap-natural),
+  [data-platform-main] input[type="checkbox"]:not(.sa-tap-natural),
+  [data-platform-main] input[type="radio"]:not(.sa-tap-natural),
+  [data-platform-main] label.sa-checkbox-wrap:not(.sa-tap-natural) {
+    min-height: 44px;
+    min-width: 44px;
+    /* Force the inner content to centre vertically so the
+       enlarged hit slot doesn't visually shift the label. */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* Buttons that wrap multi-line content (e.g. the day-block
+     buttons on /app/admissions) need block-level flex so the
+     min-height stays honoured without breaking their column
+     layout — override the inline-flex above for them. */
+  [data-platform-main] button.sa-tap-block,
+  [data-platform-main] [role="button"].sa-tap-block {
+    display: flex;
+  }
+  /* Native form controls should also clear 16px so iOS Safari
+     doesn't zoom into the input on focus. */
+  [data-platform-main] input:not([type="checkbox"]):not([type="radio"]),
+  [data-platform-main] select,
+  [data-platform-main] textarea {
+    font-size: max(16px, 1rem);
+  }
+  /* Adjacent tap-target spacing — at least 8px between siblings
+     so the user doesn't fat-finger the wrong control. Applied
+     via the `.sa-tap-row` opt-in so dense, tightly-grouped
+     surfaces (e.g. the tier filter chip row, action button
+     stacks) can call it out without affecting every flex row. */
+  [data-platform-main] .sa-tap-row > * + * {
+    margin-left: 0.5rem;
+  }
+}
+
+
 /* Slide-on-sidebar — anything tagged with [data-shift-on-sidebar]
    slides 12rem to the right while the sidebar rail is being hovered
    (rail expands from w-16 to w-64, a 12rem delta). The home hero's
@@ -355,7 +433,16 @@ body:has([data-sidebar-rail]:hover) [data-shift-on-sidebar] {
    was designed to fit one viewport. Lock the scroll on the platform
    shell's main content container while [data-home-no-scroll] is
    present so a sub-pixel layout discrepancy can't introduce a
-   scrollbar. */
+   scrollbar.
+
+   On mobile we also need to pin the body itself — iOS Safari otherwise
+   lets the page rubber-band when the URL bar collapses, which reads
+   as the screen scrolling up and down "randomly." Using svh on the
+   home container + a hard `overflow: hidden` on the body while
+   [data-home-no-scroll] is on the tree keeps the orbit pinned to a
+   single, deterministic viewport. overscroll-behavior cuts the
+   rubber-band glow that would otherwise telegraph "scrollable" even
+   when nothing actually scrolls. */
 [data-platform-main]:has([data-home-no-scroll]) {
   overflow: hidden !important;
 }
@@ -363,6 +450,22 @@ body:has([data-sidebar-rail]:hover) [data-shift-on-sidebar] {
   height: 100%;
   max-height: 100%;
   overflow: hidden;
+}
+html:has([data-home-no-scroll]),
+body:has([data-home-no-scroll]) {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+@media (max-width: 1023px) {
+  html:has([data-home-no-scroll]),
+  body:has([data-home-no-scroll]) {
+    /* svh excludes the iOS dynamic URL bar so the locked viewport
+       always matches what the user actually sees, never bouncing
+       when the browser chrome resizes mid-gesture. */
+    height: 100svh;
+    max-height: 100svh;
+    touch-action: pan-x;
+  }
 }
 
 /* Hide the floating mobile call pill while the mobile nav drawer is
@@ -388,6 +491,184 @@ html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
     animation: none;
     box-shadow: inset 0 0 0 2px rgb(59 130 246 / 0.35);
   }
+}
+
+/* Tier 1 premium glow — the highest contact-rating chip on
+   /app/outreach. Soft emerald + gold halo that breathes slowly so a
+   Tier 1 row catches the eye without screaming for attention. */
+@keyframes sa-tier1-premium {
+  0%, 100% {
+    box-shadow:
+      0 0 0 0 rgb(16 185 129 / 0.55),
+      0 0 6px 0 rgb(245 158 11 / 0.35);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px rgb(16 185 129 / 0),
+      0 0 14px 2px rgb(245 158 11 / 0.55);
+  }
+}
+.sa-tier1-premium {
+  position: relative;
+  animation: sa-tier1-premium 2.2s ease-in-out infinite;
+  background-image: linear-gradient(110deg, rgb(236 253 245) 0%, rgb(254 243 199) 50%, rgb(236 253 245) 100%);
+  background-size: 220% 100%;
+  background-position: 0% 50%;
+  animation-name: sa-tier1-premium, sa-tier1-shimmer;
+  animation-duration: 2.2s, 4.4s;
+  animation-timing-function: ease-in-out, linear;
+  animation-iteration-count: infinite, infinite;
+}
+@keyframes sa-tier1-shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 220% 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-tier1-premium {
+    animation: none;
+    box-shadow: 0 0 0 1px rgb(16 185 129 / 0.45), 0 0 8px 0 rgb(245 158 11 / 0.35);
+    background-image: none;
+  }
+}
+
+/* Outreach insights — loading skeleton shimmer + a single
+   prefers-reduced-motion override that quiets every chart animation
+   on the Insights tab at once. The skeleton uses a soft warm-tone
+   gradient that drifts left-to-right over 1.4s; reduced-motion
+   pauses the drift and leaves the gradient at rest position so the
+   pane still reads as a placeholder. The .sa-outreach-insights
+   wrapper class is on every Insights surface (real and skeleton);
+   under reduced-motion every CSS transition + animation inside it
+   collapses to instant — covers the KPI strip bars, the donut
+   sweep, the line-chart stroke reveal, the method bars, the
+   leaderboard bars, the staleness segments, the funnel clip-path,
+   and the geographic ramp without each chart needing its own
+   reduced-motion guard. */
+.sa-insights-skel {
+  background: linear-gradient(
+    100deg,
+    rgba(245, 240, 235, 0.45) 0%,
+    rgba(245, 240, 235, 0.95) 35%,
+    rgba(255, 255, 255, 1)    50%,
+    rgba(245, 240, 235, 0.95) 65%,
+    rgba(245, 240, 235, 0.45) 100%
+  );
+  background-size: 200% 100%;
+  animation: sa-insights-skel-shimmer 1.4s ease-in-out infinite;
+}
+@keyframes sa-insights-skel-shimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-insights-skel {
+    animation: none;
+    background: rgba(245, 240, 235, 0.7);
+  }
+  .sa-outreach-insights *,
+  .sa-outreach-insights *::before,
+  .sa-outreach-insights *::after {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    transition-delay: 0ms !important;
+  }
+}
+
+/* Outreach map pins — the premium pin (Tier 1) gets a larger
+   teardrop body, an animated flame plume above, and a pulsing gold
+   glow halo at the base; everything else gets a smaller plain copper
+   pin so the premium partners visibly tower over the rest. The
+   wrapper is positioned by Google Maps OverlayView and translated
+   so the bottom-centre of the pin sits exactly on the lat/lng. */
+.sa-outreach-pin {
+  position: absolute;
+  cursor: pointer;
+  pointer-events: auto;
+  user-select: none;
+  /* Anchor the pin's tip on the lat/lng coordinate. */
+  transform: translate(-50%, -100%);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.35));
+  transition: transform 120ms ease;
+}
+.sa-outreach-pin:hover {
+  transform: translate(-50%, -100%) scale(1.08);
+  z-index: 1000;
+}
+.sa-pin-regular {
+  width: 22px;
+  height: 32px;
+}
+.sa-pin-tier1 {
+  width: 32px;
+  height: 60px; /* extra headroom for the flame plume */
+  z-index: 5;
+}
+.sa-pin-tier1 .sa-pin-body {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+.sa-pin-regular .sa-pin-body {
+  display: block;
+}
+/* Pulsing gold halo at the base of the Tier 1 pin. Sits behind the
+   teardrop body via z-index, breathes from a tight tight ring out to
+   a soft 24px radius and back. */
+.sa-pin-tier1 .sa-pin-glow {
+  position: absolute;
+  bottom: -2px;
+  left: 50%;
+  width: 36px;
+  height: 18px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(251 191 36 / 0.75), rgb(251 191 36 / 0));
+  filter: blur(2px);
+  animation: sa-pin-glow 1.8s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+@keyframes sa-pin-glow {
+  0%, 100% { opacity: 0.45; transform: translateX(-50%) scale(0.8); }
+  50%      { opacity: 0.95; transform: translateX(-50%) scale(1.25); }
+}
+/* Flame plume above the Tier 1 pin. The wrapper rocks gently
+   side-to-side; the SVG inside flickers its opacity so the inner
+   yellow tongue pulses brighter than the outer red mantle. */
+.sa-pin-tier1 .sa-pin-flame {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 22px;
+  height: 22px;
+  transform: translateX(-50%);
+  transform-origin: 50% 100%;
+  animation: sa-pin-flame-dance 0.5s ease-in-out infinite alternate;
+  z-index: 6;
+  pointer-events: none;
+}
+.sa-pin-tier1 .sa-pin-flame svg {
+  display: block;
+  animation: sa-pin-flame-flicker 0.45s ease-in-out infinite alternate;
+}
+@keyframes sa-pin-flame-dance {
+  0%   { transform: translateX(-50%) scale(0.9, 0.95) skewX(-3deg); }
+  100% { transform: translateX(-50%) scale(1.06, 1.1)  skewX(3deg); }
+}
+@keyframes sa-pin-flame-flicker {
+  0%   { opacity: 0.7; }
+  100% { opacity: 1;   }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-pin-tier1 .sa-pin-glow,
+  .sa-pin-tier1 .sa-pin-flame,
+  .sa-pin-tier1 .sa-pin-flame svg {
+    animation: none;
+  }
+  .sa-pin-tier1 .sa-pin-glow { opacity: 0.7; }
 }
 
 /* Wavy text — used by the home-page mission tagline. Each glyph is
@@ -485,5 +766,474 @@ html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
   .cursor-effect-rainbow,
   .cursor-effect-pulse-ring {
     animation: none;
+  }
+}
+
+/* Hover popovers on the outreach Phone / Email icons. The popover is
+   rendered into a portal at the icon's viewport coordinates so it can
+   escape the table's overflow-clip. Mount-time-only animation: a fast
+   pop-in (opacity + scale from the bottom-centre origin) that completes
+   in 120ms so the value reads as "instant" while still feeling crafted. */
+@keyframes tooltip-pop-in {
+  0% { opacity: 0; transform: scale(0.85); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.tooltip-pop-in {
+  animation: tooltip-pop-in 120ms cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: bottom center;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tooltip-pop-in { animation: none; }
+}
+
+/* ─── Sidebar travel animation · Phase 5 · traveler spotlight ─── */
+/*
+ * The sidebar recency reorder uses a FLIP technique (see
+ * src/app/app/sidebar-flip.ts). When a row was just clicked, the
+ * hook tags it with .sa-flip-traveler for the duration of its
+ * upward travel so we can paint it with a copper-tinted glow and
+ * a faint scale-up. The transition stack the hook applies inline
+ * extends to box-shadow, so the glow rises and falls with the
+ * row instead of snapping at the endpoints. Phase 6 will add a
+ * landing bounce on top of this.
+ */
+.sa-flip-traveler {
+  box-shadow:
+    0 14px 36px -10px rgba(188, 107, 74, 0.50),
+    0 2px 10px -2px rgba(188, 107, 74, 0.30),
+    inset 0 0 0 1px rgba(188, 107, 74, 0.35);
+  z-index: 5;
+  position: relative;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-flip-traveler { box-shadow: none; }
+}
+
+/* Phase 6's landing-pulse keyframes used to live here. Removed
+ * because the bounce read as a second jump after the travel,
+ * which was distracting rather than satisfying. The spotlight
+ * glow (Phase 5) still rides the same transition timing as the
+ * transform, so the arrival has a visual cue without the
+ * additional translate. */
+
+/* ─── Sidebar travel animation · Phase 7 · motion-trail ghosts ─── */
+/*
+ * Visual-only clones spawned next to the traveler during a FLIP
+ * reorder. They start at the traveler's pre-FLIP visual position,
+ * drift partway along its trajectory, and fade to zero. The
+ * --ghost-drift custom property is set inline per-ghost by
+ * spawnMotionTrail() in src/app/app/sidebar-flip.ts so the same
+ * keyframes work for any travel distance / direction.
+ */
+@keyframes sa-flip-ghost-fade {
+  0%   { opacity: var(--ghost-opacity, 0.30); transform: translate3d(0, 0, 0);                 filter: blur(0px); }
+  60%  { opacity: 0.08;                        transform: translate3d(0, var(--ghost-drift, -16px), 0); filter: blur(1.5px); }
+  100% { opacity: 0;                           transform: translate3d(0, var(--ghost-drift, -16px), 0); filter: blur(2px); }
+}
+
+/* ─── Sidebar travel animation · Phase 8 · companion rows ─── */
+/*
+ * Quiet stylistic mark on rows that shift to make room for the
+ * traveler. No glow, no scale — just a subtle hint of texture
+ * that reads "I moved on purpose" instead of "I twitched". The
+ * filter is barely perceptible (~3% desaturation) so the eye
+ * stays locked on the traveler while still registering that the
+ * surroundings rearranged in lock-step.
+ */
+.sa-flip-companion {
+  filter: saturate(0.96);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-flip-companion { filter: none; }
+}
+
+/* ─── Outreach engagement column · column-merge Phase 4 · glass ─── */
+/*
+ * The merged engagement cell (Actions + Contact-history) gets a
+ * heavier glass treatment than the rest of the table so it reads
+ * as a deliberate panel pinned to the right edge. Heavier blur
+ * than the default sticky cells used to carry, a touch more
+ * saturation so the warm color underneath comes through, and a
+ * specular sheen line along the top of each cell. Background
+ * tint stays inherited from the row classes (so isNewToUser /
+ * group-hover continue to drive the underlying color) — this
+ * layer adds depth on top.
+ */
+.sa-engagement-cell {
+  backdrop-filter: blur(20px) saturate(170%);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  /* Don't set position: relative here — the cell already gets
+     position: sticky from its inline Tailwind class. Overriding
+     it would un-stick the column. position: sticky also creates
+     a containing block for absolutely-positioned children, so
+     the ::before sheen + ::after hue overlays still anchor to
+     this cell without needing position: relative. */
+}
+.sa-engagement-cell::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  /* Specular sheen line at the top — a 1px white-fade gradient
+     that mimics light catching the edge of frosted glass. */
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.18) 1px,
+    rgba(255, 255, 255, 0) 6px,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+/* ─── Outreach engagement column · column-merge Phase 5 · hue ─── */
+/*
+ * The engagement column needs to read distinct from the warm
+ * neutral the rest of the table carries, but it also can't fight
+ * the row-state colors (isNewToUser, hover) that the underlying
+ * <td> still applies. Solution: a copper-tinted overlay
+ * pseudo-element painted at low opacity above the row background
+ * but below the content. ::after layered on top of ::before (the
+ * Phase 4 sheen) so we don't collide on selectors. Both overlays
+ * are pointer-events:none so clicks still reach the buttons.
+ */
+.sa-engagement-cell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(188, 107, 74, 0.08) 0%,
+    rgba(188, 107, 74, 0.05) 50%,
+    rgba(188, 107, 74, 0.02) 100%
+  );
+}
+
+/* ─── Outreach engagement column · Phase 6 · resting glow ─── */
+/*
+ * Soft outer halo on every engagement cell at rest — sits to the
+ * LEFT of the cell so it reads as the column glowing into the
+ * scrolling table area without painting over neighboring rows.
+ * The shadow has zero vertical extent and a wide horizontal
+ * spread on the left side only; Phase 4's shadow on .sa-flip
+ * was a fully circumscribed drop. This one is directional.
+ *
+ * Box-shadow on the existing `shadow-[-8px_0_16px_-12px_…]`
+ * inline class is preserved; we ADD to it via the cascade
+ * specificity of this rule (class selector wins over inline only
+ * because the value here is more important). When Tailwind's
+ * arbitrary-value classes generate inline styles, we layer this
+ * shadow alongside rather than replacing — that's why we re-state
+ * the original -8px shadow inside the same declaration.
+ */
+.sa-engagement-cell {
+  box-shadow:
+    -8px 0 16px -12px rgba(0, 0, 0, 0.18),
+    -14px 0 32px -16px rgba(188, 107, 74, 0.30);
+  transition: box-shadow 280ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ─── Outreach engagement column · Phase 7 · hover lift ─── */
+/*
+ * When the table row is hovered, the engagement cell's halo
+ * intensifies and pulls slightly further left, like the column
+ * leaning into the cursor. Tailwind's `group-hover:` on the <tr>
+ * scopes this — the `.group` is the row, and the engagement
+ * cell sits inside it, so we can target via `.group:hover
+ * .sa-engagement-cell`. The transition primed in Phase 6 handles
+ * the timing.
+ */
+tr.group:hover .sa-engagement-cell,
+tr:hover .sa-engagement-cell {
+  box-shadow:
+    -8px 0 16px -12px rgba(0, 0, 0, 0.22),
+    -20px 0 44px -16px rgba(188, 107, 74, 0.42);
+}
+
+/* ─── Outreach engagement column · Phase 8 · active-row accent ─── */
+/*
+ * When the user has expanded a contact's history drawer, the
+ * engagement cell on THAT row picks up an extra accent so they
+ * can find which row is currently open even after scrolling
+ * away. Three signals stacked: brighter copper halo, an inset
+ * 1.5px ring at full opacity, and a pulsing 4px-wide bar pinned
+ * to the cell's left edge. Bar uses CSS keyframes for a slow,
+ * organic breath rather than a hard blink.
+ */
+.sa-engagement-cell-active {
+  box-shadow:
+    -8px 0 16px -12px rgba(0, 0, 0, 0.24),
+    -22px 0 48px -14px rgba(188, 107, 74, 0.55),
+    inset 1.5px 0 0 0 rgba(188, 107, 74, 0.85),
+    inset 0 0 0 1px rgba(188, 107, 74, 0.25);
+}
+.sa-engagement-cell-active::before {
+  /* Re-emphasises the sheen at active state too — Phase 4's
+     ::before already sits on the cell; the active variant ramps
+     the alpha so the top edge reads as a polished bevel rather
+     than a faint hint. */
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.75) 0%,
+    rgba(255, 255, 255, 0.30) 1px,
+    rgba(255, 255, 255, 0) 8px,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+@keyframes sa-engagement-active-breath {
+  0%, 100% { opacity: 0.85; }
+  50%      { opacity: 1; }
+}
+.sa-engagement-cell-active {
+  animation: sa-engagement-active-breath 2400ms ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-engagement-cell-active { animation: none; }
+}
+
+/* ─── Outreach engagement column · Phase 9 · edge polish ─── */
+/*
+ * Two additions so the column reads as a continuous panel
+ * against the table rather than a stack of independent cells:
+ *
+ *  1. ::before on the engagement HEADER cell gets a strong
+ *     copper edge-fade gradient at its top so the head of the
+ *     "panel" picks up the same warm glow the body has.
+ *  2. The first and last engagement-cell rows in a scrolled
+ *     viewport pick up an extra vertical fade-in via
+ *     :is(:first-of-type, :last-of-type), so the panel's
+ *     top/bottom appear to taper into the table rather than
+ *     hard-cropping where the scroll begins.
+ *
+ * Tailwind's sticky-shadow inline class also gets a slight
+ * recolour here — the rgba(0,0,0,0.18) wash leaks gray into
+ * the copper warmth. Re-state it tinted in the cascade.
+ */
+/*
+ * Header cell echoes the body's copper glow so the column reads
+ * as a single panel from header to bottom row. We do NOT override
+ * position here — the header gets `position: sticky` from its
+ * Tailwind class. The ::after edge-fade anchors to it via sticky
+ * (which establishes a containing block just like relative).
+ */
+[data-col-key="engagement"]::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  pointer-events: none;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(188, 107, 74, 0.45) 30%,
+    rgba(188, 107, 74, 0.45) 70%,
+    transparent 100%
+  );
+}
+
+/* Slightly warmer shadow alongside the cool inline -8px shadow,
+   so the gray cast doesn't show through the copper hue. */
+.sa-engagement-cell {
+  box-shadow:
+    -8px 0 16px -12px rgba(102, 70, 56, 0.20),
+    -14px 0 32px -16px rgba(188, 107, 74, 0.30);
+}
+tr.group:hover .sa-engagement-cell,
+tr:hover .sa-engagement-cell {
+  box-shadow:
+    -8px 0 16px -12px rgba(102, 70, 56, 0.24),
+    -20px 0 44px -16px rgba(188, 107, 74, 0.45);
+}
+.sa-engagement-cell-active {
+  box-shadow:
+    -8px 0 16px -12px rgba(102, 70, 56, 0.26),
+    -22px 0 48px -14px rgba(188, 107, 74, 0.58),
+    inset 1.5px 0 0 0 rgba(188, 107, 74, 0.85),
+    inset 0 0 0 1px rgba(188, 107, 74, 0.25);
+}
+
+/* ─── Outreach engagement column · Phase 10 · reduced-motion sweep ─── */
+/*
+ * Final phase of the column-merge series. Consolidates the
+ * scattered prefers-reduced-motion gates from Phases 4-9 into
+ * one place so all the engagement-column motion is suppressed
+ * in lockstep — no half-on / half-off mix.
+ *
+ * Static signals (halo, copper hue, inset bar, sheen line) ALL
+ * stay; recency, hover lift, and the breath animation get
+ * frozen. That preserves the information layer (which row is
+ * active, where the column sits) while honouring "minimize
+ * non-essential motion."
+ *
+ * box-shadow transition is the only piece that lingers; we
+ * suppress it explicitly so a hover state lands instantly
+ * rather than fading.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .sa-engagement-cell {
+    transition: none;
+  }
+  .sa-engagement-cell-active {
+    animation: none;
+  }
+}
+
+/* ─── Log emoji button · copper glow ─── */
+/*
+ * The 🪵 button on the outreach engagement column and the mobile
+ * card pulses with a soft copper halo so it reads as the primary
+ * call-to-action on each row. Two layers stacked in the
+ * keyframe: an outer drop glow (24px / 8px radius) and a tighter
+ * inset ring; opacity breathes from 0.55 → 0.90 → 0.55 over a
+ * 2.4s loop. Hover pins it at full intensity for the duration
+ * of the hover.
+ */
+@keyframes sa-log-button-pulse {
+  0%, 100% {
+    box-shadow:
+      0 0 0 0 rgba(188, 107, 74, 0.00),
+      0 0 12px 0 rgba(188, 107, 74, 0.32),
+      inset 0 0 0 1px rgba(188, 107, 74, 0.20);
+  }
+  50% {
+    box-shadow:
+      0 0 0 4px rgba(188, 107, 74, 0.12),
+      0 0 22px 4px rgba(188, 107, 74, 0.55),
+      inset 0 0 0 1px rgba(188, 107, 74, 0.45);
+  }
+}
+.sa-log-button {
+  animation: sa-log-button-pulse 2400ms ease-in-out infinite;
+}
+.sa-log-button:hover {
+  animation-play-state: paused;
+  box-shadow:
+    0 0 0 4px rgba(188, 107, 74, 0.18),
+    0 0 28px 6px rgba(188, 107, 74, 0.70),
+    inset 0 0 0 1px rgba(188, 107, 74, 0.55);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-log-button { animation: none; }
+}
+
+/* ─── Connect-4 board · Phase 9 · chip drop ─── */
+/*
+ * Last-dropped chip slides in from above the column. The
+ * starting Y offset is parameterised via --c4-drop-from set
+ * inline per-chip, so a chip landing in the bottom row falls
+ * further than one stacking near the top. A tiny overshoot at
+ * 85% gives the chip a satisfying tap-down on landing.
+ */
+@keyframes sa-c4-chip-drop {
+  0%   { transform: translateY(var(--c4-drop-from, -300px)); }
+  85%  { transform: translateY(4px); }
+  100% { transform: translateY(0); }
+}
+.sa-c4-chip-drop {
+  animation: sa-c4-chip-drop 380ms cubic-bezier(0.3, 1, 0.4, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-c4-chip-drop { animation: none; }
+}
+
+/* ─── Connect-4 board · Phase 10 · last-move ring + win pulse ─── */
+/*
+ * Last-move ring: a faint copper halo around the most recently
+ * dropped chip so the eye can find "where did the opponent just
+ * play" without having to remember. Decoupled from the drop
+ * animation (Phase 9) so it stays visible AFTER the chip lands.
+ *
+ * Win pulse: the four winning chips slowly throb so the resolved
+ * state reads as victorious rather than just "frozen." 2.4s
+ * loop, paused by prefers-reduced-motion.
+ */
+.sa-c4-last-move {
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.9),
+    0 0 12px 2px rgba(188, 107, 74, 0.55);
+}
+@keyframes sa-c4-win-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.00), inset 0 -3px 0 rgba(0, 0, 0, 0.15); }
+  50%      { box-shadow: 0 0 16px 4px rgba(16, 185, 129, 0.55), inset 0 -3px 0 rgba(0, 0, 0, 0.15); }
+}
+.sa-c4-win-cell {
+  animation: sa-c4-win-pulse 2400ms ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sa-c4-win-cell { animation: none; }
+}
+
+/* ─── Liquid Glass · sidebar search ─── */
+/*
+ * Apple's "liquid glass" effect — heavy backdrop blur + saturate
+ * for the refractive lensing look, a translucent white wash, an
+ * inner top highlight that reads as a polished edge, and a soft
+ * underside shadow so the chip feels like it's floating a hair
+ * above the rail rather than glued to it. The :focus-within rule
+ * lifts the saturation and tightens the rim light so the active
+ * state still reads against the warm-bg gradient behind it.
+ *
+ * Used on the Search pages… input in PlatformShell. Reusable —
+ * apply .sa-liquid-glass to any rounded surface you want to feel
+ * like a frosted lozenge over the page chrome.
+ */
+.sa-liquid-glass {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.35) 100%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.85),
+    inset 0 -1px 0 rgba(188, 107, 74, 0.10),
+    0 1px 2px rgba(26, 26, 26, 0.04),
+    0 8px 24px -12px rgba(26, 26, 26, 0.18);
+  transition: box-shadow 220ms ease, background 220ms ease, border-color 220ms ease;
+}
+.sa-liquid-glass:hover {
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.65) 0%, rgba(255,255,255,0.45) 100%);
+}
+.sa-liquid-glass:focus,
+.sa-liquid-glass:focus-within,
+.sa-liquid-glass:focus-visible {
+  outline: none;
+  border-color: rgba(188, 107, 74, 0.45);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(188, 107, 74, 0.20),
+    0 0 0 3px rgba(188, 107, 74, 0.18),
+    0 8px 24px -10px rgba(188, 107, 74, 0.28);
+}
+
+/* ─── Home orbit · "your move" pulse ─── */
+/*
+ * When the HomeConnect4Nudge surfaces a "Your move" pill it
+ * also reports the opponent's user_id up to HomeContent, which
+ * passes it to the orbit as highlightUserId. That avatar's pin
+ * picks up .orbit-pin-your-move — a copper halo that breathes
+ * in/out on a 1.8s loop so the eye finds the opponent in the
+ * ring even with two dozen avatars around it.
+ */
+@keyframes sa-orbit-your-move {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(188, 107, 74, 0.0), 0 0 12px 2px rgba(188, 107, 74, 0.40);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(188, 107, 74, 0.18), 0 0 22px 6px rgba(188, 107, 74, 0.75);
+  }
+}
+.orbit-pin-your-move {
+  animation: sa-orbit-your-move 1800ms ease-in-out infinite;
+  border-radius: 9999px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .orbit-pin-your-move {
+    animation: none;
+    box-shadow: 0 0 0 3px rgba(188, 107, 74, 0.30), 0 0 14px 2px rgba(188, 107, 74, 0.45);
   }
 }

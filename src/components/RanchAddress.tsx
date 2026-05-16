@@ -15,8 +15,8 @@ export const RANCH_ADDRESS = {
   country: 'United States',
 } as const;
 
-export const RANCH_PHONE = '(866) 996-4308';
-export const RANCH_PHONE_TEL = '+18669964308';
+export const RANCH_PHONE = '(866) 718-1665';
+export const RANCH_PHONE_TEL = '+18667181665';
 
 /** Single-line "2491 W Jefferson Rd, Elfrida, AZ 85610" — useful for
  *  inline copy where multi-line breaks read awkwardly. */
@@ -30,10 +30,23 @@ export function ranchAddressMapsQuery(): string {
   return encodeURIComponent(`${ranchAddressOneLine()}, ${RANCH_ADDRESS.country}`);
 }
 
-/** "Get directions" deep link — opens the user's preferred maps app
- *  on iOS / Android and Google Maps on desktop. */
+/**
+ * Canonical Google Business Profile (GMB) deep link for the ranch.
+ * Lands the visitor on the same place card every time — same
+ * verified hours, photos, reviews, and the inline "Directions"
+ * button. Preferred over a generic /maps/dir/?api=1&destination=…
+ * URL because the latter sometimes resolves to the wrong street
+ * when the parcel address rolls over to a neighboring property.
+ */
+export const RANCH_GMB_URL =
+  'https://www.google.com/maps/place/Seven+Arrows+Recovery/@31.6816641,-109.5974003,840m/data=!3m2!1e3!4b1!4m6!3m5!1s0x86d757b12c931e93:0x4359cfcad3b471d5!8m2!3d31.6816641!4d-109.5974003!16s%2Fg%2F11sf3vbq_s';
+
+/** "Get directions" deep link — opens our Google Business Profile
+ *  place card. The Directions button on that card knows the
+ *  visitor's current location and routes via their preferred maps
+ *  app on iOS / Android and Google Maps on desktop. */
 export function ranchDirectionsUrl(): string {
-  return `https://www.google.com/maps/dir/?api=1&destination=${ranchAddressMapsQuery()}`;
+  return RANCH_GMB_URL;
 }
 
 /**

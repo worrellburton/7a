@@ -13,6 +13,29 @@ function trim(value: unknown, max = 600): string | null {
   return t.length > max ? t.slice(0, max) : t;
 }
 
+// Accept either string[] or a comma/legacy string for contacts.type.
+// Empty input collapses to NULL so DB queries can use `type is null`
+// to find untagged rows. De-duped, trimmed, and capped at 60 chars
+// per tag. Returns null when no valid tags remain.
+function normaliseTypeArray(value: unknown): string[] | null {
+  let raw: unknown[];
+  if (Array.isArray(value)) raw = value;
+  else if (typeof value === 'string') raw = value.split(',');
+  else return null;
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of raw) {
+    if (typeof v !== 'string') continue;
+    const t = v.trim().slice(0, 60);
+    if (!t) continue;
+    const key = t.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
+  }
+  return out.length === 0 ? null : out;
+}
+
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await getUserFromRequest(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -23,10 +46,25 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const patch: Record<string, unknown> = {};
   if ('name' in body) patch.name = trim(body.name, 200);
+  if ('company' in body) patch.company = trim(body.company, 200);
+  if ('company_website' in body) patch.company_website = trim(body.company_website, 500);
+  if ('type' in body) patch.type = normaliseTypeArray(body.type);
+  if ('specialty' in body) patch.specialty = trim(body.specialty, 200);
+  if ('rating' in body) {
+    const r = trim(body.rating, 20);
+    if (r === null || r === 'Tier 1' || r === 'Tier 2' || r === 'Tier 3') patch.rating = r;
+  }
   if ('role' in body) patch.role = trim(body.role, 200);
   if ('phone' in body) patch.phone = trim(body.phone, 60);
+  if ('phone_cell' in body) patch.phone_cell = trim(body.phone_cell, 60);
+  if ('phone_office' in body) patch.phone_office = trim(body.phone_office, 60);
   if ('email' in body) patch.email = trim(body.email, 200);
   if ('location' in body) patch.location = trim(body.location, 200);
+  if ('formatted_address' in body) patch.formatted_address = trim(body.formatted_address, 400);
+  if ('place_id' in body) patch.place_id = trim(body.place_id, 200);
+  if ('tz' in body) patch.tz = trim(body.tz, 100);
+  if ('lat' in body) patch.lat = typeof body.lat === 'number' ? body.lat : null;
+  if ('lng' in body) patch.lng = typeof body.lng === 'number' ? body.lng : null;
   if ('notes' in body) patch.notes = trim(body.notes, 4000);
 
   const admin = getAdminSupabase();

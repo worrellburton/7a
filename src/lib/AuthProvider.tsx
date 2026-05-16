@@ -24,6 +24,18 @@ interface AuthContextType {
    */
   userKind: 'staff' | 'guest' | 'alumni';
   /**
+   * Sidebar recency model — phase 1-3 of the sidebar overhaul.
+   * `sidebarRecentPaths` is the per-user list of recently-clicked
+   * sidebar paths, newest first; `sidebarClickCount` is the
+   * monotonic total. `recordSidebarVisit` is fire-and-forget — it
+   * patches local state immediately and posts to /api/sidebar/visit
+   * in the background so the nav reorders instantly even on slow
+   * networks.
+   */
+  sidebarRecentPaths: string[];
+  sidebarClickCount: number;
+  recordSidebarVisit: (path: string) => void;
+  /**
    * Canonical avatar URL for the signed-in user. Reads from the
    * `users.avatar_url` column (which the profile editor writes to)
    * so a member's custom upload sticks even when Google OAuth keeps
@@ -55,6 +67,9 @@ const AuthContext = createContext<AuthContextType>({
   departmentId: null,
   status: 'active',
   userKind: 'staff',
+  sidebarRecentPaths: [],
+  sidebarClickCount: 0,
+  recordSidebarVisit: () => {},
   avatarUrl: null,
   refreshAvatar: () => {},
   refreshProfile: async () => {},
@@ -87,6 +102,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [departmentId, setDepartmentId] = useState<string | null>(null);
   const [status, setStatus] = useState<UserStatus>('active');
   const [userKind, setUserKind] = useState<'staff' | 'guest' | 'alumni'>('staff');
+  const [sidebarRecentPaths, setSidebarRecentPaths] = useState<string[]>([]);
+  const [sidebarClickCount, setSidebarClickCount] = useState<number>(0);
   // Custom avatar from the users table — separate from
   // user_metadata.avatar_url so Google's OAuth re-sync can't clobber
   // a member's uploaded photo. `null` means use the OAuth fallback.
@@ -134,9 +151,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // never silently blanked out by an unrelated DB error. This exact bug
     // once hid Team + Super Admin from every admin's sidebar, so the
     // fallback is intentional belt-and-suspenders.
-    type ProfileRow = { is_admin?: boolean; is_super_admin?: boolean; department_id?: string | null; status?: UserStatus; user_kind?: 'staff' | 'guest' | 'alumni' };
+    type ProfileRow = {
+      is_admin?: boolean;
+      is_super_admin?: boolean;
+      department_id?: string | null;
+      status?: UserStatus;
+      user_kind?: 'staff' | 'guest' | 'alumni';
+      sidebar_recent_paths?: string[] | null;
+      sidebar_click_count?: number | null;
+    };
     let row: ProfileRow | null = null;
-    const full = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin, is_super_admin, department_id, status, user_kind' });
+    const full = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin, is_super_admin, department_id, status, user_kind, sidebar_recent_paths, sidebar_click_count' });
     if (Array.isArray(full) && full[0]) {
       row = full[0] as ProfileRow;
     } else {
@@ -158,6 +183,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsSuperAdmin(row.is_super_admin === true);
     setDepartmentId(row.department_id ?? null);
     setUserKind(row.user_kind ?? 'staff');
+    setSidebarRecentPaths(Array.isArray(row.sidebar_recent_paths) ? row.sidebar_recent_paths : []);
+    setSidebarClickCount(typeof row.sidebar_click_count === 'number' ? row.sidebar_click_count : 0);
     // Trust the DB. The status column is set on insert by the
     // `users_set_initial_status` trigger, and admins flip it via the
     // Team page. Don't second-guess that here — an earlier client-side
@@ -309,6 +336,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (user?.id) await loadProfile(user.id, user.email ?? null);
   }, [user?.id, user?.email]);
 
+  // Fire-and-forget. Patch local state instantly so the sidebar
+  // reorders without a network round-trip, then POST to the server
+  // — if the server write fails, the next page load will resync
+  // from the DB and overwrite the stale local copy. We don't await
+  // the request because Link onClicks should not block navigation.
+  const recordSidebarVisit = useCallback((path: string) => {
+    if (!path.startsWith('/app')) return;
+    setSidebarRecentPaths((prev) => {
+      const deduped = prev.filter((p) => p !== path);
+      return [path, ...deduped].slice(0, 30);
+    });
+    setSidebarClickCount((n) => n + 1);
+    const token = session?.access_token;
+    if (!token) return;
+    void fetch('/api/sidebar/visit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ path }),
+    }).catch(() => { /* network blip — next profile refresh will resync */ });
+  }, [session?.access_token]);
+
   return (
     <AuthContext.Provider
       value={{
@@ -320,6 +368,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         departmentId,
         status,
         userKind,
+        sidebarRecentPaths,
+        sidebarClickCount,
+        recordSidebarVisit,
         avatarUrl,
         refreshAvatar,
         refreshProfile,

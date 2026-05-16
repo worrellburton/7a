@@ -59,8 +59,8 @@ export default function PlaceToHeal() {
               transition: 'all 0.9s cubic-bezier(0.16,1,0.3,1) 0.05s',
             }}
           >
-            <p className="section-label mb-5">Drug Rehab in Arizona</p>
-            <h2
+            <h2 className="section-label mb-5">Drug Rehab in Arizona</h2>
+            <p
               id="place-to-heal-heading"
               className="text-foreground font-bold tracking-tight mb-6"
               style={{
@@ -70,15 +70,16 @@ export default function PlaceToHeal() {
               }}
             >
               A place to <em className="not-italic" style={{ color: 'var(--color-accent)' }}>heal</em>.
-            </h2>
+            </p>
             <p
               className="text-foreground/75 text-lg leading-relaxed mb-8 max-w-2xl"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Find out why Seven Arrows Recovery is considered one of the best
               drug rehabs in Arizona. We provide clinical and residential
-              treatment to ensure lasting recovery in a small group setting,
-              nestled at the base of the tranquil Swisshelm Mountains.
+              treatment for alcohol addiction, substance abuse, and dependency
+              on illicit drugs, ensuring lasting recovery in a small group
+              setting, nestled at the base of the tranquil Swisshelm Mountains.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Link href="/admissions#verify" className="btn-primary">

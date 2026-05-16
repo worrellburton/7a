@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { RANCH_ADDRESS, RANCH_PHONE, RANCH_PHONE_TEL, ranchDirectionsUrl } from './RanchAddress';
+import { RANCH_ADDRESS, RANCH_GMB_URL, RANCH_PHONE, RANCH_PHONE_TEL, ranchDirectionsUrl } from './RanchAddress';
 
 /* ── Footer (links + legal) ───────────────────────────────────────── */
 
@@ -31,8 +31,16 @@ export default function Footer() {
                   reasons; the JSON-LD schema in src/app/layout.tsx
                   carries the structured copy for crawlers. */}
               <address className="not-italic text-xs leading-relaxed text-white/65">
-                <p>{RANCH_ADDRESS.streetAddress}</p>
-                <p>{RANCH_ADDRESS.locality}, {RANCH_ADDRESS.region} {RANCH_ADDRESS.postalCode}</p>
+                <a
+                  href={RANCH_GMB_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block hover:text-white transition-colors"
+                  aria-label="View Seven Arrows Recovery on Google Maps"
+                >
+                  <span className="block">{RANCH_ADDRESS.streetAddress}</span>
+                  <span className="block">{RANCH_ADDRESS.locality}, {RANCH_ADDRESS.region} {RANCH_ADDRESS.postalCode}</span>
+                </a>
                 <a
                   href={`tel:${RANCH_PHONE_TEL}`}
                   className="block mt-1 text-white/85 font-semibold hover:text-white transition-colors"

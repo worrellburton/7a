@@ -32,6 +32,10 @@ interface AppUser {
   last_seen_at: string | null;
   last_path: string | null;
   created_at: string;
+  // 'staff' (default) or 'alumni' — alumni get their own pill below
+  // and are excluded from Pending Approval so they don't show up in
+  // two filters at once. Nullable for legacy rows; null === staff.
+  user_kind: 'staff' | 'alumni' | null;
 }
 
 interface Department {
@@ -47,8 +51,8 @@ interface JobDescriptionLite {
 
 type SortKey = 'user' | 'viewing' | 'department' | 'job_title' | 'created_at';
 type SortDir = 'asc' | 'desc';
-type FilterPill = 'all' | 'admins' | 'super_admins' | 'pending';
-type TopTab = 'users' | 'groups';
+type FilterPill = 'all' | 'team' | 'admins' | 'super_admins' | 'alumni' | 'pending';
+type TopTab = 'users' | 'groups' | 'alumni';
 
 const ROOT_ADMIN_EMAIL = 'bobby@sevenarrowsrecovery.com';
 const isRootAdmin = (email: string | null | undefined) =>
@@ -148,7 +152,7 @@ export default function UserPermissionsContent() {
       const data = await db({
         action: 'select',
         table: 'users',
-        select: 'id, email, full_name, avatar_url, is_admin, is_super_admin, status, department_id, job_title, credentials, last_seen_at, last_path, created_at',
+        select: 'id, email, full_name, avatar_url, is_admin, is_super_admin, status, department_id, job_title, credentials, last_seen_at, last_path, created_at, user_kind',
         order: { column: 'full_name', ascending: true },
       }).catch(() => []);
       if (!cancelled && Array.isArray(data)) setUsers(data as AppUser[]);
@@ -271,9 +275,16 @@ export default function UserPermissionsContent() {
       const q = filter.trim().toLowerCase();
       let list = users;
       switch (filterPill) {
-        case 'admins':       list = list.filter((u) => u.is_admin); break;
-        case 'super_admins': list = list.filter((u) => u.is_super_admin); break;
-        case 'pending':      list = list.filter((u) => u.status === 'on_hold'); break;
+        // Team = anyone with elevated access (admin OR super-admin),
+        // excluding alumni who shouldn't double-count.
+        case 'team':         list = list.filter((u) => (u.is_admin || u.is_super_admin) && u.user_kind !== 'alumni'); break;
+        case 'admins':       list = list.filter((u) => u.is_admin && u.user_kind !== 'alumni'); break;
+        case 'super_admins': list = list.filter((u) => u.is_super_admin && u.user_kind !== 'alumni'); break;
+        case 'alumni':       list = list.filter((u) => u.user_kind === 'alumni'); break;
+        // Pending Approval excludes alumni so reps like Lilly Perry
+        // (alumni + on_hold) appear only under the Alumni pill, not
+        // in two places at once.
+        case 'pending':      list = list.filter((u) => u.status === 'on_hold' && u.user_kind !== 'alumni'); break;
         case 'all':          break;
       }
       if (!q) return list;
@@ -317,19 +328,30 @@ export default function UserPermissionsContent() {
     );
   }
 
-  const adminCount = users.filter((u) => u.is_admin).length;
-  const superAdminCount = users.filter((u) => u.is_super_admin).length;
-  const pendingCount = users.filter((u) => u.status === 'on_hold').length;
+  // Per-pill counts mirror the filter logic above so the badges
+  // never disagree with what a click actually narrows to. Alumni
+  // are intentionally excluded from team / admin / super-admin /
+  // pending counts so they live in exactly one bucket.
+  const nonAlumni = users.filter((u) => u.user_kind !== 'alumni');
+  const adminCount = nonAlumni.filter((u) => u.is_admin).length;
+  const superAdminCount = nonAlumni.filter((u) => u.is_super_admin).length;
+  const teamCount = nonAlumni.filter((u) => u.is_admin || u.is_super_admin).length;
+  const alumniCount = users.filter((u) => u.user_kind === 'alumni').length;
+  const pendingCount = nonAlumni.filter((u) => u.status === 'on_hold').length;
   const pillCounts: Record<FilterPill, number> = {
     all: users.length,
+    team: teamCount,
     admins: adminCount,
     super_admins: superAdminCount,
+    alumni: alumniCount,
     pending: pendingCount,
   };
   const pillLabels: Record<FilterPill, string> = {
     all: 'All',
+    team: 'Team',
     admins: 'Admins',
     super_admins: 'Super Admins',
+    alumni: 'Alumni',
     pending: 'Pending Approval',
   };
 
@@ -343,6 +365,8 @@ export default function UserPermissionsContent() {
               ? <>Grant super-admin access and per-user page overrides.{' '}
                   <span className="font-medium text-foreground/70">{adminCount}</span>{' '}
                   {adminCount === 1 ? 'super admin' : 'super admins'} total.</>
+              : topTab === 'alumni'
+              ? <>Alumni members + the pages only they can see.</>
               : <>Bundle pages + departments + members under a name, then assign in bulk.</>}
           </p>
         </div>
@@ -364,6 +388,7 @@ export default function UserPermissionsContent() {
         {([
           { id: 'users' as TopTab, label: 'Users' },
           { id: 'groups' as TopTab, label: 'Access Groups' },
+          { id: 'alumni' as TopTab, label: 'Alumni' },
         ]).map((t) => {
           const active = topTab === t.id;
           return (
@@ -385,36 +410,88 @@ export default function UserPermissionsContent() {
 
       {topTab === 'groups' ? (
         <AccessGroupsTab />
+      ) : topTab === 'alumni' ? (
+        <AlumniTab
+          users={users}
+          onApproveAlumni={async (userId) => {
+            setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: 'active' } : u)));
+            const res = await db({
+              action: 'update',
+              table: 'users',
+              data: { status: 'active' },
+              match: { id: userId },
+            }).catch(() => null);
+            if (!res) {
+              // Roll back the optimistic flip if the write failed.
+              setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: 'on_hold' } : u)));
+            }
+          }}
+        />
       ) : (
       <>
 
-      <div className="flex items-center gap-1.5 mb-4 flex-wrap" style={{ fontFamily: 'var(--font-body)' }}>
-        {(['all', 'super_admins', 'admins', 'pending'] as FilterPill[]).map((pill) => {
-          const active = filterPill === pill;
-          const count = pillCounts[pill];
-          const isPending = pill === 'pending';
-          return (
-            <button
-              key={pill}
-              type="button"
-              onClick={() => setFilterPill(pill)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
-                active
-                  ? isPending
-                    ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                    : 'bg-primary text-white border border-primary'
-                  : 'bg-white text-foreground/60 border border-gray-200 hover:bg-warm-bg'
-              }`}
-            >
-              {pillLabels[pill]}
-              <span className={`tabular-nums px-1.5 py-0.5 rounded-full text-[10px] ${
-                active && !isPending ? 'bg-white/20 text-white' : 'bg-foreground/5 text-foreground/55'
-              }`}>
-                {count}
-              </span>
-            </button>
-          );
-        })}
+      {/* Pill row — Team is a parent for Admins / Super Admins,
+          rendered as a secondary nested row that only shows when
+          the user has narrowed into Team (or one of its children).
+          Keeps the top row tight while still surfacing the
+          sub-filters at one click of depth. */}
+      <div className="mb-4 space-y-2" style={{ fontFamily: 'var(--font-body)' }}>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {(['all', 'team', 'alumni', 'pending'] as FilterPill[]).map((pill) => {
+            const active = filterPill === pill || (pill === 'team' && (filterPill === 'admins' || filterPill === 'super_admins'));
+            const count = pillCounts[pill];
+            const isPending = pill === 'pending';
+            return (
+              <button
+                key={pill}
+                type="button"
+                onClick={() => setFilterPill(pill)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                  active
+                    ? isPending
+                      ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                      : 'bg-primary text-white border border-primary'
+                    : 'bg-white text-foreground/60 border border-gray-200 hover:bg-warm-bg'
+                }`}
+              >
+                {pillLabels[pill]}
+                <span className={`tabular-nums px-1.5 py-0.5 rounded-full text-[10px] ${
+                  active && !isPending ? 'bg-white/20 text-white' : 'bg-foreground/5 text-foreground/55'
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        {(filterPill === 'team' || filterPill === 'admins' || filterPill === 'super_admins') && (
+          <div className="flex items-center gap-1.5 flex-wrap pl-4 border-l-2 border-primary/30">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-foreground/40 pr-1">Team:</span>
+            {(['admins', 'super_admins'] as FilterPill[]).map((pill) => {
+              const active = filterPill === pill;
+              const count = pillCounts[pill];
+              return (
+                <button
+                  key={pill}
+                  type="button"
+                  onClick={() => setFilterPill(pill)}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${
+                    active
+                      ? 'bg-primary text-white border border-primary'
+                      : 'bg-white text-foreground/60 border border-gray-200 hover:bg-warm-bg'
+                  }`}
+                >
+                  {pillLabels[pill]}
+                  <span className={`tabular-nums px-1.5 py-0.5 rounded-full text-[10px] ${
+                    active ? 'bg-white/20 text-white' : 'bg-foreground/5 text-foreground/55'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -695,6 +772,192 @@ export default function UserPermissionsContent() {
       )}
       </>
       )}
+    </div>
+  );
+}
+
+// Top-tab body for the new "Alumni" tab. Two stacked sections:
+//   1. The alumni roster (avatar · name · email · staff-flip CTA).
+//   2. A checklist of every routed page in /app, where each row
+//      flips a single `page_permissions.alumni_only` boolean.
+// Alumni-only pages are visible exclusively to users with
+// user_kind='alumni' (the PagePermissions gate enforces this on
+// route entry + sidebar render). Defaults to off so nothing is
+// hidden from staff without an explicit click.
+interface PagePermRow {
+  path: string;
+  section: string | null;
+  admin_only: boolean;
+  alumni_only: boolean;
+  sort_order: number | null;
+}
+
+function AlumniTab({ users, onApproveAlumni }: { users: AppUser[]; onApproveAlumni: (userId: string) => Promise<void> | void }) {
+  const alumni = useMemo(
+    () => users.filter((u) => u.user_kind === 'alumni'),
+    [users],
+  );
+  const [pages, setPages] = useState<PagePermRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pendingPath, setPendingPath] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const rows = await db({
+        action: 'select',
+        table: 'page_permissions',
+        select: 'path, section, admin_only, alumni_only, sort_order',
+        order: { column: 'sort_order', ascending: true },
+      }).catch(() => []);
+      if (!cancelled) setPages((rows ?? []) as PagePermRow[]);
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  async function toggleAlumniOnly(path: string, next: boolean) {
+    setPendingPath(path);
+    setError(null);
+    setPages((prev) => prev?.map((p) => (p.path === path ? { ...p, alumni_only: next } : p)) ?? prev);
+    const res = await db({
+      action: 'update',
+      table: 'page_permissions',
+      data: { alumni_only: next },
+      match: { path },
+    }).catch((e) => { setError(e instanceof Error ? e.message : String(e)); return null; });
+    if (!res) {
+      // Roll back optimistic flip if the write failed.
+      setPages((prev) => prev?.map((p) => (p.path === path ? { ...p, alumni_only: !next } : p)) ?? prev);
+    }
+    setPendingPath(null);
+  }
+
+  // Group pages by their `section` so the UI mirrors the sidebar's
+  // section structure. Pages without a section land in "Other".
+  const grouped = useMemo(() => {
+    const map = new Map<string, PagePermRow[]>();
+    for (const p of pages ?? []) {
+      const key = p.section?.trim() || 'Other';
+      const arr = map.get(key) ?? [];
+      arr.push(p);
+      map.set(key, arr);
+    }
+    return Array.from(map.entries());
+  }, [pages]);
+
+  return (
+    <div className="space-y-6" style={{ fontFamily: 'var(--font-body)' }}>
+      {/* ── Alumni roster ──────────────────────────────────── */}
+      <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <header className="px-5 py-3 border-b border-gray-100 flex items-baseline justify-between gap-3">
+          <h2 className="text-sm font-semibold text-foreground">Alumni</h2>
+          <p className="text-xs text-foreground/55">
+            {alumni.length === 0 ? 'No alumni marked yet.' : `${alumni.length} ${alumni.length === 1 ? 'person' : 'people'}`}
+          </p>
+        </header>
+        {alumni.length === 0 ? (
+          <div className="px-5 py-6 text-sm text-foreground/55">
+            Mark a user as alumni from <span className="font-medium text-foreground/70">Pending Approval</span> or the
+            <span className="font-medium text-foreground/70"> Users</span> list and they&apos;ll appear here.
+          </div>
+        ) : (
+          <ul className="divide-y divide-gray-100">
+            {alumni.map((u) => (
+              <li key={u.id} className="px-5 py-3 flex items-center gap-3">
+                {u.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={u.avatar_url} alt={u.full_name ?? u.email} className="w-9 h-9 rounded-full object-cover bg-warm-bg" />
+                ) : (
+                  <div className="w-9 h-9 rounded-full bg-warm-bg flex items-center justify-center text-[12px] font-semibold text-foreground/55">
+                    {(u.full_name || u.email || '?').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-[13px] font-semibold text-foreground truncate">{u.full_name || u.email}</p>
+                    {u.status === 'on_hold' && (
+                      <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-semibold border bg-amber-50 text-amber-800 border-amber-200 uppercase tracking-wider">
+                        On hold
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11.5px] text-foreground/55 truncate">{u.email}</p>
+                </div>
+                {/* Approve flips status: on_hold → active. Once
+                    they're already active there's nothing to do,
+                    so the button is replaced with a quiet
+                    "Approved" pill on those rows. */}
+                {u.status === 'on_hold' ? (
+                  <button
+                    type="button"
+                    onClick={() => void onApproveAlumni(u.id)}
+                    className="shrink-0 px-2.5 py-1 rounded-md bg-primary text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-primary/90"
+                  >
+                    Approve
+                  </button>
+                ) : (
+                  <span className="shrink-0 inline-block px-1.5 py-0.5 rounded text-[9px] font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200 uppercase tracking-wider">
+                    Approved
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* ── Alumni-only pages ──────────────────────────────── */}
+      <section className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <header className="px-5 py-3 border-b border-gray-100 flex items-baseline justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Pages alumni can see</h2>
+            <p className="mt-0.5 text-[11.5px] text-foreground/55">Pages flipped on here are visible only to alumni. Staff, admins, and super-admins won&apos;t see them.</p>
+          </div>
+        </header>
+        {error && (
+          <div className="px-5 pt-3">
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[12px] text-red-700">{error}</div>
+          </div>
+        )}
+        {pages == null ? (
+          <div className="px-5 py-6 text-sm text-foreground/55">Loading pages…</div>
+        ) : pages.length === 0 ? (
+          <div className="px-5 py-6 text-sm text-foreground/55">No pages registered.</div>
+        ) : (
+          <ol className="divide-y divide-gray-100">
+            {grouped.map(([section, rows]) => (
+              <li key={section} className="px-5 py-3">
+                <p className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 mb-2">{section}</p>
+                <ul className="space-y-1">
+                  {rows.map((p) => (
+                    <li key={p.path} className="flex items-center justify-between gap-3 py-1">
+                      <div className="min-w-0">
+                        <p className="text-[12.5px] font-medium text-foreground truncate">{p.path}</p>
+                        {p.admin_only && (
+                          <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold border bg-amber-50 text-amber-800 border-amber-200">Admin-only</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => void toggleAlumniOnly(p.path, !p.alumni_only)}
+                        aria-pressed={p.alumni_only}
+                        disabled={pendingPath === p.path}
+                        className={`shrink-0 w-10 h-6 rounded-full transition-colors relative ${p.alumni_only ? 'bg-primary' : 'bg-foreground/15'} ${pendingPath === p.path ? 'opacity-60' : ''}`}
+                        title={p.alumni_only ? 'Alumni-only — staff cannot see this page' : 'Not alumni-only'}
+                      >
+                        <span
+                          aria-hidden
+                          className={`absolute top-0.5 ${p.alumni_only ? 'left-[18px]' : 'left-0.5'} w-5 h-5 rounded-full bg-white shadow transition-all`}
+                        />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
     </div>
   );
 }

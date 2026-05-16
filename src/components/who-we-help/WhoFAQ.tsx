@@ -67,8 +67,8 @@ export default function WhoFAQ() {
           >
             Direct answers to the questions our admissions team fields most
             often. If yours isn&rsquo;t here, call us at{' '}
-            <a href="tel:+18669964308" className="text-primary font-semibold underline decoration-primary/40 hover:decoration-primary">
-              (866) 996-4308
+            <a href="tel:+18667181665" className="text-primary font-semibold underline decoration-primary/40 hover:decoration-primary">
+              (866) 718-1665
             </a>
             .
           </p>

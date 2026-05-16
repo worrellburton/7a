@@ -110,25 +110,72 @@ export function formatDuration(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export function parseDate(dateStr: string | null | undefined): Date | null {
-  if (!dateStr) return null;
-  let d = new Date(dateStr);
-  if (!isNaN(d.getTime())) return d;
-  // CTM occasionally returns "YYYY-MM-DD HH:MM:SS +ZZZZ" (sometimes
-  // with double spaces, sometimes with the offset glued to the end).
-  // Normalise to ISO 8601: first space → 'T', subsequent runs of
-  // whitespace collapsed, then strip the space before the offset
-  // sign so "+0000" / "-0700" lands directly on the time.
-  const normalised = String(dateStr)
-    .replace(' ', 'T')
-    .replace(/\s+/g, '')
-    .replace(/([+-]\d{2})(\d{2})$/, '$1:$2');
-  d = new Date(normalised);
-  if (!isNaN(d.getTime())) return d;
-  // Unix timestamp — seconds (10 digits) or milliseconds (13 digits).
-  const n = Number(dateStr);
-  if (n > 1e9 && n < 2e10) return new Date(n * 1000);
-  if (n > 1e12 && n < 2e13) return new Date(n);
+export function parseDate(dateStr: string | number | null | undefined): Date | null {
+  if (dateStr === null || dateStr === undefined || dateStr === '') return null;
+  // Numeric path: unix seconds (10 digits) or millis (13 digits).
+  if (typeof dateStr === 'number') {
+    if (!Number.isFinite(dateStr)) return null;
+    if (dateStr > 1e9 && dateStr < 2e10) return new Date(dateStr * 1000);
+    if (dateStr > 1e12 && dateStr < 2e13) return new Date(dateStr);
+    return null;
+  }
+  const s = String(dateStr).trim();
+  if (!s) return null;
+  // Reject explicit zero / placeholder timestamps that CTM occasionally
+  // emits when a call slipped through their queue without a timestamp.
+  if (/^0000[-/]/.test(s) || s === 'null' || s === 'undefined') return null;
+
+  // Try a sequence of normalisations and accept the first one that
+  // produces a valid Date. Order matters — we go from most-permissive
+  // to most-specific. Critically, we don't bail after the first
+  // attempt even if `new Date(s)` succeeds on Chrome — iOS Safari
+  // rejects formats like "2024-01-15 14:23:11" outright, so we always
+  // try the ISO-style normalisation too.
+  const tryParse = (candidate: string): Date | null => {
+    if (!candidate) return null;
+    const d = new Date(candidate);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  // Strip microseconds beyond 3 digits — iOS Safari rejects
+  // "2024-01-15T14:23:11.123456Z" but accepts ".123Z".
+  const trimmedMicros = s.replace(/(\.\d{3})\d+/, '$1');
+
+  const candidates: string[] = [
+    s,
+    trimmedMicros,
+    // CTM "YYYY-MM-DD HH:MM:SS +ZZZZ" — collapse whitespace, T-ify,
+    // colon-ize the offset.
+    s
+      .replace(' ', 'T')
+      .replace(/\s+/g, '')
+      .replace(/([+-]\d{2})(\d{2})$/, '$1:$2'),
+    trimmedMicros
+      .replace(' ', 'T')
+      .replace(/\s+/g, '')
+      .replace(/([+-]\d{2})(\d{2})$/, '$1:$2'),
+    // Slash-style "2024/01/15 14:23:11"
+    s
+      .replace(/^(\d{4})\/(\d{2})\/(\d{2})/, '$1-$2-$3')
+      .replace(' ', 'T'),
+    // Same string with a "Z" suffix as a last-ditch UTC assumption,
+    // but only if it looks like a bare datetime with no zone info.
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(trimmedMicros)
+      ? `${trimmedMicros}Z`
+      : '',
+  ];
+
+  for (const c of candidates) {
+    const d = tryParse(c);
+    if (d) return d;
+  }
+
+  // Numeric-as-string: unix seconds or millis.
+  const n = Number(s);
+  if (Number.isFinite(n)) {
+    if (n > 1e9 && n < 2e10) return new Date(n * 1000);
+    if (n > 1e12 && n < 2e13) return new Date(n);
+  }
   return null;
 }
 

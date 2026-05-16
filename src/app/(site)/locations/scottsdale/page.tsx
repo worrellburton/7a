@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Drug Rehab in Scottsdale, AZ | Seven Arrows Recovery',
   description:
-    'Discreet, luxury-level drug rehab for Scottsdale, AZ — residential care, equine therapy, dual diagnosis, and coordinated detox. Call (866) 996-4308.',
+    'Discreet, luxury-level drug rehab for Scottsdale, AZ — residential care, equine therapy, dual diagnosis, and coordinated detox. Call (866) 718-1665.',
 };
 
 import PageHero from '@/components/PageHero';
@@ -106,7 +106,7 @@ export default function LocationScottsdalePage() {
         ctas={[
           {
             kind: 'phone',
-            display: '(866) 996-4308',
+            display: '(866) 718-1665',
             eyebrow: 'Scottsdale admissions · 24/7',
           },
           { kind: 'link', href: '/admissions', label: 'Begin admissions' },
@@ -270,8 +270,8 @@ export default function LocationScottsdalePage() {
             Every conversation is private.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="tel:8669964308" className="btn-primary">
-              Call (866) 996-4308
+            <a href="tel:8667181665" className="btn-primary">
+              Call (866) 718-1665
             </a>
             <Link
               href="/contact"

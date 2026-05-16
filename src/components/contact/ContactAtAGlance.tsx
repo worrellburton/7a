@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 
 const facts = [
-  { term: 'Phone', value: '(866) 996-4308 — answered 24/7 by a compassionate admissions team member' },
+  { term: 'Phone', value: '(866) 718-1665 — answered 24/7 by a compassionate admissions team member' },
   { term: 'Email', value: 'admissions@sevenarrowsrecovery.com — responses within 1 business day' },
-  { term: 'Text', value: 'Text (866) 996-4308 if a phone call isn\'t an option right now' },
+  { term: 'Text', value: 'Text (866) 718-1665 if a phone call isn\'t an option right now' },
   { term: 'Average first-call length', value: '15 to 30 minutes — short enough to fit on a lunch break, long enough to get real answers' },
   { term: 'What you need', value: 'Insurance card (if you have one), date of birth, and a quiet place to talk' },
   { term: 'Privacy', value: 'HIPAA-compliant + 42 CFR Part 2. We do not share that you called with anyone.' },

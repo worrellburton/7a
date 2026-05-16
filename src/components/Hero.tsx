@@ -398,10 +398,16 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
               className="max-w-3xl w-full text-center text-white py-16 lg:py-20"
               style={{ paddingTop: 'calc(var(--site-header-height, 68px) + 2rem)' }}
             >
-              {/* Small kicker above the H1 — gives "A drug rehab center
-                  in Arizona" visual + SEO presence without taking the
-                  H1 slot away from "A place to land." */}
-              <p
+              {/* The H1 carries the SEO head term "A Drug Rehab
+                  Center in Arizona" so search engines see it as the
+                  document's main heading. Visually it reads as the
+                  small uppercase eyebrow above the editorial "A
+                  place to land." tagline — the headline-versus-
+                  eyebrow visual order is the inverse of the heading
+                  semantics so the page keeps its original look
+                  without burning the H1 slot on the tagline. */}
+              <h1
+                id="hero-heading"
                 className="mb-3 text-[0.78rem] sm:text-sm font-semibold uppercase tracking-[0.18em] text-white/85"
                 style={{
                   fontFamily: 'var(--font-body)',
@@ -411,9 +417,8 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
                 }}
               >
                 A Drug Rehab Center in Arizona
-              </p>
-              <h1
-                id="hero-heading"
+              </h1>
+              <p
                 className="font-bold leading-[1.02] tracking-tight mb-6"
                 style={{
                   fontFamily: 'var(--font-display)',
@@ -424,7 +429,7 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
                 }}
               >
                 A place to <em className="not-italic font-bold" style={{ color: 'var(--color-accent)' }}>land</em>.
-              </h1>
+              </p>
 
               <p
                 className="mx-auto max-w-xl text-white/85 leading-relaxed mb-8 text-base sm:text-lg"
@@ -436,7 +441,9 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
                 }}
               >
                 Seven Arrows Recovery is a residential addiction treatment
-                ranch at the base of the Swisshelm Mountains in Arizona.
+                ranch at the base of the Swisshelm Mountains in Arizona, a
+                recovery facility built for people who are serious about
+                lasting change.
               </p>
 
               {/* Primary CTA — replacing the directory-style search input
@@ -510,13 +517,13 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
                 </Link>
                 <span className="hidden sm:inline text-white/30">·</span>
                 <a
-                  href="tel:+18669964308"
+                  href="tel:+18667181665"
                   className="hover:text-white font-semibold transition-colors inline-flex items-center gap-2"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                     <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
                   </svg>
-                  Call (866) 996-4308
+                  Call (866) 718-1665
                 </a>
               </div>
 

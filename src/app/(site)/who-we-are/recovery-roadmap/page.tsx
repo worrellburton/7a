@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 import PageHero from '@/components/PageHero';
 import Link from 'next/link';
-import { EPISODES_BY_NUMBER, episodeHref } from '@/lib/episodes';
+import { EPISODES_BY_NUMBER, episodeHref, episodeImage } from '@/lib/episodes';
 
 export default function RecoveryRoadmapPage() {
   return (
@@ -30,7 +30,7 @@ export default function RecoveryRoadmapPage() {
         ctas={[
           {
             kind: 'phone',
-            display: '(866) 996-4308',
+            display: '(866) 718-1665',
             eyebrow: 'Admissions · 24/7',
           },
           { kind: 'link', href: '/admissions', label: 'Begin admissions' },
@@ -49,7 +49,7 @@ export default function RecoveryRoadmapPage() {
             >
               <div className="relative md:w-80 shrink-0">
                 <img
-                  src={ep.image}
+                  src={episodeImage(ep)}
                   alt={ep.imageAlt}
                   className="h-56 md:h-full w-full object-cover"
                   loading="lazy"
@@ -108,8 +108,8 @@ export default function RecoveryRoadmapPage() {
             today to start a confidential conversation about treatment options.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="tel:8669964308" className="btn-primary">
-              Call (866) 996-4308
+            <a href="tel:8667181665" className="btn-primary">
+              Call (866) 718-1665
             </a>
             <Link href="/contact" className="btn-outline border-white text-white hover:bg-white hover:text-foreground">
               Contact Us Online

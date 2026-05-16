@@ -95,11 +95,11 @@ export default function CareersCTA() {
             info@sevenarrowsrecovery.com
           </a>
           <a
-            href="tel:+18669964308"
+            href="tel:+18667181665"
             className="inline-flex items-center gap-2 border border-white/35 hover:border-white text-white hover:bg-white/10 rounded-full px-8 py-4 text-sm font-semibold transition-colors"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            Call (866) 996-4308
+            Call (866) 718-1665
           </a>
         </div>
       </div>

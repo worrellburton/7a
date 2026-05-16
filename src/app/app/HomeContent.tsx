@@ -14,6 +14,7 @@ import JdSignatureNagModal from './JdSignatureNagModal';
 // import in source so the re-enable diff is one line.
 // import HomeClientsRow from './HomeClientsRow';
 import HomeOnlineOrbit, { type OrbitHorse } from './HomeOnlineOrbit';
+import HomeConnect4Nudge from './HomeConnect4Nudge';
 
 interface RecentUser {
   id: string;
@@ -105,6 +106,11 @@ export default function HomeContent() {
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  // When it's the user's turn in a Connect-4 match, the
+  // HomeConnect4Nudge surfaces a floating "Your move" pill +
+  // reports the opponent's user_id up to here so the orbit
+  // below can pulse that avatar.
+  const [c4OpponentId, setC4OpponentId] = useState<string | null>(null);
 
   // Load avatar from users table (falls back to auth metadata)
   useEffect(() => {
@@ -477,7 +483,7 @@ export default function HomeContent() {
           (`h-[calc(100vh/0.82)]`) so the wrapper fills the real screen
           and `justify-center` on the centerpiece below lands the
           orbit at the visual middle of the viewport. */}
-      <div className="relative flex-1 flex flex-col h-[calc(100vh-1px)] max-h-[calc(100vh-1px)] lg:h-[calc((100vh-1px)/0.82)] lg:max-h-[calc((100vh-1px)/0.82)] overflow-hidden px-4 sm:px-6 lg:px-10 py-3 lg:py-6">
+      <div className="relative flex-1 flex flex-col h-[calc(100svh-1px)] max-h-[calc(100svh-1px)] lg:h-[calc((100vh-1px)/0.82)] lg:max-h-[calc((100vh-1px)/0.82)] overflow-hidden px-4 sm:px-6 lg:px-10 py-3 lg:py-6">
 
         {/* Phase 4: hero — no glass card; the avatar/greeting and the
             create-menu button float on the page background. The hero
@@ -637,10 +643,11 @@ export default function HomeContent() {
         {recentUsers.length > 0 && (
           <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:relative sm:top-auto sm:left-auto sm:translate-x-0 sm:translate-y-0 pointer-events-none sm:pointer-events-auto">
             <div className="pointer-events-auto">
-              <HomeOnlineOrbit users={recentUsers} horses={horses} pathLabelFor={pathLabel} />
+              <HomeOnlineOrbit users={recentUsers} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
             </div>
           </section>
         )}
+        <HomeConnect4Nudge onOpponentChange={setC4OpponentId} />
 
         {/* Phase 6: action stack — pending signatures + signed JD,
             uniform glass cards. Renders only when there's something

@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { openEligibilityPdf } from './eligibility-pdf';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 
@@ -1173,16 +1174,57 @@ interface VobRow extends RespondedFields {
   // True when the current admin has already viewed this row in a
   // previous page load — used to suppress the NEW badge on repeats.
   seen_by_me?: boolean;
+  member_id?: string | null;
+  group_number?: string | null;
+  payer_id?: string | null;
+  payer_name?: string | null;
+  subscriber_relationship?: string | null;
+  subscriber_first_name?: string | null;
+  subscriber_last_name?: string | null;
+  subscriber_dob?: string | null;
+  card_ocr?: Record<string, unknown> | null;
+  card_ocr_at?: string | null;
+  eligibility_response?: Record<string, unknown> | null;
+  eligibility_checked_at?: string | null;
 }
+
+const STEDI_FIELD_KEYS = [
+  'member_id',
+  'group_number',
+  'payer_id',
+  'payer_name',
+  'subscriber_relationship',
+  'subscriber_first_name',
+  'subscriber_last_name',
+  'subscriber_dob',
+] as const;
+type StediFieldKey = (typeof STEDI_FIELD_KEYS)[number];
+type StediFieldUpdate = Partial<Record<StediFieldKey, string | null>>;
 
 function VobsPanel() {
   const [rows, setRows] = useState<VobRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const { submit: submitAttempt, busyKey: attemptBusyKey } = useVobAttempt();
   const { save: saveAdminNotes, busyId: notesBusyId } = useVobAdminNotes();
   const { save: saveStatus, busyId: statusBusyId } = useVobStatus();
   const { remove, busyId: deletingId } = useDelete('vob');
+
+  // Clicks anywhere inside an interactive child (button, input,
+  // select, anchor, or anything marked data-no-toggle) shouldn't
+  // toggle the row open/closed. This lets the existing per-cell
+  // controls (status, notes, attempts, delete, card thumbs) keep
+  // working untouched.
+  const toggleRow = useCallback((id: string, ev: React.MouseEvent<HTMLTableRowElement>) => {
+    const target = ev.target as HTMLElement | null;
+    if (target?.closest('button, a, select, input, textarea, [data-no-toggle]')) return;
+    setExpandedId((cur) => (cur === id ? null : id));
+  }, []);
+
+  const patchRow = useCallback((id: string, patch: Partial<VobRow>) => {
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -1288,9 +1330,24 @@ function VobsPanel() {
           </thead>
           <tbody className="divide-y divide-black/5">
             {displayRows.map((r) => (
-              <tr key={r.id} className="align-top">
+              <Fragment key={r.id}>
+              <tr
+                className={`align-top cursor-pointer transition-colors ${expandedId === r.id ? 'bg-warm-bg/50' : 'hover:bg-warm-bg/30'}`}
+                onClick={(ev) => toggleRow(r.id, ev)}
+                title="Click to view insurance details"
+              >
                 <Td>
-                  <p className="font-semibold text-foreground">{r.full_name}</p>
+                  <div className="flex items-center gap-1.5">
+                    <svg
+                      className={`w-3 h-3 text-foreground/40 transition-transform ${expandedId === r.id ? 'rotate-90' : ''}`}
+                      viewBox="0 0 12 12"
+                      fill="none"
+                      aria-hidden="true"
+                    >
+                      <path d="M4 3l4 3-4 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    <p className="font-semibold text-foreground">{r.full_name}</p>
+                  </div>
                 </Td>
                 <Td>
                   <div className="text-xs text-foreground/70 space-y-0.5">
@@ -1357,11 +1414,547 @@ function VobsPanel() {
                   <DeleteButton onConfirm={() => handleDelete(r.id)} busy={deletingId === r.id} />
                 </Td>
               </tr>
+              {expandedId === r.id && (
+                <tr className="bg-warm-bg/30" data-no-toggle>
+                  <td colSpan={10} className="px-4 py-4 border-t border-black/5">
+                    <VobExpandedDetail row={r} onPatch={(patch) => patchRow(r.id, patch)} />
+                  </td>
+                </tr>
+              )}
+              </Fragment>
             ))}
           </tbody>
         </table>
       </div>
     </Section>
+  );
+}
+
+// ------------- VOB expanded detail (Stedi card data + eligibility) -------
+
+const STEDI_LABELS: Record<StediFieldKey, string> = {
+  member_id: 'Member ID',
+  group_number: 'Group #',
+  payer_id: 'Payer ID',
+  payer_name: 'Payer name',
+  subscriber_relationship: 'Relationship',
+  subscriber_first_name: 'Subscriber first',
+  subscriber_last_name: 'Subscriber last',
+  subscriber_dob: 'Subscriber DOB',
+};
+
+function VobExpandedDetail({
+  row,
+  onPatch,
+}: {
+  row: VobRow;
+  onPatch: (patch: Partial<VobRow>) => void;
+}) {
+  // Local working copy of the editable fields. We sync from `row`
+  // whenever the parent updates (e.g. after OCR writes back), but
+  // keep keystroke-by-keystroke state local so typing is responsive
+  // and doesn't round-trip through the server.
+  //
+  // When a subscriber field is empty but the patient already gave
+  // us the equivalent on the website form (DOB, full name), we
+  // default the draft to that value so eligibility checks aren't
+  // blocked on the admin re-typing what we already know. The auto-
+  // default lands in `dirty` so the next save persists it.
+  const buildInitialDraft = useCallback((): { draft: Record<StediFieldKey, string>; autoFilled: Set<StediFieldKey> } => {
+    const autoFilled = new Set<StediFieldKey>();
+    const entries: Array<[StediFieldKey, string]> = STEDI_FIELD_KEYS.map((k) => {
+      const current = (row[k] as string | null) ?? '';
+      if (current) return [k, current];
+      // Defaults derived from the website-form submission.
+      if (k === 'subscriber_dob' && row.date_of_birth) {
+        autoFilled.add(k);
+        return [k, row.date_of_birth];
+      }
+      if (k === 'subscriber_first_name' && !row.subscriber_first_name && row.full_name) {
+        const first = row.full_name.trim().split(/\s+/)[0] || '';
+        if (first) {
+          autoFilled.add(k);
+          return [k, first];
+        }
+      }
+      if (k === 'subscriber_last_name' && !row.subscriber_last_name && row.full_name) {
+        const parts = row.full_name.trim().split(/\s+/);
+        const last = parts.length > 1 ? parts.slice(1).join(' ') : '';
+        if (last) {
+          autoFilled.add(k);
+          return [k, last];
+        }
+      }
+      if (k === 'subscriber_relationship' && !row.subscriber_relationship) {
+        autoFilled.add(k);
+        return [k, 'self'];
+      }
+      if (k === 'payer_name' && !row.payer_name && row.insurance_provider) {
+        autoFilled.add(k);
+        return [k, row.insurance_provider];
+      }
+      return [k, current];
+    });
+    return {
+      draft: Object.fromEntries(entries) as Record<StediFieldKey, string>,
+      autoFilled,
+    };
+  }, [row]);
+
+  const [draft, setDraft] = useState<Record<StediFieldKey, string>>(() => buildInitialDraft().draft);
+  const [dirty, setDirty] = useState<Set<StediFieldKey>>(() => buildInitialDraft().autoFilled);
+  const [savingFields, setSavingFields] = useState(false);
+  const [ocrBusy, setOcrBusy] = useState(false);
+  const [ocrError, setOcrError] = useState<string | null>(null);
+  const [eligBusy, setEligBusy] = useState(false);
+  const [eligError, setEligError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const { draft: next, autoFilled } = buildInitialDraft();
+    setDraft(next);
+    setDirty(autoFilled);
+  }, [
+    row.id,
+    row.member_id,
+    row.group_number,
+    row.payer_id,
+    row.payer_name,
+    row.subscriber_relationship,
+    row.subscriber_first_name,
+    row.subscriber_last_name,
+    row.subscriber_dob,
+    buildInitialDraft,
+  ]);
+
+  const handleChange = (k: StediFieldKey, v: string) => {
+    setDraft((d) => ({ ...d, [k]: v }));
+    setDirty((s) => new Set(s).add(k));
+  };
+
+  const saveFields = async () => {
+    if (dirty.size === 0) return;
+    setSavingFields(true);
+    try {
+      const fields: StediFieldUpdate = {};
+      for (const k of dirty) {
+        const trimmed = draft[k].trim();
+        fields[k] = trimmed.length === 0 ? null : trimmed;
+      }
+      const res = await fetch('/api/website-requests/vob-stedi-fields', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: row.id, fields }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      onPatch(fields as Partial<VobRow>);
+      setDirty(new Set());
+    } catch (e) {
+      console.error('vob-stedi-fields save failed', e);
+    } finally {
+      setSavingFields(false);
+    }
+  };
+
+  const runOcr = async () => {
+    setOcrBusy(true);
+    setOcrError(null);
+    try {
+      const res = await fetch('/api/stedi/card-ocr', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ vob_id: row.id }),
+      });
+      const json = (await res.json()) as { fields?: Record<string, unknown>; error?: string; card_ocr_at?: string };
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      const f = json.fields ?? {};
+      const patch: Partial<VobRow> = {
+        card_ocr: { ...f, at: json.card_ocr_at },
+        card_ocr_at: json.card_ocr_at ?? new Date().toISOString(),
+      };
+      for (const k of STEDI_FIELD_KEYS) {
+        const v = f[k];
+        if (typeof v === 'string' && v.trim()) (patch as Record<string, unknown>)[k] = v;
+      }
+      onPatch(patch);
+    } catch (e) {
+      setOcrError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setOcrBusy(false);
+    }
+  };
+
+  // Holds the popup window opened by "View eligibility PDF" so a
+  // subsequent re-run can navigate the same window to the refreshed
+  // blob URL instead of leaving stale data on screen.
+  const pdfWindowRef = useRef<Window | null>(null);
+
+  const refreshOpenPdf = async (
+    nextResponse: Record<string, unknown> | null,
+    nextCheckedAt: string,
+  ) => {
+    const win = pdfWindowRef.current;
+    if (!win || win.closed) return;
+    const refreshed: VobRow = {
+      ...row,
+      eligibility_response: nextResponse,
+      eligibility_checked_at: nextCheckedAt,
+    };
+    try {
+      pdfWindowRef.current = await openEligibilityPdf(refreshed, win);
+    } catch (e) {
+      console.error('pdf refresh failed', e);
+    }
+  };
+
+  const runEligibility = async () => {
+    setEligBusy(true);
+    setEligError(null);
+    try {
+      // Stedi reads from the DB, so unsaved edits never reach it.
+      // Auto-save anything dirty before firing the 270 — otherwise
+      // a freshly-OCR'd row with an unsaved payer_id fails with
+      // "Cannot run eligibility check - missing: payer_id".
+      if (dirty.size > 0) {
+        await saveFields();
+      }
+      const res = await fetch('/api/stedi/eligibility', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ vob_id: row.id }),
+      });
+      const json = (await res.json()) as {
+        response?: Record<string, unknown>;
+        eligibility_checked_at?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        // Persist the failure body too so the panel reflects what happened.
+        if (json.response) {
+          const checkedAt = new Date().toISOString();
+          onPatch({ eligibility_response: json.response, eligibility_checked_at: checkedAt });
+          await refreshOpenPdf(json.response, checkedAt);
+        }
+        throw new Error(json.error || `HTTP ${res.status}`);
+      }
+      const nextResponse = json.response ?? null;
+      const checkedAt = json.eligibility_checked_at ?? new Date().toISOString();
+      onPatch({ eligibility_response: nextResponse, eligibility_checked_at: checkedAt });
+      await refreshOpenPdf(nextResponse, checkedAt);
+    } catch (e) {
+      setEligError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setEligBusy(false);
+    }
+  };
+
+  const handleOpenPdf = async () => {
+    if (!row.eligibility_response) return;
+    try {
+      pdfWindowRef.current = await openEligibilityPdf(row, pdfWindowRef.current);
+    } catch (e) {
+      console.error('pdf open failed', e);
+    }
+  };
+
+  const hasCard = !!(row.card_front_url || row.card_back_url);
+  const hasEligibility = !!row.eligibility_response;
+  const fieldsReadyForEligibility = !!(draft.member_id?.trim() && draft.payer_id?.trim());
+
+  // Auto-run OCR the first time a row is expanded if there are card
+  // images and OCR has never been done on this row. Skipping when
+  // `card_ocr_at` is already set keeps re-runs explicit (the manual
+  // "Re-read card with Claude" button stays for that). One-shot per
+  // row.id so re-mounting on a different row still triggers.
+  const autoOcrTriggered = useRef<string | null>(null);
+  useEffect(() => {
+    if (autoOcrTriggered.current === row.id) return;
+    if (!hasCard) return;
+    if (row.card_ocr_at) return;
+    autoOcrTriggered.current = row.id;
+    runOcr();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row.id, hasCard, row.card_ocr_at]);
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-[minmax(220px,320px)_1fr] gap-6">
+      {/* Card images */}
+      <div className="space-y-3">
+        <h4 className="text-xs uppercase tracking-wider font-semibold text-foreground/55">Insurance card</h4>
+        {hasCard ? (
+          <div className="space-y-2">
+            {row.card_front_url && <CardImage url={row.card_front_url} label="Front" />}
+            {row.card_back_url && <CardImage url={row.card_back_url} label="Back" />}
+          </div>
+        ) : (
+          <p className="text-xs italic text-foreground/40">No card images on this submission.</p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={runOcr}
+            disabled={!hasCard || ocrBusy}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-foreground text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-foreground/85 transition-colors"
+          >
+            {ocrBusy ? 'Reading card…' : row.card_ocr_at ? 'Re-read card with Claude' : 'Auto-fill from card'}
+          </button>
+        </div>
+        {row.card_ocr_at && (
+          <p className="text-[10px] text-foreground/40">Last read {new Date(row.card_ocr_at).toLocaleString()}</p>
+        )}
+        {ocrError && <p className="text-xs text-red-600">{ocrError}</p>}
+      </div>
+
+      {/* Editable fields + eligibility actions */}
+      <div className="space-y-4">
+        <div>
+          <h4 className="text-xs uppercase tracking-wider font-semibold text-foreground/55 mb-2">
+            Insurance fields {dirty.size > 0 && <span className="text-amber-600 normal-case ml-1">· unsaved</span>}
+          </h4>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {STEDI_FIELD_KEYS.map((k) => {
+              if (k === 'payer_id') {
+                return (
+                  <PayerIdField
+                    key={k}
+                    value={draft.payer_id}
+                    onChange={(stediId, displayName) => {
+                      handleChange('payer_id', stediId);
+                      if (displayName && !draft.payer_name.trim()) handleChange('payer_name', displayName);
+                    }}
+                    initialQuery={draft.payer_name || row.insurance_provider || ''}
+                  />
+                );
+              }
+              return (
+                <label key={k} className="block">
+                  <span className="block text-[10px] uppercase tracking-wider text-foreground/50 mb-1">{STEDI_LABELS[k]}</span>
+                  <input
+                    type={k === 'subscriber_dob' ? 'date' : 'text'}
+                    value={draft[k]}
+                    onChange={(e) => handleChange(k, e.target.value)}
+                    placeholder="—"
+                    className="w-full px-2.5 py-1.5 rounded-md border border-black/10 bg-white text-sm focus:outline-none focus:border-primary"
+                  />
+                </label>
+              );
+            })}
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={saveFields}
+              disabled={dirty.size === 0 || savingFields}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-primary/85 transition-colors"
+            >
+              {savingFields ? 'Saving…' : 'Save fields'}
+            </button>
+          </div>
+        </div>
+
+        <div className="border-t border-black/10 pt-4">
+          <h4 className="text-xs uppercase tracking-wider font-semibold text-foreground/55 mb-2">Eligibility (Stedi 270/271)</h4>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={runEligibility}
+              disabled={!fieldsReadyForEligibility || eligBusy}
+              title={fieldsReadyForEligibility ? '' : 'Member ID and Payer ID are required.'}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-emerald-600 text-white disabled:opacity-40 disabled:cursor-not-allowed hover:bg-emerald-700 transition-colors"
+            >
+              {eligBusy ? 'Checking…' : hasEligibility ? 'Re-run eligibility check' : 'Run eligibility check'}
+            </button>
+            <button
+              type="button"
+              onClick={handleOpenPdf}
+              disabled={!hasEligibility}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-blue-100 transition-colors"
+            >
+              View eligibility PDF
+            </button>
+            {row.eligibility_checked_at && (
+              <span className="text-[10px] text-foreground/40">Last checked {new Date(row.eligibility_checked_at).toLocaleString()}</span>
+            )}
+          </div>
+          {eligError && <p className="mt-2 text-xs text-red-600">{eligError}</p>}
+          {hasEligibility && (
+            <details className="mt-3">
+              <summary className="text-[11px] text-foreground/55 cursor-pointer hover:text-foreground/80">Raw 271 response</summary>
+              <pre className="mt-2 max-h-72 overflow-auto text-[10px] leading-tight bg-white border border-black/10 rounded-md p-2 font-mono">{JSON.stringify(row.eligibility_response, null, 2)}</pre>
+            </details>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Payer ID field with built-in Stedi payer-directory search. The
+// number printed on most insurance cards is NOT a Stedi trading-
+// partner id — it's a CMS / Change Healthcare / RX BIN code, which
+// causes the 270 to come back with AAA-79 "Invalid Participant
+// Identification". This control lets the admin type the insurer
+// name, pick from Stedi's directory, and stamp the correct stediId.
+
+interface PayerSearchHit {
+  stediId: string;
+  displayName: string;
+  primaryPayerId: string | null;
+  aliases: string[];
+  eligibilitySupport: string | null;
+}
+
+function PayerIdField({
+  value,
+  onChange,
+  initialQuery,
+}: {
+  value: string;
+  onChange: (stediId: string, displayName?: string) => void;
+  initialQuery: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(initialQuery);
+  const [results, setResults] = useState<PayerSearchHit[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const debounceRef = useRef<number | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  // Close the dropdown when clicking outside.
+  useEffect(() => {
+    if (!open) return;
+    const onClick = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (debounceRef.current) window.clearTimeout(debounceRef.current);
+    const q = query.trim();
+    if (q.length < 2) { setResults([]); return; }
+    debounceRef.current = window.setTimeout(async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(`/api/stedi/payers/search?q=${encodeURIComponent(q)}`, {
+          credentials: 'include',
+        });
+        const json = (await res.json()) as { items?: PayerSearchHit[]; error?: string };
+        if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+        setResults(json.items ?? []);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+        setResults([]);
+      } finally {
+        setLoading(false);
+      }
+    }, 250);
+    return () => { if (debounceRef.current) window.clearTimeout(debounceRef.current); };
+  }, [open, query]);
+
+  return (
+    <div ref={wrapRef} className="block relative" data-no-toggle>
+      <span className="block text-[10px] uppercase tracking-wider text-foreground/50 mb-1">
+        Payer ID <span className="text-foreground/40 normal-case">(Stedi)</span>
+      </span>
+      <div className="flex gap-1">
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={() => setOpen(true)}
+          placeholder="Search insurer to set"
+          className="flex-1 min-w-0 px-2.5 py-1.5 rounded-md border border-black/10 bg-white text-sm focus:outline-none focus:border-primary font-mono"
+        />
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="px-2.5 py-1.5 rounded-md text-xs font-medium bg-foreground/10 text-foreground/70 hover:bg-foreground/15 transition-colors"
+          title="Search Stedi payer directory"
+        >
+          {open ? 'Close' : 'Find'}
+        </button>
+      </div>
+      {open && (
+        <div className="absolute z-20 mt-1 w-[360px] max-w-[90vw] left-0 rounded-lg border border-black/10 bg-white shadow-lg p-2">
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="e.g. Blue Cross Mississippi, Aetna, UnitedHealthcare…"
+            autoFocus
+            className="w-full px-2.5 py-1.5 rounded-md border border-black/10 bg-white text-sm focus:outline-none focus:border-primary"
+          />
+          <div className="mt-2 max-h-64 overflow-auto">
+            {loading && <p className="text-xs italic text-foreground/50 px-2 py-1">Searching Stedi directory…</p>}
+            {error && <p className="text-xs text-red-600 px-2 py-1">{error}</p>}
+            {!loading && !error && results.length === 0 && query.trim().length >= 2 && (
+              <p className="text-xs italic text-foreground/40 px-2 py-1">No payers match — try a shorter or differently-worded name.</p>
+            )}
+            {results.map((r) => {
+              const supported = r.eligibilitySupport === 'SUPPORTED';
+              return (
+                <button
+                  type="button"
+                  key={r.stediId}
+                  onClick={() => {
+                    onChange(r.stediId, r.displayName);
+                    setOpen(false);
+                  }}
+                  className="w-full text-left px-2 py-1.5 rounded-md hover:bg-warm-bg/50 transition-colors block"
+                >
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-sm font-semibold text-foreground truncate">{r.displayName}</span>
+                    <span className="text-[10px] font-mono text-foreground/45 flex-shrink-0">{r.stediId}</span>
+                  </div>
+                  <div className="text-[10px] text-foreground/50 flex gap-2">
+                    {r.primaryPayerId && <span>CMS {r.primaryPayerId}</span>}
+                    {!supported && r.eligibilitySupport && (
+                      <span className="text-amber-700">{r.eligibilitySupport.toLowerCase().replace(/_/g, ' ')}</span>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[10px] text-foreground/40 px-1">
+            Pick the row that matches the card. The stediId on the right is what Stedi 270 needs.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CardImage({ url, label }: { url: string; label: string }) {
+  const isPdf = /\.pdf(\?|$)/i.test(url);
+  if (isPdf) {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block rounded-lg border border-black/10 bg-white px-3 py-2 text-xs text-foreground/70 hover:border-primary"
+      >
+        Open {label.toLowerCase()} (PDF)
+      </a>
+    );
+  }
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" className="block rounded-lg overflow-hidden border border-black/10 hover:border-primary transition-colors">
+      <div className="flex items-center justify-between px-2 py-1 bg-warm-bg/60 text-[10px] uppercase tracking-wider text-foreground/55">
+        <span>{label}</span>
+        <span>Open ↗</span>
+      </div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={url} alt={`${label} of insurance card`} className="w-full object-contain bg-white max-h-64" loading="lazy" />
+    </a>
   );
 }
 
@@ -1570,12 +2163,12 @@ function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
                     </Td>
                     <Td>
                       {r.message ? (
-                        <p className="text-xs text-foreground/80 line-clamp-3 whitespace-pre-wrap max-w-[340px]">{r.message}</p>
+                        <p className="text-xs text-foreground/80 whitespace-pre-wrap break-words max-w-[420px]">{r.message}</p>
                       ) : (
                         <span className="text-foreground/40">—</span>
                       )}
                       {(r.page_url || r.referrer) && (
-                        <p className="text-[11px] text-foreground/40 mt-1 truncate max-w-[340px]">
+                        <p className="text-[11px] text-foreground/40 mt-1 truncate max-w-[420px]">
                           {r.page_url ? `From: ${r.page_url}` : `Referrer: ${r.referrer}`}
                         </p>
                       )}

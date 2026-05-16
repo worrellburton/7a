@@ -9,8 +9,8 @@ import { fetchPlaceDetails, SEVEN_ARROWS_PLACE_ID, type PlaceListing } from '@/l
 const FALLBACK: PlaceListing = {
   name: 'Seven Arrows Recovery',
   formattedAddress: 'Cochise County, Arizona, USA',
-  phone: '(866) 996-4308',
-  internationalPhone: '+1 866-996-4308',
+  phone: '(866) 718-1665',
+  internationalPhone: '+1 866-718-1665',
   website: 'https://sevenarrowsrecoveryarizona.com',
   mapsUrl: `https://www.google.com/maps/place/?q=place_id:${SEVEN_ARROWS_PLACE_ID}`,
   hours: null,
