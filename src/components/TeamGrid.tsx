@@ -30,7 +30,7 @@ export default function TeamGrid({ team }: { team: PublicTeamMember[] }) {
   }
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-5 lg:gap-6">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-5 lg:gap-6">
       {team.map((member) => {
         const creds = splitCredentials(member.credentials);
         return (
