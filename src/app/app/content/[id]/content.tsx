@@ -639,21 +639,27 @@ function ImagesPanel({ blog, images, token, onChange }: { blog: DbBlog; images: 
               }
               const isSel = selected.has(img.id);
               return (
-                <button
+                <div
                   key={img.id}
-                  type="button"
-                  onClick={() => toggle(img.id)}
-                  className={`relative rounded-lg overflow-hidden border-2 transition-all ${isSel ? 'border-primary ring-2 ring-primary/30' : 'border-black/10 hover:border-foreground/40'}`}
+                  className={`group/img relative rounded-lg overflow-hidden border-2 transition-all ${isSel ? 'border-primary ring-2 ring-primary/30' : 'border-black/10 hover:border-foreground/40'}`}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={img.url} alt={img.alt ?? ''} className="block w-full aspect-square object-cover" />
-                  <span className="absolute top-1.5 left-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full bg-white/85 text-[9px] font-semibold text-foreground/70 border border-black/10">
+                  <button
+                    type="button"
+                    onClick={() => toggle(img.id)}
+                    className="block w-full"
+                    aria-label={isSel ? 'Deselect image' : 'Select image'}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={img.url} alt={img.alt ?? ''} className="block w-full aspect-square object-cover" />
+                  </button>
+                  <span className="absolute top-1.5 left-1.5 inline-flex items-center px-1.5 py-0.5 rounded-full bg-white/85 text-[9px] font-semibold text-foreground/70 border border-black/10 pointer-events-none">
                     {img.provider}
                   </span>
+                  <ImagePromptInfo img={img} />
                   {isSel && (
-                    <span className="absolute top-1.5 right-1.5 inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary text-white text-[12px] font-bold">✓</span>
+                    <span className="absolute top-1.5 right-1.5 inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary text-white text-[12px] font-bold pointer-events-none">✓</span>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
@@ -673,6 +679,64 @@ function ImagesPanel({ blog, images, token, onChange }: { blog: DbBlog; images: 
         </>
       )}
     </Panel>
+  );
+}
+
+/**
+ * Hover-info chip on each generated thumbnail. Surfaces (a) the
+ * provider that rendered the image (gpt-image-2 or nano-banana-2)
+ * and (b) the exact augmented prompt that was sent to the model —
+ * concept text from Claude + the style register the route appended.
+ * Tap-friendly: also opens on touch via aria-expanded toggle so it
+ * works on mobile where there is no hover.
+ */
+function ImagePromptInfo({ img }: { img: DbImage }) {
+  const [open, setOpen] = useState(false);
+  const styleHint = (() => {
+    const p = (img.prompt ?? '').toLowerCase();
+    if (p.includes('editorial illustration')) return 'illustrative';
+    if (p.includes('fine-art editorial')) return 'editorial';
+    if (p.includes('documentary photography')) return 'photoreal';
+    return null;
+  })();
+  return (
+    <div className="absolute top-1.5 right-1.5 z-10">
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white/85 border border-black/10 text-foreground/70 hover:text-foreground hover:bg-white transition-colors shadow-sm"
+        aria-label="Show prompt and provider"
+        aria-expanded={open}
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 16v-4M12 8h.01" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          className="absolute top-7 right-0 w-72 max-w-[80vw] rounded-lg border border-black/10 bg-white shadow-xl p-3 text-[11.5px] leading-snug text-foreground/80"
+          onMouseEnter={() => setOpen(true)}
+          onMouseLeave={() => setOpen(false)}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-1.5 mb-2">
+            <span className="text-[9px] font-bold uppercase tracking-wider text-foreground/50">Platform</span>
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-foreground/5 text-[10px] font-semibold text-foreground">{img.provider}</span>
+            {styleHint && (
+              <>
+                <span className="text-[9px] font-bold uppercase tracking-wider text-foreground/50 ml-1">Style</span>
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-primary/10 text-[10px] font-semibold text-primary capitalize">{styleHint}</span>
+              </>
+            )}
+          </div>
+          <p className="text-[9px] font-bold uppercase tracking-wider text-foreground/50 mb-1">Prompt</p>
+          <p className="max-h-40 overflow-y-auto whitespace-pre-wrap">{img.prompt ?? '(no prompt saved)'}</p>
+        </div>
+      )}
+    </div>
   );
 }
 
