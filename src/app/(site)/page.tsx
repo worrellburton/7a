@@ -230,7 +230,10 @@ export default async function Home() {
       <PlaceToHeal />
       <ProgramSection />
       <TreatmentServices />
-      <ComprehensiveTreatment />
+      {/* Hidden from the landing per product request — kept mounted as
+          a comment-out so the section can be re-enabled without re-
+          tracing the JSX. */}
+      {false && <ComprehensiveTreatment />}
       <CampusTour />
       <InsuranceCarousel />
       <GoogleReviewsCinema />
