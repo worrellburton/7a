@@ -19,6 +19,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DepartmentPageNav } from '../DepartmentPageNav';
 import { SearchSelectCell } from '@/components/SearchSelectCell';
 import {
   ContactMethodPicker,
@@ -179,6 +180,7 @@ export default function PartnershipsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'grid' | 'map'>('grid');
+  const [insightsOpen, setInsightsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [filterSpecialty, setFilterSpecialty] = useState<string>('');
   const [filterInsurance, setFilterInsurance] = useState<string>('');
@@ -506,9 +508,12 @@ export default function PartnershipsContent() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-[1600px] mx-auto pb-[max(1rem,env(safe-area-inset-bottom))]" style={{ fontFamily: 'var(--font-body)' }}>
+      <div className="mb-4">
+        <DepartmentPageNav />
+      </div>
       <header className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-foreground tracking-tight">Partnerships &amp; Referrals</h1>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight">BD Partnerships</h1>
           <p className="text-sm text-foreground/55 mt-0.5">
             Clinical partners and referral sources, grouped by specialty.
             {rows.length > 0 && (
@@ -517,6 +522,32 @@ export default function PartnershipsContent() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setView((v) => (v === 'map' ? 'grid' : 'map'))}
+            aria-pressed={view === 'map'}
+            className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2 rounded-lg border text-xs font-semibold uppercase tracking-wider transition-colors ${
+              view === 'map'
+                ? 'border-foreground bg-foreground text-white'
+                : 'border-black/10 bg-white text-foreground/70 hover:border-foreground/30 hover:text-foreground'
+            }`}
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13 6-3m-6 3V7m6 10 5.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-1.447-.894L15 4m0 13V4m-6 3 6-3" />
+            </svg>
+            Map
+          </button>
+          <button
+            type="button"
+            onClick={() => setInsightsOpen(true)}
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2 rounded-lg border border-black/10 bg-white text-foreground/70 text-xs font-semibold uppercase tracking-wider hover:border-foreground/30 hover:text-foreground transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 3v18h18" />
+              <path d="M7 15l4-6 4 4 5-9" />
+            </svg>
+            Insights
+          </button>
           <button
             type="button"
             onClick={() => setShowImport(true)}
@@ -570,7 +601,6 @@ export default function PartnershipsContent() {
         </div>
 
         <div className="sm:ml-auto flex items-center gap-2">
-          <ViewToggle value={view} onChange={setView} />
           {/* Manage Columns is for the desktop table; on mobile every
               field already shows in the per-partner card. */}
           <div className="hidden md:block">
@@ -589,29 +619,83 @@ export default function PartnershipsContent() {
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       )}
 
-      {view === 'grid' ? (
-        <PartnersGrid
-          loading={loading}
-          rows={groupedRows}
-          columns={visibleColumnsResolved}
-          onColDragStart={onColDragStart}
-          onColDrop={onColDrop}
-          onEdit={(p) => setEditing(p)}
-          onDowngrade={(p) => setDowngradeTarget(p)}
-          onLogContact={(p) => setLogTarget(p)}
-          onHistory={(p) => setHistoryTarget(p)}
-          actionMenuFor={actionMenuFor}
-          setActionMenuFor={setActionMenuFor}
-          specialties={specialties}
-          onInlineSpecialty={onInlineSpecialty}
-          columnWidths={columnWidths}
-          onResizeColumn={(key, w) => setColumnWidths((prev) => ({ ...prev, [key]: Math.round(w) }))}
-          onCommitColumnWidth={(key, w) => { void persistColumnWidth(key, w); }}
-          onResizeStart={() => { resizingRef.current = true; }}
-          onResizeEnd={() => { resizingRef.current = false; }}
-        />
-      ) : (
-        <PartnersMapView rows={filtered} />
+      <PartnersGrid
+        loading={loading}
+        rows={groupedRows}
+        columns={visibleColumnsResolved}
+        onColDragStart={onColDragStart}
+        onColDrop={onColDrop}
+        onEdit={(p) => setEditing(p)}
+        onDowngrade={(p) => setDowngradeTarget(p)}
+        onLogContact={(p) => setLogTarget(p)}
+        onHistory={(p) => setHistoryTarget(p)}
+        actionMenuFor={actionMenuFor}
+        setActionMenuFor={setActionMenuFor}
+        specialties={specialties}
+        onInlineSpecialty={onInlineSpecialty}
+        columnWidths={columnWidths}
+        onResizeColumn={(key, w) => setColumnWidths((prev) => ({ ...prev, [key]: Math.round(w) }))}
+        onCommitColumnWidth={(key, w) => { void persistColumnWidth(key, w); }}
+        onResizeStart={() => { resizingRef.current = true; }}
+        onResizeEnd={() => { resizingRef.current = false; }}
+      />
+
+      {view === 'map' && (
+        <div
+          className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center bg-black/50 p-0 sm:p-6"
+          onClick={() => setView('grid')}
+        >
+          <div
+            className="relative w-full max-w-6xl h-full sm:h-auto sm:max-h-[90vh] bg-white rounded-none sm:rounded-2xl shadow-xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-3 border-b border-black/10 shrink-0">
+              <h2 className="text-base font-semibold text-foreground">Partner map</h2>
+              <button
+                type="button"
+                onClick={() => setView('grid')}
+                className="text-foreground/50 hover:text-foreground transition-colors"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5">
+              <PartnersMapView rows={filtered} />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {insightsOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center bg-black/50 p-0 sm:p-6"
+          onClick={() => setInsightsOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-3xl bg-white rounded-none sm:rounded-2xl shadow-xl overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-3 border-b border-black/10 shrink-0">
+              <h2 className="text-base font-semibold text-foreground">BD Partnerships insights</h2>
+              <button
+                type="button"
+                onClick={() => setInsightsOpen(false)}
+                className="text-foreground/50 hover:text-foreground transition-colors"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto p-6">
+              <PartnersInsightsView rows={filtered} />
+            </div>
+          </div>
+        </div>
       )}
 
       {showCreate && (
@@ -1468,6 +1552,99 @@ function PartnersMapView({ rows }: { rows: Partner[] }) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Insights view ──────────────────────────────────────────────
+
+function PartnersInsightsView({ rows }: { rows: Partner[] }) {
+  const stats = useMemo(() => {
+    const total = rows.length;
+    const tierCount = { 'Tier 1': 0, 'Tier 2': 0, 'Tier 3': 0, Unrated: 0 } as Record<string, number>;
+    const specialtyCount = new Map<string, number>();
+    const typeCount = new Map<string, number>();
+    let neverContacted = 0;
+    let contactedThisMonth = 0;
+    const now = Date.now();
+    const monthMs = 30 * 24 * 60 * 60 * 1000;
+    for (const r of rows) {
+      const key = r.rating ?? 'Unrated';
+      tierCount[key] = (tierCount[key] ?? 0) + 1;
+      if (r.specialty) specialtyCount.set(r.specialty, (specialtyCount.get(r.specialty) ?? 0) + 1);
+      if (r.type) typeCount.set(r.type, (typeCount.get(r.type) ?? 0) + 1);
+      if (!r.last_contact_at) {
+        neverContacted += 1;
+      } else if (now - new Date(r.last_contact_at).getTime() <= monthMs) {
+        contactedThisMonth += 1;
+      }
+    }
+    return {
+      total,
+      tierCount,
+      specialties: Array.from(specialtyCount.entries()).sort((a, b) => b[1] - a[1]).slice(0, 6),
+      types: Array.from(typeCount.entries()).sort((a, b) => b[1] - a[1]),
+      neverContacted,
+      contactedThisMonth,
+    };
+  }, [rows]);
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <KpiTile label="Total partners" value={stats.total} />
+        <KpiTile label="Contacted this month" value={stats.contactedThisMonth} accent="text-emerald-600" />
+        <KpiTile label="Never contacted" value={stats.neverContacted} accent="text-amber-600" />
+        <KpiTile label="Tier 1" value={stats.tierCount['Tier 1'] ?? 0} accent="text-emerald-700" />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="rounded-xl border border-black/10 bg-white p-5">
+          <h3 className="text-sm font-semibold text-foreground mb-3">Tier mix</h3>
+          <ul className="space-y-2 text-sm">
+            {(['Tier 1', 'Tier 2', 'Tier 3', 'Unrated'] as const).map((t) => {
+              const count = stats.tierCount[t] ?? 0;
+              const pct = stats.total > 0 ? (count / stats.total) * 100 : 0;
+              return (
+                <li key={t}>
+                  <div className="flex justify-between text-[12.5px] mb-1">
+                    <span className="text-foreground/70">{t}</span>
+                    <span className="tabular-nums text-foreground/55">{count} · {pct.toFixed(0)}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-foreground/5 overflow-hidden">
+                    <div className="h-full bg-foreground/70 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        <div className="rounded-xl border border-black/10 bg-white p-5">
+          <h3 className="text-sm font-semibold text-foreground mb-3">Top specialties</h3>
+          {stats.specialties.length === 0 ? (
+            <p className="text-sm text-foreground/45">No specialty data yet.</p>
+          ) : (
+            <ul className="space-y-2 text-sm">
+              {stats.specialties.map(([label, count]) => (
+                <li key={label} className="flex justify-between">
+                  <span className="text-foreground/75 truncate pr-2">{label}</span>
+                  <span className="tabular-nums text-foreground/55">{count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function KpiTile({ label, value, accent }: { label: string; value: number; accent?: string }) {
+  return (
+    <div className="rounded-xl border border-black/10 bg-white px-4 py-3">
+      <p className="text-[10.5px] font-semibold uppercase tracking-wider text-foreground/45">{label}</p>
+      <p className={`text-2xl font-bold tabular-nums mt-1 ${accent ?? 'text-foreground'}`}>{value}</p>
     </div>
   );
 }

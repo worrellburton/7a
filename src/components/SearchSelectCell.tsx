@@ -23,15 +23,27 @@ export function SearchSelectCell({
   value,
   options,
   onSave,
+  onRenameOption,
+  onDeleteOption,
   placeholder = 'Set value…',
   className = '',
 }: {
   value: string | null | undefined;
   options: string[];
   onSave: (next: string | null) => Promise<void> | void;
+  // Optional bulk-edit hooks. When provided, the dropdown reveals a
+  // pencil + trash button next to each option on hover. Edit kicks
+  // off an inline rename input; delete confirms then runs the
+  // callback. Both callbacks are expected to fan out the change
+  // across every row that holds the value (see /api/.../rename-value).
+  onRenameOption?: (from: string, to: string) => Promise<void> | void;
+  onDeleteOption?: (value: string) => Promise<void> | void;
   placeholder?: string;
   className?: string;
 }) {
+  const [editingOption, setEditingOption] = useState<string | null>(null);
+  const [renameDraft, setRenameDraft] = useState('');
+  const [busy, setBusy] = useState<string | null>(null);
   const display = value ?? '';
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -158,17 +170,90 @@ export function SearchSelectCell({
               </button>
             )}
             {filtered.length > 0 ? (
-              filtered.map((o) => (
-                <button
-                  key={o}
-                  type="button"
-                  onMouseDown={(e) => { e.preventDefault(); void pick(o); }}
-                  className={`flex w-full items-center justify-between gap-2 px-3 py-1.5 text-left text-[12px] hover:bg-warm-bg/60 transition-colors ${o === value ? 'text-foreground font-semibold' : 'text-foreground/75'}`}
-                >
-                  <span className="truncate">{o}</span>
-                  {o === value && <span className="text-primary text-[10px]">✓</span>}
-                </button>
-              ))
+              filtered.map((o) => {
+                const isEditing = editingOption === o;
+                const showEditTools = !!(onRenameOption || onDeleteOption);
+                if (isEditing) {
+                  // Inline rename row. Enter commits to the bulk
+                  // rename callback (which updates every row that
+                  // shared the old value); Escape bails.
+                  return (
+                    <div key={o} className="flex items-center gap-1 px-3 py-1.5 bg-warm-bg/40">
+                      <input
+                        autoFocus
+                        value={renameDraft}
+                        onChange={(e) => setRenameDraft(e.target.value)}
+                        onKeyDown={async (e) => {
+                          if (e.key === 'Escape') { e.preventDefault(); setEditingOption(null); return; }
+                          if (e.key !== 'Enter') return;
+                          e.preventDefault();
+                          const next = renameDraft.trim();
+                          if (!next || next === o) { setEditingOption(null); return; }
+                          if (!onRenameOption) { setEditingOption(null); return; }
+                          setBusy(o);
+                          try { await onRenameOption(o, next); }
+                          finally { setBusy(null); setEditingOption(null); }
+                        }}
+                        className="flex-1 min-w-0 rounded-md border border-primary/40 bg-white px-2 py-0.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      />
+                      <button
+                        type="button"
+                        onMouseDown={(e) => { e.preventDefault(); setEditingOption(null); }}
+                        className="px-1.5 py-0.5 text-[10px] text-foreground/55 hover:text-foreground"
+                      >Cancel</button>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={o} className={`group/opt flex items-center gap-1 px-3 py-1.5 hover:bg-warm-bg/60 transition-colors ${busy === o ? 'opacity-50' : ''}`}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => { e.preventDefault(); void pick(o); }}
+                      className={`flex-1 min-w-0 flex items-center justify-between gap-2 text-left text-[12px] ${o === value ? 'text-foreground font-semibold' : 'text-foreground/75'}`}
+                    >
+                      <span className="truncate">{o}</span>
+                      {o === value && <span className="text-primary text-[10px]">✓</span>}
+                    </button>
+                    {showEditTools && (
+                      <div className="flex items-center gap-0.5 opacity-0 group-hover/opt:opacity-100 transition-opacity">
+                        {onRenameOption && (
+                          <button
+                            type="button"
+                            title="Rename across all rows"
+                            aria-label={`Rename ${o}`}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setRenameDraft(o);
+                              setEditingOption(o);
+                            }}
+                            className="inline-flex items-center justify-center w-5 h-5 rounded text-foreground/45 hover:text-foreground hover:bg-warm-bg"
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+                          </button>
+                        )}
+                        {onDeleteOption && (
+                          <button
+                            type="button"
+                            title="Delete from every row"
+                            aria-label={`Delete ${o}`}
+                            onMouseDown={async (e) => {
+                              e.preventDefault();
+                              if (!window.confirm(`Delete "${o}" from every row that uses it? The rows stay; just this value gets cleared.`)) return;
+                              if (!onDeleteOption) return;
+                              setBusy(o);
+                              try { await onDeleteOption(o); }
+                              finally { setBusy(null); }
+                            }}
+                            className="inline-flex items-center justify-center w-5 h-5 rounded text-foreground/45 hover:text-rose-700 hover:bg-rose-50"
+                          >
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             ) : !canAddNew ? (
               <div className="px-3 py-2 text-[11px] text-foreground/55">No matches.</div>
             ) : null}

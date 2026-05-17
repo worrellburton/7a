@@ -259,7 +259,6 @@ function readTab(raw: string | null): Tab {
 const LAST_TAB_KEY = 'social_media_last_tab_v1';
 
 function SubNav() {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const tabRaw = searchParams.get('tab');
@@ -277,7 +276,13 @@ function SubNav() {
     }
   }, [tabRaw, active]);
 
-  const select = (id: Tab) => {
+  // Top-level tabs render as <Link> so the click rides Next's
+  // standard link semantics. Earlier the same fix on the Post /
+  // Creative sub-navs (commit 2babb0c) resolved cases where an
+  // onClick + router.push was getting swallowed by the outer
+  // Suspense boundary re-suspending mid-navigation, leaving the
+  // body stuck on the prior pane.
+  const hrefFor = (id: Tab): string => {
     const next = new URLSearchParams(searchParams.toString());
     if (id === 'overview') next.delete('tab');
     else next.set('tab', id);
@@ -285,14 +290,13 @@ function SubNav() {
     // Creative doesn't render an empty state under Post.
     next.delete('sub');
     const qs = next.toString();
-    try { localStorage.setItem(LAST_TAB_KEY, id); } catch { /* no-op */ }
-    router.push(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+    return `${pathname}${qs ? `?${qs}` : ''}`;
   };
 
   // Arrow-key keyboard nav across the tab strip — left/right cycles,
   // home/end jump to the ends. Matches the WAI-ARIA Authoring
   // Practices recommendation for role=tablist.
-  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const tabRefs = useRef<Array<HTMLAnchorElement | null>>([]);
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const idx = TABS.findIndex((t) => t.id === active);
     if (idx < 0) return;
@@ -303,7 +307,7 @@ function SubNav() {
     else if (e.key === 'End') nextIdx = TABS.length - 1;
     else return;
     e.preventDefault();
-    select(TABS[nextIdx].id);
+    tabRefs.current[nextIdx]?.click();
     tabRefs.current[nextIdx]?.focus();
   };
 
@@ -317,25 +321,25 @@ function SubNav() {
       {TABS.map((t, i) => {
         const selected = active === t.id;
         return (
-          <button
+          <Link
             key={t.id}
             ref={(el) => { tabRefs.current[i] = el; }}
-            type="button"
+            href={hrefFor(t.id)}
+            scroll={false}
             role="tab"
             id={`tab-${t.id}`}
             aria-selected={selected}
             aria-controls={`tabpanel-${t.id}`}
             tabIndex={selected ? 0 : -1}
-            onClick={() => select(t.id)}
             title={t.description}
-            className={`flex-1 min-w-0 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+            className={`flex-1 min-w-0 px-4 py-2.5 rounded-xl text-sm font-semibold text-center transition-colors ${
               selected
                 ? 'bg-foreground text-white shadow-sm'
                 : 'text-foreground/65 hover:bg-warm-bg/40'
             }`}
           >
             {t.label}
-          </button>
+          </Link>
         );
       })}
     </div>
