@@ -273,6 +273,10 @@ export default function AdmissionsContent() {
         <StatCard label="Tentative" value={stats.tentative} accent="text-amber-600" />
       </div>
 
+      <div className="px-4 sm:px-6 lg:px-10 pb-4">
+        <GmailTemplates />
+      </div>
+
       <div className="px-4 sm:px-6 lg:px-10 pb-4 flex items-center gap-2 flex-wrap">
         {(['all', 'confirmed', 'tentative', 'in_transit', 'arrived'] as const).map(s => (
           <button
@@ -388,6 +392,133 @@ export default function AdmissionsContent() {
         </div>
       )}
     </div>
+  );
+}
+
+// Two skeleton templates the admissions team uses constantly. Each
+// button opens Gmail's compose view in a new tab with the subject
+// and body pre-filled — Gmail picks up the signed-in Google account,
+// so whichever address the user is logged in as is the sender.
+// Fields the user has to fill in are wrapped in [SQUARE BRACKETS]
+// so they stand out in the compose window.
+const GMAIL_TEMPLATES = [
+  {
+    id: 'paa',
+    label: 'PAA',
+    description: 'Pre-Admission Assessment intake',
+    subject: 'PAA - [Client Last Name, First Name]',
+    body: [
+      'Hi team,',
+      '',
+      'Please find the Pre-Admission Assessment below.',
+      '',
+      'Client: [Last, First]',
+      'DOB: [MM/DD/YYYY]',
+      'Phone: [###-###-####]',
+      'Email: [name@example.com]',
+      'Insurance: [Carrier / Plan / Member ID]',
+      'Level of care requested: [Residential / Detox / IOP / Other]',
+      'Substance(s) of concern: [e.g. alcohol, opioid]',
+      'Co-occurring diagnoses: [PTSD, depression, anxiety, ...]',
+      'Current medications: [list with dose + frequency]',
+      'Medical concerns / allergies: [list]',
+      'Referral source: [self / family / clinician / facility]',
+      'Target arrival date: [MM/DD/YYYY]',
+      '',
+      'Notes:',
+      '[free-form context about the client, what they need, and what we should know before intake]',
+      '',
+      'Thanks,',
+      '[your name]',
+    ].join('\n'),
+  },
+  {
+    id: 'admissions_alert',
+    label: 'Admissions Alert',
+    description: 'Heads-up to the team about an incoming arrival',
+    subject: 'Admissions Alert - [Client Name] - [Arrival Date]',
+    body: [
+      'Team,',
+      '',
+      'New admission incoming. Details below.',
+      '',
+      'Client: [Last, First]',
+      'Arrival date: [MM/DD/YYYY]',
+      'Arrival time: [HH:MM AM/PM]',
+      'Transport: [airport pickup / family drop / personal vehicle / rideshare / bus]',
+      'Flight (if any): [Airline + flight # | Origin → PHX]',
+      'Pickup driver: [name + vehicle]',
+      'Coordinator: [name]',
+      'Insurance: [carrier / plan]',
+      'Level of care: [Residential / Detox / IOP / Other]',
+      'Special notes: [e.g. service animal, dietary needs, mobility, baggage, family contact info]',
+      '',
+      'Please review and reach out if you have questions before arrival.',
+      '',
+      'Thanks,',
+      '[your name]',
+    ].join('\n'),
+  },
+] as const;
+
+function gmailComposeUrl(subject: string, body: string): string {
+  // Gmail's compose-in-new-tab URL. `view=cm` opens compose, `fs=1`
+  // forces fullscreen, `tf=1` flags it as a top-level frame so the
+  // tab opens as a real compose window rather than an in-app modal.
+  const params = new URLSearchParams({
+    view: 'cm',
+    fs: '1',
+    tf: '1',
+    su: subject,
+    body,
+  });
+  return `https://mail.google.com/mail/?${params.toString()}`;
+}
+
+function GmailTemplates() {
+  return (
+    <section
+      className="rounded-2xl border border-black/10 bg-white p-4 sm:p-5"
+      aria-labelledby="gmail-templates-heading"
+    >
+      <div className="flex items-center gap-2 mb-1">
+        <svg className="w-4 h-4 text-foreground/55" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24" aria-hidden="true">
+          <rect x="3" y="5" width="18" height="14" rx="2" />
+          <path d="M3 7l9 6 9-6" />
+        </svg>
+        <h2
+          id="gmail-templates-heading"
+          className="text-[11px] uppercase tracking-[0.18em] font-bold text-foreground/55"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          Start Gmail Templates
+        </h2>
+      </div>
+      <p
+        className="text-[12.5px] text-foreground/55 mb-3"
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        Each button opens a new Gmail tab with the subject and body pre-filled. Fields in [SQUARE BRACKETS] are placeholders to swap in.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {GMAIL_TEMPLATES.map((t) => (
+          <a
+            key={t.id}
+            href={gmailComposeUrl(t.subject, t.body)}
+            target="_blank"
+            rel="noreferrer"
+            title={t.description}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-foreground text-white text-[12.5px] font-semibold hover:bg-foreground/85 transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+            {t.label}
+          </a>
+        ))}
+      </div>
+    </section>
   );
 }
 
