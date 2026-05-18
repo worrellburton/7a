@@ -84,7 +84,13 @@ function buildEmail(args: {
   hasFront: boolean;
   hasBack: boolean;
 }): { subject: string; text: string; html: string } {
-  const subject = `New VOB request — ${args.name}${args.insuranceProvider ? ` (${args.insuranceProvider})` : ''}`;
+  // Subject pattern: "### - M/D/YYYY - Client Name" so the admissions
+  // inbox sorts + skims VOB requests at a glance. The "###" prefix is
+  // intentional — it makes the row pop in Gmail/Outlook and gives the
+  // team an easy search anchor.
+  const today = new Date();
+  const stamp = `${today.getMonth() + 1}/${today.getDate()}/${today.getFullYear()}`;
+  const subject = `### - ${stamp} - ${args.name}`;
 
   const lines = [
     ['Name', args.name],
