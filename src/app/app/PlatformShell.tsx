@@ -1383,7 +1383,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   disables the inner overflow-y-auto. min-h-0 lets it
                   shrink below content height so the inner scroll
                   engages. */}
-              <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-0.5">
+              <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-0.5 flex flex-col">
                 {(() => {
                   const renderMobileLink = (item: PageConfig) => {
                     const isActive = pathname === item.path;
@@ -1392,7 +1392,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                         key={item.path}
                         href={item.path}
                         onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
-                        className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
+                        className={`sa-tap-natural w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
                           isActive
                             ? 'bg-primary/10 text-primary'
                             : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
@@ -1452,7 +1452,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                             key={item.path}
                             href={item.path}
                             onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
-                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                            className={`sa-tap-natural w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                               isActive
                                 ? 'bg-primary/10 text-primary'
                                 : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
@@ -1472,7 +1472,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     <Link
                       href="/app/profile"
                       onClick={() => setMobileMenuOpen(false)}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                      className={`sa-tap-natural w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                         pathname === '/app/profile'
                           ? 'bg-primary/10 text-primary'
                           : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
