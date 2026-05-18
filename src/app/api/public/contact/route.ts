@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPublicSupabase } from '@/lib/supabase-server';
+import { escapeHtml, isEmailConfigured, sendEmail } from '@/lib/email-resend';
 
 export const runtime = 'nodejs';
 
@@ -173,6 +174,86 @@ export async function POST(req: NextRequest) {
     console.info('[contact] submission payload:', {
       source, firstName, lastName, email, telephone, paymentMethod,
     });
+  }
+
+  // Forward the (non-spam) submission to the admissions inbox via
+  // Resend. Spam is suppressed so the keysmash gibberish from bots
+  // never reaches a human. Email failure is logged but doesn't break
+  // the visitor's flow — the DB row above is still the source of
+  // truth on the admin Forms page.
+  if (!autoSpam && isEmailConfigured()) {
+    try {
+      const fullName = [firstName, lastName].filter(Boolean).join(' ').trim() || 'Anonymous';
+      const dateStamp = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Phoenix',
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+      }).format(new Date());
+
+      const lines: Array<readonly [string, string | null]> = [
+        ['Name', fullName === 'Anonymous' ? null : fullName],
+        ['Email', email || null],
+        ['Phone', telephone || null],
+        ['Payment method', paymentMethod || null],
+        ['Source', source],
+        ['Page', pageUrl || null],
+      ];
+      const rowsHtml = lines
+        .map(([k, v]) => `
+          <tr>
+            <td style="padding:8px 14px; vertical-align:top; color:#6b6259; font-size:12px; text-transform:uppercase; letter-spacing:0.08em; font-weight:600; white-space:nowrap;">${escapeHtml(k)}</td>
+            <td style="padding:8px 14px; vertical-align:top; color:#1a120c; font-size:15px;">${escapeHtml(v ?? '—')}</td>
+          </tr>`)
+        .join('');
+
+      const messageBlock = message
+        ? `<div style="margin:8px 24px 16px; padding:14px 16px; background:#faf6f0; border:1px solid #ecdfd0; border-radius:10px; color:#1a120c; font-size:14.5px; line-height:1.55; white-space:pre-wrap;">${escapeHtml(message)}</div>`
+        : '';
+
+      const text = [
+        `${lines.filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('\n')}`,
+        '',
+        message ? `Message:\n${message}` : '',
+      ].filter(Boolean).join('\n');
+
+      const html = `<!doctype html>
+        <html lang="en">
+          <body style="margin:0; padding:24px; background:#f7f2eb; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+            <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="max-width:560px; margin:0 auto; background:#ffffff; border-radius:16px; overflow:hidden; box-shadow: 0 2px 12px rgba(20,10,6,0.08);">
+              <tr>
+                <td style="padding:24px 24px 8px; background:#a0522d; color:#ffffff;">
+                  <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.16em; opacity:0.85; margin-bottom:4px;">Seven Arrows Recovery</div>
+                  <div style="font-size:20px; font-weight:700;">New Contact Form Submission</div>
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:8px 0;">
+                  <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="width:100%; border-collapse:collapse;">
+                    ${rowsHtml}
+                  </table>
+                </td>
+              </tr>
+              ${messageBlock ? `<tr><td>${messageBlock}</td></tr>` : ''}
+              <tr>
+                <td style="padding:16px 24px 24px; color:#7a6f63; font-size:12px; line-height:1.5;">
+                  Reply directly to this email to reach the visitor at the address they submitted.
+                </td>
+              </tr>
+            </table>
+          </body>
+        </html>`;
+
+      await sendEmail({
+        to: 'admissions@sevenarrowsrecovery.com',
+        subject: `Contact - ${fullName} - ${dateStamp}`,
+        text,
+        html,
+        replyTo: email || undefined,
+      });
+    } catch (err) {
+      console.error('[contact] resend send failed:', err);
+    }
   }
 
   return NextResponse.json({ ok: true });

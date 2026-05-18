@@ -1201,7 +1201,42 @@ const STEDI_FIELD_KEYS = [
 type StediFieldKey = (typeof STEDI_FIELD_KEYS)[number];
 type StediFieldUpdate = Partial<Record<StediFieldKey, string | null>>;
 
+// VOB submissions are now emailed straight to admissions@ and vob@
+// instead of being persisted in Supabase — that move was made for
+// HIPAA reasons, since insurance card photos can't sit in our DB or
+// storage. The legacy table + storage bucket are intentionally wiped
+// and this panel renders a placeholder until a HIPAA-compliant intake
+// surface (e.g. Stedi or a BAA-covered storage layer) is set up.
+function VobsPanelDisabled() {
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-8 text-amber-900 text-sm leading-relaxed max-w-2xl">
+      <p className="text-[10px] uppercase tracking-[0.18em] font-bold text-amber-700 mb-2">VOB intake offline</p>
+      <p className="font-semibold mb-2 text-base text-amber-950">
+        Off until we get HIPAA setup.
+      </p>
+      <p className="mb-2">
+        Website VOB submissions now email directly to
+        {' '}<span className="font-mono text-[12.5px]">admissions@sevenarrowsrecovery.com</span> and
+        {' '}<span className="font-mono text-[12.5px]">vob@sevenarrowsrecovery.com</span>
+        {' '}with the card photo attached. Nothing is stored in Feather or Supabase.
+      </p>
+      <p>
+        This page will come back online once we have a HIPAA-compliant intake surface
+        (Stedi, a BAA-covered storage path, or similar) in place.
+      </p>
+    </div>
+  );
+}
+
 function VobsPanel() {
+  return <VobsPanelDisabled />;
+}
+
+// Original VobsPanel — kept defined but unreferenced so a future
+// HIPAA-compliant surface can re-enable it without rewriting from
+// scratch. ESLint flags the unused helper hooks; the no-op call
+// silences the warning while keeping the implementation intact.
+function VobsPanelLegacy() {
   const [rows, setRows] = useState<VobRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
