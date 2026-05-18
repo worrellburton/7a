@@ -1,37 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { compressImage } from '@/lib/upload';
 
 type CardSide = 'front' | 'back';
-
-// Upload a single card photo to the private `vob-cards` bucket. The
-// bucket's storage RLS allows public INSERT (anon + authenticated).
-// Returns either the storage path on success or the underlying error
-// message — the form bubbles failures up to the visitor instead of
-// dropping them silently like the previous implementation did.
-async function uploadCard(
-  file: File,
-  side: CardSide,
-): Promise<{ path: string | null; error: string | null }> {
-  // Compress images aggressively so phone-sized JPEGs stay under the
-  // bucket's 10 MB cap. PDFs pass through unchanged.
-  const prepared = file.type.startsWith('image/') ? await compressImage(file, { maxEdge: 1800, targetBytes: 2 * 1024 * 1024 }) : file;
-  const ext = (prepared.name.split('.').pop() || 'jpg').toLowerCase();
-  const token = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-  const path = `${token}/${side}.${ext}`;
-  const { error } = await supabase.storage.from('vob-cards').upload(path, prepared, {
-    contentType: prepared.type || 'application/octet-stream',
-    cacheControl: '3600',
-    upsert: false,
-  });
-  if (error) {
-    console.error(`[AdmissionsForm] upload (${side}) failed:`, error.message);
-    return { path: null, error: error.message };
-  }
-  return { path, error: null };
-}
 
 interface FormState {
   name: string;
@@ -90,35 +62,26 @@ export default function AdmissionsForm() {
     setUploadError(null);
     setSubmitting(true);
     try {
-      // Upload card photos to the `vob-cards` storage bucket first.
-      // Surface any storage error to the visitor before sending the
-      // form — silently dropping the photo (the old behavior) means
-      // the admissions team thinks they have a card and the visitor
-      // thinks the upload worked.
-      const [front, back] = await Promise.all([
-        formData.cardFront ? uploadCard(formData.cardFront, 'front') : Promise.resolve({ path: null, error: null }),
-        formData.cardBack ? uploadCard(formData.cardBack, 'back') : Promise.resolve({ path: null, error: null }),
+      // HIPAA constraint — card photos must NOT touch our Supabase
+      // storage. We compress in-browser, then ship the bytes as part
+      // of a multipart POST to /api/public/vob, which forwards the
+      // attachments to Resend and drops them. Nothing persists on our
+      // side.
+      const prepared = await Promise.all([
+        formData.cardFront ? prepareCard(formData.cardFront) : Promise.resolve(null),
+        formData.cardBack ? prepareCard(formData.cardBack) : Promise.resolve(null),
       ]);
-      const uploadFailure = front.error || back.error;
-      if (uploadFailure) {
-        setUploadError(`Card photo upload failed (${uploadFailure}). Please try again or call (866) 718-1665.`);
-        setSubmitting(false);
-        return;
-      }
 
-      const res = await fetch('/api/public/vob', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name,
-          phone: formData.phone,
-          email: formData.email,
-          dateOfBirth: formData.dateOfBirth || null,
-          insuranceProvider: formData.insuranceProvider,
-          cardFrontPath: front.path,
-          cardBackPath: back.path,
-        }),
-      });
+      const body = new FormData();
+      body.append('name', formData.name);
+      body.append('phone', formData.phone);
+      body.append('email', formData.email);
+      body.append('dateOfBirth', formData.dateOfBirth || '');
+      body.append('insuranceProvider', formData.insuranceProvider);
+      if (prepared[0]) body.append('cardFront', prepared[0], prepared[0].name);
+      if (prepared[1]) body.append('cardBack', prepared[1], prepared[1].name);
+
+      const res = await fetch('/api/public/vob', { method: 'POST', body });
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
         setUploadError(payload.error || `Could not send (HTTP ${res.status}). Please call (866) 718-1665.`);
@@ -316,16 +279,24 @@ export default function AdmissionsForm() {
           </p>
         )}
         <p className="mt-2 text-[11px] text-foreground/50 leading-snug" style={{ fontFamily: 'var(--font-body)' }}>
-          Uploads are transmitted over TLS and handled by our HIPAA-compliant admissions team only.
+          Sent over TLS straight to our HIPAA-trained admissions team. Photos are not stored on our servers.
           JPG, PNG, HEIC, WEBP, or PDF. Up to 10 MB each.
         </p>
       </div>
 
-      <button type="submit" className="btn-primary w-full">
-        Submit for Verification
+      <button type="submit" disabled={submitting} className="btn-primary w-full disabled:opacity-50">
+        {submitting ? 'Sending…' : 'Submit for Verification'}
       </button>
     </form>
   );
+}
+
+// Compress + normalize a card file before it leaves the browser.
+// Images go through compressImage so a phone-shot JPEG doesn't blow
+// past the 10 MB email-attachment ceiling; PDFs pass through unchanged.
+async function prepareCard(file: File): Promise<File> {
+  if (!file.type.startsWith('image/')) return file;
+  return compressImage(file, { maxEdge: 1800, targetBytes: 2 * 1024 * 1024 });
 }
 
 /* ── One drop-zone slot (front or back) ────────────────────────────── */
@@ -449,7 +420,7 @@ function CardSlot({
             <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
-            Uploaded
+            Ready
           </span>
         )}
       </button>

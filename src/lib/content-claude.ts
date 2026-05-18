@@ -118,6 +118,42 @@ const REVISE_SYSTEM = [
   'with a comma, a semicolon, parentheses, or a period. Strict rule.',
 ].join('\n');
 
+const NARRATION_SYSTEM = [
+  'You are adapting a Seven Arrows Recovery blog post into a podcast',
+  'narration script for the "Road to Recovery" audio series. The host',
+  'is calm, warm, clinically literate, and never glib.',
+  '',
+  'Hard rules:',
+  '- Keep the substance of the article exactly the same. Do not add',
+  '  facts, change clinical claims, or invent quotes.',
+  '- Streamline for the ear: drop headings, lists, and any "scroll',
+  '  ahead" / "see the chart" / "as shown above" references. Replace',
+  '  bullet points with full sentences linked by natural connectives.',
+  '- Conversational flow over written formality: contractions are fine,',
+  '  short sentences are fine, occasional one-sentence paragraphs are',
+  '  fine. The goal is something that reads aloud cleanly at 150-160',
+  '  words per minute without sounding stiff.',
+  '- Do NOT include the intro/outro stings (the route prepends those).',
+  '  Start the script with the first sentence of the article narrative.',
+  '- Output PLAIN TEXT only. No markdown, no asterisks, no headings,',
+  '  no code fences. Paragraphs separated by a single blank line.',
+  '- Punctuation: NEVER use em-dashes or en-dashes. Substitute with',
+  '  commas, semicolons, parentheses, or periods.',
+].join('\n');
+
+export async function rewriteForNarration(bodyMarkdown: string): Promise<string> {
+  const user = [
+    'Article markdown:',
+    '---',
+    bodyMarkdown.trim(),
+    '---',
+    '',
+    'Rewrite this for a narrative podcast: keep the content the same, but streamline it for podcast-esque polish.',
+    'Plain text only.',
+  ].join('\n');
+  return callClaude({ system: NARRATION_SYSTEM, user, maxTokens: 8000 });
+}
+
 export async function reviseBlogBody(currentMarkdown: string, instruction: string): Promise<string> {
   const userMsg = [
     'Current post:',

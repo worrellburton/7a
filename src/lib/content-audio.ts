@@ -11,18 +11,18 @@
 // Env contract:
 //   ELEVENLABS_API_KEY — required. Server-only secret from the
 //                        ElevenLabs dashboard (xi-api-key header).
-//   ELEVENLABS_VOICE_ID — optional. Falls back to ElevenLabs' default
-//                         "Rachel" voice id when unset so a missing
+//   ELEVENLABS_VOICE_ID — optional. Falls back to the "Rachelle" voice
+//                         id baked in below when unset so a missing
 //                         override doesn't break the call.
 //   ELEVENLABS_MODEL_ID — optional. Defaults to eleven_multilingual_v2
 //                         which strikes a balance between latency and
 //                         naturalness for long-form prose.
 
 const ELEVENLABS_BASE = 'https://api.elevenlabs.io/v1';
-// ElevenLabs' canonical "Rachel" voice — neutral female narration that
-// matches the editorial tone of the Recovery Roadmap series. Easy to
-// override per-call or via env once a custom voice is cloned.
-const DEFAULT_VOICE_ID = '21m00Tcm4TlvDq8ikWAM';
+// "Rachelle" — the voice picked for the Recovery Roadmap series.
+// Override per-call via the SynthesizeOptions argument or globally
+// via the ELEVENLABS_VOICE_ID env var.
+const DEFAULT_VOICE_ID = 'ZT9u07TYPVl83ejeLakq';
 const DEFAULT_MODEL_ID = 'eleven_multilingual_v2';
 
 function loadKey(): string {
