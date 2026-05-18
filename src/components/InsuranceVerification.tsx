@@ -23,7 +23,7 @@ export default function InsuranceVerification() {
           >
             Most major insurance plans cover addiction treatment. Share your details
             (and snap a photo of your card if you have one) and we&apos;ll verify your
-            benefits and call you back — typically within 15 minutes.
+            benefits and get back to you soon.
           </p>
         </div>
         <AdmissionsForm />

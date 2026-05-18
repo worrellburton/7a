@@ -129,7 +129,7 @@ export default function AdmissionsForm() {
           <p className="text-foreground/60 text-sm" style={{ fontFamily: 'var(--font-body)' }}>
             We&rsquo;ve received your insurance card
             {formData.cardFront && formData.cardBack ? ' (front &amp; back)' : formData.cardFront ? ' (front)' : ' (back)'}
-            {' '}and will verify your benefits within minutes.
+            {' '}and will get back to you soon.
           </p>
         )}
       </div>
