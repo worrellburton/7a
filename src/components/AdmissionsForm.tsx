@@ -62,13 +62,22 @@ export default function AdmissionsForm() {
     setUploadError(null);
     setSubmitting(true);
     try {
+      // The server requires a front-of-card photo to send the email;
+      // bail early with the same message the route would return so
+      // the visitor doesn't have to wait on the round-trip.
+      if (!formData.cardFront) {
+        setUploadError('A photo of the front of your insurance card is required.');
+        setSubmitting(false);
+        return;
+      }
+
       // HIPAA constraint — card photos must NOT touch our Supabase
       // storage. We compress in-browser, then ship the bytes as part
       // of a multipart POST to /api/public/vob, which forwards the
       // attachments to Resend and drops them. Nothing persists on our
       // side.
       const prepared = await Promise.all([
-        formData.cardFront ? prepareCard(formData.cardFront) : Promise.resolve(null),
+        prepareCard(formData.cardFront),
         formData.cardBack ? prepareCard(formData.cardBack) : Promise.resolve(null),
       ]);
 
@@ -257,7 +266,7 @@ export default function AdmissionsForm() {
           className="block text-sm font-semibold text-foreground mb-2"
           style={{ fontFamily: 'var(--font-body)' }}
         >
-          Insurance Card Photos <span className="font-normal text-foreground/50">(optional — speeds verification)</span>
+          Insurance Card Photo <span className="font-normal text-foreground/55">(front required, back optional)</span>
         </label>
         <div className="grid grid-cols-2 gap-3">
           <CardSlot
@@ -265,6 +274,7 @@ export default function AdmissionsForm() {
             file={formData.cardFront}
             onFile={(f) => handleFile('front', f)}
             onClear={() => handleFile('front', null)}
+            required
           />
           <CardSlot
             side="back"
@@ -306,11 +316,16 @@ function CardSlot({
   file,
   onFile,
   onClear,
+  required = false,
 }: {
   side: CardSide;
   file: File | null;
   onFile: (f: File) => void;
   onClear: () => void;
+  /** When true, the empty state shows a "Required" chip and the dashed
+   *  border picks up the primary tint so visitors don't try to submit
+   *  without it. The form's submit handler also short-circuits. */
+  required?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -367,7 +382,9 @@ function CardSlot({
             ? 'border-primary bg-primary/5'
             : file
               ? 'border-primary/30 bg-white'
-              : 'border-foreground/15 bg-white hover:border-primary/40 hover:bg-primary/5'
+              : required
+                ? 'border-primary/35 bg-primary/[0.03] hover:border-primary/55 hover:bg-primary/[0.06]'
+                : 'border-foreground/15 bg-white hover:border-primary/40 hover:bg-primary/5'
         }`}
         aria-label={`${file ? 'Replace' : 'Upload'} ${label}`}
       >
@@ -405,7 +422,7 @@ function CardSlot({
               {hint}
             </p>
             <p className="text-[10px] text-primary font-semibold uppercase tracking-[0.14em] mt-1" style={{ fontFamily: 'var(--font-body)' }}>
-              Tap to upload
+              {required ? 'Required — tap to upload' : 'Tap to upload'}
             </p>
           </div>
         )}

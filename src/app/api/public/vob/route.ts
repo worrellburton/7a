@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getAdminSupabase } from '@/lib/supabase-server';
 import { defaultVobRecipients, escapeHtml, isEmailConfigured, sendEmail, type EmailAttachment } from '@/lib/email-resend';
 
 // POST /api/public/vob
@@ -75,6 +76,19 @@ async function readCardAttachment(form: FormData, field: 'cardFront' | 'cardBack
   };
 }
 
+// Compute today's date in Arizona local time as `M/D/YYYY`. Arizona
+// doesn't observe daylight saving, so a fixed-offset projection from
+// UTC would drift twice a year if we ever moved the centre — using
+// the IANA zone via Intl keeps it correct regardless.
+function arizonaDateStamp(): string {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Phoenix',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  }).format(new Date());
+}
+
 function buildEmail(args: {
   name: string;
   phone: string | null;
@@ -83,14 +97,12 @@ function buildEmail(args: {
   insuranceProvider: string | null;
   hasFront: boolean;
   hasBack: boolean;
+  countToday: number;
 }): { subject: string; text: string; html: string } {
-  // Subject pattern: "### - M/D/YYYY - Client Name" so the admissions
-  // inbox sorts + skims VOB requests at a glance. The "###" prefix is
-  // intentional — it makes the row pop in Gmail/Outlook and gives the
-  // team an easy search anchor.
-  const today = new Date();
-  const stamp = `${today.getMonth() + 1}/${today.getDate()}/${today.getFullYear()}`;
-  const subject = `### - ${stamp} - ${args.name}`;
+  // Subject pattern: "VOB - Client Name - M/D/YYYY - #N" where N is
+  // the day's submission count. Lets the admissions inbox sort by
+  // most-recent VOB and skim at a glance.
+  const subject = `VOB - ${args.name} - ${arizonaDateStamp()} - #${args.countToday}`;
 
   const lines = [
     ['Name', args.name],
@@ -173,10 +185,35 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
+  // Insurance card front is required — admissions can't run a VOB
+  // without at least the member ID / plan strip. Back is still
+  // optional; many cards put the payer ID + customer-service number
+  // back-side but the front is enough to begin verification.
+  if (!frontResult.attachment) {
+    return NextResponse.json({ error: 'A photo of the front of your insurance card is required.' }, { status: 400 });
+  }
 
   const attachments: EmailAttachment[] = [];
-  if (frontResult.attachment) attachments.push(frontResult.attachment);
+  attachments.push(frontResult.attachment);
   if (backResult.attachment) attachments.push(backResult.attachment);
+
+  // Bump the day's VOB counter atomically and feed the new count
+  // into the subject line. The function increments + returns the new
+  // value in one round-trip so two near-simultaneous submissions
+  // can't collide on the same number.
+  let countToday = 0;
+  try {
+    const admin = getAdminSupabase();
+    const { data, error } = await admin.rpc('increment_vob_count_for_today');
+    if (error) throw error;
+    countToday = typeof data === 'number' ? data : Number(data) || 0;
+  } catch (err) {
+    // Counter failure shouldn't drop the submission — the email is
+    // the source of truth, the count is just inbox sugar. Log and
+    // fall back to 1.
+    console.error('[vob] daily counter rpc failed:', err);
+    countToday = 1;
+  }
 
   const { subject, text, html } = buildEmail({
     name: full_name,
@@ -186,6 +223,7 @@ export async function POST(req: NextRequest) {
     insuranceProvider: insurance_provider,
     hasFront: !!frontResult.attachment,
     hasBack: !!backResult.attachment,
+    countToday,
   });
 
   try {
