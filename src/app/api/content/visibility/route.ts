@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase } from '@/lib/supabase-server';
-import { requireSuperAdmin } from '@/lib/content-server';
+import { requireSuperAdmin, requireSignedInUser } from '@/lib/content-server';
 
 // GET /api/content/visibility — return every visibility row so the
 //                                admin list can render toggle state
 //                                for both AI + hand-coded posts in
-//                                one round-trip.
+//                                one round-trip. Open to any signed-in
+//                                user — viewing the map mirrors the
+//                                public-site visibility, no secrets.
 // PUT /api/content/visibility   — upsert { slug, hidden } for a
 //                                single post. Super-admin only.
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const gate = await requireSuperAdmin(req);
+  const gate = await requireSignedInUser(req);
   if (gate.error) return gate.error;
 
   const admin = getAdminSupabase();

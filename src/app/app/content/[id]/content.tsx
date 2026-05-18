@@ -561,6 +561,10 @@ function ImagesPanel({ blog, images, token, onChange }: { blog: DbBlog; images: 
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<{ message: string; details?: unknown } | null>(null);
   const [tab, setTab] = useState<'generated' | 'library'>('generated');
+  // "Generate 10 more" kicks off a separate /images/more request and
+  // appends the returned rows to the existing AI set. Tracked in its
+  // own busy flag so the Save-selection button stays independent.
+  const [moreBusy, setMoreBusy] = useState(false);
 
   useEffect(() => {
     setSelected(new Set(blog.selected_image_ids ?? []));
@@ -573,6 +577,27 @@ function ImagesPanel({ blog, images, token, onChange }: { blog: DbBlog; images: 
       else if (next.size < 7) next.add(imgId);
       return next;
     });
+  }
+
+  async function generateMore() {
+    if (!token || moreBusy) return;
+    setMoreBusy(true); setErr(null);
+    try {
+      const res = await fetch(`/api/content/${blog.id}/images/more`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErr({ message: json.error ?? `HTTP ${res.status}`, details: json });
+        return;
+      }
+      onChange();
+    } catch (e) {
+      setErr({ message: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setMoreBusy(false);
+    }
   }
 
   async function saveSelection() {
@@ -693,6 +718,31 @@ function ImagesPanel({ blog, images, token, onChange }: { blog: DbBlog; images: 
                 );
               })}
             </div>
+
+            {/* Generate 10 more — appends another batch to the AI set so
+                the editor can keep scrolling for fresh options without
+                losing the current selection. Disabled while a batch is
+                already in flight (the page is in `images` status, which
+                renders the swirling placeholders above). */}
+            {!generating && (
+              <div className="mt-4 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={generateMore}
+                  disabled={moreBusy}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border border-foreground/15 bg-white text-[11.5px] font-semibold text-foreground hover:bg-warm-bg/40 disabled:opacity-50"
+                  title="Run another round of 10 AI-generated images and append them to the existing set"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+                  </svg>
+                  {moreBusy ? 'Generating 10 more…' : 'Generate 10 more'}
+                </button>
+                <span className="text-[11px] text-foreground/45">
+                  {moreBusy ? 'New images appear below as they land.' : `${aiImages.length} so far`}
+                </span>
+              </div>
+            )}
           </>
         )
       ) : (

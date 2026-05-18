@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase } from '@/lib/supabase-server';
-import { requireSuperAdmin } from '@/lib/content-server';
+import { requireSuperAdmin, requireSignedInUser } from '@/lib/content-server';
 
-// GET    /api/content/[id] — fetch one blog with its revisions and images
-// PATCH  /api/content/[id] — partial update (title, slug, status, selected_image_ids)
-// DELETE /api/content/[id] — drop the row; cascades to revisions + images
+// GET    /api/content/[id] — fetch one blog with its revisions and images.
+//                            Open to any signed-in user (read-only).
+// PATCH  /api/content/[id] — partial update (title, slug, status, selected_image_ids).
+//                            Super-admin only.
+// DELETE /api/content/[id] — drop the row; cascades to revisions + images.
+//                            Super-admin only.
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const gate = await requireSuperAdmin(req);
+  const gate = await requireSignedInUser(req);
   if (gate.error) return gate.error;
   const { id } = await ctx.params;
 

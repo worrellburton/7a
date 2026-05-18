@@ -8,17 +8,18 @@ import { supabase } from '@/lib/supabase';
 import { EPISODES, episodeHref } from '@/lib/episodes';
 import PageAnalyticsPanel from '@/components/PageAnalyticsPanel';
 
-// /app/content — super-admin-only blog pipeline.
+// /app/content — blog pipeline list view.
 //
 // Lists every blog: DB-backed posts (created via the AI pipeline) +
 // the seven hand-coded posts that already live under
 // /who-we-are/blog/<slug>/ (those are read-only here; the row links
 // to the file path so a dev can open the TSX directly).
 //
-// "New blog" opens an inline form that asks for a one-paragraph
-// prompt + optional title; submit creates a draft row and routes to
-// /app/content/<id> where the user generates → reviews → picks
-// images → builds → publishes.
+// Browse is open to every signed-in user so non-super admins can see
+// the pipeline. Write actions — "New blog", visibility toggle, and the
+// per-post editor link into /app/content/[id] — only render for super
+// admins, and the matching /api/content/* endpoints still enforce
+// requireSuperAdmin server-side.
 
 interface DbBlog {
   id: string;
@@ -128,18 +129,6 @@ export default function ContentLanding() {
   }, [rows]);
 
   if (!user) return null;
-  if (!isSuperAdmin) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center" style={{ fontFamily: 'var(--font-body)' }}>
-        <p className="text-xs uppercase tracking-[0.22em] text-foreground/45 mb-2">Marketing &amp; Admissions</p>
-        <h1 className="text-2xl font-bold text-foreground mb-3" style={{ fontFamily: 'var(--font-display)' }}>Content</h1>
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-6 text-sm text-amber-900 leading-relaxed">
-          <p className="font-semibold mb-1">Super-admin only.</p>
-          <p>Publishing on the Seven Arrows blog is restricted to super admins.</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style={{ fontFamily: 'var(--font-body)' }}>
@@ -149,14 +138,16 @@ export default function ContentLanding() {
           <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Content</h1>
           <p className="mt-1 text-sm text-foreground/60">Every blog on the site, plus the AI pipeline to draft new ones.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors"
-        >
-          <span aria-hidden>+</span>
-          New blog
-        </button>
+        {isSuperAdmin && (
+          <button
+            type="button"
+            onClick={() => setShowCreate(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors"
+          >
+            <span aria-hidden>+</span>
+            New blog
+          </button>
+        )}
       </header>
 
       {showCreate && (
@@ -193,13 +184,18 @@ export default function ContentLanding() {
                       title={r.title || '(Untitled)'}
                       subtitle={`${r.slug} · updated ${new Date(r.updated_at).toLocaleDateString()}`}
                       episodeLabel={epNum ? `Episode ${epNum}` : null}
-                      href={`/app/content/${r.id}`}
+                      // Non-super admins can't enter the editor; for
+                      // them, fall back to the public post URL so the
+                      // row title is still a useful affordance.
+                      href={isSuperAdmin ? `/app/content/${r.id}` : undefined}
+                      externalHref={isSuperAdmin ? undefined : (r.status === 'published' ? path : undefined)}
                       statusBadge={(
                         <span className={`shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${STATUS_TONES[r.status]}`}>
                           {STATUS_LABELS[r.status]}
                         </span>
                       )}
                       hidden={hidden}
+                      canWrite={isSuperAdmin}
                       onToggleHidden={() => void toggleHidden(r.slug, !hidden)}
                       analyticsOpen={expanded}
                       onToggleAnalytics={() => setAnalyticsFor(expanded ? null : r.id)}
@@ -238,6 +234,7 @@ export default function ContentLanding() {
                     episodeLabel={`Episode ${ep.number}`}
                     externalHref={path}
                     hidden={hidden}
+                    canWrite={isSuperAdmin}
                     onToggleHidden={() => void toggleHidden(ep.slug, !hidden)}
                     analyticsOpen={expanded}
                     onToggleAnalytics={() => setAnalyticsFor(expanded ? null : `static:${ep.slug}`)}
@@ -269,6 +266,7 @@ function BlogRow({
   externalHref,
   statusBadge,
   hidden,
+  canWrite = true,
   onToggleHidden,
   analyticsOpen,
   onToggleAnalytics,
@@ -281,6 +279,10 @@ function BlogRow({
   externalHref?: string;
   statusBadge?: React.ReactNode;
   hidden: boolean;
+  /** When false, hides the visibility toggle. Read-only callers (non-
+   *  super admins) still see the row + analytics; toggling publish
+   *  visibility is gated to super admins server-side as well. */
+  canWrite?: boolean;
   onToggleHidden: () => void;
   analyticsOpen: boolean;
   onToggleAnalytics: () => void;
@@ -321,7 +323,7 @@ function BlogRow({
           View
         </a>
       )}
-      <VisibilityToggle hidden={hidden} onChange={onToggleHidden} />
+      {canWrite && <VisibilityToggle hidden={hidden} onChange={onToggleHidden} />}
     </div>
   );
 }

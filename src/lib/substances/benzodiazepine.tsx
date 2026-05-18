@@ -2,10 +2,10 @@ import type { SubstanceContent } from './types';
 
 export const benzoContent: SubstanceContent = {
   hero: {
-    label: 'Benzodiazepine Addiction Treatment',
+    label: 'Benzodiazepine Addiction Treatment in Arizona',
     title: 'Benzos silence the alarm. Healing teaches the alarm it can stop ringing.',
     description:
-      'At Seven Arrows Recovery, benzodiazepine use disorder is treated with the medical seriousness it requires. Benzo withdrawal can be fatal without medical oversight, so we sequence medical tapering, nervous-system regulation, and trauma-informed therapy carefully, in the right order.',
+      'At Seven Arrows Recovery, benzodiazepine use disorder is treated with the medical seriousness it requires. Benzo withdrawal can be fatal without medical oversight, so our benzo rehab in Arizona sequences medical tapering, nervous-system regulation, and trauma-informed therapy carefully, in the right order.',
     breadcrumbs: [
       { label: 'Home', href: '/' },
       { label: 'What We Treat', href: '/what-we-treat' },
@@ -16,14 +16,14 @@ export const benzoContent: SubstanceContent = {
     eyebrow: 'The Neurochemistry',
     title: (
       <>
-        Benzos push GABA harder —{' '}
-        <em className="not-italic text-primary">and the brain pushes back.</em>
+        How Benzodiazepines Affect the Brain{' '}
+        <em className="not-italic text-primary">and Push GABA Harder</em>
       </>
     ),
     paragraphs: [
-      "Benzodiazepines bind to GABA-A receptors and amplify the brain's built-in calming system. For anyone in the grip of panic, the relief is fast and real. That is exactly why they work — and why the body adapts.",
-      'Chronic use down-regulates GABA receptors and up-regulates excitatory glutamate to compensate. Tolerance climbs. The original panic breaks through. The nervous system is now more activated, not less — and the drug is the only thing that quiets it.',
-      'Recovery is patience. The GABA system reassembles, but slowly. Tapering must be medically supervised. Rushed detox can trigger seizures, psychosis, or protracted withdrawal that lasts months.',
+      "Benzodiazepines bind to GABA-A receptors and amplify the brain's built-in calming system. For anyone in the grip of panic, the relief is fast and real. That is exactly why they work, and why the body adapts.",
+      'Chronic use down-regulates GABA receptors and up-regulates excitatory glutamate to compensate. Tolerance climbs. The original panic breaks through. The nervous system is now more activated, not less, and the drug is the only thing that quiets it.',
+      'Recovery is patience. The GABA system reassembles, but slowly. Tapering must be medically supervised. Rushed detox can trigger seizures, psychosis, or protracted withdrawal that lasts months. It is why our benzo addiction treatment in Arizona is built around a slow, structured taper that produces outcomes that self-managed withdrawal rarely does.',
     ],
     chart: {
       natural: { label: 'baseline calm', color: '#2f6f5e' },
@@ -40,7 +40,7 @@ export const benzoContent: SubstanceContent = {
     ),
     paragraphs: [
       'Benzo dependence tends to settle into an invisible rhythm: the dose that used to work stops working, panic breaks through, another dose is added or increased, the cycle repeats. Most people do not notice they are in it until they try to stop.',
-      "Residential care in the benzo case is almost always paired with a carefully-paced medical taper rather than abrupt cessation. Safety first, always.",
+      'Residential benzo treatment is almost always paired with a carefully-paced medical taper rather than abrupt cessation. At our Arizona benzo rehab, that structure means the nervous system is never left to manage the taper alone. Safety first, always.',
     ],
     stages: [
       { label: 'Dose', hint: 'Relief, calm, sleep' },
@@ -56,7 +56,7 @@ export const benzoContent: SubstanceContent = {
         Benzo withdrawal is <em className="not-italic text-accent">medically dangerous</em>.
       </>
     ),
-    body: 'Alongside alcohol, benzos are one of the only substances whose withdrawal can be fatal. Seizures, delirium, psychosis, and protracted post-acute withdrawal are real risks without medical oversight. Respect for those risks is the baseline of good care.',
+    body: 'Alongside alcohol, benzos are one of the only substances whose withdrawal can be fatal. Seizures, delirium, psychosis, and protracted post-acute withdrawal are real risks without safe benzo detox and medical oversight. Respect for those risks is the baseline of good care at any serious benzo treatment center in Arizona.',
     stats: [
       {
         value: 30,
@@ -84,10 +84,11 @@ export const benzoContent: SubstanceContent = {
     eyebrow: 'The Taper',
     title: (
       <>
-        Benzo withdrawal cannot be rushed — and <em className="not-italic text-primary">must not be attempted alone</em>.
+        Benzo Detox in Arizona Cannot Be Rushed{' '}
+        <em className="not-italic text-primary">and Must Not Be Attempted Alone</em>
       </>
     ),
-    body: 'The safest path is almost always a slow, medically-supervised taper (often using a longer-half-life benzo like clonazepam or diazepam as a stepping stone) combined with residential structure and nervous-system work. We coordinate the taper with an addiction medicine physician.',
+    body: 'The safest path is almost always a slow, medically supervised benzo detox (often using a longer-half-life benzo like clonazepam or diazepam as a stepping stone) combined with residential structure and nervous-system work. At our benzo rehab in Arizona, the taper is coordinated directly with an addiction medicine physician so no reduction happens without clinical sign-off.',
     phases: [
       {
         label: 'Stabilize',
@@ -115,11 +116,11 @@ export const benzoContent: SubstanceContent = {
     eyebrow: 'Who We Actually See',
     title: (
       <>
-        Five patterns through our door —{' '}
-        <em className="not-italic text-primary">almost all of them started with a prescription</em>.
+        Who Comes to Our Arizona Benzo Rehab:{' '}
+        <em className="not-italic text-primary">Almost All Started with a Prescription</em>
       </>
     ),
-    body: 'Benzo dependence is almost always iatrogenic — it started with a legitimate prescription for a legitimate reason. That is not a moral failure. It is a pharmacological fact.',
+    body: 'Benzo dependence is almost always iatrogenic: it started with a legitimate prescription for a legitimate reason. That is not a moral failure. It is a pharmacological fact, and it is exactly who our Arizona benzo addiction treatment program is built for.',
     personas: [
       {
         label: 'The prescribed long-term user',
@@ -152,11 +153,11 @@ export const benzoContent: SubstanceContent = {
     eyebrow: 'Our Approach',
     title: (
       <>
-        Taper slow. <em className="not-italic text-primary">Regulate the nervous system.</em>{' '}
-        Rebuild without the drug.
+        Our Benzo Addiction Treatment in Arizona:{' '}
+        <em className="not-italic text-primary">Taper, Regulate, Rebuild</em>
       </>
     ),
-    body: 'The core question of benzo recovery is whether the nervous system can learn to calm itself again. The answer is yes, but the timeline is long and the taper must be held carefully. We build both.',
+    body: 'The core question of benzodiazepine recovery is whether the nervous system can learn to calm itself again. The answer is yes, but the timeline is long and the taper must be held carefully. Our private residential benzodiazepine rehab builds both, with a medical team and somatic therapy team working in parallel throughout the stay.',
     flagship: {
       title: 'Medically-supervised long-arc taper, coupled with somatic therapy',
       body: 'An addiction-medicine physician holds the taper. A somatic-CBT team holds the psychotherapy. Each cut is supported by breathwork, yoga, sleep protocols, and clinical check-ins. The body does not have to do this alone.',
@@ -204,7 +205,7 @@ export const benzoContent: SubstanceContent = {
     ),
     paragraphs: [
       'Alumni describe the shift in months rather than weeks. Somewhere between month four and month nine, the body stops reacting to every small stressor like a five-alarm fire. Sleep quietly normalizes. Panic episodes shrink from hours to minutes.',
-      "Sleep, movement, connection, and meaning are the four pillars that carry the curve. None replace the drug. They rebuild the nervous-system skills the drug was performing in its place.",
+      'Sleep, movement, connection, and meaning are the four pillars of sustained benzodiazepine addiction recovery that carry the curve forward. None replace the drug. They rebuild the nervous-system skills the drug was performing in its place.',
     ],
     anchors: [
       { x: 0.12, label: 'Sleep', hint: 'Rebuilds architecture' },
@@ -249,6 +250,6 @@ export const benzoContent: SubstanceContent = {
         The nervous system <em className="not-italic text-accent">can learn calm again.</em>
       </>
     ),
-    body: 'Our admissions team can verify your insurance and coordinate with your current prescriber on a safe taper plan within 24 to 48 hours. Benzo recovery is patient work. Starting the plan is the first step.',
+    body: 'Our admissions team can verify your insurance and coordinate with your current prescriber on a safe benzo detox plan within 24 to 48 hours. Benzo addiction recovery is patient work. Starting the plan is the first step.',
   },
 };

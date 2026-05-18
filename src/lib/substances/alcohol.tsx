@@ -2,10 +2,10 @@ import type { SubstanceContent } from './types';
 
 export const alcoholContent: SubstanceContent = {
   hero: {
-    label: 'Alcohol Addiction Treatment',
+    label: 'Alcohol Treatment Arizona',
     title: 'Alcohol changes the brain. We help it change back.',
     description:
-      'At Seven Arrows Recovery, alcohol use disorder is treated as a whole-person condition: a neurochemical dependency, a trauma response, and a social pattern entwined at once. Our residential program in Arizona holds all three together — medical detox coordination, trauma-informed therapy, and a landscape that slows the nervous system down long enough for the work to land.',
+      'At Seven Arrows Recovery, alcohol use disorder is treated as a whole-person condition: a neurochemical dependency, a trauma response, and a social pattern entwined at once. Our alcohol rehab center in Arizona holds all three together: medical detox coordination, trauma-informed therapy, and a landscape that slows the nervous system down long enough for the work to land.',
     breadcrumbs: [
       { label: 'Home', href: '/' },
       { label: 'What We Treat', href: '/what-we-treat' },
@@ -17,14 +17,14 @@ export const alcoholContent: SubstanceContent = {
     eyebrow: 'The Neurochemistry',
     title: (
       <>
-        Alcohol quiets the nervous system —{' '}
-        <em className="not-italic text-primary">and then demands more volume to do it.</em>
+        Alcohol quiets the nervous system,{' '}
+        <em className="not-italic text-primary">then demands more volume to do it.</em>
       </>
     ),
     paragraphs: [
-      "Alcohol enhances GABA (the brain's brake pedal) and dulls glutamate (the brain's accelerator). The first few drinks feel like relief because the nervous system is being chemically quieted. The body adapts by turning up glutamate to compensate — which is why tolerance climbs, why withdrawal is agitated, and why the drink that used to soften the edges eventually stops working.",
-      'Chronic use flattens dopamine signaling the same way stimulants do — not by spiking it, but by slowly silencing the baseline. Food, rest, sex, connection, and pleasure all start to register weaker. The drink becomes the only reliable source of anything at all.',
-      'Healing is not "stop drinking." Healing is repairing the nervous-system chemistry the drinking was substituting for — and building a life the brain actually wants to stay awake in.',
+      "Alcohol enhances GABA (the brain's brake pedal) and dulls glutamate (the brain's accelerator). The first few drinks feel like relief because the nervous system is being chemically quieted. The body adapts by turning up glutamate to compensate, which is why tolerance climbs, why alcohol withdrawal is agitated, and why the drink that used to soften the edges eventually stops working.",
+      'Chronic use flattens dopamine signaling the same way stimulants do, not by spiking it, but by slowly silencing the baseline. Food, rest, sex, connection, and pleasure all start to register weaker. The drink becomes the only reliable source of anything at all.',
+      'Healing is not "stop drinking." Healing is repairing the nervous-system chemistry the drinking was substituting for, and building a life the brain actually wants to stay awake in. That is what our alcohol treatment in Arizona is structured to do: slow the environment down, stabilize the body, and give the brain the conditions it needs to rewire.',
     ],
     chart: {
       natural: { label: 'natural reward', color: '#2f6f5e' },
@@ -41,8 +41,8 @@ export const alcoholContent: SubstanceContent = {
       </>
     ),
     paragraphs: [
-      'Alcohol dependence settles into a predictable rhythm — drink to soften the day, sleep, wake up worse, drink to feel normal again. What looks like pleasure has long since become maintenance.',
-      'Residential care interrupts the rhythm physically. The house is dry, the schedule is full, the nervous system finally has time to recalibrate without the drink doing its work for it.',
+      'Alcohol dependence settles into a predictable rhythm: drink to soften the day, sleep, wake up worse, drink to feel normal again. What looks like pleasure has long since become maintenance.',
+      'Residential alcohol treatment interrupts the rhythm physically. The house is dry, the schedule is full, the nervous system finally has time to recalibrate without the drink doing its work for it. At our Arizona alcohol rehab, that interruption is held inside a full clinical structure, so the space the drink used to fill gets replaced with something that actually holds.',
     ],
     stages: [
       { label: 'Drink', hint: 'Relief, unwind, sleep aid' },
@@ -59,7 +59,7 @@ export const alcoholContent: SubstanceContent = {
         Alcohol is <em className="not-italic text-accent">expensive to the body</em>, slowly.
       </>
     ),
-    body: 'Unlike stimulants, alcohol rarely delivers a dramatic medical moment — which is part of the trap. The damage is cumulative: liver, heart, brain, sleep architecture, immune function, and mood regulation all drift quietly downhill, and most drinkers only notice once the drift has already taken years.',
+    body: 'Unlike stimulants, alcohol rarely delivers a dramatic medical moment, which is part of the trap. The damage is cumulative: liver, heart, brain, sleep architecture, immune function, and mood regulation all drift quietly downhill, and most drinkers seeking alcohol rehabilitation only notice once the drift has already taken years.',
     stats: [
       {
         value: 178,
@@ -88,11 +88,11 @@ export const alcoholContent: SubstanceContent = {
     eyebrow: 'The First Thirty Days',
     title: (
       <>
-        Alcohol withdrawal is <em className="not-italic text-primary">medically serious</em> — and
-        the only one on this list that can be dangerous to stop alone.
+        Alcohol Detox in Arizona:{' '}
+        <em className="not-italic text-primary">What to Expect in the First 30 Days</em>
       </>
     ),
-    body: 'Unlike cocaine or cannabis, alcohol withdrawal carries real physical risk: seizures, DTs, and cardiovascular strain. We coordinate medical detox before admission (or on-site when clinically appropriate), then hold the emotional work as the body stabilizes.',
+    body: 'Unlike cocaine or cannabis, alcohol withdrawal carries real physical risk: seizures, DTs, and cardiovascular strain. Our alcohol detox center in Arizona coordinates medically supervised detox before admission (or on-site when clinically appropriate), then holds the emotional work as the body stabilizes.',
     phases: [
       {
         label: 'Acute withdrawal',
@@ -121,11 +121,11 @@ export const alcoholContent: SubstanceContent = {
     eyebrow: 'Who We Actually See',
     title: (
       <>
-        Five patterns through our door —{' '}
-        <em className="not-italic text-primary">not the park-bench stereotype.</em>
+        Five real patterns at our Arizona alcohol treatment center,{' '}
+        <em className="not-italic text-primary">not the one you picture.</em>
       </>
     ),
-    body: 'The alcohol-addiction cliché keeps high-functioning drinkers out of care. If you see yourself in any of these, you are exactly who residential treatment is designed for.',
+    body: 'The alcohol-addiction cliché keeps high-functioning drinkers out of care. If you see yourself in any of these, you are exactly who our Arizona alcohol rehab center is designed for.',
     personas: [
       {
         label: 'The high-functioning drinker',
@@ -159,11 +159,11 @@ export const alcoholContent: SubstanceContent = {
     eyebrow: 'Our Approach',
     title: (
       <>
-        Stabilize the body. <em className="not-italic text-primary">Regulate the nervous system.</em>{' '}
-        Rebuild the life.
+        Our Alcohol Rehab Program in Arizona:{' '}
+        <em className="not-italic text-primary">How Treatment Is Sequenced</em>
       </>
     ),
-    body: 'Alcohol recovery sequencing matters. Too much trauma processing before the body is physically stable re-triggers craving. Too little psychotherapy after detox loses the window where real change is available.',
+    body: 'Alcohol rehab sequencing matters. Too much trauma processing before the body is physically stable re-triggers craving. Too little psychotherapy after alcohol detox loses the window where real change is available.',
     flagship: {
       title: 'Somatic-Cognitive Behavioral Therapy for alcohol craving',
       body: 'Our house-integrated CBT variant tracks the body and the thought at the same time. Clients learn to interrupt the craving loop at the nervous-system level — before the "one drink" decision has a chance to become reflex.',
@@ -171,7 +171,7 @@ export const alcoholContent: SubstanceContent = {
     },
     modalities: [
       {
-        title: 'Medical detox coordination',
+        title: 'Alcohol detox coordination',
         body: 'Pre-admission or on-site medical detox with 24/7 clinical oversight through the acute window. MAT (naltrexone, acamprosate) when clinically indicated.',
         iconId: 'heart',
       },
@@ -211,8 +211,8 @@ export const alcoholContent: SubstanceContent = {
       </>
     ),
     paragraphs: [
-      'Most alumni describe the turning point as the first week they sleep all the way through — usually somewhere between weeks three and five. The nervous system finally gets a night of clean REM. Mood stabilizes behind it, then appetite, then desire for anything other than the bottle.',
-      'Sleep, movement, connection, and meaning are the four pillars that carry the curve back up. None of them replace the drink. They rebuild the nervous-system function the drink was standing in for.',
+      'Most alumni describe the turning point as the first week they sleep all the way through, usually somewhere between weeks three and five. The nervous system finally gets a night of clean REM. Mood stabilizes behind it, then appetite, then desire for anything other than the bottle.',
+      'Sleep, movement, connection, and meaning are the four pillars of sustained alcohol rehabilitation that carry the curve back up. None of them replace the drink. They rebuild the nervous-system function the drink was standing in for.',
     ],
     anchors: [
       { x: 0.12, label: 'Sleep', hint: 'Restores REM' },

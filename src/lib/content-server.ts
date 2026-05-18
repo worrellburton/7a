@@ -27,6 +27,18 @@ export async function requireSuperAdmin(req: NextRequest) {
   return { error: null, user };
 }
 
+// Read-only gate for /app/content browse endpoints — any signed-in
+// user can fetch the blog list + visibility map so non-super admins
+// can see the pipeline. Write endpoints (POST/PATCH/PUT/DELETE) still
+// use requireSuperAdmin above to lock publish/edit to super admins.
+export async function requireSignedInUser(req: NextRequest) {
+  const user = await getUserFromRequest(req);
+  if (!user) {
+    return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }), user: null };
+  }
+  return { error: null, user };
+}
+
 export function makeSlug(source: string): string {
   const base = source
     .toLowerCase()

@@ -22,7 +22,17 @@ import type { SubstanceContent } from '@/lib/substances/types';
 // field on the content shape so a future version can feed real,
 // verified quotes in substance-specific slots when that pipeline
 // exists.
-export default function SubstancePage10Phase({ content }: { content: SubstanceContent }) {
+export default function SubstancePage10Phase({
+  content,
+  labelAs,
+  titleAs,
+}: {
+  content: SubstanceContent;
+  /** Optional override for the hero eyebrow tag. See PageHero. */
+  labelAs?: 'p' | 'h1' | 'h2';
+  /** Optional override for the hero display-title tag. See PageHero. */
+  titleAs?: 'h1' | 'h2';
+}) {
   return (
     <main>
       <PageHero
@@ -30,6 +40,8 @@ export default function SubstancePage10Phase({ content }: { content: SubstanceCo
         title={content.hero.title}
         description={content.hero.description}
         breadcrumbs={content.hero.breadcrumbs}
+        labelAs={labelAs}
+        titleAs={titleAs}
         ctas={[
           {
             kind: 'phone',

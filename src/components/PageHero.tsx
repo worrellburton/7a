@@ -52,6 +52,15 @@ interface PageHeroProps {
    *  max-w-7xl container; "narrow" uses max-w-3xl so the hero's left
    *  edge lines up with a 3xl reading column beneath it (blog posts). */
   width?: 'wide' | 'narrow';
+  /** Override the HTML tag used for the eyebrow `label`. Default is `p`.
+   *  Substance pages pass `h1` so the keyword-optimized eyebrow becomes
+   *  the page's H1 while the larger display title above demotes to H2.
+   *  Visual styling stays identical — only the tag type changes. */
+  labelAs?: 'p' | 'h1' | 'h2';
+  /** Override the HTML tag used for the display `title`. Default is `h1`.
+   *  Pair with `labelAs="h1"` to swap the heading hierarchy without
+   *  changing any CSS classes or visual weight. */
+  titleAs?: 'h1' | 'h2';
 }
 
 // Temporary placeholder backdrop used on every inner page until we
@@ -190,7 +199,11 @@ export default function PageHero({
   meta,
   ctas,
   width = 'wide',
+  labelAs = 'p',
+  titleAs = 'h1',
 }: PageHeroProps) {
+  const LabelTag = labelAs;
+  const TitleTag = titleAs;
   // A `video` (defaulted) takes precedence. Callers can still pass an
   // explicit `image` to opt out of the shared placeholder clip.
   const posterImage = image ?? DEFAULT_IMAGE;
@@ -295,20 +308,20 @@ export default function PageHero({
             </nav>
           )}
 
-          <p
+          <LabelTag
             className="flex items-center gap-4 text-[11px] tracking-[0.22em] uppercase font-semibold text-white/80 mb-4"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             <span className="block w-10 h-px bg-white/70" aria-hidden="true" />
             {label}
-          </p>
+          </LabelTag>
 
-          <h1
+          <TitleTag
             className="text-4xl sm:text-5xl lg:text-[4rem] font-bold tracking-tight leading-[1.05] mb-5"
             style={{ fontFamily: 'var(--font-display)' }}
           >
             {renderTitle(title)}
-          </h1>
+          </TitleTag>
 
           {description && (
             <p

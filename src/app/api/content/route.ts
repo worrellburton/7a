@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase } from '@/lib/supabase-server';
-import { requireSuperAdmin, makeSlug } from '@/lib/content-server';
+import { requireSuperAdmin, requireSignedInUser, makeSlug } from '@/lib/content-server';
 
 // GET  /api/content — list every blog row (drafts + published) for
-//                     the /app/content list view.
+//                     the /app/content list view. Open to any signed-in
+//                     user so non-super admins can browse the pipeline.
 // POST /api/content — create a fresh blog row from a paragraph prompt.
+//                     Super-admin only — only publishers create drafts.
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const gate = await requireSuperAdmin(req);
+  const gate = await requireSignedInUser(req);
   if (gate.error) return gate.error;
 
   const admin = getAdminSupabase();
