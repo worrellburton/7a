@@ -38,7 +38,7 @@ function pushComposeDraft(draft: ComposeDraft) {
 // path doesn't accidentally drop it. The AI panel reads this on
 // mount to pre-populate its media context; saving to drafts copies
 // the urls into the draft payload and then this stash is cleared.
-interface CreativeStaging { mediaUrls: string[] }
+interface CreativeStaging { mediaUrls: string[]; platforms?: string[] }
 const STAGING_KEY = 'social_media_creative_staging_v1';
 function pushCreativeStaging(s: CreativeStaging) {
   try { sessionStorage.setItem(STAGING_KEY, JSON.stringify(s)); } catch { /* no-op */ }
@@ -1806,15 +1806,168 @@ interface LibraryAsset {
 
 type LibraryFilter = 'all' | 'photos' | 'videos';
 
+// Wizard mode driven by a ?wizard= search-param so the back button
+// gets you out without a fresh navigation. Three steps in order:
+//   landing  — single "Create new post" button (default)
+//   images   — existing library picker (renamed inline)
+//   platforms — pick the channels then push to /create with both
+//                the media URLs and the platform list pre-staged.
+type CreativeWizardStep = 'landing' | 'images' | 'platforms';
+
+function readWizardStep(raw: string | null): CreativeWizardStep {
+  if (raw === 'images' || raw === 'platforms') return raw;
+  return 'landing';
+}
+
+// Step 0 — landing card. One-button start so the Creative > Build
+// page is calm by default; the library grid only mounts after the
+// user opts in. Mirrors the "do less by default" pass the Overview
+// tab just got.
+function CreativeLanding({ onStart }: { onStart: () => void }) {
+  return (
+    <section className="rounded-2xl border border-black/10 bg-white p-10 sm:p-12 text-center">
+      <div className="mx-auto mb-4 w-14 h-14 rounded-full bg-primary/10 text-primary inline-flex items-center justify-center">
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+        </svg>
+      </div>
+      <h2 className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+        Build a new post
+      </h2>
+      <p className="text-sm text-foreground/55 mt-1 mb-6 max-w-md mx-auto">
+        Walk through media, then platforms, then caption. Three steps and you&rsquo;re ready to schedule.
+      </p>
+      <button
+        type="button"
+        onClick={onStart}
+        className="inline-flex items-center gap-2 px-5 py-3 rounded-full bg-foreground text-white text-sm font-semibold hover:bg-foreground/85 transition-colors"
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        Create new post
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+        </svg>
+      </button>
+    </section>
+  );
+}
+
+// Step 2 — platform picker. Grid of all supported PLATFORMS with the
+// icon + label; selected pills get the brand color. Continue only
+// enables once at least one platform is checked. Back returns to
+// step 1 (media); Continue stashes the URLs + platforms in session
+// storage and pushes /create.
+function CreativePlatformsStep({
+  selected,
+  onToggle,
+  onBack,
+  onContinue,
+  imageCount,
+}: {
+  selected: Set<PlatformId>;
+  onToggle: (pid: PlatformId) => void;
+  onBack: () => void;
+  onContinue: () => void;
+  imageCount: number;
+}) {
+  return (
+    <section className="rounded-2xl border border-black/10 bg-white p-5 pb-8">
+      <div className="flex items-center gap-2 mb-4">
+        <button
+          type="button"
+          onClick={onBack}
+          className="text-foreground/45 hover:text-foreground transition-colors"
+          aria-label="Back"
+          title="Back to media selection"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <div>
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Step 2 · Pick your platforms</h2>
+          <p className="text-[11px] text-foreground/45 mt-0.5">
+            {imageCount} media file{imageCount === 1 ? '' : 's'} selected · pick where this post will run.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-6">
+        {PLATFORMS.map((p) => {
+          const on = selected.has(p.id as PlatformId);
+          return (
+            <button
+              key={p.id}
+              type="button"
+              onClick={() => onToggle(p.id as PlatformId)}
+              aria-pressed={on}
+              className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors text-left ${
+                on
+                  ? 'bg-foreground text-white border-foreground'
+                  : 'bg-white text-foreground/70 border-black/10 hover:border-foreground/30'
+              }`}
+            >
+              <PlatformIcon platform={p.id as PlatformId} size={16} color={on ? '#ffffff' : undefined} />
+              <span>{p.label}</span>
+              {on && (
+                <svg className="w-3.5 h-3.5 ml-auto" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] text-foreground/45">
+          {selected.size === 0 ? 'Pick at least one platform to continue.' : `${selected.size} platform${selected.size === 1 ? '' : 's'} selected.`}
+        </p>
+        <button
+          type="button"
+          onClick={onContinue}
+          disabled={selected.size === 0}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-foreground text-white text-sm font-semibold hover:bg-foreground/85 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          Continue
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+          </svg>
+        </button>
+      </div>
+    </section>
+  );
+}
+
 function CreativeLibraryPanel() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const step = readWizardStep(searchParams.get('wizard'));
+
+  const setStep = useCallback((next: CreativeWizardStep) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', 'creative');
+    params.delete('sub');
+    if (next === 'landing') params.delete('wizard');
+    else params.set('wizard', next);
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  }, [pathname, router, searchParams]);
+
+  // Step 1 panel state is hoisted so the wizard remembers selections
+  // when the user moves back to step 0 + forward again.
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<LibraryFilter>('all');
+  // Step 2 — platforms. Default mirrors the /create page's defaults
+  // so a wizard exit keeps parity with direct navigation.
+  const [pickedPlatforms, setPickedPlatforms] = useState<Set<PlatformId>>(
+    () => new Set(['facebook', 'instagram', 'linkedin']),
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -1901,16 +2054,28 @@ function CreativeLibraryPanel() {
   };
 
   const continueToAi = () => {
+    // Step 1 (images) -> step 2 (platforms). Final push to /create
+    // happens from the platforms step so the staged payload carries
+    // both the URLs and the selected channels.
     const urls = assets
       .filter((row) => selected.has(row.id))
       .map((row) => row.url)
       .filter((u): u is string => Boolean(u));
     if (urls.length === 0) return;
     pushCreativeStaging({ mediaUrls: urls });
-    // Continue now lands on the dedicated Create page — caption +
-    // platform pills + a deliverable upload slot for every crop
-    // across the targeted networks, and a "Save and ready to go"
-    // button that drops the result into the Ready-to-go list.
+    setStep('platforms');
+  };
+
+  const finishWizard = () => {
+    const urls = assets
+      .filter((row) => selected.has(row.id))
+      .map((row) => row.url)
+      .filter((u): u is string => Boolean(u));
+    if (urls.length === 0 || pickedPlatforms.size === 0) return;
+    pushCreativeStaging({
+      mediaUrls: urls,
+      platforms: Array.from(pickedPlatforms),
+    });
     router.push('/app/social-media/create');
   };
 
@@ -1923,15 +2088,53 @@ function CreativeLibraryPanel() {
     return { photos, videos, all: photos + videos };
   }, [assets]);
 
+  if (step === 'landing') {
+    return <CreativeLanding onStart={() => setStep('images')} />;
+  }
+
+  if (step === 'platforms') {
+    return (
+      <CreativePlatformsStep
+        selected={pickedPlatforms}
+        onToggle={(pid) => {
+          setPickedPlatforms((prev) => {
+            const next = new Set(prev);
+            if (next.has(pid)) next.delete(pid);
+            else next.add(pid);
+            return next;
+          });
+        }}
+        onBack={() => setStep('images')}
+        onContinue={finishWizard}
+        imageCount={selected.size}
+      />
+    );
+  }
+
   return (
     <>
     <section className="rounded-2xl border border-black/10 bg-white p-5 pb-24">
       <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
-        <div>
-          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Library</h2>
-          <p className="text-[11px] text-foreground/45 mt-0.5">
-            Pick the media you want a post built around. Continue takes you to AI for caption generation.
-          </p>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setStep('landing')}
+            className="text-foreground/45 hover:text-foreground transition-colors"
+            aria-label="Back"
+            title="Back to start"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div>
+            <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">
+              Step 1 · Pick your media
+            </h2>
+            <p className="text-[11px] text-foreground/45 mt-0.5">
+              Pick the photos or videos this post should be built around. Continue moves on to platform selection.
+            </p>
+          </div>
         </div>
         <input
           type="search"

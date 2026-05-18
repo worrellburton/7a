@@ -68,6 +68,21 @@ function readStagedMedia(): string[] {
   } catch { return []; }
 }
 
+// The Creative > Build wizard now stashes the platform set alongside
+// the media URLs; pick it up here so /create lands with the user's
+// step-2 selection instead of always defaulting to fb/ig/li.
+function readStagedPlatforms(): string[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.sessionStorage.getItem(STAGING_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as { platforms?: unknown };
+    return Array.isArray(parsed.platforms)
+      ? (parsed.platforms as unknown[]).filter((u): u is string => typeof u === 'string')
+      : [];
+  } catch { return []; }
+}
+
 function clearStagedMedia() {
   if (typeof window === 'undefined') return;
   try { window.sessionStorage.removeItem(STAGING_KEY); } catch { /* ignore */ }
@@ -137,6 +152,16 @@ export default function CreatePostContent() {
   useEffect(() => {
     const m = readStagedMedia();
     setStagedMedia(m);
+    // Honour the Creative > Build wizard's platform pick when it's
+    // present in staging. Empty arrays / missing keys fall back to
+    // the original fb/ig/li default already set above.
+    const p = readStagedPlatforms();
+    if (p.length > 0) {
+      const filtered = p.filter((id): id is PlatformId => {
+        return ['facebook', 'instagram', 'linkedin', 'twitter', 'youtube', 'tiktok', 'pinterest', 'reddit', 'threads', 'bluesky', 'gmb'].includes(id);
+      });
+      if (filtered.length > 0) setPlatforms(new Set(filtered));
+    }
   }, []);
 
   useEffect(() => {
