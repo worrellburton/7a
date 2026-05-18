@@ -401,63 +401,24 @@ export default function AdmissionsContent() {
 // so whichever address the user is logged in as is the sender.
 // Fields the user has to fill in are wrapped in [SQUARE BRACKETS]
 // so they stand out in the compose window.
+// Placeholder bodies — real PAA + Admissions Alert copy will replace
+// these once the team finalizes the wording. The skeleton scaffolding
+// (label, subject, gmailComposeUrl helper, button row) stays as is so
+// swapping the copy is a one-field edit per template.
 const GMAIL_TEMPLATES = [
   {
     id: 'paa',
     label: 'PAA',
     description: 'Pre-Admission Assessment intake',
-    subject: 'PAA - [Client Last Name, First Name]',
-    body: [
-      'Hi team,',
-      '',
-      'Please find the Pre-Admission Assessment below.',
-      '',
-      'Client: [Last, First]',
-      'DOB: [MM/DD/YYYY]',
-      'Phone: [###-###-####]',
-      'Email: [name@example.com]',
-      'Insurance: [Carrier / Plan / Member ID]',
-      'Level of care requested: [Residential / Detox / IOP / Other]',
-      'Substance(s) of concern: [e.g. alcohol, opioid]',
-      'Co-occurring diagnoses: [PTSD, depression, anxiety, ...]',
-      'Current medications: [list with dose + frequency]',
-      'Medical concerns / allergies: [list]',
-      'Referral source: [self / family / clinician / facility]',
-      'Target arrival date: [MM/DD/YYYY]',
-      '',
-      'Notes:',
-      '[free-form context about the client, what they need, and what we should know before intake]',
-      '',
-      'Thanks,',
-      '[your name]',
-    ].join('\n'),
+    subject: 'test',
+    body: 'test',
   },
   {
     id: 'admissions_alert',
     label: 'Admissions Alert',
     description: 'Heads-up to the team about an incoming arrival',
-    subject: 'Admissions Alert - [Client Name] - [Arrival Date]',
-    body: [
-      'Team,',
-      '',
-      'New admission incoming. Details below.',
-      '',
-      'Client: [Last, First]',
-      'Arrival date: [MM/DD/YYYY]',
-      'Arrival time: [HH:MM AM/PM]',
-      'Transport: [airport pickup / family drop / personal vehicle / rideshare / bus]',
-      'Flight (if any): [Airline + flight # | Origin → PHX]',
-      'Pickup driver: [name + vehicle]',
-      'Coordinator: [name]',
-      'Insurance: [carrier / plan]',
-      'Level of care: [Residential / Detox / IOP / Other]',
-      'Special notes: [e.g. service animal, dietary needs, mobility, baggage, family contact info]',
-      '',
-      'Please review and reach out if you have questions before arrival.',
-      '',
-      'Thanks,',
-      '[your name]',
-    ].join('\n'),
+    subject: 'test',
+    body: 'test',
   },
 ] as const;
 
