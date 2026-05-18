@@ -28,6 +28,15 @@ const shots: Shot[] = [
   { src: '/images/horse-sketch-artwork.jpg', alt: 'Artwork', caption: 'Artwork from the herd — drawn by alumni' },
   { src: '/images/group-therapy-room.jpg', alt: 'Group therapy room', caption: 'Light-filled group therapy space' },
   { src: '/images/embrace-connection.jpg', alt: 'Embrace', caption: 'Connection, the moment it arrives' },
+  {
+    // Supabase-hosted ranch photo backfills a stubborn masonry gap
+    // in the middle-bottom of the 3/4-column grid. Sourced from the
+    // site_images library so we don't have to ship another local
+    // asset for a single tile.
+    src: 'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1777557524042-9t358jn48sw-deer-in-golden-grassland-arizona-mountains.webp',
+    alt: 'Two deer in golden grass with Arizona mountains behind',
+    caption: 'The herd has neighbours — deer cross the property at dawn',
+  },
   { src: '/images/sign-night-sky-milky-way.jpg', alt: 'Milky Way', caption: 'The sign under an unbroken Milky Way' },
 ];
 
