@@ -19,7 +19,11 @@ const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 // only address Resend will let us send from until/unless a second
 // domain is added and verified.
 const DEFAULT_FROM = 'Seven Arrows Admissions <noreply@sevenarrowsrecovery.com>';
-const DEFAULT_VOB_TO = 'admissions@sevenarrowsrecovery.com';
+// VOB submissions go to admissions@ (general intake) AND vob@ (the
+// dedicated benefits-verification queue) so the team can run both
+// inboxes without forwarding rules. Override via RESEND_TO_VOB
+// (comma-separated) when the list needs to change.
+const DEFAULT_VOB_TO = 'admissions@sevenarrowsrecovery.com, vob@sevenarrowsrecovery.com';
 
 export interface EmailAttachment {
   /** Filename the recipient sees. */
