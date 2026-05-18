@@ -18,17 +18,30 @@ interface BlogRow {
   body_markdown: string | null;
   layout: Layout | null;
   published_at: string | null;
+  audio_url: string | null;
 }
 
 async function loadPublished(slug: string): Promise<BlogRow | null> {
   const admin = getAdminSupabase();
-  const { data } = await admin
+  // Audio URL is selected as a `try this first` field — the column was
+  // added in a migration after the original /app/content ship. If the
+  // deployment hasn't applied it yet the select would error out; fall
+  // back to the un-audio shape so the public page still renders.
+  const full = await admin
+    .from('blogs')
+    .select('id, slug, title, status, body_markdown, layout, published_at, audio_url')
+    .eq('slug', slug)
+    .eq('status', 'published')
+    .maybeSingle();
+  if (!full.error && full.data) return full.data as BlogRow;
+  const legacy = await admin
     .from('blogs')
     .select('id, slug, title, status, body_markdown, layout, published_at')
     .eq('slug', slug)
     .eq('status', 'published')
     .maybeSingle();
-  return (data as BlogRow | null) ?? null;
+  if (!legacy.data) return null;
+  return { ...(legacy.data as Omit<BlogRow, 'audio_url'>), audio_url: null };
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -63,7 +76,10 @@ export default async function DbBlogPage({ params }: { params: Promise<{ slug: s
 
   return (
     <>
-      <DbBlogRenderer layout={row.layout} />
+      <DbBlogRenderer
+        layout={row.layout}
+        audio={row.audio_url ? { src: row.audio_url, title: row.title ?? 'Article audio' } : null}
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -75,6 +91,15 @@ export default async function DbBlogPage({ params }: { params: Promise<{ slug: s
             author: { '@type': 'Organization', name: 'Seven Arrows Recovery' },
             publisher: { '@type': 'Organization', name: 'Seven Arrows Recovery' },
             mainEntityOfPage: `https://sevenarrowsrecoveryarizona.com/who-we-are/blog/${row.slug}`,
+            ...(row.audio_url
+              ? {
+                  audio: {
+                    '@type': 'AudioObject',
+                    contentUrl: row.audio_url,
+                    encodingFormat: 'audio/mpeg',
+                  },
+                }
+              : {}),
           }),
         }}
       />

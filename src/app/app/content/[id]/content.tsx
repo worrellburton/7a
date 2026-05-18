@@ -29,6 +29,9 @@ interface DbBlog {
   created_at: string;
   updated_at: string;
   published_at: string | null;
+  /** ElevenLabs MP3 URL populated by /api/content/[id]/audio. Null
+   *  until the editor clicks "Generate audio". */
+  audio_url?: string | null;
 }
 interface DbImage {
   id: string;
@@ -183,6 +186,9 @@ export default function BlogEditor({ id }: { id: string }) {
 
       {reachedBuild && (
         <PublishPanel blog={blog} token={token} onChange={() => void load()} />
+      )}
+      {reachedBuild && (
+        <AudioPanel blog={blog} token={token} onChange={() => void load()} />
       )}
       {reachedPublish && (
         <p className="mt-4 text-[12px] text-foreground/55">
@@ -1313,6 +1319,72 @@ function PublishPanel({ blog, token, onChange }: { blog: DbBlog; token: string |
           {busy ? 'Unpublishing…' : 'Unpublish'}
         </button>
       )}
+    </Panel>
+  );
+}
+
+// Step 8 — ElevenLabs TTS. The button POSTs to /api/content/[id]/audio
+// which chunks the body, calls ElevenLabs per chunk, concatenates the
+// MP3s, uploads to `blog-audio`, and writes the URL back to the blog
+// row. Once persisted, the public renderer mounts a player above the
+// post automatically.
+function AudioPanel({ blog, token, onChange }: { blog: DbBlog; token: string | null; onChange: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<{ message: string; details?: unknown } | null>(null);
+
+  async function generate() {
+    if (!token) return;
+    setBusy(true); setErr(null);
+    try {
+      const res = await fetch(`/api/content/${blog.id}/audio`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErr({ message: json.error ?? `HTTP ${res.status}`, details: json });
+        return;
+      }
+      onChange();
+    } catch (e) {
+      setErr({ message: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const hasAudio = !!blog.audio_url;
+  return (
+    <Panel heading="Audio" step={8}>
+      <p className="text-[12.5px] text-foreground/65 mb-3 leading-relaxed">
+        ElevenLabs TTS for the article body. The player auto-mounts above the
+        post once an MP3 is on file; clicking <strong>Regenerate</strong> after
+        a body edit overwrites the existing file.
+      </p>
+      {hasAudio && (
+        <div className="mb-3 rounded-lg border border-black/10 bg-warm-bg/30 px-3 py-2 flex items-center gap-3">
+          <span className="text-[10px] uppercase tracking-[0.16em] text-emerald-700 font-bold">Live</span>
+          <audio src={blog.audio_url ?? undefined} controls preload="metadata" className="flex-1 max-w-md" />
+          <a
+            href={blog.audio_url ?? undefined}
+            target="_blank"
+            rel="noreferrer"
+            className="text-[11px] text-foreground/55 hover:text-foreground underline"
+          >
+            Open
+          </a>
+        </div>
+      )}
+      {err && <ErrorWithCopy message={err.message} details={err.details} />}
+      <button
+        type="button"
+        onClick={generate}
+        disabled={busy}
+        className="px-3 py-1.5 rounded-md bg-foreground text-white text-[11.5px] font-semibold disabled:opacity-50"
+        title={hasAudio ? 'Regenerate the MP3 from the current body' : 'Synthesize an MP3 from the article body'}
+      >
+        {busy ? 'Generating audio…' : hasAudio ? 'Regenerate audio' : 'Generate audio'}
+      </button>
     </Panel>
   );
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase } from '@/lib/supabase-server';
 import { requireSuperAdmin } from '@/lib/content-server';
-import { isAudioConfigured, synthesizeSpeech } from '@/lib/content-audio';
+import { isAudioConfigured, synthesizeLongForm } from '@/lib/content-audio';
 
 // POST /api/content/[id]/audio — generate a TTS MP3 for a blog using
 // ElevenLabs. Super-admin only — same as every other write route in
@@ -48,9 +48,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const text = (body.text ?? blog.body_markdown ?? '').trim();
   if (!text) return NextResponse.json({ error: 'no text to synthesize' }, { status: 400 });
 
-  let result: Awaited<ReturnType<typeof synthesizeSpeech>>;
+  let result: Awaited<ReturnType<typeof synthesizeLongForm>>;
   try {
-    result = await synthesizeSpeech(text, { voiceId: body.voiceId });
+    result = await synthesizeLongForm(text, { voiceId: body.voiceId });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 502 });
   }
@@ -69,10 +69,34 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: `storage upload failed: ${upErr.message}` }, { status: 500 });
   }
   const { data: publicUrl } = admin.storage.from(BUCKET).getPublicUrl(path);
+  const audioUrl = publicUrl.publicUrl;
+
+  // Persist the URL on the blog row so the public renderer can mount
+  // an audio player without round-tripping through storage on every
+  // request. Soft-failure: a missing column means an older deployment
+  // hasn't migrated yet; the route still returns the URL so a manual
+  // backfill is possible.
+  const { error: updateErr } = await admin
+    .from('blogs')
+    .update({ audio_url: audioUrl })
+    .eq('id', id);
+  if (updateErr) {
+    return NextResponse.json({
+      ok: true,
+      url: audioUrl,
+      persisted: false,
+      warning: `audio uploaded but not stored on blog row: ${updateErr.message}`,
+      voiceId: result.voiceId,
+      modelId: result.modelId,
+      contentType: result.contentType,
+      bytes: result.audio.byteLength,
+    });
+  }
 
   return NextResponse.json({
     ok: true,
-    url: publicUrl.publicUrl,
+    url: audioUrl,
+    persisted: true,
     voiceId: result.voiceId,
     modelId: result.modelId,
     contentType: result.contentType,

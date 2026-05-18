@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useRef, type ReactElement } from 'react';
+import { Fragment, useEffect, useRef, type ReactElement } from 'react';
 import type { Layout, LayoutBlock } from '@/lib/content-claude';
+import BlogAudioPlayer from '@/components/blog/BlogAudioPlayer';
 
 // Public-site renderer for DB-backed blog posts. Walks the layout
 // array produced by buildBlogLayout (phase 8) and emits each block.
@@ -257,11 +258,34 @@ function WebglScene({ scene, accent }: { scene: 'particles' | 'orbit' | 'aurora'
   );
 }
 
-export default function DbBlogRenderer({ layout }: { layout: Layout }) {
+export default function DbBlogRenderer({
+  layout,
+  audio,
+}: {
+  layout: Layout;
+  /** Optional ElevenLabs-generated audio for the post. When present
+   *  the player mounts directly after the hero block so the listener
+   *  affordance sits above the prose without competing with it. */
+  audio?: { src: string; title: string } | null;
+}) {
+  // Find the index of the last `hero` block so the audio player can
+  // be slipped in right after it (most layouts open with hero +
+  // prose). Falls back to top-of-article when no hero block exists.
+  const heroEndIdx = (() => {
+    for (let i = layout.blocks.length - 1; i >= 0; i -= 1) {
+      if (layout.blocks[i].type === 'hero') return i;
+    }
+    return -1;
+  })();
+
   return (
     <article className="max-w-3xl mx-auto px-5 sm:px-6 py-12 sm:py-16" style={{ fontFamily: 'var(--font-body)' }}>
+      {audio && heroEndIdx < 0 && <BlogAudioPlayer src={audio.src} title={audio.title} />}
       {layout.blocks.map((block, i) => (
-        <RenderBlock key={i} block={block} />
+        <Fragment key={i}>
+          <RenderBlock block={block} />
+          {audio && i === heroEndIdx && <BlogAudioPlayer src={audio.src} title={audio.title} />}
+        </Fragment>
       ))}
     </article>
   );

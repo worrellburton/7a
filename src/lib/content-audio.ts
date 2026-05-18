@@ -56,6 +56,65 @@ export interface SynthesizeResult {
   modelId: string;
 }
 
+// ElevenLabs' v1 TTS endpoint accepts up to ~5000 characters per call.
+// We chunk at paragraph boundaries with a generous safety margin so
+// markdown formatting (lists, blockquotes, headers) doesn't push a
+// chunk over the wire limit. MP3 frames are self-contained, so the
+// resulting chunks can be concatenated as raw bytes and any standard
+// player will treat the result as one stream.
+const CHUNK_LIMIT = 4500;
+
+// Splits a long markdown body into ~4500-char chunks, preferring
+// paragraph breaks (`\n\n`) and then sentence boundaries (`. `,
+// `! `, `? `) when a single paragraph blows past the limit. Pure
+// function — exported so callers can preview chunk boundaries before
+// committing to TTS.
+export function chunkForTts(text: string, limit = CHUNK_LIMIT): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+  if (trimmed.length <= limit) return [trimmed];
+
+  const paragraphs = trimmed.split(/\n{2,}/g).map((p) => p.trim()).filter(Boolean);
+  const chunks: string[] = [];
+  let buffer = '';
+  for (const para of paragraphs) {
+    // A single oversize paragraph: split at sentence boundaries.
+    if (para.length > limit) {
+      if (buffer) { chunks.push(buffer); buffer = ''; }
+      const sentences = para.split(/(?<=[.!?])\s+/);
+      let sentenceBuf = '';
+      for (const s of sentences) {
+        if ((sentenceBuf + (sentenceBuf ? ' ' : '') + s).length > limit) {
+          if (sentenceBuf) chunks.push(sentenceBuf);
+          // Sentence still too long — hard-split on the limit. Rare,
+          // but better to ship a chunk than to throw.
+          if (s.length > limit) {
+            for (let i = 0; i < s.length; i += limit) {
+              chunks.push(s.slice(i, i + limit));
+            }
+            sentenceBuf = '';
+          } else {
+            sentenceBuf = s;
+          }
+        } else {
+          sentenceBuf = sentenceBuf ? `${sentenceBuf} ${s}` : s;
+        }
+      }
+      if (sentenceBuf) chunks.push(sentenceBuf);
+      continue;
+    }
+    const candidate = buffer ? `${buffer}\n\n${para}` : para;
+    if (candidate.length > limit) {
+      chunks.push(buffer);
+      buffer = para;
+    } else {
+      buffer = candidate;
+    }
+  }
+  if (buffer) chunks.push(buffer);
+  return chunks;
+}
+
 // Sends `text` to ElevenLabs and returns the MP3 bytes. The endpoint
 // accepts up to ~5000 characters per call; callers planning to TTS a
 // full blog should pre-chunk into smaller windows and stitch the
@@ -97,6 +156,42 @@ export async function synthesizeSpeech(text: string, opts: SynthesizeOptions = {
   return {
     audio,
     contentType: res.headers.get('content-type') ?? 'audio/mpeg',
+    voiceId,
+    modelId,
+  };
+}
+
+// Long-form helper — chunks `text`, synthesizes each piece, and
+// concatenates the MP3 bytes into a single buffer the route can
+// upload to storage. Calls run sequentially so ElevenLabs' per-key
+// rate limit isn't tripped by 3+ parallel jobs.
+export async function synthesizeLongForm(text: string, opts: SynthesizeOptions = {}): Promise<SynthesizeResult> {
+  const chunks = chunkForTts(text);
+  if (chunks.length === 0) throw new Error('no text to synthesize');
+  if (chunks.length === 1) return synthesizeSpeech(chunks[0], opts);
+
+  const parts: ArrayBuffer[] = [];
+  let voiceId = '';
+  let modelId = '';
+  let contentType = 'audio/mpeg';
+  for (const chunk of chunks) {
+    const result = await synthesizeSpeech(chunk, opts);
+    parts.push(result.audio);
+    voiceId = result.voiceId;
+    modelId = result.modelId;
+    contentType = result.contentType;
+  }
+
+  const total = parts.reduce((sum, p) => sum + p.byteLength, 0);
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const p of parts) {
+    merged.set(new Uint8Array(p), offset);
+    offset += p.byteLength;
+  }
+  return {
+    audio: merged.buffer,
+    contentType,
     voiceId,
     modelId,
   };
