@@ -137,10 +137,17 @@ export default function SocialMediaContent() {
   const { user, isSuperAdmin } = useAuth();
   const [accounts, setAccounts] = useState<AccountsResponse | null>(null);
   const [accountsErr, setAccountsErr] = useState<string | null>(null);
-  const [accountsLoading, setAccountsLoading] = useState(true);
+  // Live API calls (accounts + history) used to fire on every page
+  // visit, even when the user was just glancing at the Overview tab.
+  // That stat data is now refreshed by the 6am cron and surfaces via
+  // the DB-backed analytics-history endpoint, so accounts/history
+  // start as not-loading and only run when the user explicitly opens
+  // a tab that needs them (Post / Creative) or expands the Connected
+  // Accounts panel from Overview.
+  const [accountsLoading, setAccountsLoading] = useState(false);
   const [history, setHistory] = useState<HistoryPost[]>([]);
   const [historyErr, setHistoryErr] = useState<string | null>(null);
-  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   const refreshAccounts = useCallback(async () => {
     setAccountsLoading(true);
@@ -173,8 +180,14 @@ export default function SocialMediaContent() {
   }, []);
 
   useEffect(() => {
-    refreshAccounts();
-    refreshHistory();
+    // No auto-load on mount. accounts + history fetch on demand:
+    //   * Post tab fires both via the SocialTabBody effect below.
+    //   * Creative tab fires both for the same reason (the AI flow
+    //     reads the connected-platform list).
+    //   * Overview tab leaves both untouched — its tiles + analytics
+    //     panel read from the DB-backed analytics-history endpoint
+    //     instead of the live Ayrshare API, so a visit doesn't pay
+    //     the Ayrshare round-trip every time.
   }, [refreshAccounts, refreshHistory]);
 
   if (!user) return null;
@@ -365,6 +378,17 @@ function SocialTabBody(props: TabBodyProps) {
     history, historyLoading, historyErr, refreshHistory,
   } = props;
 
+  // Lazy load — accounts + history only fire when a tab that needs
+  // live data is active. Each call short-circuits if data is already
+  // populated, so toggling between tabs doesn't re-fetch on every
+  // click. Overview stays purely DB-backed.
+  useEffect(() => {
+    if (active === 'post' || active === 'creative') {
+      if (!accounts) refreshAccounts();
+      if (history.length === 0) refreshHistory();
+    }
+  }, [active, accounts, history.length, refreshAccounts, refreshHistory]);
+
   if (active === 'post') {
     return (
       <div role="tabpanel" id="tabpanel-post" aria-labelledby="tab-post">
@@ -393,11 +417,11 @@ function SocialTabBody(props: TabBodyProps) {
   return (
     <div role="tabpanel" id="tabpanel-overview" aria-labelledby="tab-overview">
       <OverviewSummary connected={accounts?.activeSocialAccounts ?? []} />
-      <ConnectedAccountsStrip
+      <ConnectedAccountsPanel
         accounts={accounts}
         loading={accountsLoading}
         error={accountsErr}
-        onChanged={refreshAccounts}
+        refresh={refreshAccounts}
       />
       <AnalyticsPanel connected={accounts?.activeSocialAccounts ?? []} />
     </div>
@@ -2414,6 +2438,76 @@ function CreativeAiPanel() {
 }
 
 // ── Connected accounts strip ──────────────────────────────────────
+
+// Collapsible wrapper for the Connected Accounts strip. Overview tab
+// no longer fires a live Ayrshare round-trip on visit; the panel
+// stays collapsed and only lazy-loads accounts data the first time
+// the visitor clicks the button. Mirrors the pre-cron behaviour of
+// the page (data visible on click) without the slow on-mount load.
+function ConnectedAccountsPanel({
+  accounts, loading, error, refresh,
+}: {
+  accounts: AccountsResponse | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const count = accounts?.activeSocialAccounts?.length ?? null;
+
+  function toggle() {
+    if (!open && !accounts && !loading) {
+      // First click — no cached data yet → kick a fetch. Subsequent
+      // open/close cycles reuse what's in state.
+      refresh();
+    }
+    setOpen((s) => !s);
+  }
+
+  return (
+    <section className="mb-6">
+      <button
+        type="button"
+        onClick={toggle}
+        aria-expanded={open}
+        aria-controls="connected-accounts-strip"
+        className="w-full inline-flex items-center justify-between gap-2 rounded-2xl border border-black/10 bg-white px-4 py-3 text-left hover:bg-warm-bg/40 transition-colors"
+      >
+        <span className="flex items-center gap-2 min-w-0">
+          <svg className="w-4 h-4 text-foreground/55 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.75" viewBox="0 0 24 24" aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71" />
+          </svg>
+          <span className="text-sm font-semibold text-foreground tracking-wide uppercase">
+            Connected accounts
+          </span>
+          {count !== null && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-semibold">
+              {count}
+            </span>
+          )}
+          {loading && <span className="text-[11px] text-foreground/45">Loading…</span>}
+        </span>
+        <svg
+          className={`w-4 h-4 text-foreground/45 transition-transform ${open ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div id="connected-accounts-strip" className="mt-3">
+          <ConnectedAccountsStrip
+            accounts={accounts}
+            loading={loading}
+            error={error}
+            onChanged={refresh}
+          />
+        </div>
+      )}
+    </section>
+  );
+}
 
 function ConnectedAccountsStrip({
   accounts, loading, error, onChanged,
