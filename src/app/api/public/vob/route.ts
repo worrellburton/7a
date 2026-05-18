@@ -113,7 +113,8 @@ function buildEmail(args: {
     ['Card Photos', [args.hasFront ? 'front attached' : null, args.hasBack ? 'back attached' : null].filter(Boolean).join(', ') || 'none uploaded'],
   ] as const;
 
-  const text = lines.map(([k, v]) => `${k}: ${v ?? '—'}`).join('\n');
+  const ackLine = "VOB team — please respond 'Got it!' when received.";
+  const text = [ackLine, '', lines.map(([k, v]) => `${k}: ${v ?? '—'}`).join('\n')].join('\n');
 
   const rowsHtml = lines
     .map(([k, v]) => `
@@ -131,6 +132,14 @@ function buildEmail(args: {
           <td style="padding:24px 24px 8px; background:#a0522d; color:#ffffff;">
             <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.16em; opacity:0.85; margin-bottom:4px;">Seven Arrows Recovery</div>
             <div style="font-size:20px; font-weight:700;">New VOB Request</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 20px 0;">
+            <div style="border:1px solid #f4c97a; background:#fff8e7; color:#7a5a1e; border-radius:10px; padding:12px 14px; font-size:13.5px; line-height:1.45;">
+              <strong>VOB team — please respond &ldquo;Got it!&rdquo; when received.</strong>
+              <span style="display:block; font-size:12px; color:#8a724a; margin-top:2px;">A quick acknowledgement lets us track which requests are picked up and prevents duplicate outreach.</span>
+            </div>
           </td>
         </tr>
         <tr>
