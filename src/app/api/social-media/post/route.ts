@@ -69,6 +69,23 @@ export async function POST(req: Request) {
     if (ts <= Date.now()) {
       return NextResponse.json({ error: 'scheduleDate must be in the future' }, { status: 400 });
     }
+    // Master scheduler kill switch — the editor flips this via the
+    // Schedule Posts toggle. When disarmed every NEW scheduled post
+    // is rejected so the team can pause future fires without having
+    // to delete each upcoming post one by one. Already-queued posts
+    // on Ayrshare's side keep their state; cancelling them is a
+    // separate explicit action.
+    const { data: settings } = await supabase
+      .from('social_media_schedule_settings')
+      .select('is_enabled')
+      .eq('id', 1)
+      .maybeSingle();
+    if (!settings?.is_enabled) {
+      return NextResponse.json(
+        { error: 'Scheduled posting is paused. Flip the master toggle on the Schedule Posts tab to arm it.' },
+        { status: 409 },
+      );
+    }
     payload.scheduleDate = new Date(ts).toISOString();
   }
 

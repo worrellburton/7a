@@ -1295,6 +1295,7 @@ function SchedulePostsBody({
   refreshHistory: () => void;
   accounts: AccountsResponse | null;
 }) {
+  const { isSuperAdmin } = useAuth();
   // Pull ready drafts off localStorage so they're draggable onto
   // slot occurrences. Listens on the same storage / custom-event
   // bus the rest of the page uses so dragging stays in sync with
@@ -1310,6 +1311,53 @@ function SchedulePostsBody({
       window.removeEventListener('storage', onChange);
     };
   }, []);
+
+  // Scheduler master toggle. Reads from the DB on mount, flips via
+  // PUT. When false the post route rejects new scheduled fires; the
+  // UI also drops the "glow" class on slot cards so the off-state
+  // reads visually without the toggle text.
+  const [schedulerOn, setSchedulerOn] = useState<boolean | null>(null);
+  const [togglingScheduler, setTogglingScheduler] = useState(false);
+  const [schedulerErr, setSchedulerErr] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/social-media/schedule/settings', { credentials: 'include' });
+        const json = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+        setSchedulerOn(!!json.is_enabled);
+      } catch (e) {
+        if (cancelled) return;
+        setSchedulerErr(e instanceof Error ? e.message : String(e));
+        setSchedulerOn(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  const toggleScheduler = useCallback(async () => {
+    if (schedulerOn === null) return;
+    setTogglingScheduler(true);
+    setSchedulerErr(null);
+    const next = !schedulerOn;
+    try {
+      const res = await fetch('/api/social-media/schedule/settings', {
+        method: 'PUT',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ is_enabled: next }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+      setSchedulerOn(!!json.is_enabled);
+    } catch (e) {
+      setSchedulerErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTogglingScheduler(false);
+    }
+  }, [schedulerOn]);
+
   const readyDrafts = useMemo(
     () => drafts.filter((d) => d.ready).map((d) => ({
       id: d.id,
@@ -1330,7 +1378,30 @@ function SchedulePostsBody({
   );
   const connectedPlatforms = accounts?.activeSocialAccounts ?? [];
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 ${schedulerOn ? 'sa-scheduler-active' : ''}`}>
+      {/* Local style — only mounted once for the panel; @keyframes
+          stay scoped to the SchedulePostsBody render so a future
+          refactor doesn't leave the rules orphaned. */}
+      <style jsx global>{`
+        @keyframes sa-schedule-glow {
+          0%, 100% { box-shadow: 0 0 0 1px rgba(16,185,129,0.45), 0 0 18px rgba(16,185,129,0.35); }
+          50% { box-shadow: 0 0 0 1px rgba(16,185,129,0.65), 0 0 28px rgba(16,185,129,0.55); }
+        }
+        .sa-scheduler-active [data-schedule-slot-card="true"],
+        .sa-scheduler-active [data-schedule-occurrence="future"] {
+          animation: sa-schedule-glow 2.6s ease-in-out infinite;
+          border-color: rgba(16,185,129,0.55) !important;
+        }
+      `}</style>
+
+      <SchedulerMasterToggle
+        enabled={schedulerOn}
+        busy={togglingScheduler}
+        error={schedulerErr}
+        canFlip={isSuperAdmin}
+        onToggle={() => void toggleScheduler()}
+      />
+
       <ScheduleSlotsPanel
         readyDrafts={readyDrafts}
         connectedPlatforms={connectedPlatforms}
@@ -1344,6 +1415,79 @@ function SchedulePostsBody({
         onChanged={refreshHistory}
       />
     </div>
+  );
+}
+
+// Master on / off switch for the Schedule Posts scheduler. When ON,
+// new scheduled fires through /api/social-media/post are accepted
+// and the slot grid lights up with the emerald glow. When OFF, new
+// scheduled fires are rejected with a 409 telling the visitor to
+// flip this toggle. Flipping is super-admin only — non-super admins
+// see the state but the switch is locked.
+function SchedulerMasterToggle({
+  enabled,
+  busy,
+  error,
+  canFlip,
+  onToggle,
+}: {
+  enabled: boolean | null;
+  busy: boolean;
+  error: string | null;
+  canFlip: boolean;
+  onToggle: () => void;
+}) {
+  const loading = enabled === null;
+  const on = !!enabled;
+  return (
+    <section
+      className={`rounded-2xl border px-4 py-3 transition-colors ${
+        on ? 'border-emerald-300 bg-emerald-50/55' : 'border-black/10 bg-white'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className={`relative inline-flex h-2.5 w-2.5 rounded-full ${on ? 'bg-emerald-500' : 'bg-foreground/25'}`}>
+              {on && <span className="absolute inset-0 rounded-full bg-emerald-500 opacity-75 animate-ping" />}
+            </span>
+            <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Scheduled posting</h2>
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+              loading ? 'bg-foreground/10 text-foreground/55' :
+              on ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+              'bg-foreground/10 text-foreground/55 border border-black/10'
+            }`}>
+              {loading ? 'Loading…' : on ? 'On' : 'Off'}
+            </span>
+          </div>
+          <p className="text-[11.5px] text-foreground/55 mt-1 leading-snug max-w-xl">
+            {on
+              ? 'Scheduler is armed. New scheduled posts fire on their slot times. Drag a Ready-to-go draft onto a slot to queue it.'
+              : 'Scheduler is paused. New scheduled fires return a 409. Already-queued Ayrshare posts keep their state.'}
+          </p>
+          {error && <p className="text-[11.5px] text-red-700 mt-1" role="alert">{error}</p>}
+        </div>
+        <button
+          type="button"
+          onClick={onToggle}
+          disabled={loading || busy || !canFlip}
+          role="switch"
+          aria-checked={on}
+          title={canFlip ? 'Toggle scheduled posting' : 'Super admins only'}
+          className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+            on ? 'bg-emerald-500' : 'bg-foreground/25'
+          }`}
+        >
+          <span className="sr-only">{on ? 'Pause scheduled posting' : 'Arm scheduled posting'}</span>
+          <span
+            className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform ${
+              on ? 'translate-x-6' : 'translate-x-1'
+            } ${busy ? 'animate-pulse' : ''}`}
+            aria-hidden="true"
+          />
+        </button>
+      </div>
+    </section>
   );
 }
 

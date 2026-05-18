@@ -328,7 +328,11 @@ function SlotsList({
         // colored top stripe + heavier header + clearer body row.
         const accent = SECTION_ACCENTS[idx % SECTION_ACCENTS.length];
         return (
-          <li key={slot.id} className="rounded-xl border border-black/10 bg-white overflow-hidden shadow-sm">
+          <li
+            key={slot.id}
+            data-schedule-slot-card="true"
+            className="rounded-xl border border-black/10 bg-white overflow-hidden shadow-sm"
+          >
             <div className={`h-1.5 ${accent.bar}`} aria-hidden />
             <div className={`px-4 py-3 flex items-start justify-between gap-3 ${accent.headerBg} border-b border-black/5`}>
               <div className="min-w-0">
