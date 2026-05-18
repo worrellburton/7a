@@ -13,8 +13,13 @@
 //                       submission on the floor.
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
-const DEFAULT_FROM = 'Seven Arrows Admissions <noreply@sevenarrowsrecoveryarizona.com>';
-const DEFAULT_VOB_TO = 'admissions@sevenarrowsrecoveryarizona.com';
+// Sending domain verified in Resend is sevenarrowsrecovery.com (the
+// non-Arizona suffix). The marketing site lives at the Arizona TLD
+// but the corporate mail domain is the shorter one — that's the
+// only address Resend will let us send from until/unless a second
+// domain is added and verified.
+const DEFAULT_FROM = 'Seven Arrows Admissions <noreply@sevenarrowsrecovery.com>';
+const DEFAULT_VOB_TO = 'admissions@sevenarrowsrecovery.com';
 
 export interface EmailAttachment {
   /** Filename the recipient sees. */
