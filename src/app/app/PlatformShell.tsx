@@ -399,16 +399,14 @@ export { pageIcons };
 
 /**
  * Seven Arrows brand mark for the sidebar / mobile drawer header.
- * A copper-gradient pill containing a feather glyph — a quieter nod
- * to the Seven Arrows name than the literal "7A" wordmark we used to
- * carry. A pulsing radial glow halo sits behind it, breathing on a
- * slow loop so the brand feels alive without being noisy. The
- * feather&rsquo;s spine has a subtle drift animation so the icon
- * reads as in-motion rather than static. Two sizes — md for the
+ * Copper-gradient pill containing the custom feather glyph shipped
+ * by the team. The mark itself is filled in white so it reads on the
+ * copper backdrop; the surrounding pill keeps the radial glow halo
+ * so the brand still breathes on a slow loop. Two sizes: md for the
  * pinned desktop sidebar, sm for the compact mobile drawer header.
  *
- * The orbit centerpiece on /app still renders "7A" — that mark stays
- * as the centered identity anchor; this badge is the chrome anchor.
+ * The orbit centerpiece on /app still renders "7A"; this badge is
+ * the chrome anchor only.
  */
 function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
   const big = size === 'md';
@@ -422,8 +420,8 @@ function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
             transform: scale(0.92);
           }
           50% {
-            opacity: 0.72;
-            transform: scale(1.08);
+            opacity: 0.78;
+            transform: scale(1.1);
           }
         }
         @keyframes sa-feather-drift {
@@ -431,19 +429,19 @@ function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
           50%      { transform: rotate(1deg) translateY(-1px); }
         }
       `}</style>
-      {/* Outer glow halo — pulsing breath behind the badge. */}
+      {/* Outer glow halo, pulsing breath behind the badge. */}
       <span
         aria-hidden="true"
         className="pointer-events-none absolute"
         style={{
-          inset: big ? '-10px' : '-8px',
+          inset: big ? '-12px' : '-9px',
           background:
-            'radial-gradient(closest-side, rgba(188,107,74,0.55) 0%, rgba(188,107,74,0.22) 40%, transparent 75%)',
-          filter: 'blur(8px)',
+            'radial-gradient(closest-side, rgba(212,121,74,0.65) 0%, rgba(188,107,74,0.32) 38%, transparent 75%)',
+          filter: 'blur(10px)',
           animation: 'sa-logo-glow 2.6s ease-in-out infinite',
         }}
       />
-      {/* Mark — copper-gradient rounded square with a white feather */}
+      {/* Mark, copper-gradient rounded square with the custom feather */}
       <span
         className="relative inline-flex items-center justify-center rounded-xl text-white"
         style={{
@@ -452,28 +450,33 @@ function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
           background:
             'linear-gradient(135deg, #d4794a 0%, #bc6b4a 45%, #a45a3d 100%)',
           boxShadow:
-            '0 4px 12px -3px rgba(188,107,74,0.55), inset 0 1px 0 rgba(255,255,255,0.32), inset 0 -1px 0 rgba(0,0,0,0.08)',
+            '0 4px 14px -3px rgba(212,121,74,0.65), inset 0 1px 0 rgba(255,255,255,0.32), inset 0 -1px 0 rgba(0,0,0,0.08)',
         }}
       >
         <svg
           aria-hidden="true"
           width={big ? 22 : 18}
           height={big ? 22 : 18}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={1.9}
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          viewBox="293.333 46.667 1572 1934.667"
+          preserveAspectRatio="xMidYMid meet"
           style={{
             animation: 'sa-feather-drift 4.2s ease-in-out infinite',
-            transformOrigin: '50% 80%',
+            transformOrigin: '50% 70%',
+            // Inner shimmer that ties the mark to the surrounding
+            // halo: a soft white drop-shadow nudges the white feather
+            // off the copper backdrop so it reads cleanly at every
+            // size, and the brighter highlight on top sells "glowing".
+            filter:
+              'drop-shadow(0 0 4px rgba(255,255,255,0.55)) drop-shadow(0 0 8px rgba(255,236,222,0.35))',
           }}
         >
-          {/* Lucide-style feather glyph */}
-          <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
-          <line x1="16" y1="8" x2="2" y2="22" />
-          <line x1="17.5" y1="15" x2="9" y2="15" />
+          {/* Custom feather mark shipped by the team. Path coords are
+              normalised inside the original viewBox above so any
+              future tweak to the dimensions is a one-prop change. */}
+          <path
+            fill="#ffffff"
+            d="M 1818.52 85.3679 L 1827.5 84.4849 C 1824.33 210.086 1782.45 348.933 1736.92 465.152 C 1724.59 496.424 1711.55 527.409 1697.8 558.084 C 1680.98 595.664 1677.1 602.763 1645.59 630.187 C 1576.5 690.323 1499.73 738.415 1415.85 775.072 C 1481.63 764.524 1547.97 752.608 1613.56 742.62 C 1605.62 760.639 1594.27 781.195 1584.96 798.558 C 1563.66 838.393 1541.07 877.525 1517.22 915.891 C 1510.51 926.658 1507.61 930.755 1495.91 936.618 C 1486.66 941.255 1477.26 946.164 1467.94 950.765 C 1388.01 990.314 1303.89 1020.74 1217.16 1041.46 C 1304.79 1047.13 1362.72 1047.73 1450.49 1041.45 C 1443.38 1059.12 1430.33 1082.08 1420.86 1099.07 C 1376.43 1178.33 1324.12 1252.92 1264.74 1321.71 C 1124.46 1483.77 934.599 1621.02 727.336 1680.95 C 701.461 1688.45 675.204 1694.55 648.677 1699.24 C 584.755 1710.26 597.542 1699.4 551.927 1747.77 L 453.661 1854 C 423.024 1886.73 378.223 1939.86 331.192 1943.24 C 339.616 1923.57 361.086 1886.24 372.025 1866.83 C 400.899 1815.05 431.185 1764.07 462.849 1713.95 C 580.025 1529.25 706.737 1350.78 842.47 1179.25 C 972.879 1011.47 1110.09 849.084 1253.75 692.5 C 1327.67 611.385 1403.7 532.223 1481.77 455.096 C 1501.93 435.066 1522.22 415.17 1542.65 395.41 C 1551.38 387.059 1570.52 370.012 1577.36 361.478 C 1572.43 364.248 1543.22 390.37 1537.74 395.216 C 1501.44 427.086 1465.61 459.473 1430.24 492.367 C 1182.04 725.261 951.26 976.057 739.768 1242.73 C 670.537 1328.06 603.853 1415.42 539.805 1504.71 C 505.945 1551.89 467.047 1606.68 436.574 1656.33 C 422.81 1560.47 430.294 1430.44 445.681 1336.19 C 496.825 1022.93 669.422 754.422 901.669 543.55 C 947.814 501.652 1001.83 454.904 1052.42 418.483 C 1058.68 465.079 1062.83 513.254 1068.51 560.024 C 1071.08 581.211 1071.84 600.578 1075.07 622.356 C 1083.7 541.136 1107.11 462.178 1144.14 389.376 C 1154.3 369.059 1165.02 345.246 1183.5 331.656 C 1330.27 223.739 1504.42 157.664 1679.88 113.14 C 1725.08 101.67 1772.27 91.3103 1818.52 85.3679 z"
+          />
         </svg>
       </span>
     </span>
