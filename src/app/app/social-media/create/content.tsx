@@ -269,7 +269,7 @@ export default function CreatePostContent() {
     }
   };
 
-  const onSaveReady = () => {
+  const onSaveReady = async () => {
     if (caption.trim().length === 0) {
       setError('Add a caption before saving.');
       return;
@@ -281,6 +281,43 @@ export default function CreatePostContent() {
     setError(null);
     setSaving(true);
     try {
+      const filledMedia = Object.entries(urlByKey)
+        .filter(([, url]) => url && url.trim().length > 0)
+        .map(([key, url]) => ({ key, url }));
+
+      // Fire a title-generation call to Claude in parallel with the
+      // save. Soft-fails: if the endpoint errors or the user lacks an
+      // ANTHROPIC_API_KEY, the draft still saves without a title and
+      // the Ready to Go card falls back to a caption snippet.
+      let claudeTitle: string | undefined;
+      if (session?.access_token) {
+        try {
+          const r = await fetch('/api/claude/social-caption/title', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${session.access_token}`,
+            },
+            body: JSON.stringify({ caption: caption.trim() }),
+          });
+          const j = (await r.json().catch(() => ({}))) as { title?: string };
+          if (r.ok && typeof j.title === 'string' && j.title.trim()) {
+            claudeTitle = j.title.trim();
+          }
+        } catch { /* swallow; title is optional */ }
+      }
+
+      // Capture authoring credit from the AuthProvider context so the
+      // Ready to Go card can render "Created by <Name>" + an avatar.
+      const authedUser = (session as { user?: { id?: string; email?: string; user_metadata?: { full_name?: string; avatar_url?: string } } } | null)?.user ?? null;
+      const createdBy = authedUser
+        ? {
+            id: authedUser.id ?? '',
+            name: authedUser.user_metadata?.full_name ?? authedUser.email ?? null,
+            avatarUrl: authedUser.user_metadata?.avatar_url ?? null,
+          }
+        : undefined;
+
       const draft: SavedDraft = {
         id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
         createdAt: new Date().toISOString(),
@@ -288,9 +325,10 @@ export default function CreatePostContent() {
         mediaUrls: stagedMedia,
         platforms: Array.from(platforms),
         ready: true,
-        mediaByDeliverable: Object.entries(urlByKey)
-          .filter(([, url]) => url && url.trim().length > 0)
-          .map(([key, url]) => ({ key, url })),
+        mediaByDeliverable: filledMedia,
+        deliverables: filledMedia.map((m) => m.key),
+        title: claudeTitle,
+        createdBy,
       };
       const all = readSavedDrafts();
       writeSavedDrafts([draft, ...all]);

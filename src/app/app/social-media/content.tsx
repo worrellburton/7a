@@ -71,6 +71,18 @@ interface SavedDraft {
   // Optional — older drafts without this field render the full
   // deliverable matrix for every connected network instead.
   platforms?: string[];
+  // Short Claude-generated headline that summarises the caption.
+  // Surfaced on the Ready to Go list so each card has an at-a-glance
+  // identity beyond the first sentence of the caption body.
+  title?: string;
+  // Which deliverable slots (platform|label keys) actually have media
+  // assigned. Surfaced as inline pills on the Ready to Go card so the
+  // editor can see which formats the post will fire to before approve.
+  deliverables?: string[];
+  // Authoring credit captured at save time. Shown as a "Created by
+  // <Name>" line on the Ready to Go card so the team knows who staged
+  // each post.
+  createdBy?: { id: string; name: string | null; avatarUrl: string | null };
 }
 const DRAFTS_KEY = 'social_media_saved_drafts_v1';
 function readSavedDrafts(): SavedDraft[] {
@@ -110,6 +122,12 @@ const PLATFORMS = [
   { id: 'threads', label: 'Threads' },
   { id: 'bluesky', label: 'Bluesky' },
 ] as const;
+
+// Lookup map used by surfaces that render a platform id without
+// rescanning the array (e.g. the Ready to Go card's deliverable rows).
+const PLATFORM_BY_ID: Record<string, { id: string; label: string }> = Object.fromEntries(
+  PLATFORMS.map((p) => [p.id, p]),
+);
 
 type Platform = typeof PLATFORMS[number]['id'];
 
@@ -1858,20 +1876,24 @@ function ReadyToGoPanel() {
     setDrafts(readSavedDrafts());
     const onChange = () => setDrafts(readSavedDrafts());
     window.addEventListener('storage', onChange);
-    return () => window.removeEventListener('storage', onChange);
+    window.addEventListener('social-media-drafts-changed', onChange);
+    return () => {
+      window.removeEventListener('storage', onChange);
+      window.removeEventListener('social-media-drafts-changed', onChange);
+    };
   }, []);
 
   const ready = drafts.filter((d) => d.ready);
 
   return (
-    <section className="rounded-2xl border border-black/10 bg-white/65 px-4 py-4 lg:px-6 lg:py-5">
+    <section className="rounded-2xl border border-black/10 bg-white px-4 py-4 lg:px-6 lg:py-5">
       <header className="flex items-baseline justify-between mb-3">
         <div>
           <h2 className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
             Ready to go · {ready.length}
           </h2>
           <p className="text-[11px] text-foreground/45 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-            Drafts your team has signed off on.
+            Drafts your team has signed off on. <span className="text-foreground/35">Hover any card to see scheduling state.</span>
           </p>
         </div>
       </header>
@@ -1881,53 +1903,201 @@ function ReadyToGoPanel() {
           Nothing marked ready yet. Save a draft in Draft and tick "Mark ready to go" once it's final.
         </p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-2.5">
           {ready.map((d) => (
-            <li
-              key={d.id}
-              className="rounded-xl border border-emerald-200/70 bg-emerald-50/30 px-4 py-3 flex items-start gap-3"
-            >
-              <span className="mt-1 inline-block w-2 h-2 rounded-full bg-emerald-500" aria-hidden />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-baseline gap-2 mb-1">
-                  <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-emerald-700">Ready</span>
-                  <span className="text-[10.5px] text-foreground/45 tabular-nums">
-                    Saved {new Date(d.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                  </span>
-                  {d.mediaUrls.length > 0 && (
-                    <span className="text-[10.5px] text-foreground/45">· {d.mediaUrls.length} media</span>
-                  )}
-                </div>
-                <p className="text-[13px] text-foreground/85 leading-snug line-clamp-3 whitespace-pre-line" style={{ fontFamily: 'var(--font-body)' }}>
-                  {d.caption || <span className="text-foreground/40 italic">(no caption)</span>}
-                </p>
-                {d.mediaUrls.length > 0 && (
-                  <div className="mt-2 flex gap-1.5 flex-wrap">
-                    {d.mediaUrls.slice(0, 4).map((url, i) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img key={i} src={url} alt="" className="w-10 h-10 rounded object-cover border border-black/5" />
-                    ))}
-                    {d.mediaUrls.length > 4 && (
-                      <div className="w-10 h-10 rounded bg-warm-bg flex items-center justify-center text-[10px] font-semibold text-foreground/55">
-                        +{d.mediaUrls.length - 4}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-              <Link
-                href={`/app/social-media/drafts/${d.id}`}
-                className="shrink-0 px-2.5 py-1 rounded-md border border-black/10 bg-white text-[10px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                Open →
-              </Link>
-            </li>
+            <ReadyToGoCard key={d.id} draft={d} />
           ))}
         </ul>
       )}
     </section>
   );
+}
+
+// One Ready-to-Go card: white background, green pulse dot only, title
+// + platforms + deliverables + author credit + tooltip on hover that
+// reminds the team the post is not yet scheduled.
+function ReadyToGoCard({ draft: d }: { draft: SavedDraft }) {
+  // Build a deliverables summary keyed by platform so we can render
+  // "facebook · Feed 1:1, Story 9:16" style rows instead of dumping
+  // the raw key strings. Fallback to the platforms field when no
+  // deliverable data is on the row (older drafts).
+  const deliverablesByPlatform = (() => {
+    const out: Record<string, string[]> = {};
+    if (Array.isArray(d.deliverables) && d.deliverables.length > 0) {
+      for (const key of d.deliverables) {
+        const [pid, ...rest] = key.split('|');
+        if (!pid) continue;
+        const label = rest.join('|');
+        if (!out[pid]) out[pid] = [];
+        if (label) out[pid].push(label);
+      }
+      return out;
+    }
+    for (const pid of d.platforms ?? []) out[pid] = [];
+    return out;
+  })();
+
+  const platformIds = Object.keys(deliverablesByPlatform);
+
+  return (
+    <li
+      className="group relative rounded-xl border border-black/10 bg-white px-4 py-3.5 flex items-start gap-3 transition-colors hover:border-foreground/20"
+      title="This will not be posted until it is scheduled or approved."
+    >
+      {/* Green indicator dot only — card itself stays white per spec. */}
+      <span
+        className="mt-1.5 relative inline-flex h-2.5 w-2.5 shrink-0"
+        aria-hidden
+      >
+        <span className="absolute inset-0 rounded-full bg-emerald-500 opacity-75 animate-ping" />
+        <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
+      </span>
+
+      <div className="flex-1 min-w-0">
+        {/* Title row — Claude-generated headline if present, otherwise
+            a caption snippet. Status pill + timestamp sit on the
+            right so the card scans left to right. */}
+        <div className="flex items-start justify-between gap-3 flex-wrap mb-1">
+          <h3
+            className="text-[15px] font-semibold text-foreground leading-snug min-w-0"
+            style={{ fontFamily: 'var(--font-display)' }}
+          >
+            {d.title?.trim() || captionSnippet(d.caption)}
+          </h3>
+          <span className="text-[10.5px] text-foreground/45 tabular-nums shrink-0 pt-0.5">
+            Saved {new Date(d.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+          </span>
+        </div>
+
+        {/* Caption preview — clipped so the title carries the heavy
+            lifting and the card stays compact. */}
+        {d.caption && (
+          <p
+            className="text-[12.5px] text-foreground/65 leading-snug line-clamp-2 whitespace-pre-line mb-2"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            {d.caption}
+          </p>
+        )}
+
+        {/* Platforms row — pill per channel with the brand glyph.
+            Each platform's deliverable count rides in a small chip so
+            the editor knows which formats are wired up. */}
+        {platformIds.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-2" aria-label="Targeted platforms">
+            {platformIds.map((pid) => {
+              const labels = deliverablesByPlatform[pid] ?? [];
+              return (
+                <span
+                  key={pid}
+                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-warm-bg/70 border border-black/8 text-[10.5px] font-semibold text-foreground/75"
+                  title={labels.length > 0 ? labels.join(', ') : 'No deliverable assigned'}
+                >
+                  <PlatformIcon platform={pid as PlatformId} size={11} />
+                  <span>{PLATFORM_BY_ID[pid]?.label ?? pid}</span>
+                  {labels.length > 0 && (
+                    <span className="inline-flex items-center justify-center min-w-[16px] h-4 px-1 rounded-full bg-foreground text-white text-[9px] font-bold tabular-nums">
+                      {labels.length}
+                    </span>
+                  )}
+                </span>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Deliverable detail strip — short labels of each crop the
+            post will fire to, grouped by platform. Falls back to a
+            "no deliverables wired up" hint when empty so the user
+            knows to open the post and assign media. */}
+        {Object.values(deliverablesByPlatform).some((arr) => arr.length > 0) && (
+          <ul className="mb-2 space-y-0.5" aria-label="Deliverables">
+            {platformIds
+              .filter((pid) => (deliverablesByPlatform[pid] ?? []).length > 0)
+              .map((pid) => (
+                <li
+                  key={pid}
+                  className="text-[10.5px] text-foreground/55 flex flex-wrap items-baseline gap-1"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  <span className="font-semibold text-foreground/70">{PLATFORM_BY_ID[pid]?.label ?? pid}:</span>
+                  <span>{deliverablesByPlatform[pid].join(', ')}</span>
+                </li>
+              ))}
+          </ul>
+        )}
+
+        {/* Footer row — created by attribution + media thumbnails. */}
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          {d.createdBy ? (
+            <span className="inline-flex items-center gap-1.5 text-[10.5px] text-foreground/55" style={{ fontFamily: 'var(--font-body)' }}>
+              {d.createdBy.avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={d.createdBy.avatarUrl}
+                  alt=""
+                  className="w-4 h-4 rounded-full object-cover"
+                  referrerPolicy="no-referrer"
+                />
+              ) : (
+                <span className="w-4 h-4 rounded-full bg-primary/15 text-primary inline-flex items-center justify-center text-[8.5px] font-bold">
+                  {(d.createdBy.name ?? '?').charAt(0).toUpperCase()}
+                </span>
+              )}
+              <span>Created by <span className="text-foreground/75 font-semibold">{d.createdBy.name ?? 'Unknown'}</span></span>
+            </span>
+          ) : (
+            <span className="text-[10.5px] text-foreground/40 italic">Created by unknown</span>
+          )}
+
+          {d.mediaUrls.length > 0 && (
+            <div className="flex gap-1 flex-wrap">
+              {d.mediaUrls.slice(0, 3).map((url, i) => (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={i}
+                  src={url}
+                  alt=""
+                  className="w-7 h-7 rounded object-cover border border-black/5"
+                />
+              ))}
+              {d.mediaUrls.length > 3 && (
+                <span className="w-7 h-7 rounded bg-warm-bg flex items-center justify-center text-[9.5px] font-semibold text-foreground/55">
+                  +{d.mediaUrls.length - 3}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <Link
+        href={`/app/social-media/drafts/${d.id}`}
+        className="shrink-0 self-center px-2.5 py-1 rounded-md border border-black/10 bg-white text-[10px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        Open →
+      </Link>
+
+      {/* Visible-on-hover banner reinforcing the "this will not be
+          posted" message for keyboard users / screen readers, which
+          the native `title` tooltip doesn't expose well. */}
+      <span
+        role="note"
+        className="pointer-events-none absolute -bottom-2 left-1/2 -translate-x-1/2 translate-y-full opacity-0 group-hover:opacity-100 transition-opacity duration-200 px-2.5 py-1 rounded-md bg-foreground text-white text-[10.5px] font-medium shadow-lg whitespace-nowrap z-10"
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        This will not be posted until scheduled.
+      </span>
+    </li>
+  );
+}
+
+function captionSnippet(caption: string): string {
+  const cleaned = (caption || '').replace(/\s+/g, ' ').trim();
+  if (cleaned.length === 0) return '(Untitled draft)';
+  if (cleaned.length <= 60) return cleaned;
+  return `${cleaned.slice(0, 57)}…`;
 }
 
 // ── Creative > Library ───────────────────────────────────────────────

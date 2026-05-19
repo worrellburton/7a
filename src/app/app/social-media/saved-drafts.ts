@@ -17,6 +17,24 @@ export interface SavedDraft {
    * per-post page can reconcile the slot back to its spec.
    */
   mediaByDeliverable?: { key: string; url: string }[];
+  /**
+   * Claude-generated 3-6 word headline for the Ready to Go card.
+   * Populated at save time when ready=true; older drafts without it
+   * fall back to a caption snippet in the UI.
+   */
+  title?: string;
+  /**
+   * Subset of mediaByDeliverable keys whose slot was filled, as a flat
+   * string array. Surfaced on the Ready to Go card so the editor can
+   * see exactly which platform crops the post will fire to before
+   * scheduling. Same key shape: `${platformId}|${label}`.
+   */
+  deliverables?: string[];
+  /**
+   * Authoring credit captured at save time. Shown as a "Created by
+   * <Name>" line + avatar on the Ready to Go card.
+   */
+  createdBy?: { id: string; name: string | null; avatarUrl: string | null };
 }
 
 export const DRAFTS_KEY = 'social_media_saved_drafts_v1';
