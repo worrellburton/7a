@@ -233,7 +233,11 @@ export default function OutreachContent({ channel }: { channel: OutreachChannel 
 
   const addEntry = async () => {
     const url = draftUrl.trim();
-    if (!url || !user || adding) return;
+    const title = draftTitle.trim();
+    // Pitches start without a URL — the URL gets filled in once the
+    // piece goes live. Allow either field on its own; require at
+    // least one so the row isn't empty.
+    if ((!url && !title) || !user || adding) return;
     setAdding(true);
     setError(null);
     try {
@@ -242,8 +246,8 @@ export default function OutreachContent({ channel }: { channel: OutreachChannel 
         table: 'seo_outreach_entries',
         data: {
           channel,
-          url,
-          title: draftTitle.trim() || null,
+          url: url || null,
+          title: title || null,
           status: draftStatus,
           added_by: user.id,
           added_by_name: user.user_metadata?.full_name || user.email || null,
@@ -506,8 +510,9 @@ export default function OutreachContent({ channel }: { channel: OutreachChannel 
           <button
             type="button"
             onClick={addEntry}
-            disabled={adding || !draftUrl.trim() || !user}
+            disabled={adding || (!draftUrl.trim() && !draftTitle.trim()) || !user}
             className="inline-flex items-center justify-center px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-white hover:bg-primary/90 disabled:bg-foreground/30 disabled:cursor-not-allowed"
+            title={!draftUrl.trim() && !draftTitle.trim() ? 'Paste a URL or type a pitch topic to add an entry' : undefined}
           >
             {adding ? 'Adding…' : 'Add'}
           </button>
