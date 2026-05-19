@@ -589,15 +589,18 @@ function OverviewSummary({ connected }: { connected: string[] }) {
 
 type PostSub = 'drafts' | 'scheduled' | 'history';
 
+// Schedule Posts leads since the team's day-to-day is queueing ready
+// drafts into recurring slots. Post Now (immediate-send compose) and
+// History sit behind it. Default sub maps to `scheduled` to match.
 const POST_SUBS: { id: PostSub; label: string }[] = [
-  { id: 'drafts', label: 'Post Now' },
   { id: 'scheduled', label: 'Schedule Posts' },
+  { id: 'drafts', label: 'Post Now' },
   { id: 'history', label: 'History' },
 ];
 
 function readPostSub(raw: string | null): PostSub {
-  if (raw === 'scheduled' || raw === 'history') return raw;
-  return 'drafts';
+  if (raw === 'drafts' || raw === 'history') return raw;
+  return 'scheduled';
 }
 
 function PostSubNav() {
@@ -607,7 +610,7 @@ function PostSubNav() {
   const hrefFor = (id: PostSub): string => {
     const next = new URLSearchParams(searchParams.toString());
     next.set('tab', 'post');
-    if (id === 'drafts') next.delete('sub');
+    if (id === 'scheduled') next.delete('sub');
     else next.set('sub', id);
     const qs = next.toString();
     return `${pathname}${qs ? `?${qs}` : ''}`;

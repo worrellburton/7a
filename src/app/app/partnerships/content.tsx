@@ -513,7 +513,7 @@ export default function PartnershipsContent() {
       </div>
       <header className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-foreground tracking-tight">BD Partnerships</h1>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight">Partnerships</h1>
           <p className="text-sm text-foreground/55 mt-0.5">
             Clinical partners and referral sources, grouped by specialty.
             {rows.length > 0 && (
@@ -679,7 +679,7 @@ export default function PartnershipsContent() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-3 border-b border-black/10 shrink-0">
-              <h2 className="text-base font-semibold text-foreground">BD Partnerships insights</h2>
+              <h2 className="text-base font-semibold text-foreground">Partnerships insights</h2>
               <button
                 type="button"
                 onClick={() => setInsightsOpen(false)}

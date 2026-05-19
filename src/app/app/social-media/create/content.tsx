@@ -215,6 +215,27 @@ export default function CreatePostContent() {
     setUrlByKey(Object.fromEntries(rows.map((r) => [r.key, first])));
   };
 
+  // Auto-fill every deliverable slot with the first staged media URL
+  // as soon as the slots + media land. Slots the user has manually
+  // edited keep their value — the effect only fills entries that
+  // are currently empty. Re-runs when the platform set changes (new
+  // rows appear) so a freshly-added network gets pre-filled too.
+  useEffect(() => {
+    if (stagedMedia.length === 0 || rows.length === 0) return;
+    const first = stagedMedia[0];
+    setUrlByKey((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const r of rows) {
+        if (!next[r.key]) {
+          next[r.key] = first;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [stagedMedia, rows]);
+
   const generateCaption = async () => {
     if (!session?.access_token || generatingCaption) return;
     setGeneratingCaption(true);

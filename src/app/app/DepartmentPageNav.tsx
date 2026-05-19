@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 
 /**
  * In-page nav strip used at the top of the four Admissions-department
- * pages (Admissions, Marketing, BD Partnerships, Donations) so users
+ * pages (Admissions, Marketing, Partnerships, Donations) so users
  * can hop between sibling surfaces without rounding back through the
  * sidebar. Mirrors the sidebar's icon-then-label affordance.
  */
@@ -33,7 +33,7 @@ const ITEMS: { path: string; label: string; icon: React.ReactNode }[] = [
   },
   {
     path: '/app/partnerships',
-    label: 'BD Partnerships',
+    label: 'Partnerships',
     icon: (
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="7" cy="12" r="3" />
