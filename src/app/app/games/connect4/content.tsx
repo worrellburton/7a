@@ -10,8 +10,10 @@
 // ships.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
+import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { currentPlayer, COLS } from '@/lib/connect4';
 import Board from './Board';
@@ -175,17 +177,141 @@ export default function Content() {
 
   return (
     <PageShell tagline={status}>
-      <Board
-        moves={match.moves}
-        onDrop={youArePlayer !== null ? onDropServer : null}
-        disabled={!isMyTurn || match.status === 'complete' || match.status === 'forfeit'}
-        challengerLabel={youArePlayer === 0 ? 'You' : 'Red'}
-        opponentLabel={youArePlayer === 1 ? 'You' : 'Yellow'}
-      />
-      {submitError && (
-        <p className="text-[11.5px] text-red-700" role="alert">{submitError}</p>
-      )}
+      <div className="flex flex-col lg:flex-row gap-6 w-full items-start">
+        <div className="flex flex-col items-start gap-2">
+          <Board
+            moves={match.moves}
+            onDrop={youArePlayer !== null ? onDropServer : null}
+            disabled={!isMyTurn || match.status === 'complete' || match.status === 'forfeit'}
+            challengerLabel={youArePlayer === 0 ? 'You' : 'Red'}
+            opponentLabel={youArePlayer === 1 ? 'You' : 'Yellow'}
+          />
+          {youArePlayer === null && (
+            <p className="text-[10.5px] tracking-[0.18em] uppercase font-bold text-emerald-700" style={{ fontFamily: 'var(--font-body)' }}>
+              · Spectating ·
+            </p>
+          )}
+          {submitError && (
+            <p className="text-[11.5px] text-red-700" role="alert">{submitError}</p>
+          )}
+        </div>
+        <OtherLiveGames currentMatchId={match.id} />
+      </div>
     </PageShell>
+  );
+}
+
+// Panel rendered next to the board when viewing a match. Lists every
+// other live (open/active) connect-4 match in the system so the
+// viewer can hop over and spectate without going back to the lobby.
+// Subscribes to the matches realtime channel so the list stays fresh
+// as games are created, played, and finished.
+interface UserLite { id: string; full_name: string | null; email: string; avatar_url: string | null }
+
+function OtherLiveGames({ currentMatchId }: { currentMatchId: string }) {
+  const { session } = useAuth();
+  const [matches, setMatches] = useState<MatchRow[]>([]);
+  const [users, setUsers] = useState<UserLite[]>([]);
+
+  const reload = useCallback(async () => {
+    if (!session?.access_token) return;
+    const r = await fetch('/api/games/connect4', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    const json = await r.json().catch(() => ({}));
+    if (!r.ok) return;
+    setMatches(((json as { rows: MatchRow[] }).rows) ?? []);
+  }, [session?.access_token]);
+
+  useEffect(() => { void reload(); }, [reload]);
+
+  useEffect(() => {
+    void (async () => {
+      const rows = await db({
+        action: 'select', table: 'users',
+        select: 'id, full_name, email, avatar_url',
+      }).catch(() => []);
+      if (Array.isArray(rows)) setUsers(rows as UserLite[]);
+    })();
+  }, []);
+
+  useEffect(() => {
+    const ch = supabase
+      .channel(`connect4-other-${currentMatchId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'connect4_matches' }, () => { void reload(); })
+      .subscribe();
+    return () => { void supabase.removeChannel(ch); };
+  }, [currentMatchId, reload]);
+
+  const userById = useMemo(() => new Map(users.map((u) => [u.id, u] as const)), [users]);
+
+  const others = useMemo(() => {
+    return matches
+      .filter((m) => m.id !== currentMatchId && (m.status === 'active' || m.status === 'open'))
+      .sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
+  }, [matches, currentMatchId]);
+
+  return (
+    <aside className="w-full lg:w-72 shrink-0 rounded-2xl border border-emerald-200/60 bg-gradient-to-b from-emerald-50/70 to-white/80 px-4 py-3">
+      <header className="flex items-center justify-between mb-2">
+        <h2 className="inline-flex items-center gap-2 text-[10px] font-bold tracking-[0.22em] uppercase text-emerald-700">
+          <span className="relative inline-flex w-2 h-2">
+            <span className="absolute inset-0 rounded-full bg-emerald-500 animate-ping opacity-75" />
+            <span className="relative inline-block w-2 h-2 rounded-full bg-emerald-500" />
+          </span>
+          Other games live
+        </h2>
+        <span className="text-[10.5px] tabular-nums text-foreground/40">{others.length}</span>
+      </header>
+      {others.length === 0 ? (
+        <p className="text-[12px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
+          No other matches in progress.
+        </p>
+      ) : (
+        <ul className="space-y-1">
+          {others.map((m) => {
+            const a = userById.get(m.challenger_id);
+            const b = userById.get(m.opponent_id);
+            const aName = (a?.full_name || a?.email || '—').split(' ')[0];
+            const bName = (b?.full_name || b?.email || '—').split(' ')[0];
+            return (
+              <li key={m.id}>
+                <Link
+                  href={`/app/games/connect4?match=${m.id}`}
+                  className="group flex items-center gap-2 rounded-lg bg-white px-2.5 py-1.5 border border-emerald-200/60 hover:border-emerald-400 hover:shadow-sm transition-all"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  <SmallAvatar user={a ?? null} />
+                  <span className="text-[12px] font-semibold text-foreground/80 truncate">{aName}</span>
+                  <span className="text-[9.5px] text-foreground/35 uppercase tracking-wider">vs</span>
+                  <SmallAvatar user={b ?? null} />
+                  <span className="text-[12px] font-semibold text-foreground/80 truncate flex-1">{bName}</span>
+                  <span className="text-[9.5px] text-foreground/40 tabular-nums whitespace-nowrap">{m.moves.length}</span>
+                  <span className="text-[9px] uppercase tracking-widest font-bold text-emerald-700 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
+                    Watch →
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </aside>
+  );
+}
+
+function SmallAvatar({ user }: { user: UserLite | null }) {
+  const dim = 'w-5 h-5 text-[9px]';
+  if (!user) return <div className={`${dim} rounded-full bg-warm-bg shrink-0`} />;
+  if (user.avatar_url) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={user.avatar_url} alt="" className={`${dim} rounded-full object-cover bg-warm-bg shrink-0`} />;
+  }
+  const name = user.full_name || user.email || '?';
+  return (
+    <div className={`${dim} rounded-full bg-warm-bg flex items-center justify-center font-semibold text-foreground/55 shrink-0`}>
+      {name.charAt(0).toUpperCase()}
+    </div>
   );
 }
 
