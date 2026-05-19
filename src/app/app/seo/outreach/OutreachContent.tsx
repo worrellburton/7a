@@ -16,7 +16,7 @@ import { logActivity } from '@/lib/activity';
 // page imports this with its own `channel` so rows stay scoped and
 // the page header reflects the channel's wording.
 
-export type OutreachChannel = 'press_release' | 'guest_post' | 'comment' | 'forum';
+export type OutreachChannel = 'press_release' | 'guest_post' | 'comment' | 'forum' | 'brand_profile';
 
 export type OutreachStatus =
   | 'not_started'
@@ -151,6 +151,17 @@ const CHANNEL_COPY: Record<OutreachChannel, ChannelCopy> = {
     titlePlaceholder: 'Thread topic or question',
     emptyHeadline: 'No forum threads tracked yet.',
     emptyHint: 'Paste a thread URL above to start tracking forum contributions.',
+  },
+  brand_profile: {
+    slug: 'brand-profiles',
+    title: 'Brand profiles',
+    blurb:
+      'Brand page placements on review sites, directories, and industry hubs — G2, Capterra, Crunchbase, etc. Track each profile, who owns it, and the live URL once it is published.',
+    addLabel: 'Add a brand profile',
+    urlPlaceholder: 'https://www.g2.com/products/...',
+    titlePlaceholder: 'Site name (e.g. G2, Capterra, Crunchbase)',
+    emptyHeadline: 'No brand profiles tracked yet.',
+    emptyHint: 'Paste a profile URL above — or just the site name — to start tracking.',
   },
 };
 
