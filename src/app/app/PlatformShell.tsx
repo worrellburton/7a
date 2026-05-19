@@ -399,86 +399,129 @@ export { pageIcons };
 
 /**
  * Seven Arrows brand mark for the sidebar / mobile drawer header.
- * Copper-gradient pill containing the custom feather glyph shipped
- * by the team. The mark itself is filled in white so it reads on the
- * copper backdrop; the surrounding pill keeps the radial glow halo
- * so the brand still breathes on a slow loop. Two sizes: md for the
- * pinned desktop sidebar, sm for the compact mobile drawer header.
  *
- * The orbit centerpiece on /app still renders "7A"; this badge is
- * the chrome anchor only.
+ * Standalone feather: no pill, no chrome. Ten-phase visual treatment:
+ *
+ *   1. Pill removed. The feather IS the logo.
+ *   2. Copper gradient fills the feather body, light at the tip,
+ *      deeper bronze toward the quill.
+ *   3. Inner sheen baked into the gradient (a brighter band across
+ *      the upper third) gives the surface dimensionality.
+ *   4. Tight radial aura hugging the silhouette via a copper-tinted
+ *      blur, not a square halo.
+ *   5. The aura pulses on a slow breath cycle so the brand feels
+ *      alive without flickering.
+ *   6. Subtle drift animation: rotate / translateY on a 4.6s loop,
+ *      pivoted near the quill so it reads as wind-caught.
+ *   7. SVG drop-shadow filter follows the path outline so the glow
+ *      tracks the feather shape, not a bounding box.
+ *   8. Aura color cycles copper -> warm gold -> copper across a 15s
+ *      window for a "living embers" feel on close inspection.
+ *   9. Hover boosts halo opacity + speeds the drift to give the
+ *      mark a satisfying tactile response.
+ *  10. All animation wrapped in prefers-reduced-motion: reduce so
+ *      users who opt out get a clean static feather with full
+ *      gradient + halo intact (but no motion).
  */
 function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
   const big = size === 'md';
-  const dim = big ? 36 : 28;
+  // Without the pill chrome the icon needs more breathing room to
+  // read at a glance. Bumped vs the prior 36 / 28 px frame.
+  const frame = big ? 42 : 32;
   return (
-    <span className="relative inline-flex items-center" aria-label="Seven Arrows Recovery">
+    <span
+      className="sa-feather-mark relative inline-flex items-center justify-center"
+      style={{ width: frame, height: frame }}
+      aria-label="Seven Arrows Recovery"
+    >
       <style jsx>{`
-        @keyframes sa-logo-glow {
-          0%, 100% {
-            opacity: 0.42;
-            transform: scale(0.92);
-          }
-          50% {
-            opacity: 0.78;
-            transform: scale(1.1);
-          }
+        @keyframes sa-feather-breath {
+          0%, 100% { opacity: 0.45; transform: scale(0.9); }
+          50%      { opacity: 0.85; transform: scale(1.15); }
         }
         @keyframes sa-feather-drift {
-          0%, 100% { transform: rotate(-2deg) translateY(0); }
-          50%      { transform: rotate(1deg) translateY(-1px); }
+          0%, 100% { transform: rotate(-3deg) translateY(0); }
+          50%      { transform: rotate(2deg) translateY(-1.5px); }
+        }
+        @keyframes sa-feather-emberhue {
+          0%, 100% { filter: hue-rotate(0deg) saturate(1); }
+          50%      { filter: hue-rotate(-8deg) saturate(1.15); }
+        }
+        .sa-feather-mark:hover :global(.sa-feather-aura),
+        .sa-feather-mark:focus-visible :global(.sa-feather-aura) {
+          opacity: 1 !important;
+          animation-duration: 1.8s !important;
+        }
+        .sa-feather-mark:hover :global(.sa-feather-svg),
+        .sa-feather-mark:focus-visible :global(.sa-feather-svg) {
+          animation-duration: 3s !important;
+          transform: scale(1.04);
+        }
+        @media (prefers-reduced-motion: reduce) {
+          :global(.sa-feather-aura),
+          :global(.sa-feather-svg),
+          :global(.sa-feather-ember) { animation: none !important; }
         }
       `}</style>
-      {/* Outer glow halo, pulsing breath behind the badge. */}
+      {/* Phase 4 + 5 + 8: tight copper aura hugging the silhouette,
+          pulsing on a slow breath cycle, with a hue-shift on a
+          longer outer span to keep close inspection interesting. */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute"
+        className="sa-feather-ember pointer-events-none absolute"
         style={{
-          inset: big ? '-12px' : '-9px',
-          background:
-            'radial-gradient(closest-side, rgba(212,121,74,0.65) 0%, rgba(188,107,74,0.32) 38%, transparent 75%)',
-          filter: 'blur(10px)',
-          animation: 'sa-logo-glow 2.6s ease-in-out infinite',
-        }}
-      />
-      {/* Mark, copper-gradient rounded square with the custom feather */}
-      <span
-        className="relative inline-flex items-center justify-center rounded-xl text-white"
-        style={{
-          width: dim,
-          height: dim,
-          background:
-            'linear-gradient(135deg, #d4794a 0%, #bc6b4a 45%, #a45a3d 100%)',
-          boxShadow:
-            '0 4px 14px -3px rgba(212,121,74,0.65), inset 0 1px 0 rgba(255,255,255,0.32), inset 0 -1px 0 rgba(0,0,0,0.08)',
+          inset: '-30%',
+          animation: 'sa-feather-emberhue 15s ease-in-out infinite',
         }}
       >
-        <svg
+        <span
           aria-hidden="true"
-          width={big ? 22 : 18}
-          height={big ? 22 : 18}
-          viewBox="293.333 46.667 1572 1934.667"
-          preserveAspectRatio="xMidYMid meet"
+          className="sa-feather-aura block w-full h-full"
           style={{
-            animation: 'sa-feather-drift 4.2s ease-in-out infinite',
-            transformOrigin: '50% 70%',
-            // Inner shimmer that ties the mark to the surrounding
-            // halo: a soft white drop-shadow nudges the white feather
-            // off the copper backdrop so it reads cleanly at every
-            // size, and the brighter highlight on top sells "glowing".
-            filter:
-              'drop-shadow(0 0 4px rgba(255,255,255,0.55)) drop-shadow(0 0 8px rgba(255,236,222,0.35))',
+            background:
+              'radial-gradient(closest-side, rgba(232,153,103,0.85) 0%, rgba(212,121,74,0.5) 35%, rgba(188,107,74,0.18) 60%, transparent 80%)',
+            filter: 'blur(11px)',
+            animation: 'sa-feather-breath 3.2s ease-in-out infinite',
+            transformOrigin: '50% 60%',
           }}
-        >
-          {/* Custom feather mark shipped by the team. Path coords are
-              normalised inside the original viewBox above so any
-              future tweak to the dimensions is a one-prop change. */}
-          <path
-            fill="#ffffff"
-            d="M 1818.52 85.3679 L 1827.5 84.4849 C 1824.33 210.086 1782.45 348.933 1736.92 465.152 C 1724.59 496.424 1711.55 527.409 1697.8 558.084 C 1680.98 595.664 1677.1 602.763 1645.59 630.187 C 1576.5 690.323 1499.73 738.415 1415.85 775.072 C 1481.63 764.524 1547.97 752.608 1613.56 742.62 C 1605.62 760.639 1594.27 781.195 1584.96 798.558 C 1563.66 838.393 1541.07 877.525 1517.22 915.891 C 1510.51 926.658 1507.61 930.755 1495.91 936.618 C 1486.66 941.255 1477.26 946.164 1467.94 950.765 C 1388.01 990.314 1303.89 1020.74 1217.16 1041.46 C 1304.79 1047.13 1362.72 1047.73 1450.49 1041.45 C 1443.38 1059.12 1430.33 1082.08 1420.86 1099.07 C 1376.43 1178.33 1324.12 1252.92 1264.74 1321.71 C 1124.46 1483.77 934.599 1621.02 727.336 1680.95 C 701.461 1688.45 675.204 1694.55 648.677 1699.24 C 584.755 1710.26 597.542 1699.4 551.927 1747.77 L 453.661 1854 C 423.024 1886.73 378.223 1939.86 331.192 1943.24 C 339.616 1923.57 361.086 1886.24 372.025 1866.83 C 400.899 1815.05 431.185 1764.07 462.849 1713.95 C 580.025 1529.25 706.737 1350.78 842.47 1179.25 C 972.879 1011.47 1110.09 849.084 1253.75 692.5 C 1327.67 611.385 1403.7 532.223 1481.77 455.096 C 1501.93 435.066 1522.22 415.17 1542.65 395.41 C 1551.38 387.059 1570.52 370.012 1577.36 361.478 C 1572.43 364.248 1543.22 390.37 1537.74 395.216 C 1501.44 427.086 1465.61 459.473 1430.24 492.367 C 1182.04 725.261 951.26 976.057 739.768 1242.73 C 670.537 1328.06 603.853 1415.42 539.805 1504.71 C 505.945 1551.89 467.047 1606.68 436.574 1656.33 C 422.81 1560.47 430.294 1430.44 445.681 1336.19 C 496.825 1022.93 669.422 754.422 901.669 543.55 C 947.814 501.652 1001.83 454.904 1052.42 418.483 C 1058.68 465.079 1062.83 513.254 1068.51 560.024 C 1071.08 581.211 1071.84 600.578 1075.07 622.356 C 1083.7 541.136 1107.11 462.178 1144.14 389.376 C 1154.3 369.059 1165.02 345.246 1183.5 331.656 C 1330.27 223.739 1504.42 157.664 1679.88 113.14 C 1725.08 101.67 1772.27 91.3103 1818.52 85.3679 z"
-          />
-        </svg>
+        />
       </span>
+
+      {/* Phase 1: the feather is the logo. Phase 2-3 + 7: copper
+          gradient with a brighter inner sheen baked in, plus a
+          path-following drop-shadow so the glow tracks the silhouette. */}
+      <svg
+        aria-hidden="true"
+        className="sa-feather-svg relative block transition-transform duration-300 ease-out"
+        viewBox="293.333 46.667 1572 1934.667"
+        width={frame}
+        height={frame}
+        preserveAspectRatio="xMidYMid meet"
+        style={{
+          animation: 'sa-feather-drift 4.6s ease-in-out infinite',
+          transformOrigin: '50% 75%',
+          filter:
+            'drop-shadow(0 0 4px rgba(212,121,74,0.6)) drop-shadow(0 0 10px rgba(232,153,103,0.45)) drop-shadow(0 1px 2px rgba(80,40,20,0.25))',
+        }}
+      >
+        <defs>
+          {/* Vertical copper gradient with a brighter sheen band
+              across the upper third — that band is the inner
+              highlight from Phase 3 baked into the fill so we don't
+              need a second path. */}
+          <linearGradient id="sa-feather-body" x1="50%" y1="0%" x2="50%" y2="100%">
+            <stop offset="0%"  stopColor="#f4b483" />
+            <stop offset="20%" stopColor="#ee9a66" />
+            <stop offset="48%" stopColor="#d4794a" />
+            <stop offset="78%" stopColor="#a55a39" />
+            <stop offset="100%" stopColor="#7a3f26" />
+          </linearGradient>
+        </defs>
+        <path
+          fill="url(#sa-feather-body)"
+          d="M 1818.52 85.3679 L 1827.5 84.4849 C 1824.33 210.086 1782.45 348.933 1736.92 465.152 C 1724.59 496.424 1711.55 527.409 1697.8 558.084 C 1680.98 595.664 1677.1 602.763 1645.59 630.187 C 1576.5 690.323 1499.73 738.415 1415.85 775.072 C 1481.63 764.524 1547.97 752.608 1613.56 742.62 C 1605.62 760.639 1594.27 781.195 1584.96 798.558 C 1563.66 838.393 1541.07 877.525 1517.22 915.891 C 1510.51 926.658 1507.61 930.755 1495.91 936.618 C 1486.66 941.255 1477.26 946.164 1467.94 950.765 C 1388.01 990.314 1303.89 1020.74 1217.16 1041.46 C 1304.79 1047.13 1362.72 1047.73 1450.49 1041.45 C 1443.38 1059.12 1430.33 1082.08 1420.86 1099.07 C 1376.43 1178.33 1324.12 1252.92 1264.74 1321.71 C 1124.46 1483.77 934.599 1621.02 727.336 1680.95 C 701.461 1688.45 675.204 1694.55 648.677 1699.24 C 584.755 1710.26 597.542 1699.4 551.927 1747.77 L 453.661 1854 C 423.024 1886.73 378.223 1939.86 331.192 1943.24 C 339.616 1923.57 361.086 1886.24 372.025 1866.83 C 400.899 1815.05 431.185 1764.07 462.849 1713.95 C 580.025 1529.25 706.737 1350.78 842.47 1179.25 C 972.879 1011.47 1110.09 849.084 1253.75 692.5 C 1327.67 611.385 1403.7 532.223 1481.77 455.096 C 1501.93 435.066 1522.22 415.17 1542.65 395.41 C 1551.38 387.059 1570.52 370.012 1577.36 361.478 C 1572.43 364.248 1543.22 390.37 1537.74 395.216 C 1501.44 427.086 1465.61 459.473 1430.24 492.367 C 1182.04 725.261 951.26 976.057 739.768 1242.73 C 670.537 1328.06 603.853 1415.42 539.805 1504.71 C 505.945 1551.89 467.047 1606.68 436.574 1656.33 C 422.81 1560.47 430.294 1430.44 445.681 1336.19 C 496.825 1022.93 669.422 754.422 901.669 543.55 C 947.814 501.652 1001.83 454.904 1052.42 418.483 C 1058.68 465.079 1062.83 513.254 1068.51 560.024 C 1071.08 581.211 1071.84 600.578 1075.07 622.356 C 1083.7 541.136 1107.11 462.178 1144.14 389.376 C 1154.3 369.059 1165.02 345.246 1183.5 331.656 C 1330.27 223.739 1504.42 157.664 1679.88 113.14 C 1725.08 101.67 1772.27 91.3103 1818.52 85.3679 z"
+        />
+      </svg>
     </span>
   );
 }
