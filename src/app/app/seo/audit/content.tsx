@@ -122,6 +122,7 @@ export default function AuditContent() {
   const [result, setResult] = useState<AuditResult | null>(null);
   const [progress, setProgress] = useState(0); // 0..1
   const [stage, setStage] = useState<string>('');
+  const [elapsedMs, setElapsedMs] = useState(0);
   const [estimatedMs, setEstimatedMs] = useState<number>(DEFAULT_DURATION_MS);
   const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -177,9 +178,11 @@ export default function AuditContent() {
     if (tickerRef.current) clearInterval(tickerRef.current);
     const startedAt = Date.now();
     setProgress(0);
+    setElapsedMs(0);
     setStage(STAGES[0]?.label ?? 'Starting…');
     tickerRef.current = setInterval(() => {
       const elapsed = Date.now() - startedAt;
+      setElapsedMs(elapsed);
       // Cap at 95% so it can't hit 100 until the response lands.
       const raw = Math.min(0.95, elapsed / totalMs);
       // Ease-out so early progress feels brisk and late progress feels
@@ -200,6 +203,7 @@ export default function AuditContent() {
     if (tickerRef.current) clearInterval(tickerRef.current);
     tickerRef.current = null;
     setProgress(finalProgress);
+    setElapsedMs(0);
   }
 
   async function runAudit() {
@@ -278,6 +282,7 @@ export default function AuditContent() {
         progress={progress}
         stage={stage}
         estimatedMs={estimatedMs}
+        elapsedMs={elapsedMs}
       />
 
       {error ? (
@@ -631,6 +636,7 @@ function ScoreCard({
   progress,
   stage,
   estimatedMs,
+  elapsedMs,
 }: {
   score: number | null;
   grade: 'F' | 'D' | 'C' | 'B' | 'A' | 'A+' | null;
@@ -644,6 +650,7 @@ function ScoreCard({
   progress: number;
   stage: string;
   estimatedMs: number;
+  elapsedMs: number;
 }) {
   const color =
     score == null
@@ -655,9 +662,14 @@ function ScoreCard({
           : 'text-red-600';
 
   const pct = Math.round(progress * 100);
-  // Rough ETA, only shown while running. Floors at 1s so it never
-  // reads "0s remaining" while we're still waiting on the response.
-  const remainingMs = Math.max(1_000, Math.round(estimatedMs * (1 - progress)));
+  // The ticker caps progress around 99% — once elapsed exceeds the
+  // estimate, the "Xs left" countdown becomes a lie. Detect overtime
+  // and switch to honest "still working" messaging + an indeterminate
+  // shimmer on the bar instead of a fake countdown.
+  const overtime = elapsedMs > estimatedMs;
+  const remainingMs = overtime
+    ? 0
+    : Math.max(1_000, Math.round(estimatedMs - elapsedMs));
 
   return (
     <div className="rounded-2xl border border-black/5 bg-white p-8 flex items-center gap-8">
@@ -688,17 +700,40 @@ function ScoreCard({
         ) : null}
         {running ? (
           <div className="mt-4">
+            <style jsx>{`
+              @keyframes sa-seo-shimmer {
+                0%   { transform: translateX(-100%); }
+                100% { transform: translateX(100%); }
+              }
+            `}</style>
             <div className="flex items-baseline justify-between gap-3 text-[11px] mb-1.5">
-              <span className="font-semibold text-foreground/70 truncate">{stage || 'Starting…'}</span>
+              <span className="font-semibold text-foreground/70 truncate">
+                {overtime
+                  ? 'Still working — taking longer than the last run'
+                  : stage || 'Starting…'}
+              </span>
               <span className="tabular-nums text-foreground/50 flex-none">
-                {pct}% · ~{Math.ceil(remainingMs / 1000)}s left
+                {overtime
+                  ? `${Math.round(elapsedMs / 1000)}s elapsed`
+                  : `${pct}% · ~${Math.ceil(remainingMs / 1000)}s left`}
               </span>
             </div>
-            <div className="h-2 rounded-full bg-black/5 overflow-hidden">
+            <div className="relative h-2 rounded-full bg-black/5 overflow-hidden">
               <div
                 className="h-full bg-primary transition-[width] duration-[250ms] ease-linear"
-                style={{ width: `${Math.max(2, pct)}%` }}
+                style={{ width: `${overtime ? 100 : Math.max(2, pct)}%` }}
               />
+              {overtime ? (
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-y-0 w-1/3"
+                  style={{
+                    background:
+                      'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.55) 50%, transparent 100%)',
+                    animation: 'sa-seo-shimmer 1.4s ease-in-out infinite',
+                  }}
+                />
+              ) : null}
             </div>
           </div>
         ) : ranAt ? (
