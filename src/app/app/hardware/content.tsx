@@ -257,17 +257,23 @@ export default function HardwareContent() {
         // column labels stay visible while scrolling a long list.
         <div className="rounded-2xl border border-black/10 bg-white overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-[12px]" style={{ fontFamily: 'var(--font-body)' }}>
+            {/* min-w forces each column to ask for the room it
+                needs; the parent's overflow-x-auto then lets the
+                page scroll sideways instead of squishing Type to
+                "Desk…" or hiding Account/PIN off the right edge.
+                w-full is gone because it was capping the table at
+                the container's width and triggering the squish. */}
+            <table className="min-w-[1400px] text-[12px]" style={{ fontFamily: 'var(--font-body)' }}>
               <thead className="sticky top-0 z-10 bg-warm-bg/60 backdrop-blur-sm text-[10px] uppercase tracking-wider text-foreground/55">
                 <tr>
-                  <th className="text-left px-3 py-2">Type</th>
+                  <th className="text-left px-3 py-2 w-[110px]">Type</th>
                   <th className="text-left px-3 py-2 w-10">#</th>
-                  <th className="text-left px-3 py-2">Model</th>
-                  <th className="text-left px-3 py-2">Assignee</th>
-                  <th className="text-left px-3 py-2">Location</th>
+                  <th className="text-left px-3 py-2 w-[280px]">Model</th>
+                  <th className="text-left px-3 py-2 w-[180px]">Assignee</th>
+                  <th className="text-left px-3 py-2 w-[160px]">Location</th>
                   <th className="text-right px-3 py-2 w-24">Value</th>
-                  <th className="text-left px-3 py-2">Status</th>
-                  <th className="text-left px-3 py-2">Account</th>
+                  <th className="text-left px-3 py-2 w-[140px]">Status</th>
+                  <th className="text-left px-3 py-2 w-[200px]">Account</th>
                   <th className="text-left px-3 py-2 w-20">PIN</th>
                 </tr>
               </thead>
