@@ -7,6 +7,10 @@ import Link from 'next/link';
 
 import { useEffect, useRef, useState } from 'react';
 import PageHero from '@/components/PageHero';
+import { AuthorByline } from '@/components/blog/BlogPostMeta';
+import { EPISODES } from '@/lib/episodes';
+
+const episode = EPISODES.find((e) => e.slug === 'when-drinking-stops-working')!;
 
 /* ── Animated Spectrum Infographic ─────────────────────────────────── */
 
@@ -294,6 +298,8 @@ export default function PageContent() {
         <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
           {/* Body font for the article */}
           <div style={{ fontFamily: 'var(--font-body)' }}>
+
+            <AuthorByline episode={episode} />
 
             {/* Opening */}
             <p className="text-lg text-foreground/80 leading-relaxed mb-6">

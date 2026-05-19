@@ -3,6 +3,10 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import PageHero from '@/components/PageHero';
+import { AuthorByline } from '@/components/blog/BlogPostMeta';
+import { EPISODES } from '@/lib/episodes';
+
+const episode = EPISODES.find((e) => e.slug === 'what-actually-happens-in-equine-therapy')!;
 
 /* ── Why Horses: Reveal cards ─────────────────────────────────────── */
 
@@ -272,6 +276,8 @@ export default function PageContent() {
           </Link>
 
           <div style={{ fontFamily: 'var(--font-body)' }}>
+
+            <AuthorByline episode={episode} />
 
             {/* Opening */}
             <p className="text-lg text-foreground/80 leading-relaxed mb-6">

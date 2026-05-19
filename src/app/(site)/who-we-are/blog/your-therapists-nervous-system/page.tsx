@@ -1,9 +1,12 @@
 import type { Metadata } from 'next';
 import { EPISODES, episodeImage } from '@/lib/episodes';
+import { findAuthorBySlug } from '@/lib/blogAuthors';
+import { BlogPostJsonLd } from '@/components/blog/BlogPostMeta';
 import PageContent from './content';
 
 const SLUG = 'your-therapists-nervous-system';
 const ep = EPISODES.find((e) => e.slug === SLUG)!;
+const author = findAuthorBySlug(ep.authorSlug);
 const url = `https://sevenarrowsrecoveryarizona.com/who-we-are/blog/${SLUG}`;
 const title = `${ep.title} | Seven Arrows Recovery`;
 const description =
@@ -23,7 +26,7 @@ export const metadata: Metadata = {
     images: [{ url: episodeImage(ep), alt: ep.imageAlt }],
     siteName: 'Seven Arrows Recovery',
     publishedTime: ep.publishedAt,
-    authors: ['Seven Arrows Recovery Clinical Team'],
+    authors: author ? [author.name] : ['Seven Arrows Recovery Clinical Team'],
     tags: [
       'Recovery Roadmap',
       'Co-regulation',
@@ -40,49 +43,10 @@ export const metadata: Metadata = {
   },
 };
 
-// Article + BreadcrumbList JSON-LD for rich snippets. Inlined in the
-// server component so it ships with the HTML payload (Google reads
-// JSON-LD that's present at first render — script tags injected by
-// client JS are picked up less reliably).
-const articleJsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'Article',
-  headline: ep.title,
-  description,
-  image: [episodeImage(ep)],
-  datePublished: ep.publishedAt,
-  dateModified: ep.publishedAt,
-  author: {
-    '@type': 'Organization',
-    name: 'Seven Arrows Recovery Clinical Team',
-    url: 'https://sevenarrowsrecoveryarizona.com/who-we-are',
-  },
-  publisher: {
-    '@type': 'Organization',
-    name: 'Seven Arrows Recovery',
-    url: 'https://sevenarrowsrecoveryarizona.com',
-    logo: {
-      '@type': 'ImageObject',
-      url: 'https://sevenarrowsrecoveryarizona.com/logo.png',
-    },
-  },
-  mainEntityOfPage: { '@type': 'WebPage', '@id': url },
-  isPartOf: {
-    '@type': 'CreativeWorkSeries',
-    name: 'The Recovery Roadmap',
-    url: 'https://sevenarrowsrecoveryarizona.com/who-we-are/recovery-roadmap',
-  },
-  articleSection: 'Recovery Roadmap',
-  keywords: [
-    'co-regulation',
-    'regulated presence',
-    'polyvagal',
-    'somatic therapy',
-    'nervous system',
-    'therapist self-regulation',
-  ].join(', '),
-};
-
+// BreadcrumbList stays inline (BlogPostJsonLd is Article-only).
+// The Article JSON-LD itself moves into BlogPostJsonLd so the
+// author Person + publisher Organization references match what's
+// rendered in the visible byline.
 const breadcrumbJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'BreadcrumbList',
@@ -97,10 +61,7 @@ const breadcrumbJsonLd = {
 export default function Page() {
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }}
-      />
+      <BlogPostJsonLd episode={ep} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
