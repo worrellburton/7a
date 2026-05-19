@@ -56,6 +56,7 @@ function isTabActive(pathname: string, href: string): boolean {
       '/app/seo/directories',
       '/app/seo/press-releases',
       '/app/seo/guest-posts',
+      '/app/seo/brand-profiles',
       '/app/seo/comments',
       '/app/seo/forums',
     ];
