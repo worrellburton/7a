@@ -1,9 +1,12 @@
 import type { Metadata } from 'next';
 import { EPISODES, episodeImage } from '@/lib/episodes';
+import { findAuthorBySlug } from '@/lib/blogAuthors';
+import { BlogPostJsonLd } from '@/components/blog/BlogPostMeta';
 import PageContent from './content';
 
 const SLUG = 'salutogenic-not-pathological';
 const ep = EPISODES.find((e) => e.slug === SLUG)!;
+const author = findAuthorBySlug(ep.authorSlug);
 const url = `https://sevenarrowsrecoveryarizona.com/who-we-are/blog/${SLUG}`;
 const description =
   "The DSM says you are what's wrong with you — the salutogenic frame says you are what's underneath. Why self-leadership beats symptom management long-term.";
@@ -22,7 +25,7 @@ export const metadata: Metadata = {
     images: [{ url: episodeImage(ep), alt: ep.imageAlt }],
     siteName: 'Seven Arrows Recovery',
     publishedTime: ep.publishedAt,
-    authors: ['Seven Arrows Recovery Clinical Team'],
+    authors: author ? [author.name] : ['Seven Arrows Recovery Clinical Team'],
     tags: ['Recovery Roadmap', 'Salutogenesis', 'Self-leadership', 'Strengths-based', 'Post-rehab'],
   },
   twitter: {
@@ -31,37 +34,6 @@ export const metadata: Metadata = {
     description,
     images: [episodeImage(ep)],
   },
-};
-
-const articleJsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'Article',
-  headline: ep.title,
-  description,
-  image: [episodeImage(ep)],
-  datePublished: ep.publishedAt,
-  dateModified: ep.publishedAt,
-  author: {
-    '@type': 'Organization',
-    name: 'Seven Arrows Recovery Clinical Team',
-    url: 'https://sevenarrowsrecoveryarizona.com/who-we-are',
-  },
-  publisher: {
-    '@type': 'Organization',
-    name: 'Seven Arrows Recovery',
-    url: 'https://sevenarrowsrecoveryarizona.com',
-    logo: {
-      '@type': 'ImageObject',
-      url: 'https://sevenarrowsrecoveryarizona.com/logo.png',
-    },
-  },
-  mainEntityOfPage: { '@type': 'WebPage', '@id': url },
-  isPartOf: {
-    '@type': 'CreativeWorkSeries',
-    name: 'The Recovery Roadmap',
-    url: 'https://sevenarrowsrecoveryarizona.com/who-we-are/recovery-roadmap',
-  },
-  articleSection: 'Recovery Roadmap',
 };
 
 const breadcrumbJsonLd = {
@@ -78,7 +50,7 @@ const breadcrumbJsonLd = {
 export default function Page() {
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleJsonLd) }} />
+      <BlogPostJsonLd episode={ep} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <PageContent />
     </>

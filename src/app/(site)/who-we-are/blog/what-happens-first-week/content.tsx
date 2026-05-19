@@ -7,6 +7,10 @@ import Link from 'next/link';
 
 import { useEffect, useRef, useState } from 'react';
 import PageHero from '@/components/PageHero';
+import { AuthorByline } from '@/components/blog/BlogPostMeta';
+import { EPISODES } from '@/lib/episodes';
+
+const episode = EPISODES.find((e) => e.slug === 'what-happens-first-week')!;
 
 /* ── Animated Timeline ────────────────────────────────────────────── */
 
@@ -327,6 +331,8 @@ export default function PageContent() {
           <Link href="/who-we-are/blog/when-drinking-stops-working" className="text-primary text-sm font-semibold hover:underline mb-8 inline-block" style={{ fontFamily: 'var(--font-body)' }}>
             &larr; Episode 1: When Drinking Stops Working
           </Link>
+
+          <AuthorByline episode={episode} />
 
           {/* Opening */}
           <p className="text-lg text-foreground/80 leading-relaxed mb-6" style={{ fontFamily: 'var(--font-body)' }}>

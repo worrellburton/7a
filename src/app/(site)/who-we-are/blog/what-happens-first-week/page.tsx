@@ -8,7 +8,16 @@ export const metadata: Metadata = {
 };
 
 import PageContent from './content';
+import { BlogPostJsonLd } from '@/components/blog/BlogPostMeta';
+import { EPISODES } from '@/lib/episodes';
+
+const episode = EPISODES.find((e) => e.slug === 'what-happens-first-week')!;
 
 export default function Page() {
-  return <PageContent />;
+  return (
+    <>
+      <BlogPostJsonLd episode={episode} />
+      <PageContent />
+    </>
+  );
 }

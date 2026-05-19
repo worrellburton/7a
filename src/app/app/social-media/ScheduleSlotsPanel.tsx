@@ -54,10 +54,14 @@ interface ScheduledPostLite {
 }
 
 interface ScheduleSlotsPanelProps {
-  readyDrafts: ReadyDraft[];
   connectedPlatforms: string[];
   scheduledPosts: ScheduledPostLite[];
   onPostScheduled: () => void;
+  // Exposed upward so sibling cards (Ready-to-Go, Scheduled Posts)
+  // can share the same fetched slot list and scheduling logic
+  // without duplicating the slots fetch + drop wiring.
+  onSlotsChange?: (slots: ScheduleSlot[]) => void;
+  onScheduleHandlerReady?: (handler: (draft: ReadyDraft, at: Date) => Promise<void>) => void;
 }
 
 /* ── Recurrence math ─────────────────────────────────────────── */
@@ -136,10 +140,11 @@ function formatTime(hour: number, minute: number): string {
 /* ── Main panel ──────────────────────────────────────────────── */
 
 export default function ScheduleSlotsPanel({
-  readyDrafts,
   connectedPlatforms,
   scheduledPosts,
   onPostScheduled,
+  onSlotsChange,
+  onScheduleHandlerReady,
 }: ScheduleSlotsPanelProps) {
   const { session } = useAuth();
   const [slots, setSlots] = useState<ScheduleSlot[]>([]);
@@ -161,6 +166,11 @@ export default function ScheduleSlotsPanel({
   }, [session?.access_token]);
 
   useEffect(() => { void reload(); }, [reload]);
+
+  // Surface slots upward so the Scheduled Posts drop target can
+  // compute "next available occurrence" without duplicating the
+  // fetch + realtime subscription.
+  useEffect(() => { onSlotsChange?.(slots); }, [slots, onSlotsChange]);
 
   useEffect(() => {
     const ch = supabase
@@ -211,13 +221,20 @@ export default function ScheduleSlotsPanel({
     [session?.access_token, connectedPlatforms, onPostScheduled],
   );
 
+  // Hand the scheduling closure up to the parent so the Scheduled
+  // Posts card (rendered as a sibling card) can reuse the same
+  // POST flow when an admin drops a draft directly onto it.
+  useEffect(() => {
+    onScheduleHandlerReady?.(scheduleDraftAt);
+  }, [scheduleDraftAt, onScheduleHandlerReady]);
+
   return (
     <section className="rounded-2xl border border-black/10 bg-white px-4 py-4 lg:px-5 lg:py-5">
       <header className="flex items-center justify-between flex-wrap gap-3 mb-3">
         <div>
           <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Schedule slots</h2>
           <p className="text-[11px] text-foreground/45 mt-0.5">
-            Drag a ready-to-go draft onto a future occurrence to queue it. Posts fire automatically via Ayrshare at that time.
+            Drag a Ready-to-Go draft onto a future occurrence to queue it. Posts fire automatically via Ayrshare at that time.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -254,24 +271,21 @@ export default function ScheduleSlotsPanel({
         </p>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_220px]">
-        <div className="min-w-0">
-          {loading ? (
-            <p className="text-[12px] text-foreground/55 italic">Loading slots…</p>
-          ) : slots.length === 0 ? (
-            <EmptyState onAdd={() => setShowAdd(true)} />
-          ) : view === 'list' ? (
-            <SlotsList
-              slots={slots}
-              scheduledPosts={scheduledPosts}
-              onDeleteSlot={deleteSlot}
-              onDropDraft={scheduleDraftAt}
-            />
-          ) : (
-            <CalendarView slots={slots} scheduledPosts={scheduledPosts} onDropDraft={scheduleDraftAt} />
-          )}
-        </div>
-        <ReadyDraftsRail drafts={readyDrafts} />
+      <div className="min-w-0">
+        {loading ? (
+          <p className="text-[12px] text-foreground/55 italic">Loading slots…</p>
+        ) : slots.length === 0 ? (
+          <EmptyState onAdd={() => setShowAdd(true)} />
+        ) : view === 'list' ? (
+          <SlotsList
+            slots={slots}
+            scheduledPosts={scheduledPosts}
+            onDeleteSlot={deleteSlot}
+            onDropDraft={scheduleDraftAt}
+          />
+        ) : (
+          <CalendarView slots={slots} scheduledPosts={scheduledPosts} onDropDraft={scheduleDraftAt} />
+        )}
       </div>
 
       {showAdd && (
@@ -572,59 +586,95 @@ function OccurrenceCell({
   );
 }
 
-/* ── Ready drafts rail ───────────────────────────────────────── */
+/* ── Ready drafts card ───────────────────────────────────────── */
 
-function ReadyDraftsRail({ drafts }: { drafts: ReadyDraft[] }) {
+// Exported so the Post tab can render Ready-to-Go as its own card
+// at the bottom of the page (the rail used to live inline on the
+// Schedule Slots panel; that crammed the drop targets into a narrow
+// column and made drag-and-drop hard to land cleanly).
+export function ReadyToGoCard({ drafts }: { drafts: ReadyDraft[] }) {
   return (
-    <aside className="lg:border-l lg:border-black/10 lg:pl-4">
-      <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">
-        Ready to go · {drafts.length}
-      </p>
+    <section className="rounded-2xl border border-black/10 bg-white px-4 py-4 lg:px-5 lg:py-5">
+      <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
+        <div>
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Ready to go · {drafts.length}</h2>
+          <p className="text-[11px] text-foreground/45 mt-0.5">
+            Drag a draft up to a Schedule Slot occurrence — or drop it onto Scheduled Posts to queue it on the next open slot automatically.
+          </p>
+        </div>
+      </div>
       {drafts.length === 0 ? (
-        <p className="text-[11.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
-          Mark drafts as Ready to go in Creative to drag them here.
-        </p>
+        <div className="rounded-xl border border-dashed border-black/15 bg-warm-bg/30 px-5 py-8 text-center">
+          <p className="text-[12.5px] text-foreground/55 max-w-md mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
+            Mark drafts as <em>Ready to go</em> in Creative → Draft to land them here.
+          </p>
+        </div>
       ) : (
-        // Thumbnail grid — the lead image is the post's primary
-        // identifier when dragging onto a schedule cell. Caption
-        // shows on hover so the rail stays scannable at a glance.
-        <ul className="grid grid-cols-3 lg:grid-cols-2 gap-2 max-h-[460px] overflow-y-auto pr-1">
-          {drafts.map((d) => {
-            const thumb = d.mediaUrls[0];
-            return (
-              <li
-                key={d.id}
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData('application/x-ready-draft', JSON.stringify(d));
-                  e.dataTransfer.effectAllowed = 'copy';
-                }}
-                className="group relative rounded-lg overflow-hidden border border-emerald-200 bg-emerald-50/40 cursor-grab active:cursor-grabbing aspect-square"
-                title={d.caption || '(no caption)'}
-              >
-                {thumb ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={thumb} alt={d.caption} className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center bg-warm-bg/40 text-[10px] text-foreground/45 px-1.5 text-center" style={{ fontFamily: 'var(--font-body)' }}>
-                    No media
-                  </div>
-                )}
-                <span className="absolute top-1 left-1 inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white" aria-hidden />
-                {/* Caption overlay revealed on hover. */}
-                <div className="absolute inset-x-0 bottom-0 px-1.5 py-1 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                  <p className="text-[10px] text-white leading-tight line-clamp-2" style={{ fontFamily: 'var(--font-body)' }}>
-                    {d.caption || '(no caption)'}
-                  </p>
-                </div>
-              </li>
-            );
-          })}
+        <ul className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+          {drafts.map((d) => (
+            <ReadyDraftTile key={d.id} draft={d} />
+          ))}
         </ul>
       )}
-    </aside>
+    </section>
   );
 }
+
+// One draggable tile. Pulled out so we can wire the dataTransfer
+// payload + cursor styling in one place and so the inner <img>
+// stays `draggable={false}` — without that, the browser's native
+// image-drag intercepts the gesture and our 'application/x-ready-draft'
+// MIME type never gets set, so every drop target rejected the drop.
+function ReadyDraftTile({ draft }: { draft: ReadyDraft }) {
+  const thumb = draft.mediaUrls[0];
+  const isVideo = typeof thumb === 'string' && /\.(mp4|mov|webm|m4v)(\?|$)/i.test(thumb);
+  return (
+    <li
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData('application/x-ready-draft', JSON.stringify(draft));
+        e.dataTransfer.effectAllowed = 'copy';
+      }}
+      className="group relative rounded-lg overflow-hidden border border-emerald-200 bg-emerald-50/40 cursor-grab active:cursor-grabbing aspect-square"
+      title={draft.caption || '(no caption)'}
+    >
+      {thumb ? (
+        isVideo ? (
+          <video
+            src={thumb}
+            preload="metadata"
+            muted
+            playsInline
+            draggable={false}
+            className="w-full h-full object-cover bg-black pointer-events-none"
+          />
+        ) : (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={thumb}
+            alt={draft.caption}
+            draggable={false}
+            className="w-full h-full object-cover pointer-events-none"
+          />
+        )
+      ) : (
+        <div className="w-full h-full flex items-center justify-center bg-warm-bg/40 text-[10px] text-foreground/45 px-1.5 text-center" style={{ fontFamily: 'var(--font-body)' }}>
+          No media
+        </div>
+      )}
+      <span className="absolute top-1 left-1 inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white" aria-hidden />
+      <div className="absolute inset-x-0 bottom-0 px-1.5 py-1 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+        <p className="text-[10px] text-white leading-tight line-clamp-2" style={{ fontFamily: 'var(--font-body)' }}>
+          {draft.caption || '(no caption)'}
+        </p>
+      </div>
+    </li>
+  );
+}
+
+// Re-exported so the Scheduled Posts card can compute "next slot
+// occurrence after now" without re-implementing the recurrence math.
+export { occurrencesFor };
 
 /* ── Add Schedule modal ──────────────────────────────────────── */
 

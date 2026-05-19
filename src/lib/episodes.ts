@@ -29,6 +29,17 @@ export interface Episode {
    * so the listings link to the right place.
    */
   href?: string;
+  /**
+   * Stable slug of the person who authored the post. Matches a
+   * `users.public_slug` value on the team table — the byline links
+   * out to /who-we-are/meet-our-team/<authorSlug> and the JSON-LD
+   * Article schema references the same URL as the Person author,
+   * which is what Google's E-E-A-T signals want to see.
+   *
+   * Optional only because legacy/imported episodes might not have
+   * an attributed author. New posts should always set this.
+   */
+  authorSlug?: string;
 }
 
 export const EPISODES: Episode[] = [
@@ -42,6 +53,7 @@ export const EPISODES: Episode[] = [
     publishedDisplay: 'March 24, 2026',
     image: '/images/resident-reading-window.jpg',
     imageAlt: 'When Drinking Stops Working',
+    authorSlug: 'lindsay-rothschild',
   },
   {
     number: 2,
@@ -53,6 +65,7 @@ export const EPISODES: Episode[] = [
     publishedDisplay: 'March 24, 2026',
     image: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=800&q=80',
     imageAlt: 'What Happens When You Walk Through the Door',
+    authorSlug: 'lindsay-rothschild',
   },
   {
     number: 3,
@@ -64,6 +77,7 @@ export const EPISODES: Episode[] = [
     publishedDisplay: 'April 24, 2026',
     image: '/images/equine-therapy-portrait.jpg',
     imageAlt: 'What Actually Happens in Equine Therapy',
+    authorSlug: 'lindsay-rothschild',
   },
   {
     number: 4,
@@ -75,6 +89,7 @@ export const EPISODES: Episode[] = [
     publishedDisplay: 'April 26, 2026',
     image: 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=1200&q=80',
     imageAlt: "A regulated therapist sitting calmly across from a client",
+    authorSlug: 'lindsay-rothschild',
   },
   {
     number: 5,
@@ -86,6 +101,7 @@ export const EPISODES: Episode[] = [
     publishedDisplay: 'April 26, 2026',
     image: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=1200&q=80',
     imageAlt: 'A wide horizon at first light — building toward something, not chasing what is broken',
+    authorSlug: 'lindsay-rothschild',
   },
   {
     number: 6,
@@ -97,6 +113,7 @@ export const EPISODES: Episode[] = [
     publishedDisplay: 'April 26, 2026',
     image: 'https://images.unsplash.com/photo-1455849318743-b2233052fcff?w=1200&q=80',
     imageAlt: 'A person at the foot of a long ladder — the polyvagal ladder you climb up and down all day',
+    authorSlug: 'lindsay-rothschild',
   },
   {
     number: 7,
