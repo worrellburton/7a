@@ -2,7 +2,10 @@
 
 import Link from 'next/link';
 import PageHero from '@/components/PageHero';
-import { EPISODES_BY_NUMBER, episodeHref, episodeImage } from '@/lib/episodes';
+import { EPISODES, EPISODES_BY_NUMBER, episodeHref, episodeImage } from '@/lib/episodes';
+import { AuthorByline } from '@/components/blog/BlogPostMeta';
+
+const episode = EPISODES.find((e) => e.slug === 'polyvagal-in-plain-english')!;
 
 const CURRENT_SLUG = 'polyvagal-in-plain-english';
 
@@ -39,6 +42,7 @@ export default function PageContent() {
 
       <article className="py-16 lg:py-24 bg-white">
         <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
+          <AuthorByline episode={episode} />
           <p
             className="text-base lg:text-lg text-foreground/75 leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}

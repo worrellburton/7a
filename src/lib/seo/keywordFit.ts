@@ -446,9 +446,26 @@ export function ideasForKeyword(keyword_text: string, category?: KeywordCategory
   return byCategory[cat].map((a) => pool[a]);
 }
 
+export interface BlogPromptAuthor {
+  /** Matches users.public_slug — also the team-page URL slug. */
+  slug: string;
+  name: string;
+  title: string;
+  credentials?: string;
+}
+
 export interface BlogPromptInput {
   keyword_text: string;
   idea: BlogIdea;
+  /**
+   * The team member who's being attributed as the author of the
+   * new post. The generated `episodes.ts` entry must include
+   * `authorSlug: '<slug>'` so the byline + Article JSON-LD pick
+   * the right Person. Omit only when running the prompt without
+   * an author (the prompt will still build, but the post will
+   * fall through to no-byline rendering — discouraged for SEO).
+   */
+  author?: BlogPromptAuthor;
 }
 
 /**
@@ -459,7 +476,7 @@ export interface BlogPromptInput {
  * ~1,800 words, H2-driven) plus the Next.js conventions the
  * episode needs to land in the route tree.
  */
-export function buildBlogCreationPrompt({ keyword_text, idea }: BlogPromptInput): string {
+export function buildBlogCreationPrompt({ keyword_text, idea, author }: BlogPromptInput): string {
   const lines: string[] = [];
   lines.push(`Write a new Recovery Roadmap blog episode targeting the SEO keyword "${keyword_text}".`);
   lines.push('');
@@ -468,12 +485,20 @@ export function buildBlogCreationPrompt({ keyword_text, idea }: BlogPromptInput)
   lines.push(`- Subtitle / hook: ${idea.subtitle}`);
   lines.push(`- Slug: ${idea.slug}`);
   lines.push(`- Target keyword (must appear in H1, <title>, URL slug, meta description, and 3+ times in body): "${keyword_text}"`);
+  if (author) {
+    lines.push(`- Author: ${author.name}${author.credentials ? `, ${author.credentials}` : ''} (${author.title}). Author slug: \`${author.slug}\` — matches /who-we-are/meet-our-team/${author.slug}.`);
+  }
   lines.push('');
   lines.push('## Where it lives');
   lines.push(`- Create the route folder: \`src/app/(site)/who-we-are/blog/${idea.slug}/\``);
   lines.push('- Add two files in that folder:');
-  lines.push('  - `page.tsx`: server component, exports \`metadata\` with title + description (both containing the keyword), renders a `<Content />` client component.');
-  lines.push('  - `content.tsx`: \'use client\' component with the actual article JSX.');
+  lines.push('  - `page.tsx`: server component, exports \`metadata\` with title + description (both containing the keyword), renders `<BlogPostJsonLd episode={ep} />` and `<PageContent />`. Import `BlogPostJsonLd` from `@/components/blog/BlogPostMeta` and `EPISODES` from `@/lib/episodes`. Look up `ep` via `EPISODES.find((e) => e.slug === \'<slug>\')!`.');
+  lines.push('  - `content.tsx`: \'use client\' component with the actual article JSX. Render `<AuthorByline episode={episode} />` at the very top of the article body, before the opening paragraph. Import `AuthorByline` from `@/components/blog/BlogPostMeta` and resolve `episode` the same way as in page.tsx.');
+  if (author) {
+    lines.push(`- Add the new episode to \`src/lib/episodes.ts\` with **\`authorSlug: '${author.slug}'\`** set on the entry — this is what links the byline + JSON-LD Person Article schema to the right team member for Google E-E-A-T signals.`);
+  } else {
+    lines.push('- Add the new episode to `src/lib/episodes.ts`. Set `authorSlug` to the public_slug of an existing team member in `src/lib/blogAuthors.ts` — Google E-E-A-T weights posts written by named, credentialed people far more than corporate/anonymous content.');
+  }
   lines.push('- Add the new episode to the hub at `/home/user/7a/src/app/(site)/who-we-are/recovery-roadmap/page.tsx` as an episode card (copy the existing card pattern: kicker "Episode N — The Recovery Roadmap", title, 1-sentence description, "Read Episode" link pointing to the new slug).');
   lines.push('');
   lines.push('## Voice and format (Road to Recovery house style)');
