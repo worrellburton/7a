@@ -327,6 +327,36 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
         )}
       </section>
 
+      {/* Selected chip strip. Keeps every picked contact visible
+          even when the search box is filtering the main list, so
+          the marketer never loses track of who's in the batch.
+          Each chip is a one-click removal. */}
+      {selected.size > 0 && (
+        <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
+          <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">
+            Selected · {selected.size}
+          </p>
+          <ul className="flex flex-wrap gap-1.5">
+            {contacts
+              .filter((c) => selected.has(c.id))
+              .map((c) => (
+                <li key={c.id}>
+                  <button
+                    type="button"
+                    onClick={() => toggle(c.id)}
+                    title={`Remove ${c.name} (${c.email})`}
+                    className="inline-flex items-center gap-1.5 pl-2.5 pr-1.5 py-1 rounded-full border border-primary/30 bg-primary/5 text-primary text-[11.5px] font-semibold hover:bg-primary/10"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    <span className="truncate max-w-[180px]">{c.name}</span>
+                    <span aria-hidden className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary text-white text-[9px] leading-none">×</span>
+                  </button>
+                </li>
+              ))}
+          </ul>
+        </section>
+      )}
+
       {error && <p className="mb-3 text-[12px] text-red-700" role="alert">{error}</p>}
 
       <div className="flex items-center justify-end gap-2">

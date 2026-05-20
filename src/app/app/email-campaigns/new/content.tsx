@@ -110,6 +110,11 @@ export default function NewEmailCampaignContent() {
   const [blogPickerOpen, setBlogPickerOpen] = useState(false);
   const [employeePickerOpen, setEmployeePickerOpen] = useState(false);
   const [horsePickerOpen, setHorsePickerOpen] = useState(false);
+  // The Preview pane shows a "Replace images" button that opens
+  // this picker; on confirm the selection swap is committed AND a
+  // fresh rebuild is kicked off so the marketer never has to
+  // remember the second step.
+  const [replaceImagesOpen, setReplaceImagesOpen] = useState(false);
   const [iterateNote, setIterateNote] = useState('');
   const [building, setBuilding] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -305,7 +310,10 @@ export default function NewEmailCampaignContent() {
     }
   };
 
-  const onBuild = async (mode: 'fresh' | 'iterate') => {
+  // Optional overrides let callers (e.g. the "Replace images"
+  // modal) trigger a fresh build with new inputs without waiting
+  // for a setDraft round-trip to flush before the build fires.
+  const onBuild = async (mode: 'fresh' | 'iterate', overrides?: { imageUrls?: string[] }) => {
     if (!session?.access_token || building) return;
     if (draft.prompt.trim().length === 0 && mode === 'fresh') {
       setError('Type a paragraph describing what the email should say.');
@@ -324,7 +332,7 @@ export default function NewEmailCampaignContent() {
         },
         body: JSON.stringify({
           prompt: draft.prompt,
-          imageUrls: draft.imageUrls,
+          imageUrls: overrides?.imageUrls ?? draft.imageUrls,
           useLogos: draft.useLogos,
           linkToWebsite: draft.linkToWebsite,
           includePhone: draft.includePhone,
@@ -760,14 +768,24 @@ export default function NewEmailCampaignContent() {
                 </p>
               )}
             </div>
-            <button
-              type="button"
-              onClick={() => onBuild('fresh')}
-              disabled={building}
-              className="px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60 disabled:opacity-50"
-            >
-              {building ? 'Rebuilding…' : '↻ Rebuild from scratch'}
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setReplaceImagesOpen(true)}
+                disabled={building}
+                className="px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60 disabled:opacity-50"
+              >
+                ⇄ Replace images
+              </button>
+              <button
+                type="button"
+                onClick={() => onBuild('fresh')}
+                disabled={building}
+                className="px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60 disabled:opacity-50"
+              >
+                {building ? 'Rebuilding…' : '↻ Rebuild from scratch'}
+              </button>
+            </div>
           </div>
           <div className="rounded-xl border border-black/10 overflow-hidden bg-warm-bg/30">
             <iframe
@@ -864,6 +882,21 @@ export default function NewEmailCampaignContent() {
             setHorsePickerOpen(false);
           }}
           onClose={() => setHorsePickerOpen(false)}
+        />
+      )}
+      {replaceImagesOpen && (
+        <ReplaceImagesModal
+          assets={libraryAssets}
+          initialSelected={draft.imageUrls}
+          onClose={() => setReplaceImagesOpen(false)}
+          onConfirm={(urls) => {
+            setDraft((p) => ({ ...p, imageUrls: urls }));
+            setReplaceImagesOpen(false);
+            // Kick off the rebuild on the next tick so the state
+            // update flushes first; otherwise onBuild would read
+            // the stale imageUrls.
+            window.setTimeout(() => { void onBuild('fresh'); }, 0);
+          }}
         />
       )}
     </div>
@@ -1186,6 +1219,83 @@ function HorsePicker({ horses, selectedId, onSelect, onClose }: {
             );
           })}
         </ul>
+      )}
+    </ModalShell>
+  );
+}
+
+// Replace-images flow from the Preview pane. Reuses the same
+// grid as the inline picker but inside a modal, with a Save
+// button that confirms the new selection so the parent can
+// kick off a fresh rebuild.
+function ReplaceImagesModal({
+  assets, initialSelected, onConfirm, onClose,
+}: {
+  assets: LibraryImage[];
+  initialSelected: string[];
+  onConfirm: (urls: string[]) => void;
+  onClose: () => void;
+}) {
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(initialSelected));
+  const toggle = (url: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(url)) next.delete(url); else next.add(url);
+      return next;
+    });
+  };
+  return (
+    <ModalShell
+      title="Replace images"
+      subtitle={`${selected.size} selected · ${assets.length} in library`}
+      onClose={onClose}
+    >
+      {assets.length === 0 ? (
+        <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
+          Library is empty. Upload images via /app/images first.
+        </p>
+      ) : (
+        <>
+          <ul className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 mb-4">
+            {assets.map((a) => {
+              const isSelected = selected.has(a.url);
+              return (
+                <li key={a.id}>
+                  <button
+                    type="button"
+                    onClick={() => toggle(a.url)}
+                    className={`relative w-full aspect-square rounded-md overflow-hidden border-2 transition-all ${isSelected ? 'border-primary ring-2 ring-primary/30' : 'border-black/10 hover:border-primary'}`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={a.url} alt={a.filename ?? ''} className="w-full h-full object-cover" />
+                    {isSelected && (
+                      <span className="absolute top-1 right-1 px-1 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-primary text-white">
+                        Selected
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="flex items-center justify-end gap-2 sticky bottom-0 bg-white pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-1.5 rounded-md border border-black/10 bg-white text-[11.5px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => onConfirm(Array.from(selected))}
+              className="px-3 py-1.5 rounded-md bg-primary text-white text-[11.5px] font-semibold uppercase tracking-wider hover:bg-primary/90"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Save and rebuild
+            </button>
+          </div>
+        </>
       )}
     </ModalShell>
   );
