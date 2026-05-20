@@ -109,7 +109,10 @@ export async function POST(req: NextRequest) {
             providerId = parsed.id ?? null;
           } catch { /* non-JSON body — keep id null */ }
         } else {
-          errText = `HTTP ${res.status}: ${txt.slice(0, 240)}`;
+          // Keep the whole response body (capped at 4k) so the
+          // finalize page's Provider Response panel can show the
+          // marketer the full diagnostic, not just a teaser.
+          errText = `HTTP ${res.status}: ${txt.slice(0, 4000)}`;
         }
       } catch (err) {
         errText = err instanceof Error ? err.message : String(err);

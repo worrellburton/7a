@@ -10,7 +10,7 @@
 // flips status='sent' on the campaign row.
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
 import { BuildProgress } from '../../BuildProgress';
@@ -143,6 +143,35 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
     }
   };
 
+  // "Reset failed to pending" path. The send loop only processes
+  // recipients with send_status='pending'; once a row is marked
+  // failed it stays that way until we explicitly reset it. This
+  // gives the marketer a one-click path to retry after fixing the
+  // underlying issue (e.g. verifying their Resend domain).
+  const onRetryFailed = async () => {
+    if (sending) return;
+    setError(null);
+    try {
+      const { error: updErr } = await supabase
+        .from('email_campaign_recipients')
+        .update({ send_status: 'pending', send_error: null, sent_at: null })
+        .eq('campaign_id', campaignId)
+        .eq('send_status', 'failed');
+      if (updErr) throw new Error(updErr.message);
+      // If the campaign was flipped to 'sent' or 'failed' previously,
+      // bring it back to 'finalizing' so the Send button works again.
+      if (campaign && (campaign.status === 'sent' || campaign.status === 'failed')) {
+        await supabase
+          .from('email_campaigns')
+          .update({ status: 'finalizing', sent_at: null })
+          .eq('id', campaignId);
+      }
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   const onSend = async () => {
     if (!session?.access_token || sending) return;
     if (!campaign?.generated_html) {
@@ -208,6 +237,13 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
   const isSent = campaign.status === 'sent';
   const sentCount = recipients.filter((r) => r.send_status === 'sent').length;
   const failedCount = recipients.filter((r) => r.send_status === 'failed').length;
+  const pendingCount = recipients.filter((r) => r.send_status === 'pending').length;
+  // Sniff the most common Resend failure mode so we can surface an
+  // actionable banner at the top of the page instead of leaving the
+  // marketer to decode an HTTP status from the per-row line.
+  const domainNotVerified = recipients.some((r) =>
+    !!r.send_error && /domain is not verified|domain.*not verified|verify.*domain/i.test(r.send_error),
+  );
 
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-6xl mx-auto">
@@ -242,6 +278,32 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
             {failedCount > 0 && ` · ${failedCount} failed`}.
             {campaign.sent_at && ` Sent at ${new Date(campaign.sent_at).toLocaleString()}.`}
           </p>
+        </div>
+      )}
+
+      {/* Top-of-page actionable error banner. The Resend domain
+          verification flow is the single most common cause of a
+          batch failing, so we sniff for it and surface the next
+          step directly instead of leaving the per-row message as
+          the only signal. */}
+      {domainNotVerified && (
+        <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4">
+          <p className="text-[12.5px] font-bold uppercase tracking-[0.22em] text-red-900 mb-1" style={{ fontFamily: 'var(--font-body)' }}>
+            Sender domain not verified
+          </p>
+          <p className="text-[13px] text-red-900 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+            Resend rejected every send because the <code className="bg-red-100 px-1 py-0.5 rounded">EMAIL_FROM</code> domain has not been verified on your Resend account. Two ways to fix:
+          </p>
+          <ol className="mt-2 text-[13px] text-red-900 leading-relaxed list-decimal pl-5 space-y-1" style={{ fontFamily: 'var(--font-body)' }}>
+            <li>
+              Verify <code className="bg-red-100 px-1 py-0.5 rounded">sevenarrowsrecoveryarizona.com</code> at{' '}
+              <a href="https://resend.com/domains" target="_blank" rel="noreferrer" className="underline font-semibold">resend.com/domains</a>{' '}
+              (add the DNS records Resend gives you, then re-send below), or
+            </li>
+            <li>
+              Unset <code className="bg-red-100 px-1 py-0.5 rounded">EMAIL_FROM</code> in Vercel so the default sandbox sender <code className="bg-red-100 px-1 py-0.5 rounded">onboarding@resend.dev</code> is used (works immediately, but recipients see the resend.dev address).
+            </li>
+          </ol>
         </div>
       )}
 
@@ -288,38 +350,33 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
       </section>
 
       <section className="rounded-2xl border border-black/10 bg-white mb-4">
-        <header className="px-4 py-3 border-b border-black/5">
+        <header className="px-4 py-3 border-b border-black/5 flex items-baseline justify-between flex-wrap gap-2">
           <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
             Recipients · {recipients.length}
+            {sentCount > 0 && <span className="ml-2 text-emerald-700">· {sentCount} sent</span>}
+            {failedCount > 0 && <span className="ml-2 text-red-700">· {failedCount} failed</span>}
+            {pendingCount > 0 && <span className="ml-2 text-foreground/55">· {pendingCount} pending</span>}
           </p>
+          {failedCount > 0 && !isSent && (
+            <button
+              type="button"
+              onClick={onRetryFailed}
+              disabled={sending}
+              className="px-2.5 py-1 rounded-md border border-red-300 bg-red-50 text-[11px] font-semibold text-red-900 hover:bg-red-100 disabled:opacity-50"
+            >
+              ↻ Reset failed to pending
+            </button>
+          )}
         </header>
         {recipients.length === 0 ? (
           <p className="px-4 py-8 text-[12.5px] text-foreground/55 italic text-center" style={{ fontFamily: 'var(--font-body)' }}>
             No recipients picked yet. <Link href={`/app/email-campaigns/${campaignId}/recipients`} className="text-primary underline">Pick some</Link>.
           </p>
         ) : (
-          <ul className="divide-y divide-black/5 max-h-[40vh] overflow-y-auto">
-            {recipients.map((r) => {
-              const tone = STATUS_BADGE[r.send_status] ?? STATUS_BADGE.pending;
-              return (
-                <li key={r.id} className="flex items-center gap-3 px-4 py-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[12.5px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>
-                      {r.contactName || r.email}
-                    </p>
-                    <p className="text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>
-                      {r.email}{r.send_error ? ` · ${r.send_error}` : ''}
-                    </p>
-                  </div>
-                  <span
-                    className={`shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-semibold uppercase tracking-wider ${tone}`}
-                    style={{ fontFamily: 'var(--font-body)' }}
-                  >
-                    {r.send_status}
-                  </span>
-                </li>
-              );
-            })}
+          <ul className="divide-y divide-black/5 max-h-[60vh] overflow-y-auto">
+            {recipients.map((r) => (
+              <RecipientDetailRow key={r.id} r={r} />
+            ))}
           </ul>
         )}
       </section>
@@ -346,5 +403,84 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
         </div>
       )}
     </div>
+  );
+}
+
+// Detail card for a single recipient — name, email, big status
+// badge, and (when present) the full provider error response in a
+// scrollable mono block with a copy button. Tries to JSON-pretty
+// the body when it's parseable so the marketer can read it.
+function RecipientDetailRow({ r }: { r: DisplayRecipient }) {
+  const [copied, setCopied] = useState(false);
+  const tone = STATUS_BADGE[r.send_status] ?? STATUS_BADGE.pending;
+  const isFailed = r.send_status === 'failed';
+  const errorDetail = r.send_error ?? '';
+
+  // The send route stores send_error as "HTTP 403: {...json...}". Try
+  // to peel the HTTP prefix off and pretty-print the JSON tail so the
+  // message is actually readable.
+  const formatted = useMemo(() => {
+    if (!errorDetail) return '';
+    const httpMatch = errorDetail.match(/^(HTTP \d+):?\s*([\s\S]*)$/);
+    const status = httpMatch?.[1] ?? '';
+    const tail = httpMatch?.[2] ?? errorDetail;
+    let pretty = tail;
+    try {
+      const json = JSON.parse(tail);
+      pretty = JSON.stringify(json, null, 2);
+    } catch { /* keep as-is */ }
+    return status ? `${status}\n\n${pretty}` : pretty;
+  }, [errorDetail]);
+
+  const onCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(errorDetail);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1600);
+    } catch { /* ignore */ }
+  };
+
+  return (
+    <li className={`px-4 py-3 ${isFailed ? 'bg-red-50/40' : ''}`}>
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-[13px] font-semibold text-foreground" style={{ fontFamily: 'var(--font-body)' }}>
+            {r.contactName || r.email}
+          </p>
+          <p className="text-[11.5px] text-foreground/55" style={{ fontFamily: 'var(--font-body)' }}>
+            {r.email}
+          </p>
+        </div>
+        <span
+          className={`shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-semibold uppercase tracking-wider ${tone}`}
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          {r.send_status}
+        </span>
+      </div>
+      {errorDetail && (
+        <div className="mt-2 rounded-md border border-red-200 bg-white">
+          <header className="flex items-baseline justify-between px-3 py-2 border-b border-red-100">
+            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-red-900" style={{ fontFamily: 'var(--font-body)' }}>
+              Provider response
+            </p>
+            <button
+              type="button"
+              onClick={onCopy}
+              className="text-[10.5px] font-semibold text-red-800 hover:text-red-900"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              {copied ? 'Copied' : 'Copy'}
+            </button>
+          </header>
+          <pre
+            className="px-3 py-2 text-[11.5px] text-red-900 whitespace-pre-wrap break-words max-h-48 overflow-y-auto"
+            style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace' }}
+          >
+{formatted}
+          </pre>
+        </div>
+      )}
+    </li>
   );
 }
