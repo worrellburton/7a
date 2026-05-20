@@ -156,6 +156,10 @@ const nextConfig = {
       { source: '/category/uncategorized', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
       { source: '/category/addiction-treatment', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
       { source: '/blog', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
+      // Email-campaign slug that was sent before the post landed.
+      // Points to the closest thematic match (salutogenic frame =
+      // "stop fighting the self, start listening to what's underneath").
+      { source: '/who-we-are/blog/recovery-through-self-connection', destination: '/who-we-are/blog/salutogenic-not-pathological', statusCode: 301 },
       { source: '/self-care-addiction-recovery', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
       { source: '/what-to-expect-during-rehab', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
       { source: '/getting-through-the-holidays-sober', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
