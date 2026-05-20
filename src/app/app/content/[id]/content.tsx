@@ -444,13 +444,22 @@ function GeneratePanel({ blog, token, onComplete }: { blog: DbBlog; token: strin
 
 function ReviewPanel({ blog, token, revisions, onChange }: { blog: DbBlog; token: string | null; revisions: DbRevision[]; onChange: () => void }) {
   const [instruction, setInstruction] = useState('');
-  const [busy, setBusy] = useState(false);
+  // Separate flags per action so a long-running revise doesn't disable
+  // the Approve button (or vice-versa). Errors are also scoped so a
+  // failed revise doesn't visually attach to the Approve flow.
+  const [revising, setRevising] = useState(false);
+  const [approving, setApproving] = useState(false);
   const [err, setErr] = useState<{ message: string; details?: unknown } | null>(null);
   const reviseProgress = useAutoProgress('revise', 35_000);
+  // Image-generation is 10 in parallel (5 gpt-image-2 + 5 nano-banana-2);
+  // wall time has been 90s–4min in practice. 180s default is the sweet
+  // spot — the bar slows as it nears the asymptote so an overshoot
+  // still reads as "almost done" rather than dead.
+  const approveProgress = useAutoProgress('approve-images', 180_000);
 
   async function revise() {
     if (!token || !instruction.trim()) return;
-    setBusy(true); setErr(null);
+    setRevising(true); setErr(null);
     reviseProgress.start();
     try {
       const res = await fetch(`/api/content/${blog.id}/revise`, {
@@ -471,13 +480,14 @@ function ReviewPanel({ blog, token, revisions, onChange }: { blog: DbBlog; token
       reviseProgress.abort();
       setErr({ message: e instanceof Error ? e.message : String(e) });
     } finally {
-      setBusy(false);
+      setRevising(false);
     }
   }
 
   async function approve() {
     if (!token) return;
-    setBusy(true); setErr(null);
+    setApproving(true); setErr(null);
+    approveProgress.start();
     try {
       // Approve = kick off image generation. The route returns per-image
       // failure detail in `failures` so we carry the full payload into
@@ -489,13 +499,16 @@ function ReviewPanel({ blog, token, revisions, onChange }: { blog: DbBlog; token
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         setErr({ message: json.error ?? `HTTP ${res.status}`, details: json });
+        approveProgress.abort();
         return;
       }
+      approveProgress.finish();
       onChange();
     } catch (e) {
+      approveProgress.abort();
       setErr({ message: e instanceof Error ? e.message : String(e) });
     } finally {
-      setBusy(false);
+      setApproving(false);
     }
   }
 
@@ -521,22 +534,25 @@ function ReviewPanel({ blog, token, revisions, onChange }: { blog: DbBlog; token
             <button
               type="button"
               onClick={revise}
-              disabled={busy || !instruction.trim()}
+              disabled={revising || approving || !instruction.trim()}
               className="px-3 py-1.5 rounded-md bg-foreground text-white text-[11.5px] font-semibold disabled:opacity-50"
             >
-              {busy && reviseProgress.running
+              {revising
                 ? `Revising… ${Math.round(reviseProgress.progress * 100)}%`
-                : busy ? 'Revising…' : 'Revise'}
+                : 'Revise'}
             </button>
             {reviseProgress.running && <ProgressBar value={reviseProgress.progress} />}
             <button
               type="button"
               onClick={approve}
-              disabled={busy}
+              disabled={revising || approving}
               className="px-3 py-1.5 rounded-md bg-primary text-white text-[11.5px] font-semibold disabled:opacity-50"
             >
-              Approve &amp; generate 10 images
+              {approving
+                ? `Generating 10 images… ${Math.round(approveProgress.progress * 100)}%`
+                : 'Approve & generate 10 images'}
             </button>
+            {approveProgress.running && <ProgressBar value={approveProgress.progress} />}
           </div>
           {revisions.length > 0 && (
             <div className="mt-4">
@@ -925,6 +941,22 @@ function LibraryTab({
       if (!res.ok) {
         setErr(json.error ?? `HTTP ${res.status}`);
         return;
+      }
+      // Auto-select the freshly imported library image so it shows
+      // up in "Your selection · X / 7" immediately. Without this the
+      // editor has to click the imported tile a second time to mark
+      // it selected, which reads as the count being broken. Only
+      // adds it if there's room AND it isn't already in the set
+      // (re-importing the same site_image returns the existing
+      // blog_image_id, in which case it might already be selected).
+      const newId = json?.blog_image_id as string | undefined;
+      if (newId && selected.size < 7 && !selected.has(newId)) {
+        const nextIds = [...Array.from(selected), newId];
+        await fetch(`/api/content/${blogId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ selected_image_ids: nextIds }),
+        }).catch(() => { /* refresh below will resync from DB */ });
       }
       onChange();
     } catch (e) {
