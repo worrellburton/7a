@@ -183,10 +183,21 @@ export default function ScheduleSlotsPanel({
   const deleteSlot = useCallback(async (id: string) => {
     if (!session?.access_token) return;
     if (!confirm('Delete this schedule? Posts already queued on it will keep firing.')) return;
-    await fetch(`/api/social-media/schedule-slots/${id}`, {
+    const res = await fetch(`/api/social-media/schedule-slots/${id}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
+    if (!res.ok) {
+      // Surface the route's 404/500 instead of swallowing it. Without
+      // this, a forbidden delete looked successful (UI removed the
+      // confirm dialog) but the row stuck around and reappeared on
+      // the next reload — exactly the "doesn't quite delete" symptom.
+      const j = await res.json().catch(() => ({}));
+      setError((j as { error?: string }).error ?? `HTTP ${res.status}`);
+      await reload();
+      return;
+    }
+    setError(null);
     await reload();
   }, [session?.access_token, reload]);
 

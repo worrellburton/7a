@@ -122,7 +122,7 @@ const ALL_COLUMNS: ColumnDef[] = [
   // email as 3 icon buttons in a row. Each carries its own hover
   // popover + click-to-copy / click-to-open-link. Location moved out
   // to its own column right after this one.
-  { key: 'contact', label: 'Contact' },
+  { key: 'contact', label: 'Contact info' },
   { key: 'location', label: 'Location' },
   { key: 'notes', label: 'Notes' },
   { key: 'role', label: 'Role / Relation' },
