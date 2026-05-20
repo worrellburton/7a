@@ -116,7 +116,10 @@ export default function ContentLanding() {
 
   // Episode number map for AI-pipeline posts. Mirrors
   // getPublishedBlogEpisodes() in src/lib/episodes.ts so the number
-  // the admin sees is the same the public site computes.
+  // the admin sees is the same the public site computes. Recomputes
+  // on every `rows` change, so when an AI post is deleted the
+  // remaining published rows shift down into the next episode number
+  // automatically — no DB column to renumber.
   const aiEpisodeNumber = useMemo(() => {
     const maxStatic = EPISODES.reduce((m, e) => Math.max(m, e.number), 0);
     const published = rows
@@ -126,6 +129,32 @@ export default function ContentLanding() {
     published.forEach((r, idx) => map.set(r.id, maxStatic + idx + 1));
     return map;
   }, [rows]);
+
+  // Delete an AI-pipeline post. Confirms first (the route also
+  // cascades blog_revisions + blog_images), drops the row from local
+  // state on success so the list reshuffles instantly, and the
+  // episode-number memo above re-runs to renumber the remaining
+  // published posts. Hand-coded posts have no Delete affordance —
+  // they're .tsx files, not DB rows.
+  const deleteBlog = useCallback(async (id: string, title: string) => {
+    if (!session?.access_token) return;
+    if (!confirm(`Delete "${title}"? This also removes its revisions and generated images. Cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/content/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        throw new Error(j.error ?? `HTTP ${res.status}`);
+      }
+      setRows((cur) => cur.filter((r) => r.id !== id));
+      if (analyticsFor === id) setAnalyticsFor(null);
+      setError(null);
+    } catch (e) {
+      setError(`Couldn't delete blog: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }, [session?.access_token, analyticsFor]);
 
   if (!user) return null;
   if (!isSuperAdmin) {
@@ -203,6 +232,7 @@ export default function ContentLanding() {
                       onToggleHidden={() => void toggleHidden(r.slug, !hidden)}
                       analyticsOpen={expanded}
                       onToggleAnalytics={() => setAnalyticsFor(expanded ? null : r.id)}
+                      onDelete={() => void deleteBlog(r.id, r.title || '(Untitled)')}
                     />
                     {expanded && (
                       <div className="border-t border-black/5 bg-warm-bg/30">
@@ -272,6 +302,7 @@ function BlogRow({
   onToggleHidden,
   analyticsOpen,
   onToggleAnalytics,
+  onDelete,
 }: {
   title: string;
   subtitle: string;
@@ -284,6 +315,10 @@ function BlogRow({
   onToggleHidden: () => void;
   analyticsOpen: boolean;
   onToggleAnalytics: () => void;
+  // Only AI-pipeline rows get a Delete affordance; hand-coded posts
+  // are .tsx files and live outside the DB, so onDelete is undefined
+  // for those rows and the button doesn't render.
+  onDelete?: () => void;
 }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3 hover:bg-warm-bg/40 transition-colors">
@@ -322,6 +357,22 @@ function BlogRow({
         </a>
       )}
       <VisibilityToggle hidden={hidden} onChange={onToggleHidden} />
+      {onDelete && (
+        <button
+          type="button"
+          onClick={onDelete}
+          className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/45 hover:text-rose-700 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors"
+          aria-label={`Delete ${title}`}
+          title="Delete this blog (cascades to revisions + generated images)"
+        >
+          <svg viewBox="0 0 16 16" width={13} height={13} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 4h10" />
+            <path d="M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1" />
+            <path d="M4.5 4l.5 8.5A1.5 1.5 0 006.5 14h3a1.5 1.5 0 001.5-1.5L11.5 4" />
+            <path d="M7 7v4M9 7v4" />
+          </svg>
+        </button>
+      )}
     </div>
   );
 }
