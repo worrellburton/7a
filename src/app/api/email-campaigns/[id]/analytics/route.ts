@@ -3,37 +3,20 @@ import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 
 // GET /api/email-campaigns/[id]/analytics
 //
-// Pulls Resend per-email analytics for every recipient of the
-// campaign and aggregates them into rate stats (delivered /
-// opened / clicked / bounced). Surfaces the response under the
-// expandable row on /app/email-campaigns so a marketer can see
-// who opened what without leaving feather.
+// Reads delivered / opened / clicked / bounced state straight out
+// of email_campaign_events (populated by Resend webhooks at
+// /api/email-campaigns/webhook). Earlier versions polled Resend's
+// GET /emails/{id} endpoint per recipient, but Resend's per-email
+// retrieve endpoint lags reality badly — the supported path is
+// webhook event ingestion. See supabase/migrations/
+// 20260520_email_campaign_events.sql.
 //
-// Implementation:
-//   1. Load every email_campaign_recipients + their matching
-//      email_campaign_sends row (joined by recipient_id, taking
-//      the most recent send per recipient so a re-send replaces
-//      the prior data).
-//   2. For each row that has a provider='resend' + provider_message_id,
-//      fetch GET https://api.resend.com/emails/{id} concurrently
-//      (capped at 10 in-flight to stay polite).
-//   3. Aggregate + return.
-//
-// Required env: RESEND_API_KEY. Without it, returns DB-only data
-// with a `simulated: true` flag so the UI still has something to
-// render (just no live open / click counts).
+// `simulated: true` is now set when there are zero events stored
+// for a sent campaign, which usually means the Resend webhook isn't
+// configured yet. The UI surfaces a one-liner pointing to the
+// dashboard so the marketer knows what to do.
 
-const RESEND_BASE = 'https://api.resend.com/emails/';
-const MAX_PARALLEL = 10;
-
-interface ResendEmail {
-  id: string;
-  to?: string[];
-  from?: string;
-  subject?: string;
-  created_at?: string;
-  last_event?: string;
-}
+export const dynamic = 'force-dynamic';
 
 interface RecipientAnalytics {
   recipientId: string;
@@ -49,7 +32,11 @@ interface RecipientAnalytics {
   opened: boolean;
   clicked: boolean;
   bounced: boolean;
+  openedAt: string | null;
+  clickedAt: string | null;
 }
+
+const TERMINAL_BAD = new Set(['bounced', 'complained', 'failed']);
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await getUserFromRequest(req);
@@ -85,7 +72,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   // newer email_campaign_sends row, we want only the freshest one).
   const { data: sendRows } = await admin
     .from('email_campaign_sends')
-    .select('recipient_id, provider, provider_message_id, ok, sent_at')
+    .select('recipient_id, provider, provider_message_id, sent_at')
     .eq('campaign_id', campaignId)
     .order('sent_at', { ascending: false });
   const sendsByRecipient = new Map<string, { provider: string | null; provider_message_id: string | null }>();
@@ -96,54 +83,48 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     }
   }
 
-  const apiKey = process.env.RESEND_API_KEY;
-  const simulated = !apiKey;
+  // Pull every event tied to this campaign in one query, then index
+  // by recipient_id so we don't fan out N round-trips. Ordered
+  // ascending so the first matching open/click we see is the
+  // earliest one (which is the meaningful timestamp).
+  const { data: eventRows } = await admin
+    .from('email_campaign_events')
+    .select('recipient_id, event_type, occurred_at')
+    .eq('campaign_id', campaignId)
+    .order('occurred_at', { ascending: true });
 
-  // Concurrency-limited fetch of Resend GETs. Anything without a
-  // provider_message_id (failed before send, or simulated mode)
-  // returns null analytics.
-  const inFlight: Array<Promise<void>> = [];
-  const eventByRecipient = new Map<string, ResendEmail | null>();
-  const queue: Array<{ recipientId: string; messageId: string }> = [];
-  for (const r of recipients) {
-    const s = sendsByRecipient.get(r.id);
-    if (apiKey && s?.provider === 'resend' && s?.provider_message_id) {
-      queue.push({ recipientId: r.id, messageId: s.provider_message_id });
+  type EventBundle = {
+    types: Set<string>;
+    firstOpenedAt: string | null;
+    firstClickedAt: string | null;
+    lastEvent: string | null;
+  };
+  const eventsByRecipient = new Map<string, EventBundle>();
+  for (const ev of (eventRows ?? []) as Array<{ recipient_id: string | null; event_type: string; occurred_at: string }>) {
+    if (!ev.recipient_id) continue;
+    let bundle = eventsByRecipient.get(ev.recipient_id);
+    if (!bundle) {
+      bundle = { types: new Set(), firstOpenedAt: null, firstClickedAt: null, lastEvent: null };
+      eventsByRecipient.set(ev.recipient_id, bundle);
     }
+    bundle.types.add(ev.event_type);
+    if (ev.event_type === 'opened' && !bundle.firstOpenedAt) bundle.firstOpenedAt = ev.occurred_at;
+    if (ev.event_type === 'clicked' && !bundle.firstClickedAt) bundle.firstClickedAt = ev.occurred_at;
+    bundle.lastEvent = ev.event_type;
   }
-  const runOne = async (item: { recipientId: string; messageId: string }) => {
-    try {
-      const res = await fetch(`${RESEND_BASE}${encodeURIComponent(item.messageId)}`, {
-        headers: { Authorization: `Bearer ${apiKey}` },
-      });
-      if (!res.ok) {
-        eventByRecipient.set(item.recipientId, null);
-        return;
-      }
-      const data = await res.json() as ResendEmail;
-      eventByRecipient.set(item.recipientId, data);
-    } catch {
-      eventByRecipient.set(item.recipientId, null);
-    }
-  };
-  let cursor = 0;
-  const worker = async () => {
-    while (cursor < queue.length) {
-      const idx = cursor;
-      cursor += 1;
-      const item = queue[idx];
-      if (!item) continue;
-      await runOne(item);
-    }
-  };
-  for (let i = 0; i < Math.min(MAX_PARALLEL, queue.length); i += 1) inFlight.push(worker());
-  await Promise.all(inFlight);
 
   const analytics: RecipientAnalytics[] = recipients.map((r) => {
     const c = Array.isArray(r.contacts) ? r.contacts[0] : r.contacts;
     const s = sendsByRecipient.get(r.id);
-    const ev = eventByRecipient.get(r.id) ?? null;
-    const lastEvent = (ev?.last_event ?? '').toLowerCase();
+    const bundle = eventsByRecipient.get(r.id);
+    const types = bundle?.types ?? new Set<string>();
+    // A click implies an open (Resend doesn't always fire `opened`
+    // before `clicked` since some clients block tracking pixels);
+    // similarly any of opened/clicked imply delivered.
+    const clicked = types.has('clicked');
+    const opened = clicked || types.has('opened');
+    const delivered = opened || types.has('delivered');
+    const bounced = types.has('bounced') || types.has('complained') || types.has('failed');
     return {
       recipientId: r.id,
       contactId: r.contact_id,
@@ -153,11 +134,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       sendError: r.send_error,
       sentAt: r.sent_at,
       providerMessageId: s?.provider_message_id ?? null,
-      lastEvent: ev?.last_event ?? null,
-      delivered: ['delivered', 'opened', 'clicked'].includes(lastEvent),
-      opened: ['opened', 'clicked'].includes(lastEvent),
-      clicked: lastEvent === 'clicked',
-      bounced: ['bounced', 'complained', 'soft_bounced', 'hard_bounced'].includes(lastEvent),
+      lastEvent: bundle?.lastEvent ?? null,
+      delivered,
+      opened,
+      clicked,
+      bounced,
+      openedAt: bundle?.firstOpenedAt ?? null,
+      clickedAt: bundle?.firstClickedAt ?? null,
     };
   });
 
@@ -166,8 +149,16 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const openedCount = analytics.filter((a) => a.opened).length;
   const clickedCount = analytics.filter((a) => a.clicked).length;
   const bouncedCount = analytics.filter((a) => a.bounced).length;
-  const failedCount = analytics.filter((a) => a.sendStatus === 'failed').length;
+  const failedCount = analytics.filter((a) => a.sendStatus === 'failed' && !TERMINAL_BAD.has(a.lastEvent ?? '')).length;
   const pct = (n: number, d: number) => (d === 0 ? 0 : Math.round((n / d) * 1000) / 10);
+
+  // If the campaign has been sent for more than 5 minutes and we
+  // have zero events stored for it, the webhook almost certainly
+  // isn't pointed at us yet. Flag it so the UI can prompt the user
+  // to configure the webhook in the Resend dashboard.
+  const totalEvents = eventRows?.length ?? 0;
+  const ageMs = campaign.sent_at ? Date.now() - new Date(campaign.sent_at).getTime() : 0;
+  const webhookSilent = sentCount > 0 && totalEvents === 0 && ageMs > 5 * 60 * 1000;
 
   return NextResponse.json({
     campaign: {
@@ -191,6 +182,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
       bounceRate: pct(bouncedCount, sentCount),
     },
     recipients: analytics,
-    simulated,
+    simulated: webhookSilent,
+    webhookSilent,
   });
 }

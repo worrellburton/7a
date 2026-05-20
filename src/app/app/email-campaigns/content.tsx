@@ -285,7 +285,11 @@ function CampaignAnalyticsDropdown({ campaignId }: { campaignId: string }) {
     <div className="px-12 py-4 bg-warm-bg/30 border-t border-black/5">
       {data.simulated && (
         <p className="text-[11px] text-amber-900 mb-3" style={{ fontFamily: 'var(--font-body)' }}>
-          RESEND_API_KEY is not configured, showing DB-only data (no live open / click counts).
+          No Resend webhook events have arrived for this campaign yet. Add a webhook in
+          {' '}<a className="underline" href="https://resend.com/webhooks" target="_blank" rel="noopener">resend.com/webhooks</a>{' '}
+          pointing at <code className="font-mono">/api/email-campaigns/webhook</code>, copy the
+          Signing Secret into the <code className="font-mono">RESEND_WEBHOOK_SECRET</code> env var,
+          and make sure Open + Click tracking are turned on for your sending domain in Resend → Domains.
         </p>
       )}
 
