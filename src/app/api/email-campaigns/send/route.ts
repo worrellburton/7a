@@ -87,7 +87,7 @@ export async function POST(req: NextRequest) {
   await supabase.from('email_campaigns').update({ status: 'sending' }).eq('id', campaignId);
 
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM || DEFAULT_FROM;
+  const from = normalizeFrom(process.env.EMAIL_FROM || DEFAULT_FROM);
   const simulated = !apiKey;
 
   let sent = 0;
@@ -196,4 +196,21 @@ export async function POST(req: NextRequest) {
     .eq('id', campaignId);
 
   return NextResponse.json({ ok: true, sent, failed, simulated });
+}
+
+// Vercel's "Sensitive" env-var editor sometimes stores spaces as
+// underscores in display names (we've seen "Seven_Arrows_Recovery
+// <hello@…>" round-trip from copy-paste). That's harmless to the
+// SMTP envelope but recipients see the ugly underscore name in
+// their inbox. Normalize: any run of underscores in the part of
+// the header BEFORE the first "<" becomes a single space. Email
+// addresses inside the angle brackets are left untouched so a
+// real underscore-bearing local-part (rare but legal) survives.
+function normalizeFrom(raw: string): string {
+  const trimmed = raw.trim();
+  const angle = trimmed.indexOf('<');
+  if (angle === -1) return trimmed;
+  const namePart = trimmed.slice(0, angle).replace(/_+/g, ' ').replace(/\s+/g, ' ').trim();
+  const addrPart = trimmed.slice(angle);
+  return namePart ? `${namePart} ${addrPart}` : addrPart;
 }
