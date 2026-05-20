@@ -25,7 +25,9 @@ interface CampaignRow {
   image_urls: string[];
   use_logos: boolean;
   link_to_website: boolean;
+  include_phone: boolean;
   featured_blog_id: string | null;
+  featured_equine_id: string | null;
   featured_employee_id: string | null;
 }
 
@@ -53,7 +55,7 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 export default function FinalizeContent({ campaignId }: { campaignId: string }) {
-  const { session } = useAuth();
+  const { session, isSuperAdmin } = useAuth();
   const [campaign, setCampaign] = useState<CampaignRow | null>(null);
   const [recipients, setRecipients] = useState<DisplayRecipient[]>([]);
   const [iterateNote, setIterateNote] = useState('');
@@ -65,7 +67,7 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
   const refresh = async () => {
     const [campaignRes, recipientsRes] = await Promise.all([
       supabase.from('email_campaigns')
-        .select('id, generated_html, generated_subject, status, sent_at, prompt, image_urls, use_logos, link_to_website, featured_blog_id, featured_employee_id')
+        .select('id, generated_html, generated_subject, status, sent_at, prompt, image_urls, use_logos, link_to_website, include_phone, featured_blog_id, featured_employee_id, featured_equine_id')
         .eq('id', campaignId)
         .maybeSingle(),
       supabase.from('email_campaign_recipients')
@@ -114,7 +116,9 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
           imageUrls: campaign.image_urls,
           useLogos: campaign.use_logos,
           linkToWebsite: campaign.link_to_website,
+          includePhone: campaign.include_phone,
           featuredBlogId: campaign.featured_blog_id,
+          featuredEquineId: campaign.featured_equine_id,
           featuredEmployeeId: campaign.featured_employee_id,
           previousHtml: campaign.generated_html,
           iterationNote: iterateNote,
@@ -383,6 +387,17 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
 
       {error && <p className="mb-3 text-[12px] text-red-700" role="alert">{error}</p>}
 
+      {!isSent && !isSuperAdmin && (
+        <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-amber-900 mb-1" style={{ fontFamily: 'var(--font-body)' }}>
+            Send blocked
+          </p>
+          <p className="text-[13px] text-amber-900 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+            Only super admins can send email campaigns. You can build, iterate, and queue recipients here, then ask a super admin to hit Send.
+          </p>
+        </div>
+      )}
+
       {!isSent && (
         <div className="flex items-center justify-end gap-2">
           <Link
@@ -394,11 +409,16 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
           <button
             type="button"
             onClick={onSend}
-            disabled={sending || recipients.length === 0}
-            className="px-5 py-2.5 rounded-md bg-primary text-white text-[12.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50"
+            disabled={sending || recipients.length === 0 || !isSuperAdmin}
+            title={!isSuperAdmin ? 'Only super admins can send email campaigns.' : undefined}
+            className="px-5 py-2.5 rounded-md bg-primary text-white text-[12.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            {sending ? 'Sending…' : `Send to ${recipients.length}`}
+            {sending
+              ? 'Sending…'
+              : !isSuperAdmin
+              ? 'Send (super admins only)'
+              : `Send to ${recipients.length}`}
           </button>
         </div>
       )}

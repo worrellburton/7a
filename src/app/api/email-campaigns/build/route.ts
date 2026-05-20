@@ -34,8 +34,10 @@ interface BuildBody {
   imageUrls?: unknown;
   useLogos?: unknown;
   linkToWebsite?: unknown;
+  includePhone?: unknown;
   featuredBlogId?: unknown;
   featuredEmployeeId?: unknown;
+  featuredEquineId?: unknown;
   previousHtml?: unknown;
   iterationNote?: unknown;
   // Optional pre-drafted text payload from /api/email-campaigns/
@@ -43,6 +45,8 @@ interface BuildBody {
   // focus entirely on the visual design.
   draftText?: unknown;
 }
+
+const ADMISSIONS_PHONE = '(866) 718-1665';
 
 interface DraftTextPayload {
   headline?: string;
@@ -70,8 +74,10 @@ export async function POST(req: NextRequest) {
     : [];
   const useLogos = !!body.useLogos;
   const linkToWebsite = !!body.linkToWebsite;
+  const includePhone = !!body.includePhone;
   const featuredBlogId = typeof body.featuredBlogId === 'string' ? body.featuredBlogId : null;
   const featuredEmployeeId = typeof body.featuredEmployeeId === 'string' ? body.featuredEmployeeId : null;
+  const featuredEquineId = typeof body.featuredEquineId === 'string' ? body.featuredEquineId : null;
   const previousHtml = typeof body.previousHtml === 'string' ? body.previousHtml : null;
   const iterationNote = typeof body.iterationNote === 'string' ? body.iterationNote.trim().slice(0, 1500) : null;
   const draftText = (body.draftText && typeof body.draftText === 'object')
@@ -84,7 +90,7 @@ export async function POST(req: NextRequest) {
   // visually pulls from the blog's own art instead of the
   // marketer's general library.
   const supabase = getAdminSupabase();
-  const [blogRes, empRes, blogImagesRes] = await Promise.all([
+  const [blogRes, empRes, blogImagesRes, horseRes] = await Promise.all([
     featuredBlogId
       ? supabase.from('blogs').select('id, title, slug, body_markdown').eq('id', featuredBlogId).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -94,11 +100,16 @@ export async function POST(req: NextRequest) {
     featuredBlogId
       ? supabase.from('blog_images').select('url, alt, position').eq('blog_id', featuredBlogId).order('position', { ascending: true })
       : Promise.resolve({ data: [] }),
+    featuredEquineId
+      ? supabase.from('equine').select('id, name, image_url, works_in, notes, gallery_urls').eq('id', featuredEquineId).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
   const blog = (blogRes as { data: { title: string; slug: string | null; body_markdown?: string | null } | null }).data;
   const emp = (empRes as { data: { full_name: string; job_title: string | null; avatar_url: string | null; public_slug: string | null; bio?: string | null } | null }).data;
   const blogImages = ((blogImagesRes as { data: Array<{ url: string; alt: string | null; position: number }> | null }).data ?? []);
+  const horse = (horseRes as { data: { name: string; image_url: string | null; works_in: string | null; notes: string | null; gallery_urls: string[] | null } | null }).data;
   const blogSummary = blog?.body_markdown ? blog.body_markdown.replace(/[#*_>`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 400) : '';
+  const horseNotes = horse?.notes ? horse.notes.replace(/\s+/g, ' ').trim().slice(0, 400) : '';
 
   const blogUrl = blog?.slug ? `${SITE_URL}who-we-are/blog/${blog.slug}` : null;
   const empUrl = emp?.public_slug ? `${SITE_URL}who-we-are/meet-our-team/${emp.public_slug}` : null;
@@ -162,6 +173,9 @@ If a featured blog is provided, treat it as a magazine "Continue Reading" module
 PILLAR 9 — FEATURED EMPLOYEE CARD
 If a featured employee is provided, render a "Meet the Team" spotlight: small circular avatar (96px) on the left, name in display serif on the right (Meet [Name], 22px), title in uppercase eyebrow underneath, then one line of bio rewritten in your voice. If a public profile URL is present, append "Read more →" in Copper.
 
+PILLAR 9b — FEATURED HORSE CARD
+If a featured horse is provided, render a "From the Herd" spotlight that mirrors the employee card pattern: circular horse photo (96px) on the left, the horse's name in display serif on the right (Meet [Name], 22px), the horse's role in uppercase eyebrow underneath (use the "works in" field), then one short line drawn from the horse's notes, rewritten in your voice. The photo MUST be one of the URLs supplied in FEATURED HORSE photos; never invent or substitute. The herd is a working co-author of the program, not a mascot — keep the copy quiet and grounded, never cute.
+
 PILLAR 10 — FOOTER
 The footer is a quiet, two-line affair: "Seven Arrows Recovery" in display serif italic at 14px Ink, then a single line in eyebrow type with the website URL. Add a single soft rule above the footer (1px Hairline, 56px above and below). No address blob, no social row, no preference link clutter. Restraint is the point.
 
@@ -198,9 +212,14 @@ DESIGN SEED for this build: ${designSeed}. Use it as a tiebreaker when picking b
   if (useLogos) {
     ctxLines.push(`LOGO URL (primary, vertical, transparent): ${LOGO_URL}`);
     ctxLines.push(`LOGO URL (alt, horizontal): ${LOGO_URL_ALT}`);
+    ctxLines.push(`LOGO SIZE: render at 140px wide for the vertical mark (and proportional height) or 220px wide for the horizontal mark. Earlier drafts were rendering it around 64px which was too small. Center it in the header with 24px of padding above and 32px below before the next module.`);
   }
   ctxLines.push(`LINK TO WEBSITE: ${linkToWebsite ? 'yes' : 'no'}`);
   if (linkToWebsite) ctxLines.push(`PRIMARY CTA URL: ${SITE_URL}`);
+  ctxLines.push(`INCLUDE PHONE NUMBER: ${includePhone ? 'yes' : 'no'}`);
+  if (includePhone) {
+    ctxLines.push(`PHONE NUMBER: ${ADMISSIONS_PHONE}. Surface it inside the email as either: (a) a small uppercase eyebrow strip directly under the logo ("ADMISSIONS · (866) 718-1665"), or (b) a quiet line directly under the CTA button ("Or call (866) 718-1665"), tel: link with href="tel:+18667181665". Pick ONE placement, not both. Format as styled text, not a button. Always use the exact format "(866) 718-1665" in the visible copy.`);
+  }
   ctxLines.push(`IMAGES (${imageUrls.length}):\n${imageUrls.length === 0 ? '(none)' : imageUrls.map((u, i) => `  ${i + 1}. ${u}`).join('\n')}`);
   if (blog) {
     ctxLines.push(
@@ -215,6 +234,12 @@ DESIGN SEED for this build: ${designSeed}. Use it as a tiebreaker when picking b
   if (emp) {
     ctxLines.push(
       `FEATURED EMPLOYEE:\n  name: ${emp.full_name}\n  title: ${emp.job_title ?? ''}\n  url: ${empUrl ?? '(no public slug, describe by name only, no link)'}\n  avatar: ${emp.avatar_url ?? ''}\n  bio: ${emp.bio ?? ''}`,
+    );
+  }
+  if (horse) {
+    const horseImageList = [horse.image_url, ...(horse.gallery_urls ?? [])].filter((u): u is string => typeof u === 'string' && u.length > 0);
+    ctxLines.push(
+      `FEATURED HORSE (render a small "Meet the Herd" spotlight card, mirror the employee card pattern but with the horse photo). Treat the horse like a quiet co-author of the story, never as a mascot or cute aside.\n  name: ${horse.name}\n  works in: ${horse.works_in ?? ''}\n  notes: ${horseNotes}\n  photos (use the first one for the card; do not invent others): ${horseImageList.length === 0 ? '(no photo)' : horseImageList.join(' | ')}`,
     );
   }
   if (draftText) {

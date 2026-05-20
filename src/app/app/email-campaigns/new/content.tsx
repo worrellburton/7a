@@ -34,6 +34,12 @@ interface BlogOption {
   id: string;
   title: string;
   slug: string | null;
+  // First blog_images row (lowest position). Used as the cover
+  // image on the picker + the inline FeaturedBlogCard so the
+  // marketer can recognise the post visually before reading the
+  // title.
+  coverImageUrl: string | null;
+  coverImageAlt: string | null;
 }
 
 interface EmployeeOption {
@@ -43,14 +49,25 @@ interface EmployeeOption {
   avatar_url: string | null;
 }
 
+interface HorseOption {
+  id: string;
+  name: string;
+  image_url: string | null;
+  works_in: string | null;
+}
+
 interface CampaignDraft {
   id?: string;
   prompt: string;
   imageUrls: string[];
   useLogos: boolean;
   linkToWebsite: boolean;
+  // Surfaces (866) 718-1665 inside the rendered email when on.
+  // Persisted on email_campaigns.include_phone.
+  includePhone: boolean;
   featuredBlogId: string | null;
   featuredEmployeeId: string | null;
+  featuredEquineId: string | null;
   generatedHtml: string | null;
   generatedSubject: string | null;
 }
@@ -75,16 +92,20 @@ export default function NewEmailCampaignContent() {
     imageUrls: [],
     useLogos: true,
     linkToWebsite: true,
+    includePhone: false,
     featuredBlogId: null,
     featuredEmployeeId: null,
+    featuredEquineId: null,
     generatedHtml: null,
     generatedSubject: null,
   });
   const [libraryAssets, setLibraryAssets] = useState<LibraryImage[]>([]);
   const [blogs, setBlogs] = useState<BlogOption[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
+  const [horses, setHorses] = useState<HorseOption[]>([]);
   const [blogPickerOpen, setBlogPickerOpen] = useState(false);
   const [employeePickerOpen, setEmployeePickerOpen] = useState(false);
+  const [horsePickerOpen, setHorsePickerOpen] = useState(false);
   const [iterateNote, setIterateNote] = useState('');
   const [building, setBuilding] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -106,7 +127,7 @@ export default function NewEmailCampaignContent() {
     void (async () => {
       const { data } = await supabase
         .from('email_campaigns')
-        .select('id, prompt, image_urls, use_logos, link_to_website, featured_blog_id, featured_employee_id, generated_html, generated_subject')
+        .select('id, prompt, image_urls, use_logos, link_to_website, include_phone, featured_blog_id, featured_employee_id, featured_equine_id, generated_html, generated_subject')
         .eq('id', editingId)
         .maybeSingle();
       if (cancelled || !data) return;
@@ -116,8 +137,10 @@ export default function NewEmailCampaignContent() {
         imageUrls: Array.isArray(data.image_urls) ? (data.image_urls as string[]) : [],
         useLogos: !!data.use_logos,
         linkToWebsite: !!data.link_to_website,
+        includePhone: !!data.include_phone,
         featuredBlogId: data.featured_blog_id ?? null,
         featuredEmployeeId: data.featured_employee_id ?? null,
+        featuredEquineId: data.featured_equine_id ?? null,
         generatedHtml: data.generated_html ?? null,
         generatedSubject: data.generated_subject ?? null,
       });
@@ -133,7 +156,7 @@ export default function NewEmailCampaignContent() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [imagesRes, blogsRes, usersRes] = await Promise.all([
+      const [imagesRes, blogsRes, blogImagesRes, usersRes, horsesRes] = await Promise.all([
         supabase.from('site_images')
           .select('id, public_url, filename')
           .order('created_at', { ascending: false })
@@ -142,17 +165,44 @@ export default function NewEmailCampaignContent() {
           .select('id, title, slug')
           .order('created_at', { ascending: false })
           .limit(50),
+        supabase.from('blog_images')
+          .select('blog_id, url, alt, position')
+          .order('position', { ascending: true }),
         supabase.from('users')
           .select('id, full_name, job_title, avatar_url, status')
           .eq('status', 'active')
           .order('full_name', { ascending: true })
           .limit(100),
+        supabase.from('equine')
+          .select('id, name, image_url, works_in')
+          .order('name', { ascending: true })
+          .limit(50),
       ]);
       if (cancelled) return;
       const imageRows = (imagesRes.data ?? []) as Array<{ id: string; public_url: string; filename: string | null }>;
       setLibraryAssets(imageRows.map((r) => ({ id: r.id, url: r.public_url, filename: r.filename })));
-      setBlogs((blogsRes.data ?? []) as BlogOption[]);
+
+      // Build a blog_id → first image map. blog_images is already
+      // sorted by position ascending so the first row we see for a
+      // given blog is its cover.
+      const blogImageRows = (blogImagesRes.data ?? []) as Array<{ blog_id: string; url: string; alt: string | null; position: number }>;
+      const coverByBlogId = new Map<string, { url: string; alt: string | null }>();
+      for (const r of blogImageRows) {
+        if (!coverByBlogId.has(r.blog_id)) coverByBlogId.set(r.blog_id, { url: r.url, alt: r.alt });
+      }
+      const blogRows = (blogsRes.data ?? []) as Array<{ id: string; title: string; slug: string | null }>;
+      setBlogs(blogRows.map((b): BlogOption => {
+        const cover = coverByBlogId.get(b.id);
+        return {
+          id: b.id,
+          title: b.title,
+          slug: b.slug,
+          coverImageUrl: cover?.url ?? null,
+          coverImageAlt: cover?.alt ?? null,
+        };
+      }));
       setEmployees((usersRes.data ?? []) as EmployeeOption[]);
+      setHorses((horsesRes.data ?? []) as HorseOption[]);
     })();
     return () => { cancelled = true; };
   }, []);
@@ -164,6 +214,10 @@ export default function NewEmailCampaignContent() {
   const featuredEmployee = useMemo(
     () => employees.find((e) => e.id === draft.featuredEmployeeId) ?? null,
     [employees, draft.featuredEmployeeId],
+  );
+  const featuredHorse = useMemo(
+    () => horses.find((h) => h.id === draft.featuredEquineId) ?? null,
+    [horses, draft.featuredEquineId],
   );
 
   const toggleImage = (url: string) => {
@@ -198,8 +252,10 @@ export default function NewEmailCampaignContent() {
           prompt: draft.prompt,
           useLogos: draft.useLogos,
           linkToWebsite: draft.linkToWebsite,
+          includePhone: draft.includePhone,
           featuredBlogId: draft.featuredBlogId,
           featuredEmployeeId: draft.featuredEmployeeId,
+          featuredEquineId: draft.featuredEquineId,
         }),
       });
       const json = (await res.json().catch(() => ({}))) as Partial<DraftText> & { error?: string };
@@ -241,8 +297,10 @@ export default function NewEmailCampaignContent() {
           imageUrls: draft.imageUrls,
           useLogos: draft.useLogos,
           linkToWebsite: draft.linkToWebsite,
+          includePhone: draft.includePhone,
           featuredBlogId: draft.featuredBlogId,
           featuredEmployeeId: draft.featuredEmployeeId,
+          featuredEquineId: draft.featuredEquineId,
           previousHtml: mode === 'iterate' ? draft.generatedHtml : null,
           iterationNote: mode === 'iterate' ? iterateNote : null,
           // Pass the (possibly edited) draft text so Claude uses the
@@ -281,8 +339,10 @@ export default function NewEmailCampaignContent() {
         image_urls: draft.imageUrls,
         use_logos: draft.useLogos,
         link_to_website: draft.linkToWebsite,
+        include_phone: draft.includePhone,
         featured_blog_id: draft.featuredBlogId,
         featured_employee_id: draft.featuredEmployeeId,
+        featured_equine_id: draft.featuredEquineId,
         generated_html: draft.generatedHtml,
         generated_subject: draft.generatedSubject,
         status: 'recipients',
@@ -490,7 +550,7 @@ export default function NewEmailCampaignContent() {
 
       {/* Toggles */}
       {step === 'info' && (
-      <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <Toggle
           label="Use logos"
           description="Drop the Seven Arrows logo into the email header."
@@ -502,6 +562,12 @@ export default function NewEmailCampaignContent() {
           description="Add a primary CTA button linking to sevenarrowsrecoveryarizona.com."
           on={draft.linkToWebsite}
           onChange={(v) => setDraft((p) => ({ ...p, linkToWebsite: v }))}
+        />
+        <Toggle
+          label="Include phone number"
+          description="Surface (866) 718-1665 inside the email."
+          on={draft.includePhone}
+          onChange={(v) => setDraft((p) => ({ ...p, includePhone: v }))}
         />
       </section>
       )}
@@ -554,6 +620,34 @@ export default function NewEmailCampaignContent() {
         ) : (
           <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
             Optional. Give the email a face. Claude weaves their name + title into the copy.
+          </p>
+        )}
+      </section>
+      )}
+
+      {/* Featured horse */}
+      {step === 'info' && (
+      <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
+        <div className="flex items-baseline justify-between gap-2 flex-wrap mb-2">
+          <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
+            Featured horse
+          </p>
+          <button
+            type="button"
+            onClick={() => setHorsePickerOpen(true)}
+            className="px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+          >
+            {featuredHorse ? 'Change horse' : '+ Feature a horse'}
+          </button>
+        </div>
+        {featuredHorse ? (
+          <FeaturedHorseCard
+            horse={featuredHorse}
+            onClear={() => setDraft((p) => ({ ...p, featuredEquineId: null }))}
+          />
+        ) : (
+          <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
+            Optional. Spotlight a member of the herd. Claude works the horse's name into the copy and uses the herd photo.
           </p>
         )}
       </section>
@@ -699,6 +793,17 @@ export default function NewEmailCampaignContent() {
           onClose={() => setEmployeePickerOpen(false)}
         />
       )}
+      {horsePickerOpen && (
+        <HorsePicker
+          horses={horses}
+          selectedId={draft.featuredEquineId}
+          onSelect={(id) => {
+            setDraft((p) => ({ ...p, featuredEquineId: id }));
+            setHorsePickerOpen(false);
+          }}
+          onClose={() => setHorsePickerOpen(false)}
+        />
+      )}
     </div>
   );
 }
@@ -734,9 +839,18 @@ function Toggle({
 function FeaturedBlogCard({ blog, onClear }: { blog: BlogOption; onClear: () => void }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
-      <div className="w-14 h-14 rounded-md bg-warm-bg/60 border border-black/10 flex items-center justify-center text-foreground/35 text-[10px]">
-        Blog
-      </div>
+      {blog.coverImageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={blog.coverImageUrl}
+          alt={blog.coverImageAlt ?? ''}
+          className="w-14 h-14 rounded-md object-cover border border-black/10 shrink-0"
+        />
+      ) : (
+        <div className="w-14 h-14 rounded-md bg-warm-bg/60 border border-black/10 flex items-center justify-center text-foreground/35 text-[10px] shrink-0">
+          Blog
+        </div>
+      )}
       <div className="flex-1 min-w-0">
         <p className="text-[12.5px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{blog.title}</p>
         {blog.slug && (
@@ -835,9 +949,18 @@ function BlogPicker({ blogs, selectedId, onSelect, onClose }: {
                   onClick={() => onSelect(b.id)}
                   className={`w-full flex items-center gap-3 rounded-xl border p-2.5 text-left transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-black/10 bg-white hover:bg-warm-bg/40'}`}
                 >
-                  <div className="w-12 h-12 rounded-md bg-warm-bg/60 border border-black/10 shrink-0 flex items-center justify-center text-foreground/35 text-[10px]">
-                    Blog
-                  </div>
+                  {b.coverImageUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={b.coverImageUrl}
+                      alt={b.coverImageAlt ?? ''}
+                      className="w-12 h-12 rounded-md object-cover border border-black/10 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-md bg-warm-bg/60 border border-black/10 shrink-0 flex items-center justify-center text-foreground/35 text-[10px]">
+                      Blog
+                    </div>
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="text-[12.5px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{b.title}</p>
                     {b.slug && (
@@ -905,6 +1028,85 @@ function EmployeePicker({ employees, selectedId, onSelect, onClose }: {
           );
         })}
       </ul>
+    </ModalShell>
+  );
+}
+
+function FeaturedHorseCard({ horse, onClear }: { horse: HorseOption; onClear: () => void }) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+      {horse.image_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={horse.image_url}
+          alt={horse.name}
+          className="w-14 h-14 rounded-full object-cover border border-black/10 shrink-0"
+        />
+      ) : (
+        <div className="w-14 h-14 rounded-full bg-warm-bg/60 border border-black/10 shrink-0" />
+      )}
+      <div className="flex-1 min-w-0">
+        <p className="text-[12.5px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{horse.name}</p>
+        {horse.works_in && (
+          <p className="text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>{horse.works_in}</p>
+        )}
+      </div>
+      <button
+        type="button"
+        onClick={onClear}
+        className="text-[11px] text-foreground/55 hover:text-foreground"
+      >
+        Remove
+      </button>
+    </div>
+  );
+}
+
+function HorsePicker({ horses, selectedId, onSelect, onClose }: {
+  horses: HorseOption[];
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  onClose: () => void;
+}) {
+  return (
+    <ModalShell title="Feature a horse" subtitle={`${horses.length} in the herd.`} onClose={onClose}>
+      {horses.length === 0 ? (
+        <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
+          No horses yet. Add one from /app/equine first.
+        </p>
+      ) : (
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {horses.map((h) => {
+            const isSelected = h.id === selectedId;
+            return (
+              <li key={h.id}>
+                <button
+                  type="button"
+                  onClick={() => onSelect(h.id)}
+                  className={`w-full flex items-center gap-3 rounded-xl border p-2.5 text-left transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-black/10 bg-white hover:bg-warm-bg/40'}`}
+                >
+                  {h.image_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={h.image_url}
+                      alt={h.name}
+                      className="w-12 h-12 rounded-full object-cover border border-black/10 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-warm-bg/60 border border-black/10 shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[12.5px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{h.name}</p>
+                    {h.works_in && (
+                      <p className="text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>{h.works_in}</p>
+                    )}
+                  </div>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </ModalShell>
   );
 }

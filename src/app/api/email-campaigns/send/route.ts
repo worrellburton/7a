@@ -37,6 +37,25 @@ export async function POST(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  // Sending fans out to live contact email addresses under the Seven
+  // Arrows brand, so the surface is gated to super admins. Regular
+  // admins can still build / iterate / pick recipients; only the
+  // final send button hits this route.
+  {
+    const admin = getAdminSupabase();
+    const { data: userRow } = await admin
+      .from('users')
+      .select('is_super_admin')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (userRow?.is_super_admin !== true) {
+      return NextResponse.json(
+        { error: 'Only super admins can send email campaigns.' },
+        { status: 403 },
+      );
+    }
+  }
+
   const body = (await req.json().catch(() => ({}))) as SendBody;
   const campaignId = typeof body.campaignId === 'string' ? body.campaignId : null;
   if (!campaignId) return NextResponse.json({ error: 'Missing campaignId.' }, { status: 400 });

@@ -25,9 +25,13 @@ interface DraftBody {
   prompt?: unknown;
   useLogos?: unknown;
   linkToWebsite?: unknown;
+  includePhone?: unknown;
   featuredBlogId?: unknown;
   featuredEmployeeId?: unknown;
+  featuredEquineId?: unknown;
 }
+
+const ADMISSIONS_PHONE = '(866) 718-1665';
 
 export async function POST(req: NextRequest) {
   const user = await getUserFromRequest(req);
@@ -41,27 +45,36 @@ export async function POST(req: NextRequest) {
   const body = (await req.json().catch(() => ({}))) as DraftBody;
   const prompt = typeof body.prompt === 'string' ? body.prompt.trim().slice(0, 4000) : '';
   const linkToWebsite = !!body.linkToWebsite;
+  const includePhone = !!body.includePhone;
   const featuredBlogId = typeof body.featuredBlogId === 'string' ? body.featuredBlogId : null;
   const featuredEmployeeId = typeof body.featuredEmployeeId === 'string' ? body.featuredEmployeeId : null;
+  const featuredEquineId = typeof body.featuredEquineId === 'string' ? body.featuredEquineId : null;
 
   const supabase = getAdminSupabase();
-  const [blogRes, empRes] = await Promise.all([
+  const [blogRes, empRes, horseRes] = await Promise.all([
     featuredBlogId
       ? supabase.from('blogs').select('title, slug, body_markdown').eq('id', featuredBlogId).maybeSingle()
       : Promise.resolve({ data: null }),
     featuredEmployeeId
       ? supabase.from('users').select('full_name, job_title, public_slug, bio').eq('id', featuredEmployeeId).maybeSingle()
       : Promise.resolve({ data: null }),
+    featuredEquineId
+      ? supabase.from('equine').select('name, works_in, notes').eq('id', featuredEquineId).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
   const blog = (blogRes as { data: { title: string; slug: string | null; body_markdown?: string | null } | null }).data;
   const emp = (empRes as { data: { full_name: string; job_title: string | null; public_slug: string | null; bio?: string | null } | null }).data;
+  const horse = (horseRes as { data: { name: string; works_in: string | null; notes: string | null } | null }).data;
   const blogSummary = blog?.body_markdown ? blog.body_markdown.replace(/[#*_>`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 600) : '';
+  const horseNotes = horse?.notes ? horse.notes.replace(/\s+/g, ' ').trim().slice(0, 400) : '';
 
   const ctxLines: string[] = [];
   ctxLines.push(`AUTHOR BRIEF:\n${prompt || '(none, write a tasteful general update from the program)'}`);
   ctxLines.push(`LINK TO WEBSITE CTA: ${linkToWebsite ? `yes (goes to ${SITE_URL})` : 'no'}`);
+  ctxLines.push(`INCLUDE PHONE NUMBER: ${includePhone ? `yes — ${ADMISSIONS_PHONE} (mention it once, naturally, in the body or postscript)` : 'no'}`);
   if (blog) ctxLines.push(`FEATURED BLOG:\n  title: ${blog.title}\n  url: ${blog.slug ? `${SITE_URL}who-we-are/blog/${blog.slug}` : '(no link)'}\n  summary: ${blogSummary}`);
   if (emp) ctxLines.push(`FEATURED EMPLOYEE:\n  name: ${emp.full_name}\n  title: ${emp.job_title ?? ''}\n  url: ${emp.public_slug ? `${SITE_URL}who-we-are/meet-our-team/${emp.public_slug}` : '(no link)'}\n  bio: ${emp.bio ?? ''}`);
+  if (horse) ctxLines.push(`FEATURED HORSE (work the horse's name + role into one paragraph; never reduce to mascot status):\n  name: ${horse.name}\n  works in: ${horse.works_in ?? ''}\n  notes: ${horseNotes}`);
 
   const systemPrompt = `You are the senior copy lead for Seven Arrows Recovery, a residential addiction-treatment ranch in Arizona using trauma-informed, equine-assisted, polyvagal-informed care.
 
