@@ -179,6 +179,17 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M8.05 12.95 15.95 17.55" />
     </svg>
   ),
+  // Email Campaigns — envelope with a small sparkle in the corner so
+  // the icon reads as "AI-built outbound mail" instead of a plain
+  // inbox glyph (which would collide visually with Notes / website
+  // requests).
+  '/app/email-campaigns': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3 7 9 6 9-6" />
+      <path d="M19 3v2M21 4h-2" />
+    </svg>
+  ),
   // Connect-4 — a 3-column board glyph with one filled chip,
   // signalling "play / game" without leaning on a generic
   // gamepad icon that would clash with the otherwise hand-drawn

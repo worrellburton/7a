@@ -88,6 +88,10 @@ const defaultPages: PageConfig[] = [
   // is_super_admin check inside the page + every /api/content/*
   // route via requireSuperAdmin.
   { path: '/app/content', label: 'Content', adminOnly: true, section: 'nav', sort_order: 26, allowedDepartments: [], departmentId: null },
+  // Email Campaigns — marketing-email build → recipients → send.
+  // Lives in the Marketing department group like social-media; not
+  // admin-only since the same marketing folks own the social channel.
+  { path: '/app/email-campaigns', label: 'Email Campaigns', adminOnly: false, section: 'nav', sort_order: 27, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/document-manager', label: 'Document Manager', adminOnly: false, section: 'nav', sort_order: 17, allowedDepartments: [], departmentId: null },
   // Org Chart is now accessed from inside another page (no longer in the popup menu).
   { path: '/app/reviews', label: 'Reviews', adminOnly: true, section: 'popup', sort_order: 6, allowedDepartments: [], departmentId: null },

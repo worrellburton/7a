@@ -2546,9 +2546,9 @@ function CreativeAiPanel() {
 function accountUrlFor(platform: string, handle: string | null): string {
   const h = (handle ?? '').replace(/^@/, '').trim();
   switch (platform) {
-    case 'facebook':   return h ? `https://www.facebook.com/${encodeURIComponent(h)}` : 'https://www.facebook.com/me';
-    case 'instagram':  return h ? `https://www.instagram.com/${encodeURIComponent(h)}/` : 'https://www.instagram.com/';
-    case 'linkedin':   return h ? `https://www.linkedin.com/in/${encodeURIComponent(h)}` : 'https://www.linkedin.com/feed/';
+    case 'facebook':   return h ? `https://www.facebook.com/${encodeURIComponent(h)}` : 'https://www.facebook.com/sevenarrowsrecovery';
+    case 'instagram':  return h ? `https://www.instagram.com/${encodeURIComponent(h)}/` : 'https://www.instagram.com/sevenarrowsrecovery/';
+    case 'linkedin':   return h ? `https://www.linkedin.com/in/${encodeURIComponent(h)}` : 'https://www.linkedin.com/company/sevenarrowsrecovery/';
     case 'twitter':    return h ? `https://twitter.com/${encodeURIComponent(h)}` : 'https://twitter.com/home';
     case 'tiktok':     return h ? `https://www.tiktok.com/@${encodeURIComponent(h)}` : 'https://www.tiktok.com/';
     case 'youtube':    return h ? `https://www.youtube.com/@${encodeURIComponent(h)}` : 'https://studio.youtube.com/';

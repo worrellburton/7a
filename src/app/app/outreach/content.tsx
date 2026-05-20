@@ -14,6 +14,7 @@
 //     _prefs scope='contacts' so the layout is org-wide and live
 //     for every other tab via realtime (Phase 9)
 
+import Link from 'next/link';
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -5980,6 +5981,7 @@ interface ContactLog {
   duration_seconds: number | null;
   transcript_storage_path: string | null;
   transcript_summary: string | null;
+  campaign_id: string | null;
 }
 
 // Format a raw seconds count as "MM:SS" (or "0:30") for the contact-
@@ -6364,9 +6366,21 @@ function HistoryEntry({
           ) : (
             <>
               {log.comments && (
-                <p className="mt-1 text-[12px] text-foreground/75 whitespace-pre-wrap leading-relaxed">
-                  {log.comments}
-                </p>
+                log.campaign_id ? (
+                  // Click-through to the finalize view of the campaign
+                  // that generated this touchpoint, so the admin can
+                  // re-read the exact email the contact received.
+                  <Link
+                    href={`/app/email-campaigns/${log.campaign_id}/finalize`}
+                    className="mt-1 inline-block text-[12px] text-primary hover:text-primary/80 underline decoration-primary/30 hover:decoration-primary/60 underline-offset-2 leading-relaxed"
+                  >
+                    {log.comments}
+                  </Link>
+                ) : (
+                  <p className="mt-1 text-[12px] text-foreground/75 whitespace-pre-wrap leading-relaxed">
+                    {log.comments}
+                  </p>
+                )
               )}
               {(log.transcript_summary || log.transcript_storage_path) && (
                 <TranscriptBlock
