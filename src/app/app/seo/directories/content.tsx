@@ -4071,9 +4071,14 @@ export default function DirectoriesContent() {
     return () => window.removeEventListener('keydown', onKey);
   }, [openChat]);
 
-  // Saving a live URL implies "we got listed there" — flip the
-  // status to live automatically. Clearing the URL backs the
-  // status down to "to do" so red/empty rows stay honest.
+  // Save just the URL — never touch the status. The status
+  // column is owned by the user (Live / Live but incorrect NAP /
+  // Claim in Process / etc.); pasting or editing a URL on a row
+  // shouldn't override an explicitly-set value (e.g. "Live but
+  // incorrect NAP" or "Claim in Process") with "Live". Status
+  // changes only happen when the user picks one from the
+  // dropdown.
+  //
   // Side effect on save: fire a fire-and-forget POST to
   // /api/seo/actions so the team's central Actions page reflects
   // the listing as completed work. The API upserts on
@@ -4090,7 +4095,6 @@ export default function DirectoriesContent() {
       raw === '' || /^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`;
     setLink(id, trimmed);
     if (trimmed) {
-      setStatus(id, 'live');
       const d = allDirectories.find((x) => x.id === id);
       if (d) {
         const title = `Listed in ${d.name}`;
@@ -4114,8 +4118,6 @@ export default function DirectoriesContent() {
           // an alert here — the local listing save still succeeded.
         });
       }
-    } else if (statusMap[id] === 'live') {
-      setStatus(id, 'todo');
     }
   };
 
