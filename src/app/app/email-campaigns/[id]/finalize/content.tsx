@@ -13,6 +13,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
+import { BuildProgress } from '../../BuildProgress';
 
 interface CampaignRow {
   id: string;
@@ -270,6 +271,7 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
               className="w-full px-3 py-2 rounded-md border border-black/10 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/30"
               style={{ fontFamily: 'var(--font-body)' }}
             />
+            {building && <div className="mt-2"><BuildProgress mode="iterate" /></div>}
             <div className="mt-2 flex items-center justify-end">
               <button
                 type="button"

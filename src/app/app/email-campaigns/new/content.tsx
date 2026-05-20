@@ -22,6 +22,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
+import { BuildProgress } from '../BuildProgress';
 
 interface LibraryImage {
   id: string;
@@ -280,26 +281,27 @@ export default function NewEmailCampaignContent() {
         />
       </section>
 
-      {/* Images */}
+      {/* Images — inline picker. Selected thumbs surface at the top
+          with a removable ✕ overlay; the full library grid sits
+          below so picking + reviewing live on the same scroll. */}
       <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
         <div className="flex items-baseline justify-between gap-2 flex-wrap mb-2">
           <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
-            Images · {draft.imageUrls.length}
+            Images · {draft.imageUrls.length} selected · {libraryAssets.length} in library
           </p>
-          <button
-            type="button"
-            onClick={() => setPickerOpen(true)}
-            className="px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
-          >
-            + Pick from library
-          </button>
+          {draft.imageUrls.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setDraft((p) => ({ ...p, imageUrls: [] }))}
+              className="px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+            >
+              Clear all
+            </button>
+          )}
         </div>
-        {draft.imageUrls.length === 0 ? (
-          <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
-            No images yet. Pick from the library to give Claude something to drop into the email.
-          </p>
-        ) : (
-          <ul className="flex flex-wrap gap-2">
+
+        {draft.imageUrls.length > 0 && (
+          <ul className="flex flex-wrap gap-2 mb-3">
             {draft.imageUrls.map((url) => (
               <li key={url} className="relative w-24 h-24 rounded-lg overflow-hidden border border-black/10">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -316,6 +318,40 @@ export default function NewEmailCampaignContent() {
             ))}
           </ul>
         )}
+
+        <div>
+          <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">
+            Library
+          </p>
+          {libraryAssets.length === 0 ? (
+            <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
+              Library is empty. Upload images via /app/images first.
+            </p>
+          ) : (
+            <ul className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2 max-h-[420px] overflow-y-auto pr-1">
+              {libraryAssets.map((a) => {
+                const isSelected = draft.imageUrls.includes(a.url);
+                return (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      onClick={() => toggleImage(a.url)}
+                      className={`relative w-full aspect-square rounded-md overflow-hidden border-2 transition-all ${isSelected ? 'border-primary ring-2 ring-primary/30' : 'border-black/10 hover:border-primary'}`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={a.url} alt={a.filename ?? ''} className="w-full h-full object-cover" />
+                      {isSelected && (
+                        <span className="absolute top-1 right-1 px-1 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-primary text-white">
+                          Selected
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
       </section>
 
       {/* Toggles */}
@@ -385,16 +421,19 @@ export default function NewEmailCampaignContent() {
 
       {/* Build button */}
       {!draft.generatedHtml && (
-        <div className="flex items-center justify-end mb-4">
-          <button
-            type="button"
-            onClick={() => onBuild('fresh')}
-            disabled={building || !session?.access_token}
-            className="px-5 py-2.5 rounded-md bg-primary text-white text-[12.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50"
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            {building ? 'Building…' : 'Build'}
-          </button>
+        <div className="mb-4">
+          {building && <BuildProgress mode="fresh" />}
+          <div className="flex items-center justify-end">
+            <button
+              type="button"
+              onClick={() => onBuild('fresh')}
+              disabled={building || !session?.access_token}
+              className="px-5 py-2.5 rounded-md bg-primary text-white text-[12.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              {building ? 'Building…' : 'Build'}
+            </button>
+          </div>
         </div>
       )}
 
@@ -442,6 +481,7 @@ export default function NewEmailCampaignContent() {
               className="w-full px-3 py-2 rounded-md border border-black/10 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/30"
               style={{ fontFamily: 'var(--font-body)' }}
             />
+            {building && <div className="mt-2"><BuildProgress mode="iterate" /></div>}
             <div className="mt-2 flex items-center justify-end">
               <button
                 type="button"
