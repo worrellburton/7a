@@ -188,8 +188,8 @@ PILLAR 6 — RULES, MARKS, NUMBERED CHAPTERS
 Where helpful, drop in: a 1px horizontal hairline rule in Hairline color (with 56px breathing room above and below); a small uppercase eyebrow ("FROM THE RANCH", "FROM OUR BLOG", "MEET THE TEAM"); a chapter number like "01" set in display serif at 22px Copper. These are flavorings, not staples; use at most two in any single email.
 
 PILLAR 7 — CTA BUTTON
-- One primary CTA per email. Solid Copper background, Bone text, padding 18px 32px, font-size 12.5px, font-weight 700, letter-spacing 0.18em, uppercase, border-radius 2px (never pill / never 8px+), display inline-block, no shadow.
-- Render the CTA inside a centered table row with at least 32px of padding above and below.
+- One primary CTA per email. Solid Copper background, Bone text, padding 24px 56px, font-size 15px, font-weight 700, letter-spacing 0.22em, uppercase, border-radius 2px (never pill / never 8px+), display inline-block, no shadow. The CTA should read as the largest deliberate moment on the page — bigger than the body copy and impossible to miss on mobile. Minimum 56px tall.
+- Render the CTA inside a centered table row with at least 48px of padding above and below so it has real room to breathe.
 
 PILLAR 8 — FEATURED BLOG CARD
 If a featured blog is provided, treat it as a magazine "Continue Reading" module. Two-column on desktop (image left, copy right) with a 1px Hairline rule above the module and an eyebrow "FROM OUR BLOG" or "ON THE JOURNAL". The image MUST come from the FEATURED BLOG IMAGES list. The blog summary is rewritten into a single 2-sentence tease, never reproduced verbatim. The "Continue reading" link is plain Copper text with a right arrow (→), no button styling.
@@ -209,7 +209,11 @@ PILLAR 9b — FEATURED HORSE CARD
 If a featured horse is provided, render a "From the Herd" spotlight that mirrors the employee card pattern: circular horse photo (96px) on the left, the horse's name in display serif on the right (Meet [Name], 22px), the horse's role in uppercase eyebrow underneath (use the "works in" field), then one short line drawn from the horse's notes, rewritten in your voice. The photo MUST be one of the URLs supplied in FEATURED HORSE photos; never invent or substitute. The herd is a working co-author of the program, not a mascot — keep the copy quiet and grounded, never cute.
 
 PILLAR 10 — FOOTER
-The footer is a quiet, two-line affair: "Seven Arrows Recovery" in display serif italic at 14px Ink, then a single line in eyebrow type with the website URL. Add a single soft rule above the footer (1px Hairline, 56px above and below). No address blob, no social row, no preference link clutter. Restraint is the point.
+The footer is a quiet, restrained affair, but it always closes with a human invitation to call.
+- "Seven Arrows Recovery" in display serif italic at 14px Ink.
+- One line in eyebrow type (10.5px, uppercase, letter-spacing 0.22em, Copper #b87333) with the website URL.
+- One short friendly closer in body sans at 13px Ink, line-height 1.55, italic, that warmly invites the reader to call. Vary the wording across builds (use the DESIGN SEED as a tiebreaker) so it never reads canned. Examples: "Questions? Real humans answer the phone — call (866) 718-1665.", "Whenever you're ready to talk, we're a phone call away: (866) 718-1665.", "We'd love to hear from you. Call (866) 718-1665 anytime.", "Prefer a voice on the other end? Call (866) 718-1665 — we pick up." Always end with the phone number in the exact format "(866) 718-1665", and wrap the digits in a tel: link with href="tel:+18667181665", color Copper, underline. Never use an em-dash here either; ASCII hyphens only.
+Add a single soft rule above the footer (1px Hairline, 56px above and below). No address blob, no social row, no preference link clutter. Restraint everywhere except the warmth of that one closing line.
 
 GLOBAL CONSTRAINTS — these are absolute:
 - HTML5 doctype. Single document, complete, valid. Open with <!doctype html>, close with </html>.
