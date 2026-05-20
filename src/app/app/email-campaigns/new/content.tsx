@@ -55,6 +55,15 @@ interface CampaignDraft {
   generatedSubject: string | null;
 }
 
+interface DraftText {
+  headline: string;
+  body: string;
+  ctaLabel: string;
+  postscript: string;
+}
+
+type BuilderStep = 'info' | 'compose';
+
 export default function NewEmailCampaignContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -74,13 +83,20 @@ export default function NewEmailCampaignContent() {
   const [libraryAssets, setLibraryAssets] = useState<LibraryImage[]>([]);
   const [blogs, setBlogs] = useState<BlogOption[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [blogPickerOpen, setBlogPickerOpen] = useState(false);
   const [employeePickerOpen, setEmployeePickerOpen] = useState(false);
   const [iterateNote, setIterateNote] = useState('');
   const [building, setBuilding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Two-step builder: gather intent first (prompt + toggles + blog +
+  // employee), then on Continue draft the email text + reveal the
+  // image picker + Build. Resuming an existing draft jumps straight
+  // to 'compose'.
+  const [step, setStep] = useState<BuilderStep>('info');
+  const [draftText, setDraftText] = useState<DraftText>({ headline: '', body: '', ctaLabel: '', postscript: '' });
+  const [drafting, setDrafting] = useState(false);
 
   // Hydrate from an existing draft when ?id is set so a marketer
   // can resume a saved campaign without starting over.
@@ -105,6 +121,10 @@ export default function NewEmailCampaignContent() {
         generatedHtml: data.generated_html ?? null,
         generatedSubject: data.generated_subject ?? null,
       });
+      // Resuming a previously-started draft drops straight into the
+      // compose step so the marketer can keep iterating instead of
+      // re-walking the info form.
+      setStep('compose');
     })();
     return () => { cancelled = true; };
   }, [editingId]);
@@ -156,6 +176,51 @@ export default function NewEmailCampaignContent() {
     });
   };
 
+  // Continue: draft the email text from the info inputs and
+  // advance to the compose step. The drafted text is editable on
+  // the same page next to the image picker.
+  const onContinue = async () => {
+    if (!session?.access_token || drafting) return;
+    if (draft.prompt.trim().length === 0) {
+      setError('Type a paragraph describing what the email should say.');
+      return;
+    }
+    setError(null);
+    setDrafting(true);
+    try {
+      const res = await fetch('/api/email-campaigns/draft-text', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          prompt: draft.prompt,
+          useLogos: draft.useLogos,
+          linkToWebsite: draft.linkToWebsite,
+          featuredBlogId: draft.featuredBlogId,
+          featuredEmployeeId: draft.featuredEmployeeId,
+        }),
+      });
+      const json = (await res.json().catch(() => ({}))) as Partial<DraftText> & { error?: string };
+      if (!res.ok || !json.body) {
+        setError(json.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      setDraftText({
+        headline: json.headline ?? '',
+        body: json.body ?? '',
+        ctaLabel: json.ctaLabel ?? '',
+        postscript: json.postscript ?? '',
+      });
+      setStep('compose');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setDrafting(false);
+    }
+  };
+
   const onBuild = async (mode: 'fresh' | 'iterate') => {
     if (!session?.access_token || building) return;
     if (draft.prompt.trim().length === 0 && mode === 'fresh') {
@@ -180,6 +245,9 @@ export default function NewEmailCampaignContent() {
           featuredEmployeeId: draft.featuredEmployeeId,
           previousHtml: mode === 'iterate' ? draft.generatedHtml : null,
           iterationNote: mode === 'iterate' ? iterateNote : null,
+          // Pass the (possibly edited) draft text so Claude uses the
+          // exact copy the marketer signed off on.
+          draftText: mode === 'iterate' ? null : draftText,
         }),
       });
       const json = (await res.json().catch(() => ({}))) as { html?: string; subject?: string; error?: string };
@@ -281,9 +349,74 @@ export default function NewEmailCampaignContent() {
         />
       </section>
 
+      {/* Compose step — text editor first, image picker second.
+          Hidden in the info step so the page stays focused on
+          intent until the marketer hits Continue. */}
+      {step === 'compose' && (
+        <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
+          <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">
+            Email text
+          </p>
+          <p className="text-[11.5px] text-foreground/55 mb-3" style={{ fontFamily: 'var(--font-body)' }}>
+            Drafted from your brief. Edit anything you'd like before building the designed email.
+          </p>
+
+          <label className="block mb-3">
+            <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">Headline</span>
+            <input
+              type="text"
+              value={draftText.headline}
+              onChange={(e) => setDraftText((t) => ({ ...t, headline: e.target.value }))}
+              placeholder="One line headline"
+              className="mt-1 w-full px-3 py-2 rounded-md border border-black/10 text-[14px] font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30"
+              style={{ fontFamily: 'var(--font-body)' }}
+            />
+          </label>
+
+          <label className="block mb-3">
+            <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">Body</span>
+            <textarea
+              value={draftText.body}
+              onChange={(e) => setDraftText((t) => ({ ...t, body: e.target.value }))}
+              rows={8}
+              placeholder="Paragraphs of the email body, blank line between paragraphs."
+              className="mt-1 w-full px-3 py-2 rounded-md border border-black/10 text-[13.5px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/30"
+              style={{ fontFamily: 'var(--font-body)' }}
+            />
+          </label>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-1">
+            <label className="block">
+              <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">CTA label</span>
+              <input
+                type="text"
+                value={draftText.ctaLabel}
+                onChange={(e) => setDraftText((t) => ({ ...t, ctaLabel: e.target.value }))}
+                placeholder={draft.linkToWebsite ? 'e.g. Learn More' : '(no CTA, link to website is off)'}
+                disabled={!draft.linkToWebsite}
+                className="mt-1 w-full px-3 py-2 rounded-md border border-black/10 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50"
+                style={{ fontFamily: 'var(--font-body)' }}
+              />
+            </label>
+            <label className="block">
+              <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">P.S. (optional)</span>
+              <input
+                type="text"
+                value={draftText.postscript}
+                onChange={(e) => setDraftText((t) => ({ ...t, postscript: e.target.value }))}
+                placeholder="Optional one-line P.S."
+                className="mt-1 w-full px-3 py-2 rounded-md border border-black/10 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+                style={{ fontFamily: 'var(--font-body)' }}
+              />
+            </label>
+          </div>
+        </section>
+      )}
+
       {/* Images — inline picker. Selected thumbs surface at the top
           with a removable ✕ overlay; the full library grid sits
           below so picking + reviewing live on the same scroll. */}
+      {step === 'compose' && (
       <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
         <div className="flex items-baseline justify-between gap-2 flex-wrap mb-2">
           <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
@@ -353,8 +486,10 @@ export default function NewEmailCampaignContent() {
           )}
         </div>
       </section>
+      )}
 
       {/* Toggles */}
+      {step === 'info' && (
       <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
         <Toggle
           label="Use logos"
@@ -369,8 +504,10 @@ export default function NewEmailCampaignContent() {
           onChange={(v) => setDraft((p) => ({ ...p, linkToWebsite: v }))}
         />
       </section>
+      )}
 
       {/* Featured blog */}
+      {step === 'info' && (
       <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
         <div className="flex items-baseline justify-between gap-2 flex-wrap mb-2">
           <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
@@ -388,12 +525,14 @@ export default function NewEmailCampaignContent() {
           <FeaturedBlogCard blog={featuredBlog} onClear={() => setDraft((p) => ({ ...p, featuredBlogId: null }))} />
         ) : (
           <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
-            Optional — surface a blog post inside the email so readers have somewhere to land after the CTA.
+            Optional. Surface a blog post inside the email so readers have somewhere to land after the CTA.
           </p>
         )}
       </section>
+      )}
 
       {/* Featured employee */}
+      {step === 'info' && (
       <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
         <div className="flex items-baseline justify-between gap-2 flex-wrap mb-2">
           <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
@@ -414,13 +553,34 @@ export default function NewEmailCampaignContent() {
           />
         ) : (
           <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
-            Optional — give the email a face. Claude weaves their name + title into the copy.
+            Optional. Give the email a face. Claude weaves their name + title into the copy.
           </p>
         )}
       </section>
+      )}
 
-      {/* Build button */}
-      {!draft.generatedHtml && (
+      {/* Continue button — advances from info to compose, drafting
+          the email text via Claude on the way. Shown only on the
+          info step. */}
+      {step === 'info' && (
+        <div className="mb-4 rounded-2xl border border-black/10 bg-white p-4">
+          {drafting && <div className="mb-3"><BuildProgress mode="fresh" /></div>}
+          <div className="flex items-center justify-end">
+            <button
+              type="button"
+              onClick={onContinue}
+              disabled={drafting || !session?.access_token || draft.prompt.trim().length === 0}
+              className="px-5 py-2.5 rounded-md bg-primary text-white text-[12.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              {drafting ? 'Drafting…' : 'Continue →'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Build button — only in the compose step */}
+      {step === 'compose' && !draft.generatedHtml && (
         <div className="mb-4">
           {building && <BuildProgress mode="fresh" />}
           <div className="flex items-center justify-end">
@@ -431,14 +591,14 @@ export default function NewEmailCampaignContent() {
               className="px-5 py-2.5 rounded-md bg-primary text-white text-[12.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              {building ? 'Building…' : 'Build'}
+              {building ? 'Building…' : 'Build email'}
             </button>
           </div>
         </div>
       )}
 
       {/* Preview + iterate */}
-      {draft.generatedHtml && (
+      {step === 'compose' && draft.generatedHtml && (
         <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
           <div className="flex items-baseline justify-between gap-2 flex-wrap mb-2">
             <div>
@@ -517,14 +677,6 @@ export default function NewEmailCampaignContent() {
         </button>
       </div>
 
-      {pickerOpen && (
-        <LibraryPicker
-          assets={libraryAssets}
-          selected={new Set(draft.imageUrls)}
-          onToggle={toggleImage}
-          onClose={() => setPickerOpen(false)}
-        />
-      )}
       {blogPickerOpen && (
         <BlogPicker
           blogs={blogs}
@@ -657,46 +809,6 @@ function ModalShell({ title, subtitle, onClose, children }: {
         <div className="flex-1 overflow-y-auto p-4">{children}</div>
       </div>
     </div>
-  );
-}
-
-function LibraryPicker({ assets, selected, onToggle, onClose }: {
-  assets: LibraryImage[];
-  selected: Set<string>;
-  onToggle: (url: string) => void;
-  onClose: () => void;
-}) {
-  return (
-    <ModalShell title="Pick images from library" subtitle={`${assets.length} image${assets.length === 1 ? '' : 's'}.`} onClose={onClose}>
-      {assets.length === 0 ? (
-        <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
-          Library is empty. Upload images via Images first.
-        </p>
-      ) : (
-        <ul className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
-          {assets.map((a) => {
-            const isSelected = selected.has(a.url);
-            return (
-              <li key={a.id}>
-                <button
-                  type="button"
-                  onClick={() => onToggle(a.url)}
-                  className={`relative w-full aspect-square rounded-md overflow-hidden border-2 transition-all ${isSelected ? 'border-primary ring-2 ring-primary/30' : 'border-black/10 hover:border-primary'}`}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={a.url} alt={a.filename ?? ''} className="w-full h-full object-cover" />
-                  {isSelected && (
-                    <span className="absolute top-1 right-1 px-1 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-primary text-white">
-                      Selected
-                    </span>
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </ModalShell>
   );
 }
 

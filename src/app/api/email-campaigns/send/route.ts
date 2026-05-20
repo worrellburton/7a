@@ -3,21 +3,31 @@ import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 
 // POST /api/email-campaigns/send
 //
-// Phase 10 — fan out the campaign to every pending recipient
-// via Resend's HTTP API. Updates each recipient row with
-// send_status, then flips the campaign row to status='sent'
-// once the loop completes.
+// Phase 10 — fan out the campaign to every pending recipient via
+// Resend's HTTP API. Updates each recipient row with send_status,
+// writes a public.contact_logs entry (method='Email Campaign') so
+// the contact's activity log shows the send, bumps the contact's
+// last_contact_* columns, and flips the campaign row to
+// status='sent' once the loop completes. Every write hits a table
+// that's in the supabase_realtime publication, so any other admin
+// with the page open sees rows arrive live.
 //
-// If RESEND_API_KEY isn't configured we still mark each row
-// as 'sent' so the full UX flow can be exercised, recording
-// `simulated=true` on the audit row. The response includes a
+// If RESEND_API_KEY isn't configured we still mark each row as
+// 'sent' so the full UX flow can be exercised, recording
+// provider='simulated' on the audit row. The response includes a
 // `simulated` flag so the UI can surface this state.
+//
+// Default sender uses Resend's sandbox domain (onboarding@resend.dev)
+// so sends work out of the box. Set EMAIL_FROM to a verified Resend
+// sender ("Seven Arrows Recovery <hello@sevenarrowsrecoveryarizona.com>",
+// etc.) once you've verified the domain in https://resend.com/domains.
 //
 // Required env (real send): RESEND_API_KEY
 // Optional env: EMAIL_FROM (defaults to
-//   "Seven Arrows Recovery <hello@sevenarrowsrecoveryarizona.com>")
+//   "Seven Arrows Recovery <onboarding@resend.dev>")
 
 const RESEND_URL = 'https://api.resend.com/emails';
+const DEFAULT_FROM = 'Seven Arrows Recovery <onboarding@resend.dev>';
 
 interface SendBody {
   campaignId?: unknown;
@@ -46,11 +56,11 @@ export async function POST(req: NextRequest) {
 
   const { data: recipientRows, error: recErr } = await supabase
     .from('email_campaign_recipients')
-    .select('id, email, send_status')
+    .select('id, email, send_status, contact_id')
     .eq('campaign_id', campaignId)
     .eq('send_status', 'pending');
   if (recErr) return NextResponse.json({ error: recErr.message }, { status: 500 });
-  const recipients = (recipientRows ?? []) as Array<{ id: string; email: string; send_status: string }>;
+  const recipients = (recipientRows ?? []) as Array<{ id: string; email: string; send_status: string; contact_id: string }>;
   if (recipients.length === 0) {
     return NextResponse.json({ ok: true, sent: 0, failed: 0, simulated: false, note: 'No pending recipients.' });
   }
@@ -58,7 +68,7 @@ export async function POST(req: NextRequest) {
   await supabase.from('email_campaigns').update({ status: 'sending' }).eq('id', campaignId);
 
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM || 'Seven Arrows Recovery <hello@sevenarrowsrecoveryarizona.com>';
+  const from = process.env.EMAIL_FROM || DEFAULT_FROM;
   const simulated = !apiKey;
 
   let sent = 0;
@@ -109,11 +119,12 @@ export async function POST(req: NextRequest) {
 
     if (ok) sent += 1; else failed += 1;
 
+    const nowIso = new Date().toISOString();
     await supabase.from('email_campaign_recipients')
       .update({
         send_status: ok ? 'sent' : 'failed',
         send_error: errText,
-        sent_at: ok ? new Date().toISOString() : null,
+        sent_at: ok ? nowIso : null,
       })
       .eq('id', r.id);
 
@@ -126,6 +137,31 @@ export async function POST(req: NextRequest) {
       status_code: statusCode,
       response: responseText,
     });
+
+    // Write a contact-side log entry so the contact's activity
+    // stream shows the email, and bump the denormalized
+    // last_contact_* columns the outreach grid reads. Skipped
+    // on a failed send so we don't claim contact happened.
+    if (ok) {
+      const comment = simulated
+        ? `Sent email campaign (simulated): ${campaign.generated_subject}`
+        : `Sent email campaign: ${campaign.generated_subject}`;
+      await supabase.from('contact_logs').insert({
+        contact_id: r.contact_id,
+        method: 'Email Campaign',
+        comments: comment,
+        contacted_by: user.id,
+        contacted_at: nowIso,
+      });
+      await supabase.from('contacts')
+        .update({
+          last_contact_at: nowIso,
+          last_contact_by: user.id,
+          last_contact_method: 'Email Campaign',
+          last_contact_comments: comment,
+        })
+        .eq('id', r.contact_id);
+    }
   }
 
   const finalStatus = failed === 0 ? 'sent' : sent > 0 ? 'sent' : 'failed';
