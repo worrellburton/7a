@@ -87,7 +87,16 @@ export async function POST(req: NextRequest) {
   await supabase.from('email_campaigns').update({ status: 'sending' }).eq('id', campaignId);
 
   const apiKey = process.env.RESEND_API_KEY;
-  const from = normalizeFrom(process.env.EMAIL_FROM || DEFAULT_FROM);
+  // RESEND_FROM is the canonical name (matches what Resend's own
+  // dashboard/docs use); EMAIL_FROM is kept as a fallback for older
+  // configs. Falls all the way back to onboarding@resend.dev so a
+  // dev environment without a verified domain can still send.
+  const from = normalizeFrom(process.env.RESEND_FROM || process.env.EMAIL_FROM || DEFAULT_FROM);
+  // Reply-To: where replies actually land. Defaults to the same
+  // mailbox as From if not set; the From display name is stripped
+  // since Resend expects a bare address in reply_to.
+  const replyToRaw = process.env.RESEND_REPLY_TO || process.env.EMAIL_REPLY_TO;
+  const replyTo = replyToRaw ? stripDisplayName(replyToRaw) : stripDisplayName(from);
   const simulated = !apiKey;
 
   let sent = 0;
@@ -116,6 +125,7 @@ export async function POST(req: NextRequest) {
             to: [r.email],
             subject: campaign.generated_subject,
             html: campaign.generated_html,
+            reply_to: replyTo,
           }),
         });
         statusCode = res.status;
@@ -213,4 +223,16 @@ function normalizeFrom(raw: string): string {
   const namePart = trimmed.slice(0, angle).replace(/_+/g, ' ').replace(/\s+/g, ' ').trim();
   const addrPart = trimmed.slice(angle);
   return namePart ? `${namePart} ${addrPart}` : addrPart;
+}
+
+// Resend's `reply_to` field expects a bare email address (no
+// display name, no angle brackets). Accepts either an already-bare
+// address or a "Name <addr@host>" string and returns just the
+// address.
+function stripDisplayName(raw: string): string {
+  const trimmed = raw.trim();
+  const open = trimmed.indexOf('<');
+  const close = trimmed.lastIndexOf('>');
+  if (open !== -1 && close > open) return trimmed.slice(open + 1, close).trim();
+  return trimmed;
 }
