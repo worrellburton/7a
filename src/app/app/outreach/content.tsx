@@ -5540,7 +5540,7 @@ function SuggestWithClaudeModal({
             <SparkleIcon />
           </span>
           <p className="text-[13px] font-semibold text-foreground">Claude is researching…</p>
-          <p className="text-[11px] text-foreground/55">Cross-referencing the existing roster and drafting candidates. Takes ~10–20 seconds.</p>
+          <p className="text-[11px] text-foreground/55">Cross-referencing the existing roster and drafting candidates. Hang tight — this usually takes a minute.</p>
         </div>
       )}
 
