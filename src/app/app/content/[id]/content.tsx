@@ -645,7 +645,7 @@ function ImagesPanel({ blog, images, token, onChange }: { blog: DbBlog; images: 
 
       {!generating && (
         <p className="text-[12px] text-foreground/55 mb-3">
-          Pick <strong>exactly 7</strong> images across both tabs. Currently selected: <strong>{selected.size}/7</strong>.
+          Pick <strong>4 to 7</strong> images across both tabs. Currently selected: <strong>{selected.size}/7</strong>.
         </p>
       )}
 
@@ -732,13 +732,19 @@ function ImagesPanel({ blog, images, token, onChange }: { blog: DbBlog; images: 
         <button
           type="button"
           onClick={saveSelection}
-          disabled={busy || selected.size !== 7}
+          disabled={busy || selected.size < 4}
           className="px-3 py-1.5 rounded-md bg-foreground text-white text-[11.5px] font-semibold disabled:opacity-50"
-          title={selected.size === 7 ? 'Save selection' : 'Select 7 to enable'}
+          title={selected.size >= 4 ? 'Save selection' : 'Pick at least 4 to enable'}
         >
           {busy ? 'Saving…' : 'Save selection'}
         </button>
-        <span className="text-[11px] text-foreground/45">{selected.size === 7 ? 'Ready to build.' : `${7 - selected.size} more to pick.`}</span>
+        <span className="text-[11px] text-foreground/45">
+          {selected.size >= 4
+            ? selected.size === 7
+              ? 'Ready to build.'
+              : `Ready to build with ${selected.size}. ${7 - selected.size} more if you want a full set.`
+            : `${4 - selected.size} more to pick (minimum 4).`}
+        </span>
       </div>
     </Panel>
   );

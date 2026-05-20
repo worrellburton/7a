@@ -33,6 +33,7 @@ interface ContactLite {
   last_contact_at: string | null;
   formatted_address: string | null;
   location: string | null;
+  email: string | null;
 }
 interface UserLite {
   id: string;
@@ -103,7 +104,7 @@ export async function GET(req: NextRequest) {
   // window above.
   const { data: contacts, error: cErr } = await admin
     .from('contacts')
-    .select('id, last_contact_at, formatted_address, location');
+    .select('id, last_contact_at, formatted_address, location, email');
   if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
   const contactList = (contacts ?? []) as ContactLite[];
   const byId = new Map<string, ContactLite>();
@@ -113,7 +114,9 @@ export async function GET(req: NextRequest) {
   let month = 0;
   let total = 0;
   let never = 0;
+  let missingEmail = 0;
   for (const c of contactList) {
+    if (!(c.email && c.email.trim())) missingEmail += 1;
     if (!c.last_contact_at) { never += 1; continue; }
     total += 1;
     const t = new Date(c.last_contact_at).getTime();
@@ -158,7 +161,7 @@ export async function GET(req: NextRequest) {
   const monthBoard = leaderboardFor(rows, usersMap, monthCut);
 
   return NextResponse.json({
-    counts: { week, month, total, never },
+    counts: { week, month, total, never, missingEmail },
     today: { areas, leaderboard: today },
     week: { leaderboard: weekBoard },
     month: { leaderboard: monthBoard },

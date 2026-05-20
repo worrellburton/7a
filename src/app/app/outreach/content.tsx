@@ -712,14 +712,16 @@ export default function ContactsContent() {
     let month = 0;
     let total = 0;
     let never = 0;
+    let missingEmail = 0;
     for (const r of rows) {
+      if (!(r.email && r.email.trim())) missingEmail += 1;
       if (!r.last_contact_at) { never += 1; continue; }
       total += 1;
       const age = now - new Date(r.last_contact_at).getTime();
       if (age <= weekMs) week += 1;
       if (age <= monthMs) month += 1;
     }
-    return { week, month, total, never };
+    return { week, month, total, never, missingEmail };
   }, [rows]);
 
   // Helper used by both the sort and the row renderer: a contact is
@@ -3772,12 +3774,16 @@ function InsightTile({
 }: {
   label: string;
   value: number;
-  tone: 'fresh' | 'cooling' | 'stale' | 'neutral';
+  tone: 'fresh' | 'cooling' | 'stale' | 'neutral' | 'missing';
 }) {
+  // 'missing' = data-quality gap (e.g. contacts without an email
+  // address). Slate-grey so it reads as a clean-up task, not as
+  // alarming red — there's nothing wrong, just something to tidy.
   const toneCx =
     tone === 'fresh' ? 'text-emerald-700' :
     tone === 'cooling' ? 'text-amber-700' :
     tone === 'stale' ? 'text-rose-700' :
+    tone === 'missing' ? 'text-slate-600' :
     'text-foreground/85';
   return (
     <div className="min-w-0">
@@ -3795,7 +3801,7 @@ function InsightTile({
 // either "who logged the most touches?" or "who spent the most time
 // in conversation?".
 interface InsightsPayload {
-  counts: { week: number; month: number; total: number; never: number };
+  counts: { week: number; month: number; total: number; never: number; missingEmail?: number };
   today: {
     areas: { area: string; count: number }[];
     leaderboard: { userId: string; name: string; avatarUrl: string | null; logs: number; durationSeconds: number }[];
@@ -3813,7 +3819,7 @@ function fmtTotalDuration(seconds: number): string {
   return `${h}h ${m}m`;
 }
 
-function InsightsCard({ fallback }: { fallback: { week: number; month: number; total: number; never: number } }) {
+function InsightsCard({ fallback }: { fallback: { week: number; month: number; total: number; never: number; missingEmail: number } }) {
   const [data, setData] = useState<InsightsPayload | null>(null);
   const [mode, setMode] = useState<'logs' | 'duration'>('logs');
 
@@ -3835,11 +3841,12 @@ function InsightsCard({ fallback }: { fallback: { week: number; month: number; t
   return (
     <div className="mb-4 rounded-xl border border-black/10 bg-white overflow-hidden">
       {/* Pipeline counters */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 px-4 py-3 border-b border-black/5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 px-4 py-3 border-b border-black/5">
         <InsightTile label="Contacted this week" value={counts.week} tone="fresh" />
         <InsightTile label="Contacted this month" value={counts.month} tone="cooling" />
         <InsightTile label="Total contacted" value={counts.total} tone="neutral" />
         <InsightTile label="Never contacted" value={counts.never} tone="stale" />
+        <InsightTile label="Missing email" value={counts.missingEmail ?? 0} tone="missing" />
       </div>
 
       {/* Areas touched today */}
