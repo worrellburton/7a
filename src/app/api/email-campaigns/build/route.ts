@@ -35,6 +35,7 @@ interface BuildBody {
   useLogos?: unknown;
   linkToWebsite?: unknown;
   includePhone?: unknown;
+  includeQuote?: unknown;
   featuredBlogId?: unknown;
   featuredEmployeeId?: unknown;
   featuredEquineId?: unknown;
@@ -75,6 +76,7 @@ export async function POST(req: NextRequest) {
   const useLogos = !!body.useLogos;
   const linkToWebsite = !!body.linkToWebsite;
   const includePhone = !!body.includePhone;
+  const includeQuote = !!body.includeQuote;
   const featuredBlogId = typeof body.featuredBlogId === 'string' ? body.featuredBlogId : null;
   const featuredEmployeeId = typeof body.featuredEmployeeId === 'string' ? body.featuredEmployeeId : null;
   const featuredEquineId = typeof body.featuredEquineId === 'string' ? body.featuredEquineId : null;
@@ -90,7 +92,7 @@ export async function POST(req: NextRequest) {
   // visually pulls from the blog's own art instead of the
   // marketer's general library.
   const supabase = getAdminSupabase();
-  const [blogRes, empRes, blogImagesRes, horseRes] = await Promise.all([
+  const [blogRes, empRes, blogImagesRes, horseRes, quoteRes] = await Promise.all([
     featuredBlogId
       ? supabase.from('blogs').select('id, title, slug, body_markdown').eq('id', featuredBlogId).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -103,11 +105,33 @@ export async function POST(req: NextRequest) {
     featuredEquineId
       ? supabase.from('equine').select('id, name, image_url, works_in, notes, gallery_urls').eq('id', featuredEquineId).maybeSingle()
       : Promise.resolve({ data: null }),
+    // Pick a top Google review: 5-star, not hidden, featured first
+    // then highest-rated, then most recent. Falls back to no quote
+    // if nothing meaningful is available so we never insert
+    // placeholder text.
+    includeQuote
+      ? supabase.from('google_reviews')
+          .select('author_name, rating, text, review_time, featured, hidden')
+          .eq('hidden', false)
+          .gte('rating', 5)
+          .not('text', 'is', null)
+          .order('featured', { ascending: false, nullsFirst: false })
+          .order('rating', { ascending: false })
+          .order('review_time', { ascending: false, nullsFirst: false })
+          .limit(1)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
   const blog = (blogRes as { data: { title: string; slug: string | null; body_markdown?: string | null } | null }).data;
   const emp = (empRes as { data: { full_name: string; job_title: string | null; avatar_url: string | null; public_slug: string | null; bio?: string | null } | null }).data;
   const blogImages = ((blogImagesRes as { data: Array<{ url: string; alt: string | null; position: number }> | null }).data ?? []);
   const horse = (horseRes as { data: { name: string; image_url: string | null; works_in: string | null; notes: string | null; gallery_urls: string[] | null } | null }).data;
+  const quote = (quoteRes as { data: { author_name: string; rating: number | null; text: string } | null }).data;
+  // Crop quote text to a single tight pull-quote so the email
+  // doesn't get hijacked by a 5-paragraph review.
+  const quoteText = quote?.text
+    ? quote.text.replace(/\s+/g, ' ').trim().slice(0, 280).replace(/[.!?,;:\s]+$/, '')
+    : '';
   const blogSummary = blog?.body_markdown ? blog.body_markdown.replace(/[#*_>`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 400) : '';
   const horseNotes = horse?.notes ? horse.notes.replace(/\s+/g, ' ').trim().slice(0, 400) : '';
 
@@ -170,8 +194,16 @@ PILLAR 7 — CTA BUTTON
 PILLAR 8 — FEATURED BLOG CARD
 If a featured blog is provided, treat it as a magazine "Continue Reading" module. Two-column on desktop (image left, copy right) with a 1px Hairline rule above the module and an eyebrow "FROM OUR BLOG" or "ON THE JOURNAL". The image MUST come from the FEATURED BLOG IMAGES list. The blog summary is rewritten into a single 2-sentence tease, never reproduced verbatim. The "Continue reading" link is plain Copper text with a right arrow (→), no button styling.
 
+PILLAR 8b — PULL-QUOTE BLOCK
+If an INCLUDE QUOTE context block is supplied with a quote string, render a quiet block-quote section between the body copy and the CTA. Treatment:
+- 56px top + bottom padding around the module.
+- Open with a small uppercase eyebrow that reads "FROM A FAMILY WE'VE SERVED" or "FROM A GUEST" (pick one).
+- The quote itself is set in the display serif (Cormorant Garamond / Georgia fallback) at 22-26px, line-height 1.35, color Ink #2c1810, italic. Wrap it in real quotation marks (a leading curly open-quote and trailing curly close-quote). Center the block at 84% of the inner content width with no card border.
+- One line below, attribution: an em-rule-free dash followed by the author's first name + last initial only (e.g. "— Jessica C."). Set in body sans, uppercase eyebrow style (10.5px, letter-spacing 0.22em, color Copper #b87333). DO NOT use an em-dash for the attribution; the eyebrow line begins with a single ASCII hyphen + space "- " followed by the name.
+- If no quote was supplied, skip this pillar entirely; never write a placeholder.
+
 PILLAR 9 — FEATURED EMPLOYEE CARD
-If a featured employee is provided, render a "Meet the Team" spotlight: small circular avatar (96px) on the left, name in display serif on the right (Meet [Name], 22px), title in uppercase eyebrow underneath, then one line of bio rewritten in your voice. If a public profile URL is present, append "Read more →" in Copper.
+If a featured employee is provided, render a "Meet the Team" spotlight: small circular avatar (96px) on the left, name in display serif on the right (Meet [Name], 22px), title in uppercase eyebrow underneath, then one line of bio rewritten in your voice. When a profile URL is supplied in FEATURED EMPLOYEE.url (i.e. anything other than "(no public slug...)") you MUST append, on its own line directly below the bio sentence, the link "Meet [FirstName] →" styled as plain Copper text (color:#b87333, text-decoration:underline, font-weight:600). Wrap the entire name + bio block in the same href so the avatar, the name, and the bio sentence are all clickable, AND keep the explicit "Meet [FirstName] →" line below for clarity. Both anchors use the exact FEATURED EMPLOYEE.url, target="_blank", rel="noopener". Use the employee's first name only in the "Meet [FirstName] →" link copy, not their full name. Never invent a profile URL; if no url was supplied, render the card without a link instead.
 
 PILLAR 9b — FEATURED HORSE CARD
 If a featured horse is provided, render a "From the Herd" spotlight that mirrors the employee card pattern: circular horse photo (96px) on the left, the horse's name in display serif on the right (Meet [Name], 22px), the horse's role in uppercase eyebrow underneath (use the "works in" field), then one short line drawn from the horse's notes, rewritten in your voice. The photo MUST be one of the URLs supplied in FEATURED HORSE photos; never invent or substitute. The herd is a working co-author of the program, not a mascot — keep the copy quiet and grounded, never cute.
@@ -241,6 +273,13 @@ DESIGN SEED for this build: ${designSeed}. Use it as a tiebreaker when picking b
     ctxLines.push(
       `FEATURED HORSE (render a small "Meet the Herd" spotlight card, mirror the employee card pattern but with the horse photo). Treat the horse like a quiet co-author of the story, never as a mascot or cute aside.\n  name: ${horse.name}\n  works in: ${horse.works_in ?? ''}\n  notes: ${horseNotes}\n  photos (use the first one for the card; do not invent others): ${horseImageList.length === 0 ? '(no photo)' : horseImageList.join(' | ')}`,
     );
+  }
+  if (includeQuote && quote && quoteText) {
+    ctxLines.push(
+      `INCLUDE QUOTE: yes. Render the following Google review as a pull-quote block between the body copy and the CTA, per the PULL-QUOTE pillar. Do not paraphrase; quote the text verbatim. Attribution line is "— ${quote.author_name}" only (no rating, no "Google review", no date).\n  quote: "${quoteText}"\n  author: ${quote.author_name}`,
+    );
+  } else if (includeQuote) {
+    ctxLines.push(`INCLUDE QUOTE: requested, but no eligible Google review available. Skip the quote block.`);
   }
   if (draftText) {
     ctxLines.push(

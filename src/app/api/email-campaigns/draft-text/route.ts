@@ -26,6 +26,7 @@ interface DraftBody {
   useLogos?: unknown;
   linkToWebsite?: unknown;
   includePhone?: unknown;
+  includeQuote?: unknown;
   featuredBlogId?: unknown;
   featuredEmployeeId?: unknown;
   featuredEquineId?: unknown;
@@ -46,6 +47,7 @@ export async function POST(req: NextRequest) {
   const prompt = typeof body.prompt === 'string' ? body.prompt.trim().slice(0, 4000) : '';
   const linkToWebsite = !!body.linkToWebsite;
   const includePhone = !!body.includePhone;
+  const includeQuote = !!body.includeQuote;
   const featuredBlogId = typeof body.featuredBlogId === 'string' ? body.featuredBlogId : null;
   const featuredEmployeeId = typeof body.featuredEmployeeId === 'string' ? body.featuredEmployeeId : null;
   const featuredEquineId = typeof body.featuredEquineId === 'string' ? body.featuredEquineId : null;
@@ -72,6 +74,7 @@ export async function POST(req: NextRequest) {
   ctxLines.push(`AUTHOR BRIEF:\n${prompt || '(none, write a tasteful general update from the program)'}`);
   ctxLines.push(`LINK TO WEBSITE CTA: ${linkToWebsite ? `yes (goes to ${SITE_URL})` : 'no'}`);
   ctxLines.push(`INCLUDE PHONE NUMBER: ${includePhone ? `yes — ${ADMISSIONS_PHONE} (mention it once, naturally, in the body or postscript)` : 'no'}`);
+  ctxLines.push(`INCLUDE QUOTE: ${includeQuote ? 'yes — a real Google review will be inserted as a separate pull-quote block between the body and the CTA at render time. Do NOT write a quote yourself, do not add quotation marks, and do not paraphrase a review in the body copy.' : 'no'}`);
   if (blog) ctxLines.push(`FEATURED BLOG:\n  title: ${blog.title}\n  url: ${blog.slug ? `${SITE_URL}who-we-are/blog/${blog.slug}` : '(no link)'}\n  summary: ${blogSummary}`);
   if (emp) ctxLines.push(`FEATURED EMPLOYEE:\n  name: ${emp.full_name}\n  title: ${emp.job_title ?? ''}\n  url: ${emp.public_slug ? `${SITE_URL}who-we-are/meet-our-team/${emp.public_slug}` : '(no link)'}\n  bio: ${emp.bio ?? ''}`);
   if (horse) ctxLines.push(`FEATURED HORSE (work the horse's name + role into one paragraph; never reduce to mascot status):\n  name: ${horse.name}\n  works in: ${horse.works_in ?? ''}\n  notes: ${horseNotes}`);

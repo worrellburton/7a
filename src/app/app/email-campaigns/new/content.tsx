@@ -65,6 +65,9 @@ interface CampaignDraft {
   // Surfaces (866) 718-1665 inside the rendered email when on.
   // Persisted on email_campaigns.include_phone.
   includePhone: boolean;
+  // Picks a top Google review and renders it as a block-quote
+  // section. Persisted on email_campaigns.include_quote.
+  includeQuote: boolean;
   featuredBlogId: string | null;
   featuredEmployeeId: string | null;
   featuredEquineId: string | null;
@@ -93,6 +96,7 @@ export default function NewEmailCampaignContent() {
     useLogos: true,
     linkToWebsite: true,
     includePhone: false,
+    includeQuote: false,
     featuredBlogId: null,
     featuredEmployeeId: null,
     featuredEquineId: null,
@@ -127,7 +131,7 @@ export default function NewEmailCampaignContent() {
     void (async () => {
       const { data } = await supabase
         .from('email_campaigns')
-        .select('id, prompt, image_urls, use_logos, link_to_website, include_phone, featured_blog_id, featured_employee_id, featured_equine_id, generated_html, generated_subject')
+        .select('id, prompt, image_urls, use_logos, link_to_website, include_phone, include_quote, featured_blog_id, featured_employee_id, featured_equine_id, generated_html, generated_subject')
         .eq('id', editingId)
         .maybeSingle();
       if (cancelled || !data) return;
@@ -138,6 +142,7 @@ export default function NewEmailCampaignContent() {
         useLogos: !!data.use_logos,
         linkToWebsite: !!data.link_to_website,
         includePhone: !!data.include_phone,
+        includeQuote: !!data.include_quote,
         featuredBlogId: data.featured_blog_id ?? null,
         featuredEmployeeId: data.featured_employee_id ?? null,
         featuredEquineId: data.featured_equine_id ?? null,
@@ -253,6 +258,7 @@ export default function NewEmailCampaignContent() {
           useLogos: draft.useLogos,
           linkToWebsite: draft.linkToWebsite,
           includePhone: draft.includePhone,
+          includeQuote: draft.includeQuote,
           featuredBlogId: draft.featuredBlogId,
           featuredEmployeeId: draft.featuredEmployeeId,
           featuredEquineId: draft.featuredEquineId,
@@ -298,6 +304,7 @@ export default function NewEmailCampaignContent() {
           useLogos: draft.useLogos,
           linkToWebsite: draft.linkToWebsite,
           includePhone: draft.includePhone,
+          includeQuote: draft.includeQuote,
           featuredBlogId: draft.featuredBlogId,
           featuredEmployeeId: draft.featuredEmployeeId,
           featuredEquineId: draft.featuredEquineId,
@@ -340,6 +347,7 @@ export default function NewEmailCampaignContent() {
         use_logos: draft.useLogos,
         link_to_website: draft.linkToWebsite,
         include_phone: draft.includePhone,
+        include_quote: draft.includeQuote,
         featured_blog_id: draft.featuredBlogId,
         featured_employee_id: draft.featuredEmployeeId,
         featured_equine_id: draft.featuredEquineId,
@@ -568,6 +576,12 @@ export default function NewEmailCampaignContent() {
           description="Surface (866) 718-1665 inside the email."
           on={draft.includePhone}
           onChange={(v) => setDraft((p) => ({ ...p, includePhone: v }))}
+        />
+        <Toggle
+          label="Add a quote"
+          description="Pull a top Google review into the email as a block quote."
+          on={draft.includeQuote}
+          onChange={(v) => setDraft((p) => ({ ...p, includeQuote: v }))}
         />
       </section>
       )}
