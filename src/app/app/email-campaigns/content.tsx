@@ -79,9 +79,12 @@ const STATUS_TONE: Record<string, string> = {
 };
 
 export default function EmailCampaignsContent() {
+  const { session, isSuperAdmin } = useAuth();
   const [rows, setRows] = useState<CampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [backfillState, setBackfillState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+  const [backfillMessage, setBackfillMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -98,6 +101,32 @@ export default function EmailCampaignsContent() {
     return () => { cancelled = true; };
   }, []);
 
+  // Super-admin tool: one-shot seed of the events table for every
+  // already-sent recipient. Useful right after pointing Resend at the
+  // webhook so the pre-webhook campaigns get retroactive open/click
+  // counts instead of an all-zero card.
+  async function runBackfill() {
+    if (!session?.access_token) return;
+    setBackfillState('running');
+    setBackfillMessage(null);
+    try {
+      const res = await fetch('/api/email-campaigns/backfill-events', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as { error?: string }).error || `HTTP ${res.status}`);
+      const j = json as { polled?: number; seeded?: number; skipped?: number; errors?: Array<{ reason: string }> };
+      setBackfillState('done');
+      setBackfillMessage(
+        `Polled ${j.polled ?? 0}, seeded ${j.seeded ?? 0}, skipped ${j.skipped ?? 0}${(j.errors?.length ?? 0) > 0 ? `, ${j.errors!.length} errors` : ''}.`,
+      );
+    } catch (e) {
+      setBackfillState('error');
+      setBackfillMessage(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-6xl mx-auto">
       <header className="mb-5 flex items-baseline justify-between flex-wrap gap-3">
@@ -112,14 +141,36 @@ export default function EmailCampaignsContent() {
             Describe what you want to say, drop in images, optionally feature a blog or staff member, and Claude builds a polished HTML email you can iterate before picking recipients.
           </p>
         </div>
-        <Link
-          href="/app/email-campaigns/new"
-          className="px-4 py-2 rounded-md bg-primary text-white text-[12px] font-semibold uppercase tracking-wider hover:bg-primary/90"
+        <div className="flex items-center gap-2 flex-wrap">
+          {isSuperAdmin && (
+            <button
+              type="button"
+              onClick={runBackfill}
+              disabled={backfillState === 'running'}
+              className="px-3 py-2 rounded-md border border-black/15 bg-white text-foreground/75 text-[11px] font-semibold uppercase tracking-wider hover:bg-warm-bg/60 disabled:opacity-50"
+              style={{ fontFamily: 'var(--font-body)' }}
+              title="Pull current state from Resend for every already-sent recipient and seed the events table. Idempotent — safe to re-run."
+            >
+              {backfillState === 'running' ? 'Backfilling…' : 'Backfill analytics'}
+            </button>
+          )}
+          <Link
+            href="/app/email-campaigns/new"
+            className="px-4 py-2 rounded-md bg-primary text-white text-[12px] font-semibold uppercase tracking-wider hover:bg-primary/90"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            + Start a new campaign
+          </Link>
+        </div>
+      </header>
+      {backfillMessage && (
+        <p
+          className={`mb-3 text-[11.5px] ${backfillState === 'error' ? 'text-red-700' : 'text-foreground/70'}`}
           style={{ fontFamily: 'var(--font-body)' }}
         >
-          + Start a new campaign
-        </Link>
-      </header>
+          {backfillMessage}
+        </p>
+      )}
 
       <section className="rounded-2xl border border-black/10 bg-white">
         <header className="px-4 py-3 border-b border-black/5 flex items-baseline justify-between">
