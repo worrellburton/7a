@@ -18,7 +18,7 @@
 // row and routes to /app/email-campaigns/[id]/recipients.
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
@@ -122,6 +122,22 @@ export default function NewEmailCampaignContent() {
   const [step, setStep] = useState<BuilderStep>('info');
   const [draftText, setDraftText] = useState<DraftText>({ headline: '', body: '', ctaLabel: '', postscript: '' });
   const [drafting, setDrafting] = useState(false);
+
+  // AbortControllers for the two long-running fetches (Continue
+  // drafts the text, Build composes the HTML). The "Wait, stop!"
+  // button next to the progress bar calls .abort() so the
+  // marketer can change their mind mid-call without sitting
+  // through a 20s round-trip.
+  const draftControllerRef = useRef<AbortController | null>(null);
+  const buildControllerRef = useRef<AbortController | null>(null);
+  const onCancelDraft = () => {
+    draftControllerRef.current?.abort();
+    draftControllerRef.current = null;
+  };
+  const onCancelBuild = () => {
+    buildControllerRef.current?.abort();
+    buildControllerRef.current = null;
+  };
 
   // Hydrate from an existing draft when ?id is set so a marketer
   // can resume a saved campaign without starting over.
@@ -246,6 +262,8 @@ export default function NewEmailCampaignContent() {
     }
     setError(null);
     setDrafting(true);
+    const controller = new AbortController();
+    draftControllerRef.current = controller;
     try {
       const res = await fetch('/api/email-campaigns/draft-text', {
         method: 'POST',
@@ -263,6 +281,7 @@ export default function NewEmailCampaignContent() {
           featuredEmployeeId: draft.featuredEmployeeId,
           featuredEquineId: draft.featuredEquineId,
         }),
+        signal: controller.signal,
       });
       const json = (await res.json().catch(() => ({}))) as Partial<DraftText> & { error?: string };
       if (!res.ok || !json.body) {
@@ -277,8 +296,11 @@ export default function NewEmailCampaignContent() {
       });
       setStep('compose');
     } catch (err) {
+      // Treat user-initiated cancellation as a no-op, not an error.
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : String(err));
     } finally {
+      draftControllerRef.current = null;
       setDrafting(false);
     }
   };
@@ -291,6 +313,8 @@ export default function NewEmailCampaignContent() {
     }
     setError(null);
     setBuilding(true);
+    const controller = new AbortController();
+    buildControllerRef.current = controller;
     try {
       const res = await fetch('/api/email-campaigns/build', {
         method: 'POST',
@@ -314,6 +338,7 @@ export default function NewEmailCampaignContent() {
           // exact copy the marketer signed off on.
           draftText: mode === 'iterate' ? null : draftText,
         }),
+        signal: controller.signal,
       });
       const json = (await res.json().catch(() => ({}))) as { html?: string; subject?: string; error?: string };
       if (!res.ok || !json.html) {
@@ -327,8 +352,10 @@ export default function NewEmailCampaignContent() {
       }));
       if (mode === 'iterate') setIterateNote('');
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : String(err));
     } finally {
+      buildControllerRef.current = null;
       setBuilding(false);
     }
   };
@@ -672,7 +699,14 @@ export default function NewEmailCampaignContent() {
           info step. */}
       {step === 'info' && (
         <div className="mb-4 rounded-2xl border border-black/10 bg-white p-4">
-          {drafting && <div className="mb-3"><BuildProgress mode="fresh" /></div>}
+          {drafting && (
+            <div className="mb-3">
+              <BuildProgress mode="fresh" />
+              <div className="mt-2 flex justify-end">
+                <CancelButton onClick={onCancelDraft} />
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-end">
             <button
               type="button"
@@ -690,7 +724,14 @@ export default function NewEmailCampaignContent() {
       {/* Build button — only in the compose step */}
       {step === 'compose' && !draft.generatedHtml && (
         <div className="mb-4">
-          {building && <BuildProgress mode="fresh" />}
+          {building && (
+            <div className="mb-3">
+              <BuildProgress mode="fresh" />
+              <div className="mt-2 flex justify-end">
+                <CancelButton onClick={onCancelBuild} />
+              </div>
+            </div>
+          )}
           <div className="flex items-center justify-end">
             <button
               type="button"
@@ -749,7 +790,14 @@ export default function NewEmailCampaignContent() {
               className="w-full px-3 py-2 rounded-md border border-black/10 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/30"
               style={{ fontFamily: 'var(--font-body)' }}
             />
-            {building && <div className="mt-2"><BuildProgress mode="iterate" /></div>}
+            {building && (
+              <div className="mt-2">
+                <BuildProgress mode="iterate" />
+                <div className="mt-2 flex justify-end">
+                  <CancelButton onClick={onCancelBuild} />
+                </div>
+              </div>
+            )}
             <div className="mt-2 flex items-center justify-end">
               <button
                 type="button"
@@ -819,6 +867,24 @@ export default function NewEmailCampaignContent() {
         />
       )}
     </div>
+  );
+}
+
+// "Wait, stop!" — aborts an in-flight draft / build fetch so the
+// marketer can change their mind without waiting through a 20s
+// round-trip to Claude. Styled to look like a soft destructive
+// secondary so it's visually different from the primary Build /
+// Continue affordances.
+export function CancelButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="px-3 py-1.5 rounded-md border border-red-300 bg-red-50 text-[11.5px] font-semibold text-red-900 hover:bg-red-100"
+      style={{ fontFamily: 'var(--font-body)' }}
+    >
+      Wait, stop!
+    </button>
   );
 }
 

@@ -79,14 +79,16 @@ export async function POST(req: NextRequest) {
   if (emp) ctxLines.push(`FEATURED EMPLOYEE:\n  name: ${emp.full_name}\n  title: ${emp.job_title ?? ''}\n  url: ${emp.public_slug ? `${SITE_URL}who-we-are/meet-our-team/${emp.public_slug}` : '(no link)'}\n  bio: ${emp.bio ?? ''}`);
   if (horse) ctxLines.push(`FEATURED HORSE (work the horse's name + role into one paragraph; never reduce to mascot status):\n  name: ${horse.name}\n  works in: ${horse.works_in ?? ''}\n  notes: ${horseNotes}`);
 
-  const systemPrompt = `You are the senior copy lead for Seven Arrows Recovery, a residential addiction-treatment ranch in Arizona using trauma-informed, equine-assisted, polyvagal-informed care.
+  const systemPrompt = `Take the AUTHOR BRIEF below and generate an email campaign about exactly that idea, on behalf of Seven Arrows Recovery (a residential addiction-treatment ranch in Arizona).
 
-Voice: warm, honest, hope-forward, never clinical, never sales-y, never alarmist. Concrete imagery (the ranch, the horses, the Sonoran desert) beats generic recovery language.
+The AUTHOR BRIEF is the catalyst. Whatever the marketer typed is the subject of the email, full stop. If the brief says "we are doing a community pancake breakfast Saturday at 9", the email is about a community pancake breakfast Saturday at 9. If the brief says "Seven Arrows is making ice cream", the email is about Seven Arrows making ice cream. Do not redirect to a generic update about treatment, do not insert recovery talking points the brief didn't ask for, do not soften the topic into something else. Stay on the marketer's idea.
 
-Write the TEXT of a marketing email. No HTML, no styling, no markdown beyond simple paragraph breaks. Return a JSON object with these keys:
-  "headline": one-line hero headline (5 to 10 words, sentence case, no period)
-  "body": the email body as plain prose. 2 to 4 paragraphs, blank line between paragraphs. 90 to 220 words total. If a blog or employee is featured, weave a natural reference into one of the paragraphs (do not just list them).
-  "ctaLabel": the primary call to action button text (2 to 4 words, action verb, no period). If LINK TO WEBSITE CTA is "no", return an empty string.
+Voice can be warm, honest, hope-forward, but tone follows the topic: a playful brief gets a playful email, a serious brief gets a serious email. Avoid clinical jargon and avoid recovery-industry clichés unless the brief explicitly calls for them.
+
+Write the TEXT of the email. No HTML, no styling, no markdown beyond simple paragraph breaks. Return a JSON object with these keys:
+  "headline": one-line hero headline (5 to 10 words, sentence case, no period). The headline must reflect the brief's actual subject; if the brief is about ice cream, the headline is about ice cream.
+  "body": the email body as plain prose. 2 to 4 paragraphs, blank line between paragraphs. 90 to 220 words total. Every paragraph is about the brief's subject. If a featured blog / employee / horse is supplied AND it fits naturally with the brief, weave in one short reference; if it doesn't fit, skip it rather than forcing it.
+  "ctaLabel": the primary call to action button text (2 to 4 words, action verb, no period). The CTA should match the brief's call to action. If LINK TO WEBSITE CTA is "no", return an empty string.
   "postscript": optional P.S. line (one short sentence, no greater than 120 chars). May be empty.
 
 STRICT WRITING RULES:
@@ -94,7 +96,8 @@ STRICT WRITING RULES:
 - Do not use the HTML entities &mdash; or &ndash;.
 - No emoji. No hashtags. No quote marks around the whole text.
 - Do not say "Dear Friend" or "Hi there" or other generic salutations.
-- Do not promise outcomes, do not make medical claims, do not mention insurance specifics.
+- Do not promise outcomes, do not make medical claims, do not mention insurance specifics unless the brief is explicitly about insurance.
+- Sign off references to the program as "Seven Arrows" or "the team", never "us at the ranch" / "your friends in recovery" filler.
 
 Return ONLY the JSON object. No preamble, no markdown fences.`;
 

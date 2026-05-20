@@ -10,10 +10,11 @@
 // flips status='sent' on the campaign row.
 
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
 import { BuildProgress } from '../../BuildProgress';
+import { CancelButton } from '../../new/content';
 
 interface CampaignRow {
   id: string;
@@ -63,6 +64,11 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
   const [building, setBuilding] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const buildControllerRef = useRef<AbortController | null>(null);
+  const onCancelBuild = () => {
+    buildControllerRef.current?.abort();
+    buildControllerRef.current = null;
+  };
   const [loading, setLoading] = useState(true);
 
   const refresh = async () => {
@@ -105,6 +111,8 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
     if (!campaign || !session?.access_token || iterateNote.trim().length === 0 || building) return;
     setError(null);
     setBuilding(true);
+    const controller = new AbortController();
+    buildControllerRef.current = controller;
     try {
       const res = await fetch('/api/email-campaigns/build', {
         method: 'POST',
@@ -125,6 +133,7 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
           previousHtml: campaign.generated_html,
           iterationNote: iterateNote,
         }),
+        signal: controller.signal,
       });
       const json = (await res.json().catch(() => ({}))) as { html?: string; subject?: string; error?: string };
       if (!res.ok || !json.html) {
@@ -143,8 +152,10 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
       setIterateNote('');
       await refresh();
     } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : String(err));
     } finally {
+      buildControllerRef.current = null;
       setBuilding(false);
     }
   };
@@ -244,12 +255,24 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
   const sentCount = recipients.filter((r) => r.send_status === 'sent').length;
   const failedCount = recipients.filter((r) => r.send_status === 'failed').length;
   const pendingCount = recipients.filter((r) => r.send_status === 'pending').length;
-  // Sniff the most common Resend failure mode so we can surface an
+  // Sniff the most common Resend failure modes so we can surface an
   // actionable banner at the top of the page instead of leaving the
   // marketer to decode an HTTP status from the per-row line.
-  const domainNotVerified = recipients.some((r) =>
-    !!r.send_error && /domain is not verified|domain.*not verified|verify.*domain/i.test(r.send_error),
-  );
+  //
+  // Two distinct cases land here, both rooted in Resend domain
+  // verification:
+  //   (a) "domain is not verified" — the from address uses a domain
+  //       the org hasn't proven it owns yet.
+  //   (b) "validation_error" / "only send testing emails to your own
+  //       email" — Resend's sandbox mode. Until a domain is verified,
+  //       Resend lets you send TO any address but only FROM the
+  //       account owner's email; the recipient address is implicitly
+  //       restricted to the account owner.
+  // Both fixes are the same (verify a domain at resend.com/domains),
+  // so we collapse them into a single banner.
+  const sendErrorJoined = recipients.map((r) => r.send_error ?? '').join('\n');
+  const resendBlockedByDomain =
+    /domain is not verified|verify.*domain|validation_error|testing emails to your own/i.test(sendErrorJoined);
 
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-6xl mx-auto">
@@ -292,24 +315,38 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
           batch failing, so we sniff for it and surface the next
           step directly instead of leaving the per-row message as
           the only signal. */}
-      {domainNotVerified && (
+      {resendBlockedByDomain && (
         <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 p-4">
           <p className="text-[12.5px] font-bold uppercase tracking-[0.22em] text-red-900 mb-1" style={{ fontFamily: 'var(--font-body)' }}>
-            Sender domain not verified
+            Resend is in sandbox mode
           </p>
           <p className="text-[13px] text-red-900 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
-            Resend rejected every send because the <code className="bg-red-100 px-1 py-0.5 rounded">EMAIL_FROM</code> domain has not been verified on your Resend account. Two ways to fix:
+            Until a domain is verified, Resend only lets you send emails to the email address that owns the Resend account. That's why every external recipient came back as <code className="bg-red-100 px-1 py-0.5 rounded">validation_error</code>. The fix is a one-time DNS setup on your domain.
           </p>
-          <ol className="mt-2 text-[13px] text-red-900 leading-relaxed list-decimal pl-5 space-y-1" style={{ fontFamily: 'var(--font-body)' }}>
+          <p className="mt-3 text-[12.5px] font-bold uppercase tracking-[0.22em] text-red-900 mb-1" style={{ fontFamily: 'var(--font-body)' }}>
+            How to unblock
+          </p>
+          <ol className="text-[13px] text-red-900 leading-relaxed list-decimal pl-5 space-y-1" style={{ fontFamily: 'var(--font-body)' }}>
             <li>
-              Verify <code className="bg-red-100 px-1 py-0.5 rounded">sevenarrowsrecoveryarizona.com</code> at{' '}
+              Open{' '}
               <a href="https://resend.com/domains" target="_blank" rel="noreferrer" className="underline font-semibold">resend.com/domains</a>{' '}
-              (add the DNS records Resend gives you, then re-send below), or
+              and add <code className="bg-red-100 px-1 py-0.5 rounded">sevenarrowsrecoveryarizona.com</code>.
             </li>
             <li>
-              Unset <code className="bg-red-100 px-1 py-0.5 rounded">EMAIL_FROM</code> in Vercel so the default sandbox sender <code className="bg-red-100 px-1 py-0.5 rounded">onboarding@resend.dev</code> is used (works immediately, but recipients see the resend.dev address).
+              Resend gives you 3 DNS records (one MX, two TXT for SPF + DKIM). Add them at your domain registrar (GoDaddy / Squarespace / Cloudflare / wherever the DNS for sevenarrowsrecoveryarizona.com lives). Propagation usually takes 5 to 60 minutes.
+            </li>
+            <li>
+              Once Resend marks the domain as verified, in Vercel set{' '}
+              <code className="bg-red-100 px-1 py-0.5 rounded">EMAIL_FROM</code> to something like{' '}
+              <code className="bg-red-100 px-1 py-0.5 rounded">&quot;Seven Arrows Recovery &lt;hello@sevenarrowsrecoveryarizona.com&gt;&quot;</code>.
+            </li>
+            <li>
+              Come back here, click <em>Reset failed to pending</em>, then Send. The previously-failed rows go out and the previously-sent rows are not re-sent.
             </li>
           </ol>
+          <p className="mt-3 text-[12px] text-red-900/80" style={{ fontFamily: 'var(--font-body)' }}>
+            If you need to test before DNS finishes, you can leave <code className="bg-red-100 px-1 py-0.5 rounded">EMAIL_FROM</code> unset and send a test campaign to your own Resend-account email address — that bypass keeps working in sandbox mode.
+          </p>
         </div>
       )}
 
@@ -339,7 +376,14 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
               className="w-full px-3 py-2 rounded-md border border-black/10 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/30"
               style={{ fontFamily: 'var(--font-body)' }}
             />
-            {building && <div className="mt-2"><BuildProgress mode="iterate" /></div>}
+            {building && (
+              <div className="mt-2">
+                <BuildProgress mode="iterate" />
+                <div className="mt-2 flex justify-end">
+                  <CancelButton onClick={onCancelBuild} />
+                </div>
+              </div>
+            )}
             <div className="mt-2 flex items-center justify-end">
               <button
                 type="button"
