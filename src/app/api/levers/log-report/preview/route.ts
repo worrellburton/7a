@@ -29,18 +29,26 @@ export async function GET() {
   }
   const admin = getAdminSupabase();
 
-  // Default recipients = every super admin, since the report
-  // is admissions / leadership ops. The Phase-6 recipients
-  // picker on the lever lets the puller override per-send.
-  const { data: superAdmins } = await admin
+  // Eligible recipients = every active staff member with an email
+  // on file. The picker on the lever defaults to super admins
+  // checked + everyone else unchecked, so the existing one-click
+  // pull behaviour is preserved while admissions / leadership can
+  // opt anyone else in.
+  const { data: allStaff } = await admin
     .from('users')
-    .select('id, full_name, email')
-    .eq('is_super_admin', true)
+    .select('id, full_name, email, is_super_admin, is_admin')
+    .eq('status', 'active')
     .not('email', 'is', null)
     .order('full_name', { ascending: true });
-  const defaultRecipients = ((superAdmins ?? []) as Array<{ id: string; full_name: string | null; email: string | null }>)
+  const defaultRecipients = ((allStaff ?? []) as Array<{ id: string; full_name: string | null; email: string | null; is_super_admin: boolean; is_admin: boolean }>)
     .filter((u) => !!u.email)
-    .map((u) => ({ id: u.id, name: u.full_name, email: u.email as string }));
+    .map((u) => ({
+      id: u.id,
+      name: u.full_name,
+      email: u.email as string,
+      isSuperAdmin: u.is_super_admin === true,
+      isAdmin: u.is_admin === true,
+    }));
 
   try {
     const data = await buildLogReportData(admin);

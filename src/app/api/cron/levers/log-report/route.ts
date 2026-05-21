@@ -49,6 +49,28 @@ export async function GET(req: NextRequest) {
   }
 
   const admin = getAdminSupabase();
+
+  // Read the persisted schedule. vercel.json now fires this cron
+  // every hour at minute 0; the endpoint decides whether THIS hour
+  // is the scheduled one. Skip silently when the schedule is
+  // disabled or doesn't match — keeps the cron polite + cheap.
+  const { data: schedule } = await admin
+    .from('lever_schedules')
+    .select('enabled, day_of_week, hour_utc')
+    .eq('lever_type', 'log-report')
+    .maybeSingle();
+  if (!schedule || schedule.enabled !== true) {
+    return NextResponse.json({ ok: true, skipped: 'schedule disabled or missing' });
+  }
+  const now = new Date();
+  if (now.getUTCDay() !== schedule.day_of_week || now.getUTCHours() !== schedule.hour_utc) {
+    return NextResponse.json({
+      ok: true,
+      skipped: 'not the scheduled hour',
+      now: { day: now.getUTCDay(), hour: now.getUTCHours() },
+      schedule: { day: schedule.day_of_week, hour: schedule.hour_utc },
+    });
+  }
   const { data: superAdminRows } = await admin
     .from('users')
     .select('id, full_name, email')

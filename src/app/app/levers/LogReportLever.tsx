@@ -16,7 +16,8 @@ import Lever from './Lever';
 // fully reachable from this commit so each subsequent phase is
 // a focused swap of one stub.
 
-interface RecipientOption { id: string; email: string; name: string | null }
+interface RecipientOption { id: string; email: string; name: string | null; isSuperAdmin?: boolean; isAdmin?: boolean }
+interface ScheduleRow { enabled: boolean; day_of_week: number; hour_utc: number; display_timezone: string; updated_at: string | null }
 interface PreviewPayload {
   window: { startsAt: string; endsAt: string; label: string } | null;
   counts: { total: number; uniqueContacts: number; uniqueReps: number };
@@ -48,6 +49,11 @@ export default function LogReportLever() {
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
   const [historyLoading, setHistoryLoading] = useState(false);
+  // Schedule modal — Set Automation button opens it. Persists to
+  // public.lever_schedules; the hourly cron at
+  // /api/cron/levers/log-report reads the row and fires only on
+  // matching UTC day + hour.
+  const [showSchedule, setShowSchedule] = useState(false);
   const [showTest, setShowTest] = useState(false);
   const [testEmail, setTestEmail] = useState('');
   const [testing, setTesting] = useState(false);
@@ -101,14 +107,21 @@ export default function LogReportLever() {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  // Seed the recipient selection from the preview payload — every
-  // default recipient starts checked. Re-running the preview
-  // doesn't clobber a user's deselections.
+  // Seed the recipient selection — super admins are checked by
+  // default (preserves the old one-click behaviour) while every
+  // other active staff member is available but unchecked. The
+  // puller can add anyone in / drop super admins out. Once the
+  // user has made a manual selection (size > 0) we don't clobber
+  // it on subsequent preview refreshes.
   useEffect(() => {
     if (!preview) return;
     setSelectedRecipientIds((prev) => {
       if (prev.size > 0) return prev;
-      return new Set(preview.defaultRecipients.map((r) => r.id));
+      return new Set(
+        preview.defaultRecipients
+          .filter((r) => r.isSuperAdmin === true)
+          .map((r) => r.id),
+      );
     });
   }, [preview]);
 
@@ -245,6 +258,14 @@ export default function LogReportLever() {
         >
           History
         </button>
+        <span className="text-white/20">·</span>
+        <button
+          type="button"
+          onClick={() => setShowSchedule(true)}
+          className="px-2 py-1 rounded transition-colors hover:text-white/85"
+        >
+          Set automation
+        </button>
       </div>
       {showPreview && (
         <PreviewPopup
@@ -264,13 +285,31 @@ export default function LogReportLever() {
 
       {showRecipients && (
         <div className="mt-4 w-full max-w-md rounded-lg border border-white/10 bg-black/30 backdrop-blur px-4 py-3">
-          <p className="text-[11px] text-white/55 mb-2">
-            Choose who receives the 🪵 log report when the lever fires. Defaults to every super admin.
-          </p>
+          <div className="flex items-baseline justify-between mb-2 gap-2">
+            <p className="text-[11px] text-white/55">
+              Choose who receives the 🪵 log report. Super admins are checked by default; every active teammate is selectable.
+            </p>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setSelectedRecipientIds(new Set((preview?.defaultRecipients ?? []).map((r) => r.id)))}
+                className="text-[10px] uppercase tracking-wider text-white/55 hover:text-white px-1.5 py-0.5 rounded hover:bg-white/10"
+              >
+                All
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedRecipientIds(new Set())}
+                className="text-[10px] uppercase tracking-wider text-white/55 hover:text-white px-1.5 py-0.5 rounded hover:bg-white/10"
+              >
+                None
+              </button>
+            </div>
+          </div>
           {(preview?.defaultRecipients ?? []).length === 0 ? (
-            <p className="text-[12px] text-white/55 italic">No eligible recipients yet — every super admin needs an email on file.</p>
+            <p className="text-[12px] text-white/55 italic">No eligible recipients yet — every staff member needs an email on file.</p>
           ) : (
-            <ul className="space-y-1 max-h-48 overflow-y-auto">
+            <ul className="space-y-1 max-h-64 overflow-y-auto">
               {(preview?.defaultRecipients ?? []).map((r) => {
                 const checked = selectedRecipientIds.has(r.id);
                 return (
@@ -282,10 +321,16 @@ export default function LogReportLever() {
                         onChange={() => toggleRecipient(r.id)}
                         className="accent-amber-400"
                       />
-                      <span className="flex-1 truncate">
+                      <span className="flex-1 truncate min-w-0">
                         <span className="font-semibold">{r.name ?? r.email}</span>
                         {r.name && <span className="ml-1 text-white/45">· {r.email}</span>}
                       </span>
+                      {r.isSuperAdmin && (
+                        <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-200 border border-violet-500/40">SA</span>
+                      )}
+                      {!r.isSuperAdmin && r.isAdmin && (
+                        <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-200 border border-sky-500/40">Admin</span>
+                      )}
                     </label>
                   </li>
                 );
@@ -293,6 +338,10 @@ export default function LogReportLever() {
             </ul>
           )}
         </div>
+      )}
+
+      {showSchedule && (
+        <ScheduleModal onClose={() => setShowSchedule(false)} />
       )}
 
       {showHistory && (
@@ -523,4 +572,277 @@ function PreviewPopup({
     </div>,
     document.body,
   );
+}
+
+// ─── Schedule modal ────────────────────────────────────────────
+// Set Automation button on the lever opens this. Reads + writes
+// /api/levers/log-report/schedule. Picker shows day-of-week + time
+// in the user's local timezone; we convert to UTC for storage so
+// the cron's match query is timezone-stable. Single on/off switch
+// at the top toggles enabled.
+
+const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+interface ScheduleApi {
+  schedule: ScheduleRow | null;
+}
+
+function ScheduleModal({ onClose }: { onClose: () => void }) {
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // Local fields — initialised from the persisted schedule, then
+  // edited freely. Day + hour are in *local* time for the picker
+  // and converted to UTC server-side via the helper below.
+  const [enabled, setEnabled] = useState(true);
+  const [dayLocal, setDayLocal] = useState(1); // Monday
+  const [hourLocal, setHourLocal] = useState(18); // 6pm
+  const [tz, setTz] = useState('America/Phoenix');
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/levers/log-report/schedule', { cache: 'no-store' })
+      .then(async (r) => (r.ok ? r.json() : null))
+      .then((j: ScheduleApi | null) => {
+        if (cancelled || !j?.schedule) {
+          // Surface the browser's IANA tz to the picker by default
+          // when no schedule has been saved yet.
+          try {
+            setTz(Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Phoenix');
+          } catch { /* ignore */ }
+          setLoading(false);
+          return;
+        }
+        const s = j.schedule;
+        setEnabled(s.enabled !== false);
+        setTz(s.display_timezone || 'America/Phoenix');
+        // Convert the stored UTC day/hour back into the
+        // display_timezone so the picker shows what the user
+        // actually picked (not the underlying UTC).
+        const { day: localDay, hour: localHour } = utcToLocal(s.day_of_week, s.hour_utc, s.display_timezone);
+        setDayLocal(localDay);
+        setHourLocal(localHour);
+      })
+      .catch(() => { /* fall through to defaults */ })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Lock body scroll + ESC-to-close.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [onClose]);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      const { day: dayUtc, hour: hourUtc } = localToUtc(dayLocal, hourLocal, tz);
+      const res = await fetch('/api/levers/log-report/schedule', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ enabled, dayOfWeek: dayUtc, hourUtc, displayTimezone: tz }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError((j as { error?: string }).error ?? `HTTP ${res.status}`);
+        return;
+      }
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (typeof document === 'undefined') return null;
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Set automation"
+      onClick={onClose}
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+      style={{ fontFamily: 'var(--font-body)' }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="relative w-full max-w-md rounded-xl bg-white shadow-2xl overflow-hidden"
+      >
+        <header className="px-5 py-4 border-b border-stone-200 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span aria-hidden="true">🪵</span>
+            <h2 className="text-base font-semibold text-stone-900">Set automation</h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-stone-500 hover:text-stone-900 text-xs font-semibold px-2 py-1 rounded hover:bg-stone-100"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </header>
+        <div className="px-5 py-4 space-y-4">
+          {loading ? (
+            <p className="text-sm italic text-stone-500">Loading current schedule…</p>
+          ) : (
+            <>
+              {/* Active / Inactive switch — the on/off toggle the
+                  user asked for. Reads as 'is the automation
+                  actually running?' which is more useful than
+                  Enabled / Disabled wording. */}
+              <div className="flex items-center justify-between p-3 rounded-lg border border-stone-200 bg-stone-50">
+                <div>
+                  <p className="text-sm font-semibold text-stone-900">{enabled ? 'Active' : 'Inactive'}</p>
+                  <p className="text-[11.5px] text-stone-500">
+                    {enabled
+                      ? 'Auto-fires every week on the day + time below.'
+                      : 'Paused. Manual lever pulls still work.'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={enabled}
+                  onClick={() => setEnabled((v) => !v)}
+                  className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors ${enabled ? 'bg-emerald-500' : 'bg-stone-300'}`}
+                >
+                  <span className="sr-only">{enabled ? 'Active' : 'Inactive'}</span>
+                  <span className={`absolute top-0.5 inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${enabled ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+                </button>
+              </div>
+
+              <div className={`space-y-3 ${enabled ? '' : 'opacity-50 pointer-events-none'}`}>
+                <label className="block">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-1">Day of week</span>
+                  <select
+                    value={dayLocal}
+                    onChange={(e) => setDayLocal(Number(e.target.value))}
+                    className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm bg-white"
+                  >
+                    {DAY_LABELS.map((label, i) => (
+                      <option key={i} value={i}>{label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-1">Time of day</span>
+                  <select
+                    value={hourLocal}
+                    onChange={(e) => setHourLocal(Number(e.target.value))}
+                    className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm bg-white"
+                  >
+                    {Array.from({ length: 24 }).map((_, h) => (
+                      <option key={h} value={h}>
+                        {fmtHour(h)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="block text-[10px] font-bold uppercase tracking-wider text-stone-500 mb-1">Timezone</span>
+                  <input
+                    type="text"
+                    value={tz}
+                    onChange={(e) => setTz(e.target.value)}
+                    placeholder="America/Phoenix"
+                    className="w-full rounded-md border border-stone-300 px-3 py-2 text-sm bg-white font-mono"
+                  />
+                  <p className="mt-1 text-[10.5px] text-stone-500">
+                    IANA tz database name. Phoenix doesn&apos;t observe DST so once-saved schedules stay stable; other zones may drift twice a year and need a re-save.
+                  </p>
+                </label>
+              </div>
+
+              {error && (
+                <p className="text-[12.5px] text-rose-700 bg-rose-50 border border-rose-200 rounded px-2 py-1.5">{error}</p>
+              )}
+            </>
+          )}
+        </div>
+        <footer className="px-5 py-3 border-t border-stone-200 bg-stone-50 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className="px-3 py-1.5 rounded-md text-stone-600 hover:text-stone-900 text-sm font-semibold disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={loading || saving}
+            className="px-4 py-1.5 rounded-md bg-amber-400 hover:bg-amber-500 text-stone-900 text-sm font-semibold disabled:opacity-50"
+          >
+            {saving ? 'Saving…' : 'Save schedule'}
+          </button>
+        </footer>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// ─── Timezone helpers ──────────────────────────────────────────
+// Picker works in local time (user-friendly); storage works in UTC
+// (cron-stable). Both helpers walk a target Date through the wall-
+// clock conversion using Intl.DateTimeFormat — no Luxon / dayjs.
+
+function localToUtc(localDay: number, localHour: number, tz: string): { day: number; hour: number } {
+  // Pick a fresh date for the requested local day-of-week + hour
+  // in `tz`. Iterate the next 7 days, find one where the local
+  // weekday + hour match, then read UTC values off it.
+  const now = new Date();
+  for (let i = 0; i < 8; i += 1) {
+    const candidate = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+    candidate.setUTCHours(localHour, 0, 0, 0);
+    const fmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short', hour: 'numeric', hour12: false });
+    const parts = fmt.formatToParts(candidate);
+    const weekdayShort = parts.find((p) => p.type === 'weekday')?.value ?? '';
+    const hourPart = Number(parts.find((p) => p.type === 'hour')?.value ?? '-1');
+    const localDayIdx = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(weekdayShort);
+    if (localDayIdx === localDay && hourPart === localHour) {
+      return { day: candidate.getUTCDay(), hour: candidate.getUTCHours() };
+    }
+  }
+  // Fallback: treat the inputs as UTC — better than dropping the
+  // save on the floor.
+  return { day: localDay, hour: localHour };
+}
+
+function utcToLocal(utcDay: number, utcHour: number, tz: string): { day: number; hour: number } {
+  // Mirror image — find a date in the next 7 days that lands on
+  // the given UTC day/hour, then format it in `tz` to read the
+  // local weekday + hour.
+  const now = new Date();
+  for (let i = 0; i < 8; i += 1) {
+    const candidate = new Date(now.getTime() + i * 24 * 60 * 60 * 1000);
+    candidate.setUTCHours(utcHour, 0, 0, 0);
+    if (candidate.getUTCDay() === utcDay) {
+      const fmt = new Intl.DateTimeFormat('en-US', { timeZone: tz, weekday: 'short', hour: 'numeric', hour12: false });
+      const parts = fmt.formatToParts(candidate);
+      const weekdayShort = parts.find((p) => p.type === 'weekday')?.value ?? '';
+      const hourPart = Number(parts.find((p) => p.type === 'hour')?.value ?? '0');
+      const localDayIdx = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(weekdayShort);
+      return { day: localDayIdx >= 0 ? localDayIdx : utcDay, hour: hourPart };
+    }
+  }
+  return { day: utcDay, hour: utcHour };
+}
+
+function fmtHour(h: number): string {
+  if (h === 0) return '12:00 AM (midnight)';
+  if (h === 12) return '12:00 PM (noon)';
+  if (h < 12) return `${h}:00 AM`;
+  return `${h - 12}:00 PM`;
 }

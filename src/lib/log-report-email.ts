@@ -141,7 +141,7 @@ function header(data: LogReportData): string {
 
 function kpiBand(data: LogReportData): string {
   const stats: Array<[string, string]> = [
-    ['Touchpoints', fmtNumber(data.counts.total)],
+    ['Total logs', fmtNumber(data.counts.total)],
     ['Reps', fmtNumber(data.counts.uniqueReps)],
     ['Contacts', fmtNumber(data.counts.uniqueContacts)],
     ['Time on the phones', fmtDuration(data.counts.totalDurationSec)],
@@ -403,13 +403,13 @@ export function renderLogReportEmail(data: LogReportData): string {
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px;background:${BONE};border-collapse:collapse;box-shadow:0 4px 20px rgba(44,24,16,0.06);border-radius:4px;">
           ${header(data)}
           ${kpiBand(data)}
-          ${sectionTitle('Leaderboard', 'Most touchpoints logged this week')}
+          ${sectionTitle('Leaderboard', 'Most logs this week')}
           ${leaderboard(data)}
           ${divider()}
           ${pageBreak()}
           ${sectionTitle('How the team reached out', 'Mix of phone, in-person, text, and the rest')}
           ${methodsTable(data)}
-          ${sectionTitle('Where the work landed', 'Top areas by touchpoints')}
+          ${sectionTitle('Where the work landed', 'Top areas by logs')}
           ${areasTable(data)}
           ${sectionTitle('Top contacts', 'People who saw the most attention')}
           ${topContactsTable(data)}

@@ -68,13 +68,18 @@ export async function buildLogReportData(
   if (logsErr) throw new Error(logsErr.message);
   const logs = (rawLogs ?? []) as LogRow[];
 
-  const userIds = Array.from(new Set(logs.map((l) => l.contacted_by).filter((v): v is string => !!v)));
   const contactIds = Array.from(new Set(logs.map((l) => l.contact_id).filter((v): v is string => !!v)));
 
+  // Pull EVERY active staff member who can log a touchpoint (not
+  // just the ones who did log something this week) so the
+  // leaderboard surfaces zero-loggers too — keeps accountability
+  // visible. A teammate like Placida who hasn't logged anything
+  // shows up with 0 logs / 0m rather than being invisible.
   const [usersRes, contactsRes] = await Promise.all([
-    userIds.length > 0
-      ? admin.from('users').select('id, full_name, avatar_url').in('id', userIds)
-      : Promise.resolve({ data: [] as UserLite[], error: null }),
+    admin
+      .from('users')
+      .select('id, full_name, avatar_url')
+      .eq('status', 'active'),
     contactIds.length > 0
       ? admin.from('contacts').select('id, name, company, formatted_address, location').in('id', contactIds)
       : Promise.resolve({ data: [] as ContactLite[], error: null }),
@@ -86,9 +91,21 @@ export async function buildLogReportData(
 
   // ─── Aggregations ─────────────────────────────────────────────
 
-  // Per-rep leaderboard. Unknowns roll into a single 'Unknown' bucket
-  // so they don't disappear from the totals.
+  // Per-rep leaderboard. Seeded with EVERY active staff member at
+  // 0 logs / 0 seconds so a teammate who didn't log anything this
+  // week still appears (with a flat bar) — accountability is the
+  // whole point of the email. Then we layer real logs on top.
+  // Unknowns (contacted_by points to a deleted user) bucket under
+  // a single 'Unknown' row so totals reconcile.
   const repAgg = new Map<string, { name: string; avatarUrl: string | null; logs: number; durationSec: number }>();
+  for (const [userId, u] of userById) {
+    repAgg.set(userId, {
+      name: u.full_name?.trim() || 'Unknown',
+      avatarUrl: u.avatar_url ?? null,
+      logs: 0,
+      durationSec: 0,
+    });
+  }
   for (const l of logs) {
     if (!l.contacted_by) continue;
     const u = userById.get(l.contacted_by);
@@ -102,10 +119,16 @@ export async function buildLogReportData(
     slot.durationSec += l.duration_seconds ?? 0;
     repAgg.set(l.contacted_by, slot);
   }
+  // Sort: anyone with logs first (desc), then zero-loggers
+  // alphabetical so the bottom of the list is stable across weeks.
   const leaderboard: LogReportLeaderRow[] = Array.from(repAgg.entries())
     .map(([userId, slot]) => ({ userId, ...slot }))
-    .sort((a, b) => b.logs - a.logs || b.durationSec - a.durationSec)
-    .slice(0, 8);
+    .sort((a, b) => {
+      if (a.logs !== b.logs) return b.logs - a.logs;
+      if (a.durationSec !== b.durationSec) return b.durationSec - a.durationSec;
+      return a.name.localeCompare(b.name);
+    })
+    .slice(0, 20);
 
   // Method mix — count + total duration per method label.
   const methodAgg = new Map<string, { count: number; durationSec: number }>();
