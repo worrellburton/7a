@@ -102,7 +102,18 @@ export async function POST(req: NextRequest) {
   let sent = 0;
   let failed = 0;
 
-  for (const r of recipients) {
+  // Concurrent worker pool — matches the pattern used in
+  // /api/email-campaigns/backfill-events. Sending 100 recipients
+  // sequentially blocks wall time on Resend latency × N (a 500ms
+  // round-trip × 100 = 50 seconds of dead time); a pool of 6 keeps
+  // total wall time to roughly ~N/6 × latency without tripping
+  // Resend's rate limit. Each worker still does its own writeback
+  // sequentially so a single recipient's three writes
+  // (recipients update + sends insert + contact_logs insert +
+  // contacts update) remain ordered for that contact.
+  const MAX_PARALLEL = 6;
+  let cursor = 0;
+  const handleOne = async (r: typeof recipients[number]) => {
     let ok = false;
     let statusCode: number | null = null;
     let providerId: string | null = null;
@@ -194,7 +205,19 @@ export async function POST(req: NextRequest) {
         })
         .eq('id', r.contact_id);
     }
-  }
+  };
+  const worker = async () => {
+    while (cursor < recipients.length) {
+      const idx = cursor;
+      cursor += 1;
+      const r = recipients[idx];
+      if (!r) continue;
+      await handleOne(r);
+    }
+  };
+  const workers: Array<Promise<void>> = [];
+  for (let i = 0; i < Math.min(MAX_PARALLEL, recipients.length); i += 1) workers.push(worker());
+  await Promise.all(workers);
 
   const finalStatus = failed === 0 ? 'sent' : sent > 0 ? 'sent' : 'failed';
   await supabase

@@ -15,9 +15,29 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
   const admin = getAdminSupabase();
   const [blog, revisions, images] = await Promise.all([
-    admin.from('blogs').select('*').eq('id', id).maybeSingle(),
-    admin.from('blog_revisions').select('*').eq('blog_id', id).order('created_at', { ascending: false }),
-    admin.from('blog_images').select('*').eq('blog_id', id).order('position', { ascending: true }),
+    // Explicit column list — the editor reads body_markdown + layout
+    // (large jsonb) but it doesn't surface internal audit columns so
+    // listing only what's used keeps the payload tight.
+    admin
+      .from('blogs')
+      .select('id, slug, title, status, prompt, body_markdown, layout, selected_image_ids, created_at, updated_at, published_at, created_by')
+      .eq('id', id)
+      .maybeSingle(),
+    // Revisions grow unbounded for prolific editors; cap at 50 (the
+    // history panel renders the first 8 in a list with no
+    // pagination yet) so an aggressively-revised post doesn't ship
+    // hundreds of body snapshots on every reload.
+    admin
+      .from('blog_revisions')
+      .select('id, blog_id, user_prompt, body_markdown, created_by, created_at')
+      .eq('blog_id', id)
+      .order('created_at', { ascending: false })
+      .limit(50),
+    admin
+      .from('blog_images')
+      .select('id, blog_id, url, alt, position, provider, prompt, created_at')
+      .eq('blog_id', id)
+      .order('position', { ascending: true }),
   ]);
   if (blog.error) return NextResponse.json({ error: blog.error.message }, { status: 500 });
   if (!blog.data) return NextResponse.json({ error: 'not found' }, { status: 404 });
