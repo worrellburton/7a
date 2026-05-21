@@ -130,6 +130,40 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
           metadata: { field: f.key, label: f.label },
         })),
       );
+
+      // Also write ONE contact_logs row crediting the editor with a
+      // 'Data Entry' touchpoint, so the rep gets a line on the
+      // per-rep leaderboard (and the methods mix) for fixing data.
+      // One row per save, not per field — a single edit that fills
+      // three fields counts as one touchpoint, with the comment
+      // listing what got filled.
+      const labels = fills.map((f) => f.label);
+      const dedupLabels = Array.from(new Set(labels));
+      const summary = dedupLabels.length === 1
+        ? `Filled in ${dedupLabels[0]}.`
+        : `Filled in ${dedupLabels.slice(0, -1).join(', ')} and ${dedupLabels[dedupLabels.length - 1]}.`;
+      const nowIso = new Date().toISOString();
+      await admin.from('contact_logs').insert({
+        contact_id: id,
+        method: 'Data Entry',
+        comments: summary,
+        contacted_by: user.id,
+        contacted_at: nowIso,
+        duration_seconds: 0,
+      });
+      // Bump the denormalised last_contact_* columns so the
+      // outreach grid surfaces the data-entry touch in the same
+      // 'last contact' column the row already uses for phone /
+      // in-person / etc.
+      await admin
+        .from('contacts')
+        .update({
+          last_contact_at: nowIso,
+          last_contact_by: user.id,
+          last_contact_method: 'Data Entry',
+          last_contact_comments: summary,
+        })
+        .eq('id', id);
     }
   }
 

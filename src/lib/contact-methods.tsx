@@ -21,6 +21,7 @@ export type ContactMethod =
   | 'Left Message'
   | 'Text Message'
   | 'Email'
+  | 'Data Entry'
   | 'Smoke Signals'
   | 'Walkie Talkie'
   | 'Tin Can Phone';
@@ -133,6 +134,18 @@ function WalkieTalkieIcon() {
   );
 }
 
+function DataEntryIcon() {
+  // Pencil scribbling into a card — reads as 'filling in a record'
+  // at a glance without competing with the other 'reaching out' icons.
+  return (
+    <IconWrap>
+      <rect x="2.5" y="5" width="11" height="9" rx="1.5" />
+      <path d="M5 8h5M5 11h3" />
+      <path d="M13 4l3 3-6 6h-3v-3z" />
+    </IconWrap>
+  );
+}
+
 function TinCanPhoneIcon() {
   return (
     <IconWrap>
@@ -189,6 +202,14 @@ export const CONTACT_METHODS: ContactMethodOption[] = [
     barGradient: 'linear-gradient(90deg, #fb7185, #e11d48)',
     helpText: 'Email outreach.',
     Icon: EmailIcon,
+  },
+  {
+    value: 'Data Entry',
+    label: 'Data Entry',
+    tone: 'bg-sky-50 text-sky-700 border-sky-200',
+    barGradient: 'linear-gradient(90deg, #38bdf8, #0284c7)',
+    helpText: 'Filled a missing field (email / phone / company / role / location / specialty / type).',
+    Icon: DataEntryIcon,
   },
   {
     value: 'Smoke Signals',
