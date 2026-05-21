@@ -34,6 +34,13 @@ interface ContactLite {
   formatted_address: string | null;
   location: string | null;
   email: string | null;
+  phone: string | null;
+  phone_cell: string | null;
+  phone_office: string | null;
+  company: string | null;
+  role: string | null;
+  specialty: string | null;
+  type: string[] | null;
 }
 interface UserLite {
   id: string;
@@ -104,7 +111,7 @@ export async function GET(req: NextRequest) {
     // 30-day window above.
     admin
       .from('contacts')
-      .select('id, last_contact_at, formatted_address, location, email'),
+      .select('id, last_contact_at, formatted_address, location, email, phone, phone_cell, phone_office, company, role, specialty, type'),
   ]);
   if (logsRes.error) return NextResponse.json({ error: logsRes.error.message }, { status: 500 });
   if (contactsRes.error) return NextResponse.json({ error: contactsRes.error.message }, { status: 500 });
@@ -164,10 +171,95 @@ export async function GET(req: NextRequest) {
   const weekBoard = leaderboardFor(rows, usersMap, weekCut);
   const monthBoard = leaderboardFor(rows, usersMap, monthCut);
 
+  // ─── Data governance score ──────────────────────────────────
+  // Per-field completeness across the whole contact list, with
+  // email weighted 3x because empty email blocks the email-campaign
+  // pipeline (we can't enroll someone with no email). Score is
+  // (filled weight / possible weight) * 100 — clean 0..100.
+  // Phone is a 'one of three' field — any of phone, phone_cell, or
+  // phone_office counts as filled.
+  const FIELD_WEIGHTS = [
+    { key: 'email',     label: 'Email',     weight: 3 },
+    { key: 'phone',     label: 'Any phone', weight: 1 },
+    { key: 'company',   label: 'Company',   weight: 1 },
+    { key: 'role',      label: 'Role',      weight: 1 },
+    { key: 'location',  label: 'Location',  weight: 1 },
+    { key: 'specialty', label: 'Specialty', weight: 1 },
+    { key: 'type',      label: 'Type',      weight: 1 },
+  ] as const;
+  const truthy = (v: unknown): boolean => {
+    if (v == null) return false;
+    if (typeof v === 'string') return v.trim() !== '';
+    if (Array.isArray(v)) return v.length > 0;
+    return true;
+  };
+  const breakdown = FIELD_WEIGHTS.map((f) => {
+    let filled = 0;
+    for (const c of contactList) {
+      if (f.key === 'phone') {
+        if (truthy(c.phone) || truthy(c.phone_cell) || truthy(c.phone_office)) filled += 1;
+      } else if (f.key === 'location') {
+        if (truthy(c.location) || truthy(c.formatted_address)) filled += 1;
+      } else {
+        if (truthy((c as unknown as Record<string, unknown>)[f.key])) filled += 1;
+      }
+    }
+    const missing = contactList.length - filled;
+    const pctFilled = contactList.length === 0 ? 100 : Math.round((filled / contactList.length) * 1000) / 10;
+    return { key: f.key, label: f.label, weight: f.weight, filled, missing, pctFilled };
+  });
+  let earned = 0;
+  let possible = 0;
+  for (const row of breakdown) {
+    earned += row.filled * row.weight;
+    possible += contactList.length * row.weight;
+  }
+  const governanceScore = possible === 0 ? 100 : Math.round((earned / possible) * 1000) / 10;
+
+  // Recent governance activity — every contact-field fill the
+  // PATCH route logs. Joined to the user table for the display
+  // name. Last 20 entries so the panel doesn't unbounded-fetch on
+  // a busy week.
+  const { data: actRows } = await admin
+    .from('activity_log')
+    .select('id, user_id, type, target_id, target_label, metadata, created_at')
+    .like('type', 'contact.%_filled')
+    .order('created_at', { ascending: false })
+    .limit(20);
+  const actUserIds = Array.from(new Set((actRows ?? []).map((a) => a.user_id as string | null).filter((v): v is string => !!v)));
+  let actUserMap = new Map<string, UserLite>();
+  if (actUserIds.length > 0) {
+    const { data: actUsers } = await admin
+      .from('users')
+      .select('id, full_name, email, avatar_url')
+      .in('id', actUserIds);
+    actUserMap = new Map((actUsers ?? []).map((u) => [u.id as string, u as UserLite]));
+  }
+  const governanceActivity = ((actRows ?? []) as Array<{ id: string; user_id: string | null; type: string; target_id: string | null; target_label: string | null; metadata: Record<string, unknown> | null; created_at: string }>)
+    .map((r) => {
+      const u = r.user_id ? actUserMap.get(r.user_id) : null;
+      return {
+        id: r.id,
+        at: r.created_at,
+        userId: r.user_id,
+        userName: u?.full_name ?? u?.email ?? 'Unknown',
+        userAvatarUrl: u?.avatar_url ?? null,
+        contactId: r.target_id,
+        contactName: r.target_label,
+        fieldLabel: (r.metadata?.label as string | undefined) ?? r.type.replace('contact.', '').replace('_filled', ''),
+      };
+    });
+
   return NextResponse.json({
     counts: { week, month, total, never, missingEmail },
     today: { areas, leaderboard: today },
     week: { leaderboard: weekBoard },
     month: { leaderboard: monthBoard },
+    governance: {
+      score: governanceScore,
+      totalContacts: contactList.length,
+      breakdown,
+      activity: governanceActivity,
+    },
   });
 }
