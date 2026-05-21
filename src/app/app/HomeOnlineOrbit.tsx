@@ -731,7 +731,13 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
           will-change: transform;
           transform: translateZ(0);
           backface-visibility: hidden;
-          contain: layout paint style;
+          /* layout + style only, NOT paint — avatars sit on the rim
+             of the ring and translate(-50%, -50%) leaves half of
+             each avatar outside the ring's bounding box, so paint
+             containment would clip the visible portion that hangs
+             past the rim (the right- and bottom-edge avatars showed
+             up cropped on mobile). */
+          contain: layout style;
         }
 
         /* Outer ring (team) ticks clockwise on a 120s loop. Inner
@@ -794,7 +800,12 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
           pointer-events: none;
           transform-origin: center;
           container-type: size;
-          contain: layout paint style;
+          /* layout + style only — see .orbit-ring above. Avatars are
+             pinned to the slot's top edge with translate(-50%, -50%),
+             so the upper half of every avatar sits outside the slot's
+             box. Paint containment would crop that half off, which
+             read on mobile as half-circle avatars at the rim. */
+          contain: layout style;
         }
         /* When any pin inside a slot is hovered/focused, lift the
            whole slot above its siblings so the tooltip + glow can

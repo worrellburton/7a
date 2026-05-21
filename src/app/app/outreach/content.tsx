@@ -356,6 +356,12 @@ export default function ContactsContent() {
     }).catch(() => { /* silent — map will just show fewer pins */ });
   }, [viewMode, session?.access_token, rows]);
   const [showAdd, setShowAdd] = useState(false);
+  // Mobile-only "New log" quick-action: open a slim modal that asks
+  // for a person's name + the same fields as LogContactModal. If
+  // the name matches an existing contact we log against it; if not
+  // we create the contact on the fly so the log isn't blocked by a
+  // separate "Add contact" step.
+  const [showNewLog, setShowNewLog] = useState(false);
   const [showImport, setShowImport] = useState(false);
   // "Add with Claude" flow — opens a wizard modal that asks Claude
   // for candidate referrers/leads, lets admissions cherry-pick which
@@ -852,6 +858,42 @@ export default function ContactsContent() {
     }
   }
 
+  // Quick-log path from the mobile "New log" FAB. Finds-or-creates
+  // a contact by name (case-insensitive match against the loaded
+  // rows; falls back to POST /api/contacts if the name is brand
+  // new), then runs the same log-touchpoint flow handleLogContact
+  // uses for grid rows.
+  async function handleQuickLog(
+    name: string,
+    method: ContactMethod,
+    comments: string,
+    durationSeconds: number,
+  ) {
+    if (!session?.access_token) return;
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const lowered = trimmed.toLowerCase();
+    let target = rows.find((r) => (r.name ?? '').toLowerCase() === lowered);
+    if (!target) {
+      const res = await fetch('/api/contacts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        alert(`Couldn't create contact: ${json.error ?? res.status}`);
+        return;
+      }
+      target = (await res.json()) as Contact;
+      // Push the new contact into local state so the realtime
+      // subscription doesn't have to race the log call below.
+      setRows((prev) => [target as Contact, ...prev]);
+    }
+    setShowNewLog(false);
+    await handleLogContact(target, method, comments, '', durationSeconds);
+  }
+
   async function handleUpgrade(target: Contact, partnerPayload: Record<string, unknown>) {
     if (!session?.access_token) return;
     const res = await fetch(`/api/contacts/${target.id}/upgrade-to-partner`, {
@@ -1224,6 +1266,28 @@ export default function ContactsContent() {
       {showAdd && (
         <AddContactModal onClose={() => setShowAdd(false)} onSubmit={handleAdd} />
       )}
+      {showNewLog && (
+        <NewLogModal
+          existingNames={rows.map((r) => r.name).filter(Boolean) as string[]}
+          onClose={() => setShowNewLog(false)}
+          onSubmit={handleQuickLog}
+        />
+      )}
+      {/* Mobile-only "New log" FAB. Lives outside the rest of the
+          layout so it pins to the viewport bottom with safe-area
+          padding instead of inflating the page's vertical rhythm.
+          Hidden on sm+ because admissions on desktop has the full
+          row of header actions (Add Contact / Upload CSV / etc.)
+          and doesn't need a thumb-reachable quick action. */}
+      <button
+        type="button"
+        onClick={() => setShowNewLog(true)}
+        className="sm:hidden fixed inset-x-4 z-50 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-full bg-foreground text-white text-sm font-semibold uppercase tracking-wider shadow-[0_12px_28px_-8px_rgba(0,0,0,0.45)] active:scale-[0.98] transition-transform"
+        style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+      >
+        <span aria-hidden className="text-base leading-none">🪵</span>
+        New log
+      </button>
       {showSuggest && (
         <SuggestWithClaudeModal
           token={session?.access_token ?? null}
@@ -3915,7 +3979,7 @@ function LogsTodayBadge({
     >
       <div className="relative w-[108px] h-[108px] shrink-0 rounded-2xl bg-warm-bg/60 border border-black/10 flex items-center justify-center">
         <span aria-hidden="true" className="text-[56px] leading-none select-none">
-          📋
+          🪵
         </span>
       </div>
       <div className="text-left min-w-0">
@@ -4174,33 +4238,40 @@ function InsightsCard({ fallback }: { fallback: { week: number; month: number; t
         )}
       </div>
 
-      {/* Leaderboards */}
-      <div className="px-4 py-3">
-        <div className="flex items-baseline justify-between gap-2 mb-2">
-          <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-foreground/55">Most active</p>
-          <div className="inline-flex items-center gap-0.5 rounded-md bg-warm-bg/60 border border-black/10 p-0.5">
-            <button
-              type="button"
-              onClick={() => setMode('logs')}
-              className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${mode === 'logs' ? 'bg-foreground text-white' : 'text-foreground/60 hover:text-foreground'}`}
-            >
-              By logs
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode('duration')}
-              className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${mode === 'duration' ? 'bg-foreground text-white' : 'text-foreground/60 hover:text-foreground'}`}
-            >
-              By duration
-            </button>
+      {/* Leaderboards. Gated behind showLogs so the home view stays
+          compact by default — the Today / This week / This month
+          rankings only mount when the user clicks the Logs-today
+          badge open. The KPI strip (week / month / total / never /
+          missing email) lives in the same expansion so all the
+          activity detail is grouped under one click. */}
+      {showLogs && (
+        <div className="px-4 py-3">
+          <div className="flex items-baseline justify-between gap-2 mb-2">
+            <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-foreground/55">Most active</p>
+            <div className="inline-flex items-center gap-0.5 rounded-md bg-warm-bg/60 border border-black/10 p-0.5">
+              <button
+                type="button"
+                onClick={() => setMode('logs')}
+                className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${mode === 'logs' ? 'bg-foreground text-white' : 'text-foreground/60 hover:text-foreground'}`}
+              >
+                By logs
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('duration')}
+                className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${mode === 'duration' ? 'bg-foreground text-white' : 'text-foreground/60 hover:text-foreground'}`}
+              >
+                By duration
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Leaderboard title="Today" entries={today} mode={mode} />
+            <Leaderboard title="This week" entries={week} mode={mode} />
+            <Leaderboard title="This month" entries={month} mode={mode} />
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <Leaderboard title="Today" entries={today} mode={mode} />
-          <Leaderboard title="This week" entries={week} mode={mode} />
-          <Leaderboard title="This month" entries={month} mode={mode} />
-        </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -6271,6 +6342,117 @@ function LogContactModal({
           submitLabel={transcript.trim() ? 'Log contact + summarise' : 'Log contact'}
           onCancel={onClose}
         />
+      </form>
+    </ModalShell>
+  );
+}
+
+// Quick-log modal launched from the mobile "New log" FAB. Mirrors
+// LogContactModal's fields (method + duration + comments) but
+// front-loads a free-text name input so a rep can log a touchpoint
+// against a person whose contact row may or may not exist yet. A
+// datalist seeded from the loaded contact roster turns the input
+// into a soft autocomplete — names that already exist surface as
+// typeahead suggestions so we don't end up with duplicate rows
+// (e.g. "Lindsay" vs "Lindsay R") for the same human; novel names
+// drop through to the find-or-create branch on submit.
+function NewLogModal({
+  existingNames,
+  onClose,
+  onSubmit,
+}: {
+  existingNames: string[];
+  onClose: () => void;
+  onSubmit: (name: string, method: ContactMethod, comments: string, durationSeconds: number) => Promise<void> | void;
+}) {
+  const [name, setName] = useState('');
+  const [method, setMethod] = useState<ContactMethod>('Phone');
+  const [comments, setComments] = useState('');
+  const [durationMin, setDurationMin] = useState<string>('');
+  const totalSeconds = (() => {
+    const m = parseInt(durationMin, 10);
+    return Number.isFinite(m) ? m * 60 : 0;
+  })();
+  const nameValid = name.trim().length > 0;
+  const durationValid = totalSeconds > 0;
+  const submittable = nameValid && durationValid;
+  const [submitting, setSubmitting] = useState(false);
+  return (
+    <ModalShell title="New log" eyebrow="Quick log" onClose={onClose}>
+      <form
+        onSubmit={async (e) => {
+          e.preventDefault();
+          if (!submittable) return;
+          setSubmitting(true);
+          try {
+            await onSubmit(name.trim(), method, comments.trim(), totalSeconds);
+          } finally {
+            setSubmitting(false);
+          }
+        }}
+      >
+        <div className="px-6 py-5 space-y-4">
+          <ModalField label="Name" required hint="Type a name. We'll log against the existing contact or create a new one.">
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              autoFocus
+              list="new-log-name-suggestions"
+              className="modal-input"
+              placeholder="Lindsay Rothschild"
+            />
+            <datalist id="new-log-name-suggestions">
+              {existingNames.slice(0, 200).map((n) => (
+                <option key={n} value={n} />
+              ))}
+            </datalist>
+          </ModalField>
+          <ModalField label="Method" required>
+            <ContactMethodPicker value={method} onChange={setMethod} />
+          </ModalField>
+          <ModalField label="Duration" required hint="How long was the call / conversation, in minutes?">
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                max={720}
+                value={durationMin}
+                onChange={(e) => setDurationMin(e.target.value)}
+                placeholder="0"
+                className="modal-input w-24 text-center tabular-nums"
+                aria-label="Minutes"
+                inputMode="numeric"
+              />
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground/55">min</span>
+            </div>
+          </ModalField>
+          <ModalField label="Comments / notes" hint="What did you talk about? Any next steps?">
+            <textarea
+              value={comments}
+              onChange={(e) => setComments(e.target.value)}
+              rows={4}
+              className="modal-input resize-none"
+              placeholder="They mentioned a referral coming next week — follow up on Tuesday."
+            />
+          </ModalField>
+        </div>
+        <div className="px-6 py-4 border-t border-black/5 bg-warm-bg/30 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-2 rounded-md text-xs font-semibold uppercase tracking-wider text-foreground/65 hover:bg-warm-bg/60 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={!submittable || submitting}
+            className={`px-4 py-2 rounded-md text-xs font-semibold uppercase tracking-wider transition-colors ${submittable && !submitting ? 'bg-foreground text-white hover:bg-foreground/85' : 'bg-foreground/30 text-white/75 cursor-not-allowed'}`}
+          >
+            {submitting ? 'Logging…' : 'Save log'}
+          </button>
+        </div>
       </form>
     </ModalShell>
   );
