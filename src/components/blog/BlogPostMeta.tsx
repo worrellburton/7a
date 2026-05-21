@@ -1,23 +1,32 @@
-// Per-episode author byline + Article JSON-LD.
+// Per-episode author byline + MedicalWebPage JSON-LD.
 //
-// Goal: every Recovery Roadmap episode gets a visible "By <name>,
-// <title>" byline that links to the author's team-page profile,
-// and a matching schema.org/Article structured-data block that
-// Google can read for E-E-A-T (expertise, experience, authority,
-// trust) signals.
+// Goal: every Recovery Roadmap episode gets a visible byline that
+// reads "Written by <author> · Medically reviewed by <reviewer>",
+// and a matching schema.org/MedicalWebPage structured-data block
+// Google + AI search engines can read for E-E-A-T (expertise,
+// experience, authority, trust) signals.
 //
 // Drop-in usage from any episode page:
 //
 //   <BlogPostJsonLd episode={EPISODES.find(e => e.slug === 'foo')!} />
 //   <AuthorByline episode={...} />
 //
-// Both look up the author by slug from the BLOG_AUTHORS registry so
-// the rendered byline + the JSON-LD agree on the same Person URL.
+// Both look up the author + reviewer by slug from BLOG_AUTHORS so
+// the rendered byline and the JSON-LD agree on the same Person URL.
+// Missing slugs fall back to DEFAULT_AUTHOR_SLUG / DEFAULT_REVIEWER_SLUG
+// so legacy posts still emit a valid Person + reviewedBy pair —
+// AI search engines specifically demote sources that ship medical
+// content without a credentialed reviewer.
 
 import Link from 'next/link';
 import Image from 'next/image';
 import { type Episode } from '@/lib/episodes';
-import { authorProfileUrl, findAuthorBySlug, type BlogAuthor } from '@/lib/blogAuthors';
+import {
+  authorProfileUrl,
+  resolveAuthor,
+  resolveReviewer,
+  type BlogAuthor,
+} from '@/lib/blogAuthors';
 
 const SITE_ORIGIN = 'https://sevenarrowsrecoveryarizona.com';
 const ORG_ID = `${SITE_ORIGIN}/#organization`;
@@ -33,39 +42,44 @@ function postUrl(episode: Episode): string {
   return `${SITE_ORIGIN}/who-we-are/blog/${episode.slug}`;
 }
 
+/* ── Person node ────────────────────────────────────────────────── */
+
+function personNode(person: BlogAuthor): Record<string, unknown> {
+  const url = authorProfileUrl(person.slug, SITE_ORIGIN);
+  const displayName = person.credentials ? `${person.name}, ${person.credentials}` : person.name;
+  const node: Record<string, unknown> = {
+    '@type': 'Person',
+    '@id': `${url}#person`,
+    name: displayName,
+    url,
+    jobTitle: person.title,
+    worksFor: { '@id': ORG_ID },
+  };
+  if (person.bio) node.description = person.bio;
+  if (person.avatarUrl) node.image = absoluteUrl(person.avatarUrl);
+  if (person.sameAs && person.sameAs.length > 0) node.sameAs = person.sameAs;
+  return node;
+}
+
 /* ── JSON-LD ─────────────────────────────────────────────────────── */
 
-// Server-rendered schema.org/Article block. Drop into the
+// Server-rendered schema.org/MedicalWebPage block. Drop into the
 // episode's page.tsx (server component) so the structured data
-// lands in the initial HTML, where Google reads it.
+// lands in the initial HTML, where Google + AI search engines
+// extract author + reviewer credentials at crawl time.
 export function BlogPostJsonLd({ episode }: { episode: Episode }) {
-  const author = findAuthorBySlug(episode.authorSlug);
+  const author = resolveAuthor(episode.authorSlug);
+  const reviewer = resolveReviewer(episode.reviewerSlug);
   const url = postUrl(episode);
-  const authorUrl = author ? authorProfileUrl(author.slug, SITE_ORIGIN) : null;
+  const lastReviewed = (episode.lastReviewedAt ?? episode.publishedAt).slice(0, 10);
 
-  const personNode = author
-    ? {
-        '@type': 'Person',
-        '@id': `${authorUrl}#person`,
-        name: author.name + (author.credentials ? `, ${author.credentials}` : ''),
-        url: authorUrl,
-        jobTitle: author.title,
-        ...(author.bio ? { description: author.bio } : {}),
-        ...(author.avatarUrl ? { image: absoluteUrl(author.avatarUrl) } : {}),
-        worksFor: { '@id': ORG_ID },
-      }
-    : null;
-
-  // Episodes that live under /who-we-are/blog/ are part of the
-  // Recovery Roadmap series — link them via a CreativeWorkSeries
-  // node so Google's series-aware rich results can stitch them
-  // together. Legacy posts at root-level URLs (episode.href set
-  // to an absolute slug) skip the series link.
+  // Recovery Roadmap series link (same as before — keeps Google's
+  // series-aware rich results stitching the posts together).
   const inRoadmap = !episode.href;
 
-  const article: Record<string, unknown> = {
+  const payload: Record<string, unknown> = {
     '@context': 'https://schema.org',
-    '@type': 'Article',
+    '@type': 'MedicalWebPage',
     headline: episode.title,
     description: episode.blurb,
     url,
@@ -75,35 +89,43 @@ export function BlogPostJsonLd({ episode }: { episode: Episode }) {
     dateModified: episode.publishedAt,
     publisher: { '@id': ORG_ID },
     inLanguage: 'en-US',
+    author: personNode(author),
+    reviewedBy: personNode(reviewer),
+    lastReviewed,
+    // Targeting patients + their families rather than a clinical
+    // audience. Schema.org enum value MedicalAudienceType has
+    // 'Patient' as one of the canonical choices.
+    medicalAudience: 'Patient',
+    // Addiction medicine is the closest enum match for the site's
+    // editorial focus; Google + AI search engines map both
+    // 'AddictionMedicine' (Schema.org MedicalSpecialty) and the
+    // textual variant to the same topic cluster.
+    specialty: 'AddictionMedicine',
   };
-  if (personNode) {
-    article.author = personNode;
-  }
   if (inRoadmap) {
-    article.isPartOf = {
+    payload.isPartOf = {
       '@type': 'CreativeWorkSeries',
       name: 'The Recovery Roadmap',
       url: `${SITE_ORIGIN}/who-we-are/recovery-roadmap`,
     };
-    article.articleSection = 'Recovery Roadmap';
+    payload.articleSection = 'Recovery Roadmap';
   }
 
   return (
     <script
       type="application/ld+json"
-      // Episodes are static-rendered — dangerouslySetInnerHTML is
-      // the standard pattern Next docs recommend for JSON-LD so
-      // the script body isn't escaped into a string literal.
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(article) }}
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(payload) }}
     />
   );
 }
 
 /* ── Byline ──────────────────────────────────────────────────────── */
 
-// Visible byline shown above the article body. Renders nothing
-// when an episode has no attributed author — keeps legacy posts
-// from showing an awkward empty row.
+// Visible byline shown above the article body. Renders an
+// avatar + author block, then a "Medically reviewed by" line so
+// every reader (not just crawlers) sees the credentials of who
+// validated the content. Both author and reviewer fall back to
+// the defaults so even legacy posts ship a real byline.
 export function AuthorByline({
   episode,
   className = '',
@@ -111,75 +133,100 @@ export function AuthorByline({
   episode: Episode;
   className?: string;
 }) {
-  const author = findAuthorBySlug(episode.authorSlug);
-  if (!author) return null;
-  const profileHref = `/who-we-are/meet-our-team/${author.slug}`;
+  const author = resolveAuthor(episode.authorSlug);
+  const reviewer = resolveReviewer(episode.reviewerSlug);
+  const authorHref = `/who-we-are/meet-our-team/${author.slug}`;
+  const reviewerHref = `/who-we-are/meet-our-team/${reviewer.slug}`;
+  const lastReviewed = episode.lastReviewedAt ?? episode.publishedAt;
+
   return (
     <div
-      className={`flex flex-wrap items-center gap-3 mb-8 pb-6 border-b border-black/10 ${className}`}
+      className={`mb-8 pb-6 border-b border-black/10 ${className}`}
       style={{ fontFamily: 'var(--font-body)' }}
-      // Microdata fallback — duplicates the JSON-LD author so
-      // crawlers reading either format get the same answer.
-      itemScope
-      itemType="https://schema.org/Person"
     >
-      {author.avatarUrl ? (
-        <Link
-          href={profileHref}
-          className="shrink-0 rounded-full overflow-hidden ring-1 ring-black/10 hover:ring-primary/40"
-          aria-label={`More about ${author.name}`}
-        >
-          <Image
-            src={author.avatarUrl}
-            alt={author.name}
-            width={44}
-            height={44}
-            className="w-11 h-11 object-cover"
-            itemProp="image"
-          />
-        </Link>
-      ) : (
-        <Link
-          href={profileHref}
-          aria-label={`More about ${author.name}`}
-          className="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-full bg-warm-bg text-primary text-sm font-bold ring-1 ring-black/10 hover:ring-primary/40"
-        >
-          {author.name
-            .split(/\s+/)
-            .map((p) => p[0])
-            .slice(0, 2)
-            .join('')
-            .toUpperCase()}
-        </Link>
-      )}
-      <div className="min-w-0">
-        <p className="text-[11px] font-semibold tracking-[0.22em] uppercase text-foreground/45">
-          Written by
-        </p>
-        <p className="text-sm text-foreground">
+      <div className="flex flex-wrap items-center gap-3">
+        {author.avatarUrl ? (
           <Link
-            href={profileHref}
-            className="font-semibold text-foreground hover:text-primary"
-            itemProp="url"
+            href={authorHref}
+            className="shrink-0 rounded-full overflow-hidden ring-1 ring-black/10 hover:ring-primary/40"
+            aria-label={`More about ${author.name}`}
           >
-            <span itemProp="name">{author.name}</span>
-            {author.credentials && (
-              <span className="text-foreground/55 font-normal">, {author.credentials}</span>
-            )}
+            <Image
+              src={author.avatarUrl}
+              alt={author.name}
+              width={44}
+              height={44}
+              className="w-11 h-11 object-cover"
+            />
           </Link>
-          <span className="text-foreground/55"> · <span itemProp="jobTitle">{author.title}</span></span>
-        </p>
-        <p className="text-[12px] text-foreground/50">
-          <time dateTime={episode.publishedAt}>{episode.publishedDisplay}</time>
-        </p>
+        ) : (
+          <Link
+            href={authorHref}
+            aria-label={`More about ${author.name}`}
+            className="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-full bg-warm-bg text-primary text-sm font-bold ring-1 ring-black/10 hover:ring-primary/40"
+          >
+            {author.name
+              .split(/\s+/)
+              .map((p) => p[0])
+              .slice(0, 2)
+              .join('')
+              .toUpperCase()}
+          </Link>
+        )}
+        <div className="min-w-0">
+          <p className="text-[11px] font-semibold tracking-[0.22em] uppercase text-foreground/45">
+            Written by
+          </p>
+          <p className="text-sm text-foreground">
+            <Link
+              href={authorHref}
+              className="font-semibold text-foreground hover:text-primary"
+            >
+              {author.name}
+              {author.credentials && (
+                <span className="text-foreground/55 font-normal">, {author.credentials}</span>
+              )}
+            </Link>
+            <span className="text-foreground/55"> · {author.title}</span>
+          </p>
+          <p className="text-[12px] text-foreground/50">
+            <time dateTime={episode.publishedAt}>{episode.publishedDisplay}</time>
+          </p>
+        </div>
       </div>
+
+      {/* Medically-reviewed line. Always present — drives the
+          schema.org/MedicalWebPage.reviewedBy field too, so SEO and
+          GEO (AI-search citation) get the credentialed-reviewer
+          signal that YMYL content needs to rank. */}
+      <p className="mt-3 text-[12.5px] text-foreground/65">
+        <span className="text-[10px] font-semibold tracking-[0.22em] uppercase text-foreground/45">Medically reviewed by</span>
+        <span className="text-foreground/45"> · </span>
+        <Link
+          href={reviewerHref}
+          className="font-semibold text-foreground hover:text-primary"
+        >
+          {reviewer.name}
+          {reviewer.credentials && (
+            <span className="text-foreground/55 font-normal">, {reviewer.credentials}</span>
+          )}
+        </Link>
+        <span className="text-foreground/55"> · {reviewer.title}</span>
+        <span className="text-foreground/45"> · last reviewed </span>
+        <time dateTime={lastReviewed} className="text-foreground/65">
+          {new Date(lastReviewed).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+        </time>
+      </p>
     </div>
   );
 }
 
-// Re-export the resolver in case a page needs to render the author
-// in a non-standard place (e.g. a featured "About the author" card
-// at the bottom of the post).
-export function authorForEpisode(episode: Episode): BlogAuthor | null {
-  return findAuthorBySlug(episode.authorSlug);
+// Re-export the resolvers in case a page needs to render the author
+// or reviewer in a non-standard place.
+export function authorForEpisode(episode: Episode): BlogAuthor {
+  return resolveAuthor(episode.authorSlug);
+}
+
+export function reviewerForEpisode(episode: Episode): BlogAuthor {
+  return resolveReviewer(episode.reviewerSlug);
 }

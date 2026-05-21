@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     // listing only what's used keeps the payload tight.
     admin
       .from('blogs')
-      .select('id, slug, title, status, prompt, body_markdown, layout, selected_image_ids, created_at, updated_at, published_at, created_by')
+      .select('id, slug, title, status, prompt, body_markdown, layout, selected_image_ids, created_at, updated_at, published_at, created_by, author_slug, reviewer_slug, last_reviewed_at')
       .eq('id', id)
       .maybeSingle(),
     // Revisions grow unbounded for prolific editors; cap at 50 (the
@@ -56,6 +56,13 @@ interface PatchBody {
   body_markdown?: string;
   layout?: unknown;
   prompt?: string;
+  // E-E-A-T byline fields. author_slug + reviewer_slug match
+  // BLOG_AUTHORS entries in /lib/blogAuthors.ts; last_reviewed_at
+  // is set by the 'Mark reviewed today' button so MedicalWebPage
+  // schema can emit a fresh lastReviewed timestamp.
+  author_slug?: string | null;
+  reviewer_slug?: string | null;
+  last_reviewed_at?: string | null;
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -73,6 +80,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if ('body_markdown' in body) patch.body_markdown = body.body_markdown;
   if ('layout' in body) patch.layout = body.layout;
   if ('prompt' in body) patch.prompt = body.prompt;
+  if ('author_slug' in body) patch.author_slug = body.author_slug;
+  if ('reviewer_slug' in body) patch.reviewer_slug = body.reviewer_slug;
+  if ('last_reviewed_at' in body) patch.last_reviewed_at = body.last_reviewed_at;
 
   const admin = getAdminSupabase();
   const { data, error } = await admin

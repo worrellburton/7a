@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation';
 import { getAdminSupabase } from '@/lib/supabase-server';
 import type { Layout } from '@/lib/content-claude';
 import DbBlogRenderer from '@/components/DbBlogRenderer';
+import { AuthorByline, BlogPostJsonLd } from '@/components/blog/BlogPostMeta';
+import type { Episode } from '@/lib/episodes';
 
 // Public renderer for DB-backed blog posts. Static folders under
 // /who-we-are/blog/<slug>/ take precedence (Next.js routes static
@@ -18,17 +20,44 @@ interface BlogRow {
   body_markdown: string | null;
   layout: Layout | null;
   published_at: string | null;
+  author_slug: string | null;
+  reviewer_slug: string | null;
+  last_reviewed_at: string | null;
 }
 
 async function loadPublished(slug: string): Promise<BlogRow | null> {
   const admin = getAdminSupabase();
   const { data } = await admin
     .from('blogs')
-    .select('id, slug, title, status, body_markdown, layout, published_at')
+    .select('id, slug, title, status, body_markdown, layout, published_at, author_slug, reviewer_slug, last_reviewed_at')
     .eq('slug', slug)
     .eq('status', 'published')
     .maybeSingle();
   return (data as BlogRow | null) ?? null;
+}
+
+// Adapt a DB blog row into the Episode shape BlogPostMeta consumes.
+// Author / reviewer slugs come straight from the DB columns;
+// resolveAuthor() / resolveReviewer() in blogAuthors fill in
+// defaults when null so legacy rows still get a credentialed
+// reviewer in the JSON-LD.
+function episodeFromBlog(row: BlogRow): Episode {
+  const heroBlock = row.layout?.blocks?.find((b) => b.type === 'hero');
+  const heroImage = (heroBlock as { image?: { url?: string; alt?: string } } | undefined)?.image;
+  const publishedAt = row.published_at ?? new Date().toISOString();
+  return {
+    number: 0,
+    slug: row.slug,
+    title: row.title ?? 'Untitled',
+    blurb: row.body_markdown?.split('\n').find((l) => l.trim() && !l.startsWith('#'))?.slice(0, 220) ?? '',
+    publishedAt,
+    publishedDisplay: new Date(publishedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+    image: heroImage?.url ?? '/images/og-default.jpg',
+    imageAlt: heroImage?.alt ?? row.title ?? 'Seven Arrows Recovery',
+    authorSlug: row.author_slug ?? undefined,
+    reviewerSlug: row.reviewer_slug ?? undefined,
+    lastReviewedAt: row.last_reviewed_at ?? undefined,
+  };
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
@@ -61,23 +90,22 @@ export default async function DbBlogPage({ params }: { params: Promise<{ slug: s
   const row = await loadPublished(slug);
   if (!row || !row.layout) notFound();
 
+  const episode = episodeFromBlog(row);
+
   return (
     <>
+      <BlogPostJsonLd episode={episode} />
+      {/* Byline rides above the layout body, mirroring how the
+          static hand-coded posts compose Hero → Byline → Content.
+          DbBlogRenderer owns the hero block, so the byline goes
+          right after the renderer's max-width wrapper has opened.
+          We render byline + body inside a shared container so the
+          spacing reads correctly without DbBlogRenderer needing
+          to know about author metadata. */}
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        <AuthorByline episode={episode} />
+      </div>
       <DbBlogRenderer layout={row.layout} />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'Article',
-            headline: row.title ?? '',
-            datePublished: row.published_at,
-            author: { '@type': 'Organization', name: 'Seven Arrows Recovery' },
-            publisher: { '@type': 'Organization', name: 'Seven Arrows Recovery' },
-            mainEntityOfPage: `https://sevenarrowsrecoveryarizona.com/who-we-are/blog/${row.slug}`,
-          }),
-        }}
-      />
     </>
   );
 }
