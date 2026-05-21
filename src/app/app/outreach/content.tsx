@@ -1264,7 +1264,11 @@ export default function ContactsContent() {
       )}
 
       {showAdd && (
-        <AddContactModal onClose={() => setShowAdd(false)} onSubmit={handleAdd} />
+        <AddContactModal
+          onClose={() => setShowAdd(false)}
+          onSubmit={handleAdd}
+          existingContacts={rows}
+        />
       )}
       {showNewLog && (
         <NewLogModal
@@ -5662,9 +5666,13 @@ function ManageColumnsButton({
 function AddContactModal({
   onClose,
   onSubmit,
+  existingContacts = [],
 }: {
   onClose: () => void;
   onSubmit: (payload: Partial<Contact>) => Promise<void> | void;
+  // Subset of fields needed to spot duplicates as the user types.
+  // Passed in by the parent so the modal doesn't need its own fetch.
+  existingContacts?: Contact[];
 }) {
   const [name, setName] = useState('');
   const [company, setCompany] = useState('');
@@ -5677,6 +5685,62 @@ function AddContactModal({
   const [location, setLocation] = useState('');
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // The user can dismiss the duplicate banner ("Add anyway") to push
+  // past it — but the banner re-arms on the NEXT round of changes, so
+  // a fresh duplicate still surfaces. Tracked by the keystring of the
+  // current match set so a different match triggers a new banner.
+  const [dismissedKey, setDismissedKey] = useState<string | null>(null);
+
+  // Duplicate detection. Runs on every keystroke against the contacts
+  // we already have rendered (parent passes `rows`), so the warning
+  // appears the moment the user has typed enough of a name / email /
+  // phone to overlap with an existing record — they don't have to
+  // fill out the whole card before learning it's a dupe.
+  // Match rules:
+  //   • Email: case-insensitive exact after trim.
+  //   • Phone: digits-only match against any of phone / phone_cell
+  //     / phone_office on the existing row (so "(917)714-8771" and
+  //     "9177148771" both hit).
+  //   • Name: case-insensitive exact name match AND (if a company is
+  //     typed) case-insensitive company match — that way two unrelated
+  //     "John Smith" rows at different facilities don't false-positive,
+  //     but two "John Smith @ Acme" rows do.
+  const matches = useMemo<Contact[]>(() => {
+    const out: Contact[] = [];
+    const seen = new Set<string>();
+    const nName = name.trim().toLowerCase();
+    const nCompany = company.trim().toLowerCase();
+    const nEmail = email.trim().toLowerCase();
+    const nPhoneDigits = phone.replace(/\D+/g, '');
+    if (!nName && !nEmail && !nPhoneDigits.length) return out;
+    for (const c of existingContacts) {
+      if (seen.has(c.id)) continue;
+      let hit = false;
+      if (nEmail && c.email && c.email.trim().toLowerCase() === nEmail) hit = true;
+      if (!hit && nPhoneDigits.length >= 7) {
+        const candidates = [c.phone, c.phone_cell, c.phone_office]
+          .filter((v): v is string => !!v)
+          .map((v) => v.replace(/\D+/g, ''));
+        if (candidates.some((d) => d && (d === nPhoneDigits || d.endsWith(nPhoneDigits) || nPhoneDigits.endsWith(d)))) hit = true;
+      }
+      if (!hit && nName && c.name.trim().toLowerCase() === nName) {
+        // Name-only match: require a company match too (when typed)
+        // so two unrelated people sharing a name don't false-flag.
+        // When the user hasn't typed a company yet, name alone is
+        // enough to warn — they can still proceed if it's a different
+        // person.
+        if (!nCompany || (c.company && c.company.trim().toLowerCase() === nCompany)) hit = true;
+      }
+      if (hit) {
+        seen.add(c.id);
+        out.push(c);
+      }
+      if (out.length >= 3) break;
+    }
+    return out;
+  }, [existingContacts, name, company, email, phone]);
+  const matchKey = matches.map((m) => m.id).sort().join(',');
+  const showBanner = matches.length > 0 && dismissedKey !== matchKey;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -5703,6 +5767,57 @@ function AddContactModal({
   return (
     <ModalShell title="Add a contact" eyebrow="New contact" onClose={onClose}>
       <form onSubmit={submit}>
+        {showBanner && (
+          <div className="mx-6 mt-5 rounded-xl border border-amber-300/70 bg-amber-50 px-4 py-3" role="alert">
+            <div className="flex items-start gap-3">
+              <span aria-hidden className="text-base leading-none mt-0.5">⚠️</span>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-amber-900 mb-1" style={{ fontFamily: 'var(--font-body)' }}>
+                  {matches.length === 1 ? 'Possible duplicate' : `Possible duplicates · ${matches.length}`}
+                </p>
+                <p className="text-[12.5px] text-amber-900 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+                  {matches.length === 1
+                    ? 'This contact may already exist:'
+                    : 'These contacts may already exist:'}
+                </p>
+                <ul className="mt-1.5 space-y-1">
+                  {matches.map((m) => {
+                    const why: string[] = [];
+                    const nEmail = email.trim().toLowerCase();
+                    const nPhoneDigits = phone.replace(/\D+/g, '');
+                    const nName = name.trim().toLowerCase();
+                    if (nEmail && m.email && m.email.trim().toLowerCase() === nEmail) why.push('email');
+                    if (nPhoneDigits.length >= 7) {
+                      const candidates = [m.phone, m.phone_cell, m.phone_office]
+                        .filter((v): v is string => !!v)
+                        .map((v) => v.replace(/\D+/g, ''));
+                      if (candidates.some((d) => d && (d === nPhoneDigits || d.endsWith(nPhoneDigits) || nPhoneDigits.endsWith(d)))) why.push('phone');
+                    }
+                    if (nName && m.name.trim().toLowerCase() === nName) why.push('name');
+                    return (
+                      <li key={m.id} className="text-[12.5px] text-amber-900">
+                        <span className="font-semibold">{m.name}</span>
+                        {m.company && <span className="text-amber-900/75"> · {m.company}</span>}
+                        {why.length > 0 && (
+                          <span className="text-amber-900/60"> · matches {why.join(' + ')}</span>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDismissedKey(matchKey)}
+                className="shrink-0 -mr-1 -mt-1 inline-flex items-center justify-center w-7 h-7 rounded-md text-amber-900/55 hover:text-amber-900 hover:bg-amber-100"
+                aria-label="Dismiss duplicate warning"
+                title="Add anyway"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
         <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <ModalField label="Name" required>
             <input value={name} onChange={(e) => setName(e.target.value)} required className="modal-input" />
