@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
+import { buildLogReportData } from '@/lib/log-report-data';
 
 // GET /api/levers/log-report/preview
 //
-// Phase 1 stub — returns a placeholder cohort + window summary so
-// the Log Report lever can render its visual on the console.
-// Phase 3 fills this with the real /api/contacts/insights data
-// roll-up; Phase 4 wires the rendered HTML preview.
-//
-// Super-admin-only (matches the JD-reminder lever auth shape).
+// Returns the cohort summary the lever's badge + UI surface from.
+// Phase 4 reads from real /contact_logs aggregations (Phase 3
+// builder) so the badge count matches what the email will say.
 
 export const dynamic = 'force-dynamic';
 
@@ -25,21 +23,41 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Super admin only' }, { status: 403 });
   }
 
-  const now = new Date();
-  const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  // Default recipients = every super admin, since the report
+  // is admissions / leadership ops. The Phase-6 recipients
+  // picker on the lever lets the puller override per-send.
+  const { data: superAdmins } = await admin
+    .from('users')
+    .select('id, full_name, email')
+    .eq('is_super_admin', true)
+    .not('email', 'is', null)
+    .order('full_name', { ascending: true });
+  const defaultRecipients = ((superAdmins ?? []) as Array<{ id: string; full_name: string | null; email: string | null }>)
+    .filter((u) => !!u.email)
+    .map((u) => ({ id: u.id, name: u.full_name, email: u.email as string }));
 
-  return NextResponse.json({
-    window: {
-      startsAt: weekStart.toISOString(),
-      endsAt: now.toISOString(),
-      label: 'Last 7 days',
-    },
-    // Phase 3 replaces these with real aggregations off contact_logs.
-    counts: { total: 0, byMethod: {}, uniqueContacts: 0, uniqueReps: 0 },
-    leaderboard: [],
-    // Phase 6 lists the default recipients here (super admins by
-    // default; configurable per pull).
-    defaultRecipients: [],
-    phase: 1,
-  });
+  try {
+    const data = await buildLogReportData(admin);
+    return NextResponse.json({
+      window: data.window,
+      counts: {
+        total: data.counts.total,
+        byMethod: Object.fromEntries(data.byMethod.map((m) => [m.method, m.count])),
+        uniqueContacts: data.counts.uniqueContacts,
+        uniqueReps: data.counts.uniqueReps,
+      },
+      leaderboard: data.leaderboard.map((r) => ({ userId: r.userId, name: r.name, logs: r.logs })),
+      defaultRecipients,
+      phase: 4,
+    });
+  } catch (e) {
+    return NextResponse.json({
+      window: null,
+      counts: { total: 0, byMethod: {}, uniqueContacts: 0, uniqueReps: 0 },
+      leaderboard: [],
+      defaultRecipients,
+      error: e instanceof Error ? e.message : String(e),
+      phase: 4,
+    }, { status: 503 });
+  }
 }
