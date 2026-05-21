@@ -55,22 +55,22 @@ export async function GET() {
   const MID2 = 'id, full_name, phone, email, insurance_provider, status, notes, received_at, updated_at, card_front_path, card_back_path, responded_at, responded_by, responded_note, attempts, admin_notes';
   const MID  = 'id, full_name, phone, email, insurance_provider, status, notes, received_at, updated_at, card_front_path, card_back_path, responded_at, responded_by, responded_note';
   const MIN  = 'id, full_name, phone, email, insurance_provider, status, notes, received_at, updated_at, card_front_path, card_back_path';
-  let resp = await admin.from('vob_requests').select(FULL).order('received_at', { ascending: false });
+  let resp = await admin.from('vob_requests').select(FULL).order('received_at', { ascending: false }).limit(500);
   if (resp.error && /(member_id|group_number|payer_|subscriber_|card_ocr|eligibility_)/i.test(resp.error.message)) {
     console.warn('[vobs] stedi columns missing, degrading read:', resp.error.message);
-    resp = await admin.from('vob_requests').select(MID3).order('received_at', { ascending: false }) as typeof resp;
+    resp = await admin.from('vob_requests').select(MID3).order('received_at', { ascending: false }).limit(500) as typeof resp;
   }
   if (resp.error && /date_of_birth/i.test(resp.error.message)) {
     console.warn('[vobs] date_of_birth column missing, degrading read:', resp.error.message);
-    resp = await admin.from('vob_requests').select(MID2).order('received_at', { ascending: false }) as typeof resp;
+    resp = await admin.from('vob_requests').select(MID2).order('received_at', { ascending: false }).limit(500) as typeof resp;
   }
   if (resp.error && /(attempts|admin_notes)/i.test(resp.error.message)) {
     console.warn('[vobs] attempts/admin_notes columns missing, degrading read:', resp.error.message);
-    resp = await admin.from('vob_requests').select(MID).order('received_at', { ascending: false }) as typeof resp;
+    resp = await admin.from('vob_requests').select(MID).order('received_at', { ascending: false }).limit(500) as typeof resp;
   }
   if (resp.error && /responded_/i.test(resp.error.message)) {
     console.warn('[vobs] responded_* columns missing, degrading read:', resp.error.message);
-    resp = await admin.from('vob_requests').select(MIN).order('received_at', { ascending: false }) as typeof resp;
+    resp = await admin.from('vob_requests').select(MIN).order('received_at', { ascending: false }).limit(500) as typeof resp;
   }
   const { data, error } = resp;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

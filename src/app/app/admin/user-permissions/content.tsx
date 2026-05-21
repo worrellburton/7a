@@ -7,6 +7,7 @@ import { logActivity } from '@/lib/activity';
 import { formatNameWithCredentials } from '@/lib/displayName';
 import PermissionsModal from './PermissionsModal';
 import AccessGroupsTab from './AccessGroupsTab';
+import ContentAccessTab from './ContentAccessTab';
 
 // User Permissions page (renamed from /app/super-admin in Phase 1).
 // Same column layout as /app/team — User | Viewing | Department |
@@ -52,7 +53,7 @@ interface JobDescriptionLite {
 type SortKey = 'user' | 'viewing' | 'department' | 'job_title' | 'created_at';
 type SortDir = 'asc' | 'desc';
 type FilterPill = 'all' | 'team' | 'admins' | 'super_admins' | 'alumni' | 'pending';
-type TopTab = 'users' | 'groups' | 'alumni';
+type TopTab = 'content' | 'users' | 'groups' | 'alumni';
 
 const ROOT_ADMIN_EMAIL = 'bobby@sevenarrowsrecovery.com';
 const isRootAdmin = (email: string | null | undefined) =>
@@ -386,6 +387,10 @@ export default function UserPermissionsContent() {
           builder for named permission templates). */}
       <div className="border-b border-gray-100 mb-5 flex gap-1" style={{ fontFamily: 'var(--font-body)' }}>
         {([
+          // Content tab leads the strip — it's the single most
+          // requested promotion path (HR flips a teammate into the
+          // blog pipeline) and benefits from being first.
+          { id: 'content' as TopTab, label: 'Content' },
           { id: 'users' as TopTab, label: 'Users' },
           { id: 'groups' as TopTab, label: 'Access Groups' },
           { id: 'alumni' as TopTab, label: 'Alumni' },
@@ -408,7 +413,9 @@ export default function UserPermissionsContent() {
         })}
       </div>
 
-      {topTab === 'groups' ? (
+      {topTab === 'content' ? (
+        <ContentAccessTab />
+      ) : topTab === 'groups' ? (
         <AccessGroupsTab />
       ) : topTab === 'alumni' ? (
         <AlumniTab

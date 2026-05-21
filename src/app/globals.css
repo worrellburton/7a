@@ -348,6 +348,70 @@ html:has(:target) {
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* ─── Mobile optimization · Phase 1 · tap-target floor ─────────── */
+/*
+ * iOS HIG and Material both call for a minimum 44×44 (or 48dp) touch
+ * target. The app surface accumulated a lot of compact text-only
+ * buttons (filter chips, "Add", tier pills, etc.) that read fine on
+ * desktop but undershoot the touch floor on phones. Rather than walk
+ * every call site, this scoped rule guarantees a minimum hit area
+ * on screens narrower than the md breakpoint (768px) for every
+ * interactive element inside the platform shell.
+ *
+ * `min-height: 44px` + `min-width: 44px` enforce the floor without
+ * changing visual size (padding still controls the painted shape —
+ * the hit area extends past the visible chrome where padding is too
+ * small). Icon-only buttons get an explicit larger hit slop via the
+ * `:not(.sa-tap-natural)` escape hatch so call sites with a known
+ * larger target (e.g. inline pill that already exceeds 44px from
+ * padding) can opt out by adding the class.
+ *
+ * Scoped to `[data-platform-main]` so the public marketing site —
+ * which has its own .btn-primary/.btn-outline system — isn't
+ * touched. Public surfaces get their own pass in Phase 7.
+ */
+@media (max-width: 767px) {
+  [data-platform-main] button:not(.sa-tap-natural),
+  [data-platform-main] [role="button"]:not(.sa-tap-natural),
+  [data-platform-main] a[href]:not(.sa-tap-natural):not(p a):not(li a),
+  [data-platform-main] summary:not(.sa-tap-natural),
+  [data-platform-main] input[type="checkbox"]:not(.sa-tap-natural),
+  [data-platform-main] input[type="radio"]:not(.sa-tap-natural),
+  [data-platform-main] label.sa-checkbox-wrap:not(.sa-tap-natural) {
+    min-height: 44px;
+    min-width: 44px;
+    /* Force the inner content to centre vertically so the
+       enlarged hit slot doesn't visually shift the label. */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* Buttons that wrap multi-line content (e.g. the day-block
+     buttons on /app/admissions) need block-level flex so the
+     min-height stays honoured without breaking their column
+     layout — override the inline-flex above for them. */
+  [data-platform-main] button.sa-tap-block,
+  [data-platform-main] [role="button"].sa-tap-block {
+    display: flex;
+  }
+  /* Native form controls should also clear 16px so iOS Safari
+     doesn't zoom into the input on focus. */
+  [data-platform-main] input:not([type="checkbox"]):not([type="radio"]),
+  [data-platform-main] select,
+  [data-platform-main] textarea {
+    font-size: max(16px, 1rem);
+  }
+  /* Adjacent tap-target spacing — at least 8px between siblings
+     so the user doesn't fat-finger the wrong control. Applied
+     via the `.sa-tap-row` opt-in so dense, tightly-grouped
+     surfaces (e.g. the tier filter chip row, action button
+     stacks) can call it out without affecting every flex row. */
+  [data-platform-main] .sa-tap-row > * + * {
+    margin-left: 0.5rem;
+  }
+}
+
+
 /* Slide-on-sidebar — anything tagged with [data-shift-on-sidebar]
    slides 12rem to the right while the sidebar rail is being hovered
    (rail expands from w-16 to w-64, a 12rem delta). The home hero's
@@ -1154,22 +1218,65 @@ tr:hover .sa-engagement-cell {
  * picks up .orbit-pin-your-move — a copper halo that breathes
  * in/out on a 1.8s loop so the eye finds the opponent in the
  * ring even with two dozen avatars around it.
+ *
+ * The halo lives on a pseudo-element behind the avatar so the
+ * animation is opacity + transform-only (compositor-friendly).
+ * The previous box-shadow keyframe forced a per-frame paint of
+ * every pin in the rotating ring on mobile — a real source of
+ * sub-60fps drops on phones.
  */
+.orbit-pin-your-move {
+  border-radius: 9999px;
+  position: relative;
+}
+.orbit-pin-your-move::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 9999px;
+  background: radial-gradient(closest-side, rgba(188, 107, 74, 0.65), rgba(188, 107, 74, 0) 75%);
+  animation: sa-orbit-your-move 1800ms ease-in-out infinite;
+  pointer-events: none;
+  z-index: -1;
+  will-change: opacity, transform;
+}
 @keyframes sa-orbit-your-move {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(188, 107, 74, 0.0), 0 0 12px 2px rgba(188, 107, 74, 0.40);
+    opacity: 0.45;
+    transform: scale(0.95);
   }
   50% {
-    box-shadow: 0 0 0 5px rgba(188, 107, 74, 0.18), 0 0 22px 6px rgba(188, 107, 74, 0.75);
+    opacity: 1;
+    transform: scale(1.15);
   }
 }
-.orbit-pin-your-move {
-  animation: sa-orbit-your-move 1800ms ease-in-out infinite;
-  border-radius: 9999px;
-}
 @media (prefers-reduced-motion: reduce) {
-  .orbit-pin-your-move {
+  .orbit-pin-your-move::before {
     animation: none;
-    box-shadow: 0 0 0 3px rgba(188, 107, 74, 0.30), 0 0 14px 2px rgba(188, 107, 74, 0.45);
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+/* ── iOS Safari auto-zoom prevention ─────────────────────────────
+ * When a user taps an <input>, <select>, or <textarea> on iOS and
+ * the element's font-size is below 16px, Safari forcibly zooms in
+ * to make the field readable — and never zooms back out, so the
+ * page is left rendered larger than 100% with no easy way back
+ * short of a pinch-out. The fix is universally to render those
+ * controls at >= 16px on small screens. We scope to <= 640px so
+ * the desktop UI keeps its tighter 11-13px fields.
+ *
+ * Why this stays here forever: the existing
+ *   <meta name="viewport" content="..., maximum-scale=1" />
+ * stops *user-driven* pinch zoom but iOS still triggers the
+ * auto-zoom on focus regardless of viewport — only the font-size
+ * rule actually defeats it. Apple has documented this behaviour
+ * for years; the 16px rule is the canonical workaround. */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
   }
 }

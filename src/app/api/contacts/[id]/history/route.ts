@@ -17,9 +17,15 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const admin = getAdminSupabase();
   const { data: logs, error } = await admin
     .from('contact_logs')
-    .select('id, method, comments, contacted_by, contacted_at, duration_seconds, transcript_storage_path, transcript_summary')
+    .select('id, method, comments, contacted_by, contacted_at, duration_seconds, transcript_storage_path, transcript_summary, campaign_id')
     .eq('contact_id', id)
-    .order('contacted_at', { ascending: false });
+    .order('contacted_at', { ascending: false })
+    // Active referrers can rack up hundreds of touchpoints over time;
+    // the modal renders all rows in one scroll without pagination so
+    // an unbounded fetch would balloon the JSON payload. 200 is well
+    // above any contact we have today and keeps the modal scroll
+    // snappy. If the cap is ever hit we'll add a 'show older' tail.
+    .limit(200);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const rows = (logs ?? []) as Array<{
@@ -31,6 +37,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     duration_seconds: number | null;
     transcript_storage_path: string | null;
     transcript_summary: string | null;
+    campaign_id: string | null;
   }>;
 
   const userIds = Array.from(new Set(rows.map((r) => r.contacted_by).filter((v): v is string => !!v)));

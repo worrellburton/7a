@@ -437,10 +437,15 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
           className="absolute inset-[36%] rounded-full bg-gradient-to-br from-primary/[0.07] via-accent/[0.05] to-transparent"
         />
         {/* Centre 7A — small glass pill, kept understated so the
-            orbiting team avatars stay the focus. */}
+            orbiting team avatars stay the focus. `backdrop-blur` is
+            gated to `sm:` because on mobile the blur layer sits in
+            front of the spinning ring and forces the browser to
+            recompose the blurred region every frame the ring tics —
+            a known iOS/Android compositor stall. Phones get a solid
+            frosted fill instead. */}
         <div
           aria-hidden="true"
-          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-white/70 supports-[backdrop-filter]:bg-white/45 backdrop-blur-md border border-white/80 shadow-[0_8px_28px_-12px_rgba(60,48,42,0.35)] flex items-center justify-center"
+          className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full bg-white/85 sm:bg-white/70 sm:supports-[backdrop-filter]:bg-white/45 sm:backdrop-blur-md border border-white/80 shadow-[0_8px_28px_-12px_rgba(60,48,42,0.35)] flex items-center justify-center"
         >
           <span
             className="text-[10px] font-bold uppercase tracking-[0.2em] text-primary"
@@ -516,6 +521,9 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
                               src={h.image_url}
                               alt={h.name}
                               referrerPolicy="no-referrer"
+                              width={36}
+                              height={36}
+                              decoding="async"
                               className="block w-7 h-7 sm:w-9 sm:h-9 rounded-full object-cover border-2 border-white shadow-md transition-transform duration-300 group-hover:scale-110"
                             />
                           ) : (
@@ -609,6 +617,9 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
                             src={u.avatar_url}
                             alt={u.full_name || ''}
                             referrerPolicy="no-referrer"
+                            width={48}
+                            height={48}
+                            decoding="async"
                             className={`block w-9 h-9 sm:w-12 sm:h-12 rounded-full object-cover border-2 transition-transform duration-300 group-hover:scale-110 ${
                               onFire
                                 ? 'border-orange-400 shadow-[0_0_18px_rgba(251,146,60,0.7)]'
@@ -705,19 +716,44 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
         @keyframes orbit-angle-tick      { to { --orbit-angle: 360deg; } }
         @keyframes orbit-angle-tick-slow { to { --orbit-angle-slow: 360deg; } }
 
+        /* GPU layer promotion. Without these hints mobile (especially
+           iOS Safari and older Android Chromium) re-rasterises the
+           ring + every nested avatar on every frame the rotation
+           ticks — that's the primary source of the sub-60fps drop
+           we were seeing on phones. The will-change + trailing
+           translateZ(0) hint forces each rotated wrapper onto its
+           own composited layer, so the per-frame work collapses
+           into a single GPU transform instead of a recursive paint
+           of every child. The 'contain' rule then scopes layout/paint so a
+           tooltip-triggered restyle inside one slot can't invalidate
+           the rest of the orbit. */
+        .orbit-ring {
+          will-change: transform;
+          transform: translateZ(0);
+          backface-visibility: hidden;
+          /* layout + style only, NOT paint — avatars sit on the rim
+             of the ring and translate(-50%, -50%) leaves half of
+             each avatar outside the ring's bounding box, so paint
+             containment would clip the visible portion that hangs
+             past the rim (the right- and bottom-edge avatars showed
+             up cropped on mobile). */
+          contain: layout style;
+        }
+
         /* Outer ring (team) ticks clockwise on a 120s loop. Inner
            ring (horses) ticks on a slower 180s loop so the two read
            as one composed motion with the horses gently trailing
            the team. The ring rotation IS the variable — transform:
            rotate(var(...)) reads whatever the keyframes have set
-           this paint frame. */
+           this paint frame. Trailing translateZ(0) keeps the ring
+           pinned on its own compositor layer. */
         .orbit-spin {
           animation: orbit-angle-tick 120s linear infinite;
-          transform: rotate(var(--orbit-angle));
+          transform: rotate(var(--orbit-angle)) translateZ(0);
         }
         .orbit-spin-slow {
           animation: orbit-angle-tick-slow 180s linear infinite;
-          transform: rotate(var(--orbit-angle-slow));
+          transform: rotate(var(--orbit-angle-slow)) translateZ(0);
         }
 
         /* Each avatar's counter rotation reads the same variable the
@@ -727,8 +763,14 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
            out of phase — they're computed from the exact same value
            every frame. The result: ring rotates around the centre,
            individual avatars never rotate, no drift. */
-        .orbit-counter      { display: inline-block; transform: rotate(calc(-1 * var(--orbit-angle))); }
-        .orbit-counter-slow { display: inline-block; transform: rotate(calc(-1 * var(--orbit-angle-slow))); }
+        .orbit-counter,
+        .orbit-counter-slow {
+          display: inline-block;
+          will-change: transform;
+          backface-visibility: hidden;
+        }
+        .orbit-counter      { transform: rotate(calc(-1 * var(--orbit-angle)))      translateZ(0); }
+        .orbit-counter-slow { transform: rotate(calc(-1 * var(--orbit-angle-slow))) translateZ(0); }
 
         /* When any avatar is hovered we freeze the rings (and their
            paired counter-rotations) so the trigger stays pinned under
@@ -744,12 +786,26 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
 
         /* Slots fill the ring's bounding box. Each is rotated to its
            angle inline; the pin pinned at the top centre of the slot
-           lands the avatar exactly on the outer edge of the ring. */
+           lands the avatar exactly on the outer edge of the ring.
+           container-type:size lets the mount keyframe below
+           express its starting offset in cqh (50% of the slot's own
+           height = the orbit radius) so the avatar shoots out from
+           centre to rim with a transform-only animation — no top
+           keyframe, no per-pin layout work during the 24-avatar
+           stagger. contain keeps each slot's paint scoped to
+           itself. */
         .orbit-slot {
           position: absolute;
           inset: 0;
           pointer-events: none;
           transform-origin: center;
+          container-type: size;
+          /* layout + style only — see .orbit-ring above. Avatars are
+             pinned to the slot's top edge with translate(-50%, -50%),
+             so the upper half of every avatar sits outside the slot's
+             box. Paint containment would crop that half off, which
+             read on mobile as half-circle avatars at the rim. */
+          contain: layout style;
         }
         /* When any pin inside a slot is hovered/focused, lift the
            whole slot above its siblings so the tooltip + glow can
@@ -772,6 +828,7 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
           border: 0;
           padding: 0;
           line-height: 0;
+          contain: layout style;
         }
         .orbit-pin:focus-visible {
           outline: 2px solid var(--color-primary, #bc6b4a);
@@ -780,49 +837,88 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
         }
 
         /* Mount animation — start at the centre of the ring at scale
-           0.3, ease out to the slot. We achieve "centre" by pinning
-           the avatar's translate to (-50%, -50%) of (50%, 50%) of the
-           slot, which puts it at slot centre — i.e. ring centre after
-           the slot's static rotation is applied. */
+           0.3, ease out to the slot. The radial offset is expressed
+           in cqh (container-query height of the slot, set up via
+           container-type: size above), so this is a pure-transform
+           animation: no top keyframe, no layout invalidation, the
+           entire 24-avatar stagger runs on the compositor. */
         @keyframes orbit-pin-enter {
           0% {
             opacity: 0;
-            top: 50%;
-            transform: translate(-50%, -50%) scale(0.3);
+            transform: translate(-50%, calc(-50% + 50cqh)) scale(0.3);
           }
           60% { opacity: 1; }
           100% {
             opacity: 1;
-            top: 0;
             transform: translate(-50%, -50%) scale(1);
           }
         }
         .orbit-pin-pre {
           opacity: 0;
-          top: 50%;
-          transform: translate(-50%, -50%) scale(0.3);
+          transform: translate(-50%, calc(-50% + 50cqh)) scale(0.3);
         }
         .orbit-pin-in {
           animation: orbit-pin-enter 1100ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
           animation-delay: var(--enter-delay);
         }
 
-        /* Flame badge gently breathes so the on-fire avatars draw the
-           eye without becoming distracting. Combines a slight scale
-           with a brighter shadow on the peak so the warmth reads on
-           pale backgrounds too. */
-        @keyframes orbit-fire-pulse {
-          0%, 100% {
-            transform: scale(1);
-            box-shadow: 0 0 6px rgba(251, 146, 60, 0.55);
-          }
-          50% {
-            transform: scale(1.15);
-            box-shadow: 0 0 12px rgba(251, 146, 60, 0.85);
-          }
+        /* Flame badge gently breathes so on-fire avatars draw the
+           eye. We dropped the per-frame box-shadow keyframe — every
+           step of that animation forced the badge + its glow to
+           re-rasterise, which on mobile cascaded into the whole
+           rotating ring being re-painted. The warm halo is now a
+           pseudo-element sibling that animates only opacity (a
+           compositor-only property), and the badge itself still
+           pulses scale (also compositor-only). Identical look,
+           dramatically cheaper. */
+        @keyframes orbit-fire-scale {
+          0%, 100% { transform: scale(1); }
+          50%      { transform: scale(1.15); }
+        }
+        @keyframes orbit-fire-halo {
+          0%, 100% { opacity: 0.55; }
+          50%      { opacity: 1; }
         }
         .orbit-fire {
-          animation: orbit-fire-pulse 1.6s ease-in-out infinite;
+          position: relative;
+          animation: orbit-fire-scale 1.6s ease-in-out infinite;
+          will-change: transform;
+        }
+        .orbit-fire::before {
+          content: '';
+          position: absolute;
+          inset: -4px;
+          border-radius: 9999px;
+          background: radial-gradient(closest-side, rgba(251, 146, 60, 0.85), rgba(251, 146, 60, 0) 75%);
+          animation: orbit-fire-halo 1.6s ease-in-out infinite;
+          pointer-events: none;
+          z-index: -1;
+          will-change: opacity;
+        }
+
+        /* Touch / no-hover devices: kill every transition inside the
+           ring. On phones the hover state never fires, but the
+           transition-transform duration-300 declarations on every
+           avatar still cost a style-recalc lookup per element each
+           frame the ring tics. Stripping them on (hover: none) means
+           the browser has no transition tables to consult when
+           re-applying styles to the 40+ rotating children. */
+        @media (hover: none) {
+          .orbit-pin,
+          .orbit-pin *,
+          .orbit-pin img {
+            transition: none !important;
+          }
+        }
+
+        /* Mobile: extend the rotation period so each frame on a
+           constrained GPU has less visible-degree-of-rotation to
+           reconcile. The orbit still reads as a gentle drift; what
+           the eye *can't* read is the per-frame paint cost, which
+           we halve by halving the angular velocity. */
+        @media (max-width: 639px) {
+          .orbit-spin      { animation-duration: 180s; }
+          .orbit-spin-slow { animation-duration: 260s; }
         }
 
         @media (prefers-reduced-motion: reduce) {
@@ -844,6 +940,10 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
           .orbit-fire {
             animation: none !important;
             transform: none !important;
+          }
+          .orbit-fire::before {
+            animation: none !important;
+            opacity: 0.8;
           }
         }
       `}</style>
