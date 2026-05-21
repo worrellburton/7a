@@ -89,23 +89,27 @@ export async function GET(req: NextRequest) {
   const weekCut = now - 7 * DAY_MS;
   const monthCut = now - 30 * DAY_MS;
 
-  // Logs over the longest window we'll need (30d). All three
-  // leaderboards filter further down from this single slice.
-  const { data: logs, error: logsErr } = await admin
-    .from('contact_logs')
-    .select('contact_id, contacted_by, contacted_at, duration_seconds')
-    .gte('contacted_at', new Date(monthCut).toISOString());
-  if (logsErr) return NextResponse.json({ error: logsErr.message }, { status: 500 });
-  const rows = (logs ?? []) as LogRow[];
-
-  // Pipeline counters use the denormalised contacts.last_contact_at so
-  // a contact that was last touched 35 days ago still rolls into
-  // "total contacted" / "never contacted" — independent of the 30-day
-  // window above.
-  const { data: contacts, error: cErr } = await admin
-    .from('contacts')
-    .select('id, last_contact_at, formatted_address, location, email');
-  if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
+  // Logs over the longest window we'll need (30d) + the
+  // pipeline-counter contact slice in parallel. Each query is
+  // independent so running them in series wastes a full round-trip
+  // of latency for no reason.
+  const [logsRes, contactsRes] = await Promise.all([
+    admin
+      .from('contact_logs')
+      .select('contact_id, contacted_by, contacted_at, duration_seconds')
+      .gte('contacted_at', new Date(monthCut).toISOString()),
+    // Pipeline counters use the denormalised contacts.last_contact_at
+    // so a contact last touched 35 days ago still rolls into
+    // 'total contacted' / 'never contacted' — independent of the
+    // 30-day window above.
+    admin
+      .from('contacts')
+      .select('id, last_contact_at, formatted_address, location, email'),
+  ]);
+  if (logsRes.error) return NextResponse.json({ error: logsRes.error.message }, { status: 500 });
+  if (contactsRes.error) return NextResponse.json({ error: contactsRes.error.message }, { status: 500 });
+  const rows = (logsRes.data ?? []) as LogRow[];
+  const contacts = contactsRes.data;
   const contactList = (contacts ?? []) as ContactLite[];
   const byId = new Map<string, ContactLite>();
   for (const c of contactList) byId.set(c.id, c);

@@ -25,14 +25,14 @@ export async function GET() {
   const FULL = 'id, source, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at, responded_at, responded_by, responded_note, is_spam';
   const NO_SPAM = 'id, source, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at, responded_at, responded_by, responded_note';
   const MIN  = 'id, source, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at';
-  let resp = await admin.from('contact_submissions').select(FULL).neq('source', 'careers').order('created_at', { ascending: false });
+  let resp = await admin.from('contact_submissions').select(FULL).neq('source', 'careers').order('created_at', { ascending: false }).limit(500);
   if (resp.error && /is_spam/i.test(resp.error.message)) {
     console.warn('[forms] is_spam column missing, degrading read:', resp.error.message);
-    resp = await admin.from('contact_submissions').select(NO_SPAM).neq('source', 'careers').order('created_at', { ascending: false }) as typeof resp;
+    resp = await admin.from('contact_submissions').select(NO_SPAM).neq('source', 'careers').order('created_at', { ascending: false }).limit(500) as typeof resp;
   }
   if (resp.error && /responded_/i.test(resp.error.message)) {
     console.warn('[forms] responded_* columns missing, degrading read:', resp.error.message);
-    const fb = await admin.from('contact_submissions').select(MIN).neq('source', 'careers').order('created_at', { ascending: false });
+    const fb = await admin.from('contact_submissions').select(MIN).neq('source', 'careers').order('created_at', { ascending: false }).limit(500);
     resp = fb as typeof resp;
   }
   const { data, error } = resp;
