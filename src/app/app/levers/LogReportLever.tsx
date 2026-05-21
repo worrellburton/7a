@@ -423,7 +423,13 @@ function PreviewPopup({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-3xl max-h-[92vh] flex flex-col rounded-xl overflow-hidden bg-white shadow-2xl"
+        // h-[92vh] (not max-h) gives the column a real height to
+        // distribute via flex-1 — without that, the iframe wrapper
+        // collapses to the iframe's intrinsic 150px default and
+        // the email body looks cropped to just the eyebrow + emoji.
+        // max-w bumped to 4xl so the 640px-wide email body has
+        // breathing room inside the popup frame on a laptop.
+        className="relative w-full max-w-4xl h-[92vh] flex flex-col rounded-xl overflow-hidden bg-white shadow-2xl"
       >
         {/* Browser-chrome strip — three dots + a fake address bar
             so it visually parses as 'an inbox window' on first
@@ -467,15 +473,18 @@ function PreviewPopup({
         </div>
 
         {/* Body — iframe srcDoc isolates the email's inline-style
-            world. Height fills the popup; the iframe content
-            scrolls inside on overflow. */}
-        <div className="flex-1 bg-stone-50 overflow-hidden">
+            world. flex-1 + min-h-0 makes the iframe stretch to fill
+            whatever space the chrome + header + footer haven't
+            claimed; the iframe scrolls inside on overflow so the
+            full 2-page email is reachable without resizing the
+            popup. */}
+        <div className="flex-1 min-h-0 bg-stone-50 overflow-hidden flex">
           {error ? (
             <div className="p-6 text-sm text-rose-700 bg-rose-50 m-4 rounded-lg border border-rose-200">
               {error}
             </div>
           ) : loading || !html ? (
-            <div className="p-10 text-center text-stone-500">
+            <div className="p-10 text-center text-stone-500 w-full">
               <p className="text-sm italic">Rendering preview…</p>
             </div>
           ) : (
@@ -485,7 +494,12 @@ function PreviewPopup({
               // styles can't leak in or out. The renderer ships a
               // full <html> doc so srcDoc is the right entry.
               srcDoc={html}
-              className="w-full h-full border-0"
+              // h-full + flex-1 wrapper above means the iframe
+              // takes the column's remaining height. The renderer
+              // wraps the email card in a 100%-width outer table
+              // with padding so the body still reads as 'an email
+              // floating in a Sand background' on wider popups.
+              className="flex-1 w-full h-full border-0"
               sandbox="allow-same-origin"
             />
           )}
