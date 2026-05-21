@@ -423,13 +423,14 @@ function PreviewPopup({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        // h-[92vh] (not max-h) gives the column a real height to
-        // distribute via flex-1 — without that, the iframe wrapper
-        // collapses to the iframe's intrinsic 150px default and
-        // the email body looks cropped to just the eyebrow + emoji.
-        // max-w bumped to 4xl so the 640px-wide email body has
-        // breathing room inside the popup frame on a laptop.
-        className="relative w-full max-w-4xl h-[92vh] flex flex-col rounded-xl overflow-hidden bg-white shadow-2xl"
+        // h-[80vh] gives the column 80% of the viewport vertically
+        // so the email's actual body (the KPI band, leaderboard,
+        // and page-2 sections) reads at a glance — h-[92vh] was
+        // tight against the lever console on shorter laptop
+        // screens, and the iframe was scrolling internally for any
+        // content past the eyebrow + 🪵. min-h-[600px] floors the
+        // popup so it stays readable on a narrow / short window.
+        className="relative w-full max-w-4xl h-[80vh] min-h-[600px] flex flex-col rounded-xl overflow-hidden bg-white shadow-2xl"
       >
         {/* Browser-chrome strip — three dots + a fake address bar
             so it visually parses as 'an inbox window' on first
