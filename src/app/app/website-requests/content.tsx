@@ -86,10 +86,39 @@ export default function WebsiteRequestsContent() {
       </div>
 
       {tab === 'overview' && <OverviewPanel onJump={selectTab} />}
-      {tab === 'vobs' && <VobsPanel />}
+      {tab === 'vobs' && (VOBS_HIPAA_READY ? <VobsPanel /> : <VobsHipaaGate />)}
       {tab === 'forms' && <FormsPanel mode="forms" />}
       {tab === 'careers' && <CareersPanel />}
       {tab === 'spam' && <FormsPanel mode="spam" />}
+    </div>
+  );
+}
+
+// VOBs tab gate. Insurance card photos + DOB + payer data make this
+// the only tab on the page that's HIPAA-sensitive, so it stays dark
+// until the new "email-only, no Supabase persistence" pipeline is
+// signed off and HIPAA review is closed. Flip the env to "true"
+// to unlock — both the build-time bundle and runtime read it on the
+// client, so a deploy is enough to flip the gate.
+const VOBS_HIPAA_READY = process.env.NEXT_PUBLIC_VOBS_HIPAA_READY === 'true';
+
+function VobsHipaaGate() {
+  return (
+    <div className="mt-4 rounded-2xl border border-amber-500/30 bg-amber-50 p-8 text-center">
+      <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-amber-500/15 text-amber-700">
+        <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3.75h.008v.008H12V16.5zM5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4.5a2 2 0 00-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" />
+        </svg>
+      </div>
+      <h2 className="text-base font-bold text-amber-900" style={{ fontFamily: 'var(--font-display)' }}>
+        VOBs are off until HIPAA is working
+      </h2>
+      <p className="mx-auto mt-2 max-w-xl text-sm text-amber-900/80">
+        New verification-of-benefits submissions now go to admissions by email only — they no longer write to this table or upload card photos to our storage. This tab stays disabled until the HIPAA sign-off is complete.
+      </p>
+      <p className="mx-auto mt-3 max-w-xl text-[11px] text-amber-900/60">
+        Re-enable by setting <code className="font-mono">NEXT_PUBLIC_VOBS_HIPAA_READY=true</code> in Vercel and redeploying.
+      </p>
     </div>
   );
 }
