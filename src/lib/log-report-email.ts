@@ -131,8 +131,11 @@ function header(data: LogReportData): string {
         <h1 style="font-family:${FONT_SERIF};font-size:34px;line-height:1.1;font-weight:500;color:${INK};margin:0 0 8px 0;letter-spacing:-0.01em;">
           The week in logs
         </h1>
-        <p style="font-family:${FONT_BODY};font-size:13.5px;color:${INK_MUTE};margin:0;">
+        <p style="font-family:${FONT_BODY};font-size:13.5px;color:${INK_MUTE};margin:0 0 16px 0;">
           ${escapeHtml(dateLine)}
+        </p>
+        <p style="font-family:${FONT_BODY};font-size:13px;line-height:1.6;color:${INK_MUTE};margin:0 auto;max-width:440px;">
+          A <strong style="color:${INK};font-weight:600;">log</strong> is one recorded touchpoint with a contact &mdash; a phone call, an in-person visit, a text, an email, or a dropped-off voicemail. Every time a teammate logs an interaction in Outreach, it adds to this week&rsquo;s total.
         </p>
       </td>
     </tr>
