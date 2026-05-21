@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { Layout, LayoutBlock } from '@/lib/content-claude';
 import { supabase } from '@/lib/supabase';
-import DbBlogRenderer from '@/components/DbBlogRenderer';
+import DbBlogRenderer, { WebglScene, ICONS } from '@/components/DbBlogRenderer';
 
 // Step-6 preview that lets the editor rewrite any text and swap any
 // image without leaving the page. Edit mode is a single toggle at the
@@ -304,6 +304,12 @@ function EditableBlock({
 
       {block.type === 'svg_icon' && (
         <div>
+          {/* Live SVG preview — mirrors what the public page renders
+              so editors can pick an icon by what it actually looks
+              like, not by name alone. */}
+          <div className="mb-3 flex items-center justify-center rounded-lg border border-black/5 bg-warm-bg/40 py-4">
+            <div className="w-16 h-16 text-primary">{ICONS[block.icon] ?? ICONS.compass}</div>
+          </div>
           <label className="block mb-2">
             <span className="block text-[10px] font-bold uppercase tracking-wider text-foreground/45 mb-1">Icon</span>
             <select
@@ -335,8 +341,19 @@ function EditableBlock({
       )}
 
       {block.type === 'webgl_animation' && (
-        <div className="text-[11px] text-foreground/45 italic">
-          Animation block — preview-only here. Edit scene / accent in /api/content build phase.
+        // Live canvas preview — same component the public page uses,
+        // so the editor view matches what ships. Earlier this card
+        // showed an italic 'preview-only here' placeholder which
+        // made every animation block look identical and forced the
+        // editor to publish-and-refresh just to see which scene
+        // was selected.
+        <div>
+          <div className="mb-2 rounded-lg overflow-hidden border border-black/10">
+            <WebglScene scene={block.scene} accent={block.accent || '#b56b46'} />
+          </div>
+          <p className="text-[11px] text-foreground/45">
+            Scene: <strong className="font-mono">{block.scene}</strong> · accent: <strong className="font-mono">{block.accent || '#b56b46'}</strong>
+          </p>
         </div>
       )}
     </div>

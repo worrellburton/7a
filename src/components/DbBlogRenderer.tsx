@@ -17,7 +17,7 @@ import type { Layout, LayoutBlock } from '@/lib/content-claude';
 //   webgl_animation    — Three.js-free canvas animation, one of 3 scenes
 //   callout            — info / note / warning banner
 
-const ICONS: Record<string, ReactElement> = {
+export const ICONS: Record<string, ReactElement> = {
   compass: (
     <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="32" cy="32" r="26" />
@@ -127,7 +127,7 @@ function ProseMarkdown({ md }: { md: string }) {
   return <div>{blocks}</div>;
 }
 
-function WebglScene({ scene, accent }: { scene: 'particles' | 'orbit' | 'aurora'; accent: string }) {
+export function WebglScene({ scene, accent }: { scene: 'particles' | 'orbit' | 'aurora'; accent: string }) {
   // Canvas-based animation (no Three.js dep). Three scene templates,
   // parameterized by accent colour. Pauses when off-screen via
   // IntersectionObserver to keep the public page light on battery.
