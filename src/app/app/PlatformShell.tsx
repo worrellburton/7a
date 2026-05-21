@@ -974,8 +974,15 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           </label>
         </div>
 
-        {/* Nav links — grouped by department */}
-        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+        {/* Nav links — grouped by department.
+            `min-h-0` is required so the flex child can actually shrink
+            below its content's intrinsic height; without it the nav
+            overflows the parent panel (which has `overflow-hidden`)
+            and items at the bottom get clipped with no way to scroll
+            to them. Most visible on Windows + 125%/150% display
+            scaling, where the viewport height the sticky parent gets
+            ends up shorter than the nav's natural content height. */}
+        <nav className="sa-sidebar-scroll flex-1 min-h-0 p-3 space-y-0.5 overflow-y-auto">
           {(() => {
             let animIdx = 0;
             const renderLink = (item: PageConfig) => {
