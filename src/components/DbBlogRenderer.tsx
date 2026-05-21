@@ -273,8 +273,20 @@ function RenderBlock({ block }: { block: LayoutBlock }) {
       return (
         <header className="mb-10">
           {block.image && (
+            // Width/height hints reserve layout space before the
+            // image meta lands, killing CLS. Hero loads eagerly
+            // (above the fold) and decodes async so the browser
+            // doesn't block first paint on it. Tailwind's
+            // aspect-[16/9] still owns the actual render size.
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={block.image.url} alt={block.image.alt} className="w-full aspect-[16/9] object-cover rounded-2xl mb-6" />
+            <img
+              src={block.image.url}
+              alt={block.image.alt}
+              width={1600}
+              height={900}
+              decoding="async"
+              className="w-full aspect-[16/9] object-cover rounded-2xl mb-6"
+            />
           )}
           <h1 className="font-display text-3xl sm:text-5xl font-bold text-foreground leading-tight">{block.title}</h1>
           {block.tagline && (
@@ -287,8 +299,21 @@ function RenderBlock({ block }: { block: LayoutBlock }) {
     case 'image':
       return (
         <figure className="my-10">
+          {/* Inline images load lazily — they sit below the fold
+              by definition (the hero is its own block), so deferring
+              them off the critical path is a free win. Same width/
+              height reserved-space trick to suppress CLS as the
+              article scrolls. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={block.url} alt={block.alt} className="w-full rounded-2xl object-cover" />
+          <img
+            src={block.url}
+            alt={block.alt}
+            width={1200}
+            height={800}
+            loading="lazy"
+            decoding="async"
+            className="w-full rounded-2xl object-cover"
+          />
           {block.caption && (
             <figcaption className="mt-2 text-center text-[12.5px] text-foreground/55 italic">{block.caption}</figcaption>
           )}
