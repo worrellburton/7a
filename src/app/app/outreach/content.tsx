@@ -527,6 +527,13 @@ export default function ContactsContent() {
       .subscribe();
     return () => {
       cancelled = true;
+      // Explicit unsubscribe before removeChannel — without it,
+      // rapid effect re-runs (token refresh, fast nav) can leave
+      // a half-disposed channel pumping messages that overwrite
+      // state from the next mount. unsubscribe() stops the
+      // message pump synchronously; removeChannel() tears down
+      // the underlying socket.
+      void channel.unsubscribe();
       void supabase.removeChannel(channel);
     };
   }, [session?.access_token, user?.id]);
