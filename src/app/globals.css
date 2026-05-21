@@ -1154,22 +1154,42 @@ tr:hover .sa-engagement-cell {
  * picks up .orbit-pin-your-move — a copper halo that breathes
  * in/out on a 1.8s loop so the eye finds the opponent in the
  * ring even with two dozen avatars around it.
+ *
+ * The halo lives on a pseudo-element behind the avatar so the
+ * animation is opacity + transform-only (compositor-friendly).
+ * The previous box-shadow keyframe forced a per-frame paint of
+ * every pin in the rotating ring on mobile — a real source of
+ * sub-60fps drops on phones.
  */
+.orbit-pin-your-move {
+  border-radius: 9999px;
+  position: relative;
+}
+.orbit-pin-your-move::before {
+  content: '';
+  position: absolute;
+  inset: -8px;
+  border-radius: 9999px;
+  background: radial-gradient(closest-side, rgba(188, 107, 74, 0.65), rgba(188, 107, 74, 0) 75%);
+  animation: sa-orbit-your-move 1800ms ease-in-out infinite;
+  pointer-events: none;
+  z-index: -1;
+  will-change: opacity, transform;
+}
 @keyframes sa-orbit-your-move {
   0%, 100% {
-    box-shadow: 0 0 0 0 rgba(188, 107, 74, 0.0), 0 0 12px 2px rgba(188, 107, 74, 0.40);
+    opacity: 0.45;
+    transform: scale(0.95);
   }
   50% {
-    box-shadow: 0 0 0 5px rgba(188, 107, 74, 0.18), 0 0 22px 6px rgba(188, 107, 74, 0.75);
+    opacity: 1;
+    transform: scale(1.15);
   }
 }
-.orbit-pin-your-move {
-  animation: sa-orbit-your-move 1800ms ease-in-out infinite;
-  border-radius: 9999px;
-}
 @media (prefers-reduced-motion: reduce) {
-  .orbit-pin-your-move {
+  .orbit-pin-your-move::before {
     animation: none;
-    box-shadow: 0 0 0 3px rgba(188, 107, 74, 0.30), 0 0 14px 2px rgba(188, 107, 74, 0.45);
+    opacity: 0.7;
+    transform: scale(1.05);
   }
 }
