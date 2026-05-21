@@ -44,14 +44,18 @@ export async function POST(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
+  // Same gate as POST /api/email-campaigns/send — accept either
+  // users.is_admin or users.is_super_admin since the user-permissions
+  // toggle labelled "Super Admin" actually writes is_admin.
   const admin = getAdminSupabase();
   const { data: userRow } = await admin
     .from('users')
-    .select('is_super_admin')
+    .select('is_admin, is_super_admin')
     .eq('id', user.id)
     .maybeSingle();
-  if (userRow?.is_super_admin !== true) {
-    return NextResponse.json({ error: 'Only super admins can run the backfill.' }, { status: 403 });
+  const allowed = userRow?.is_super_admin === true || userRow?.is_admin === true;
+  if (!allowed) {
+    return NextResponse.json({ error: 'Only admins can run the backfill.' }, { status: 403 });
   }
 
   const apiKey = process.env.RESEND_API_KEY;

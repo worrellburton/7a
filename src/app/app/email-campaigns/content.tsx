@@ -79,7 +79,11 @@ const STATUS_TONE: Record<string, string> = {
 };
 
 export default function EmailCampaignsContent() {
-  const { session, isSuperAdmin } = useAuth();
+  const { session, isAdmin, isSuperAdmin } = useAuth();
+  // The "Super Admin" toggle on /app/admin/user-permissions writes
+  // users.is_admin (not is_super_admin), so admin-only affordances on
+  // this page (Backfill analytics button) accept either column.
+  const canManage = isAdmin || isSuperAdmin;
   const [rows, setRows] = useState<CampaignRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -142,7 +146,7 @@ export default function EmailCampaignsContent() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {isSuperAdmin && (
+          {canManage && (
             <button
               type="button"
               onClick={runBackfill}

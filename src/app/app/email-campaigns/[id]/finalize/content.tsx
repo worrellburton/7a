@@ -57,7 +57,12 @@ const STATUS_BADGE: Record<string, string> = {
 };
 
 export default function FinalizeContent({ campaignId }: { campaignId: string }) {
-  const { session, isSuperAdmin } = useAuth();
+  const { session, isAdmin, isSuperAdmin } = useAuth();
+  // The "Super Admin" toggle on /app/admin/user-permissions writes
+  // users.is_admin (not is_super_admin), so this surface accepts
+  // either. Keeping a single canSend flag means the banner, button
+  // disabled state, and button label all flip together.
+  const canSend = isAdmin || isSuperAdmin;
   const [campaign, setCampaign] = useState<CampaignRow | null>(null);
   const [recipients, setRecipients] = useState<DisplayRecipient[]>([]);
   const [iterateNote, setIterateNote] = useState('');
@@ -433,13 +438,13 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
 
       {error && <p className="mb-3 text-[12px] text-red-700" role="alert">{error}</p>}
 
-      {!isSent && !isSuperAdmin && (
+      {!isSent && !canSend && (
         <div className="mb-3 rounded-2xl border border-amber-200 bg-amber-50 p-4">
           <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-amber-900 mb-1" style={{ fontFamily: 'var(--font-body)' }}>
             Send blocked
           </p>
           <p className="text-[13px] text-amber-900 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
-            Only super admins can send email campaigns. You can build, iterate, and queue recipients here, then ask a super admin to hit Send.
+            Only admins can send email campaigns. You can build, iterate, and queue recipients here, then ask an admin to hit Send.
           </p>
         </div>
       )}
@@ -455,15 +460,15 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
           <button
             type="button"
             onClick={onSend}
-            disabled={sending || recipients.length === 0 || !isSuperAdmin}
-            title={!isSuperAdmin ? 'Only super admins can send email campaigns.' : undefined}
+            disabled={sending || recipients.length === 0 || !canSend}
+            title={!canSend ? 'Only admins can send email campaigns.' : undefined}
             className="px-5 py-2.5 rounded-md bg-primary text-white text-[12.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             {sending
               ? 'Sending…'
-              : !isSuperAdmin
-              ? 'Send (super admins only)'
+              : !canSend
+              ? 'Send (admins only)'
               : `Send to ${recipients.length}`}
           </button>
         </div>

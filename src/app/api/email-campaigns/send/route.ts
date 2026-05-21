@@ -38,19 +38,23 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   // Sending fans out to live contact email addresses under the Seven
-  // Arrows brand, so the surface is gated to super admins. Regular
-  // admins can still build / iterate / pick recipients; only the
-  // final send button hits this route.
+  // Arrows brand, so the surface is gated to admins. The toggle in
+  // /app/admin/user-permissions is labelled "Super Admin" but actually
+  // flips users.is_admin (the real is_super_admin column is reserved
+  // for the root admin via migration), so we accept either column —
+  // otherwise people the UI claims are "Super Admin" still get 403s
+  // here. Non-admins are denied.
   {
     const admin = getAdminSupabase();
     const { data: userRow } = await admin
       .from('users')
-      .select('is_super_admin')
+      .select('is_admin, is_super_admin')
       .eq('id', user.id)
       .maybeSingle();
-    if (userRow?.is_super_admin !== true) {
+    const allowed = userRow?.is_super_admin === true || userRow?.is_admin === true;
+    if (!allowed) {
       return NextResponse.json(
-        { error: 'Only super admins can send email campaigns.' },
+        { error: 'Only admins can send email campaigns.' },
         { status: 403 },
       );
     }
