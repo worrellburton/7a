@@ -92,6 +92,45 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     .select('*')
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // If selected_image_ids was part of this PATCH, promote any newly-
+  // selected AI images into the shared /app/images library so the
+  // 'AI' tab on the gallery surfaces them site-wide. Idempotent: the
+  // unique partial index on site_images.source_blog_image_id catches
+  // re-saves and we ignore the conflict. Library-imported images
+  // (provider='library') are skipped — they're already in
+  // site_images by definition.
+  if ('selected_image_ids' in body && Array.isArray(body.selected_image_ids) && body.selected_image_ids.length > 0) {
+    const ids = body.selected_image_ids;
+    const { data: pickedRows } = await admin
+      .from('blog_images')
+      .select('id, blog_id, url, alt, prompt, provider')
+      .in('id', ids);
+    const aiRows = ((pickedRows ?? []) as Array<{ id: string; blog_id: string; url: string; alt: string | null; prompt: string | null; provider: string | null }>)
+      .filter((r) => r.provider !== 'library' && r.url);
+    if (aiRows.length > 0) {
+      // Insert with onConflict: ignore — the unique index on
+      // source_blog_image_id makes re-saving a no-op.
+      const filenameOf = (u: string) => {
+        try { return new URL(u).pathname.split('/').pop() ?? 'ai-image'; }
+        catch { return 'ai-image'; }
+      };
+      const toInsert = aiRows.map((r) => ({
+        path: `ai/${r.id}`,
+        public_url: r.url,
+        filename: filenameOf(r.url),
+        alt: r.alt ?? null,
+        uploaded_by: gate.user!.id,
+        is_ai: true,
+        ai_provider: r.provider,
+        ai_prompt: r.prompt,
+        source_blog_id: r.blog_id,
+        source_blog_image_id: r.id,
+      }));
+      await admin.from('site_images').upsert(toInsert, { onConflict: 'source_blog_image_id', ignoreDuplicates: true });
+    }
+  }
+
   return NextResponse.json(data);
 }
 
