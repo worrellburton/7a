@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
+import { NextResponse } from 'next/server';
+import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 import { buildLogReportData } from '@/lib/log-report-data';
 
 // GET /api/levers/log-report/preview
@@ -7,14 +7,19 @@ import { buildLogReportData } from '@/lib/log-report-data';
 // Returns the cohort summary the lever's badge + UI surface from.
 // Phase 4 reads from real /contact_logs aggregations (Phase 3
 // builder) so the badge count matches what the email will say.
+//
+// Cookie-session-gated (matches the JD-reminder lever auth shape)
+// so the lever's plain `fetch('/api/levers/...')` calls
+// authenticate via the browser cookie without an explicit
+// Authorization header.
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: NextRequest) {
-  const user = await getUserFromRequest(req);
+export async function GET() {
+  const supabase = await getServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const admin = getAdminSupabase();
-  const { data: meRow } = await admin
+  const { data: meRow } = await supabase
     .from('users')
     .select('is_super_admin')
     .eq('id', user.id)
@@ -22,6 +27,7 @@ export async function GET(req: NextRequest) {
   if (meRow?.is_super_admin !== true) {
     return NextResponse.json({ error: 'Super admin only' }, { status: 403 });
   }
+  const admin = getAdminSupabase();
 
   // Default recipients = every super admin, since the report
   // is admissions / leadership ops. The Phase-6 recipients

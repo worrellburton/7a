@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
+import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 import { renderLogReportEmail, subjectFor } from '@/lib/log-report-email';
 import { buildLogReportData } from '@/lib/log-report-data';
 
@@ -39,10 +39,10 @@ function stripDisplayName(raw: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getUserFromRequest(req);
+  const supabase = await getServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const admin = getAdminSupabase();
-  const { data: meRow } = await admin
+  const { data: meRow } = await supabase
     .from('users')
     .select('is_super_admin')
     .eq('id', user.id)
@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
   if (meRow?.is_super_admin !== true) {
     return NextResponse.json({ error: 'Super admin only' }, { status: 403 });
   }
+  const admin = getAdminSupabase();
 
   let body: TestBody = {};
   try { body = (await req.json()) as TestBody; } catch { /* allow empty */ }
