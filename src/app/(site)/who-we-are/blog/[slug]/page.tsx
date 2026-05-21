@@ -5,6 +5,7 @@ import type { Layout } from '@/lib/content-claude';
 import DbBlogRenderer from '@/components/DbBlogRenderer';
 import { AuthorByline, BlogPostJsonLd } from '@/components/blog/BlogPostMeta';
 import type { Episode } from '@/lib/episodes';
+import { resolveAuthorAsync, resolveReviewerAsync } from '@/lib/blogAuthors';
 
 // Public renderer for DB-backed blog posts. Static folders under
 // /who-we-are/blog/<slug>/ take precedence (Next.js routes static
@@ -91,19 +92,23 @@ export default async function DbBlogPage({ params }: { params: Promise<{ slug: s
   if (!row || !row.layout) notFound();
 
   const episode = episodeFromBlog(row);
+  // Pre-resolve author + reviewer from the DB so an HR-edited
+  // users row (linkedin_url, credentials, bio) wins over the
+  // BLOG_AUTHORS seed at render time.
+  const [author, reviewer] = await Promise.all([
+    resolveAuthorAsync(row.author_slug),
+    resolveReviewerAsync(row.reviewer_slug),
+  ]);
 
   return (
     <>
-      <BlogPostJsonLd episode={episode} />
+      <BlogPostJsonLd episode={episode} author={author} reviewer={reviewer} />
       {/* Byline rides above the layout body, mirroring how the
           static hand-coded posts compose Hero → Byline → Content.
           DbBlogRenderer owns the hero block, so the byline goes
-          right after the renderer's max-width wrapper has opened.
-          We render byline + body inside a shared container so the
-          spacing reads correctly without DbBlogRenderer needing
-          to know about author metadata. */}
+          right after the renderer's max-width wrapper has opened. */}
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        <AuthorByline episode={episode} />
+        <AuthorByline episode={episode} author={author} reviewer={reviewer} />
       </div>
       <DbBlogRenderer layout={row.layout} />
     </>

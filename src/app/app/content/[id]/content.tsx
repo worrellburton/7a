@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthProvider';
 import EditableBlogPreview from '@/components/EditableBlogPreview';
@@ -490,6 +490,16 @@ function PromptPanel({ blogId, prompt, token, onChange }: { blogId: string; prom
   );
 }
 
+interface AuthorOption {
+  slug: string;
+  name: string;
+  title: string;
+  credentials?: string;
+  bio?: string;
+  isMedicalReviewer?: boolean;
+  source?: 'db' | 'fallback';
+}
+
 function BylinePanel({
   blogId,
   authorSlug,
@@ -505,15 +515,32 @@ function BylinePanel({
   token: string | null;
   onChange: () => void;
 }) {
-  // E-E-A-T + GEO byline. The author + medical reviewer drive the
-  // visible 'Written by ... · Medically reviewed by ...' line on
-  // the public post AND the schema.org/MedicalWebPage block in the
-  // page head — both of which Google + AI search engines score for
-  // YMYL content. Server-side defaults fill in a credentialed
-  // reviewer when these are null, but every published post should
-  // pick a real author + reviewer so the byline is accurate.
-  const author = findAuthorBySlug(authorSlug);
-  const reviewer = findReviewerBySlug(reviewerSlug);
+  // Dropdown source is /api/blog-authors — that endpoint merges any
+  // users rows flagged is_blog_author / is_medical_reviewer (HR
+  // can toggle these in /app/team without a code deploy) with the
+  // BLOG_AUTHORS seed in /lib/blogAuthors.ts. DB rows win.
+  const [allAuthors, setAllAuthors] = useState<AuthorOption[]>([]);
+  const [allReviewers, setAllReviewers] = useState<AuthorOption[]>([]);
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    fetch('/api/blog-authors', { headers: { Authorization: `Bearer ${token}` } })
+      .then(async (r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (cancelled || !j) return;
+        setAllAuthors((j.authors ?? []) as AuthorOption[]);
+        setAllReviewers((j.reviewers ?? []) as AuthorOption[]);
+      })
+      .catch(() => { /* fall back to seed */ });
+    return () => { cancelled = true; };
+  }, [token]);
+  const fallbackAuthors: AuthorOption[] = useMemo(() => BLOG_AUTHORS.map((a) => ({ ...a, source: 'fallback' as const })), []);
+  const fallbackReviewers: AuthorOption[] = useMemo(() => BLOG_REVIEWERS.map((a) => ({ ...a, source: 'fallback' as const })), []);
+  const authorOptions = allAuthors.length > 0 ? allAuthors : fallbackAuthors;
+  const reviewerOptions = allReviewers.length > 0 ? allReviewers : fallbackReviewers;
+
+  const author = authorOptions.find((a) => a.slug === authorSlug) ?? findAuthorBySlug(authorSlug);
+  const reviewer = reviewerOptions.find((a) => a.slug === reviewerSlug) ?? findReviewerBySlug(reviewerSlug);
   const [saving, setSaving] = useState<'author' | 'reviewer' | 'reviewedAt' | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -555,7 +582,7 @@ function BylinePanel({
             className="w-full rounded-md border border-black/10 px-2 py-1.5 text-[12.5px] bg-white"
           >
             <option value="">{saving === 'author' ? 'Saving…' : '— Use default —'}</option>
-            {BLOG_AUTHORS.map((a) => (
+            {authorOptions.map((a) => (
               <option key={a.slug} value={a.slug}>
                 {a.name}{a.credentials ? `, ${a.credentials}` : ''} · {a.title}
               </option>
@@ -574,7 +601,7 @@ function BylinePanel({
             className="w-full rounded-md border border-black/10 px-2 py-1.5 text-[12.5px] bg-white"
           >
             <option value="">{saving === 'reviewer' ? 'Saving…' : '— Use default —'}</option>
-            {BLOG_REVIEWERS.map((r) => (
+            {reviewerOptions.map((r) => (
               <option key={r.slug} value={r.slug}>
                 {r.name}{r.credentials ? `, ${r.credentials}` : ''} · {r.title}
               </option>

@@ -67,9 +67,19 @@ function personNode(person: BlogAuthor): Record<string, unknown> {
 // episode's page.tsx (server component) so the structured data
 // lands in the initial HTML, where Google + AI search engines
 // extract author + reviewer credentials at crawl time.
-export function BlogPostJsonLd({ episode }: { episode: Episode }) {
-  const author = resolveAuthor(episode.authorSlug);
-  const reviewer = resolveReviewer(episode.reviewerSlug);
+//
+// The optional `author` / `reviewer` props let async server pages
+// pre-resolve from the DB (resolveAuthorAsync / resolveReviewerAsync
+// in /lib/blogAuthors) so an HR-edited user row beats the
+// BLOG_AUTHORS seed. When omitted the sync resolvers run against
+// the committed seed.
+export function BlogPostJsonLd({
+  episode,
+  author: authorOverride,
+  reviewer: reviewerOverride,
+}: { episode: Episode; author?: BlogAuthor; reviewer?: BlogAuthor }) {
+  const author = authorOverride ?? resolveAuthor(episode.authorSlug);
+  const reviewer = reviewerOverride ?? resolveReviewer(episode.reviewerSlug);
   const url = postUrl(episode);
   const lastReviewed = (episode.lastReviewedAt ?? episode.publishedAt).slice(0, 10);
 
@@ -128,13 +138,17 @@ export function BlogPostJsonLd({ episode }: { episode: Episode }) {
 // the defaults so even legacy posts ship a real byline.
 export function AuthorByline({
   episode,
+  author: authorOverride,
+  reviewer: reviewerOverride,
   className = '',
 }: {
   episode: Episode;
+  author?: BlogAuthor;
+  reviewer?: BlogAuthor;
   className?: string;
 }) {
-  const author = resolveAuthor(episode.authorSlug);
-  const reviewer = resolveReviewer(episode.reviewerSlug);
+  const author = authorOverride ?? resolveAuthor(episode.authorSlug);
+  const reviewer = reviewerOverride ?? resolveReviewer(episode.reviewerSlug);
   const authorHref = `/who-we-are/meet-our-team/${author.slug}`;
   const reviewerHref = `/who-we-are/meet-our-team/${reviewer.slug}`;
   const lastReviewed = episode.lastReviewedAt ?? episode.publishedAt;
