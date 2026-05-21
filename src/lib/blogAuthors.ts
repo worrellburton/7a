@@ -109,3 +109,53 @@ export function resolveReviewer(slug: string | null | undefined): BlogAuthor {
   const def = findReviewerBySlug(DEFAULT_REVIEWER_SLUG);
   return def ?? BLOG_REVIEWERS[0] ?? BLOG_AUTHORS[0];
 }
+
+// Server-side async resolver — prefers a users row (HR-editable
+// at /app/team) and falls back to the BLOG_AUTHORS seed when the
+// slug isn't in the DB. Used by the public blog renderers so a
+// freshly-promoted author (is_blog_author flipped on in the team
+// page) ships on the next page render without a code deploy.
+//
+// Lazy-imports the server Supabase client so this module stays
+// importable from client bundles — only the static portion of the
+// module is reached from 'use client' files.
+export async function resolveAuthorAsync(slug: string | null | undefined): Promise<BlogAuthor> {
+  if (slug) {
+    try {
+      const { getAdminSupabase } = await import('@/lib/supabase-server');
+      const admin = getAdminSupabase();
+      const { data } = await admin
+        .from('users')
+        .select('public_slug, full_name, job_title, credentials, bio, avatar_url, linkedin_url, is_blog_author, is_medical_reviewer')
+        .eq('public_slug', slug)
+        .maybeSingle();
+      if (data?.public_slug && data.full_name) {
+        return {
+          slug: data.public_slug as string,
+          name: data.full_name as string,
+          title: (data.job_title as string | null) ?? 'Team member',
+          credentials: (data.credentials as string | null) ?? undefined,
+          bio: (data.bio as string | null) ?? undefined,
+          avatarUrl: (data.avatar_url as string | null) ?? undefined,
+          sameAs: data.linkedin_url ? [data.linkedin_url as string] : undefined,
+          isMedicalReviewer: (data.is_medical_reviewer as boolean | null) === true,
+        };
+      }
+    } catch {
+      // DB unreachable — fall through to the synchronous resolver,
+      // which uses the BLOG_AUTHORS seed.
+    }
+  }
+  return resolveAuthor(slug);
+}
+
+export async function resolveReviewerAsync(slug: string | null | undefined): Promise<BlogAuthor> {
+  if (slug) {
+    const author = await resolveAuthorAsync(slug);
+    if (author.isMedicalReviewer) return author;
+  }
+  // Fall back to the default reviewer (Lindsay) via the DB path so
+  // the seeded credentials / linkedin_url take precedence over the
+  // committed seed values.
+  return resolveAuthorAsync(DEFAULT_REVIEWER_SLUG);
+}
