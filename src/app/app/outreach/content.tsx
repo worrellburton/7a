@@ -3800,6 +3800,135 @@ function InsightTile({
   );
 }
 
+// Data governance score tile. Visually matches InsightTile but
+// clickable — toggles the breakdown panel underneath the strip.
+// Tone shifts on the score itself: green high, amber mid, rose
+// low so it reads as an at-a-glance signal.
+function GovernanceTile({
+  score,
+  totalContacts,
+  expanded,
+  onClick,
+}: {
+  score: number | null;
+  totalContacts: number;
+  expanded: boolean;
+  onClick: () => void;
+}) {
+  const tone =
+    score == null ? 'text-foreground/40' :
+    score >= 90 ? 'text-emerald-700' :
+    score >= 70 ? 'text-amber-700' :
+    'text-rose-700';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`min-w-0 text-left rounded-md -mx-1 px-1 py-0.5 transition-colors ${expanded ? 'bg-warm-bg/60' : 'hover:bg-warm-bg/40'}`}
+      title="Data governance score: how complete the contact records are. Click to see why."
+      aria-expanded={expanded}
+    >
+      <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-foreground/55 truncate flex items-center gap-1">
+        Data governance
+        <span aria-hidden className="text-foreground/35">{expanded ? '▾' : '▸'}</span>
+      </p>
+      <p className={`mt-0.5 text-xl font-semibold tabular-nums leading-none ${tone}`}>
+        {score == null ? '—' : `${score}%`}
+      </p>
+      <p className="mt-0.5 text-[9.5px] text-foreground/40 truncate">
+        {totalContacts > 0 ? `${totalContacts.toLocaleString()} contacts` : 'click for breakdown'}
+      </p>
+    </button>
+  );
+}
+
+// Per-field breakdown + recent fill activity. Mounts inline under
+// the KPI strip when the GovernanceTile is clicked.
+function GovernancePanel({ governance }: { governance: { score: number; totalContacts: number; breakdown: GovernanceBreakdownRow[]; activity: GovernanceActivityRow[] } }) {
+  const initials = (s: string) =>
+    s.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
+  const ago = (iso: string) => {
+    const ms = Date.now() - new Date(iso).getTime();
+    if (ms < 60_000) return 'just now';
+    const m = Math.floor(ms / 60_000);
+    if (m < 60) return `${m}m`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h`;
+    const d = Math.floor(h / 24);
+    return `${d}d`;
+  };
+  return (
+    <div className="px-4 py-3 border-b border-black/5 bg-warm-bg/30">
+      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/55 mb-2">
+        Why {governance.score}% · what&apos;s missing
+      </p>
+      <p className="text-[11.5px] text-foreground/55 mb-3">
+        Email counts triple — every empty email holds back the campaign pipeline. Each row shows how many of {governance.totalContacts.toLocaleString()} contacts have that field filled in.
+      </p>
+      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+        {governance.breakdown.map((row) => {
+          const pct = Math.max(2, Math.min(100, row.pctFilled));
+          return (
+            <li key={row.key} className="rounded-lg border border-black/5 bg-white px-3 py-2">
+              <div className="flex items-baseline justify-between gap-2 mb-1">
+                <span className="text-[12px] font-semibold text-foreground">
+                  {row.label}
+                  {row.weight > 1 && (
+                    <span className="ml-1.5 text-[9.5px] font-bold uppercase tracking-wider text-rose-700 bg-rose-50 border border-rose-200 rounded px-1 py-[1px]">×{row.weight}</span>
+                  )}
+                </span>
+                <span className="text-[11px] tabular-nums text-foreground/55">{row.pctFilled}% · {row.missing} missing</span>
+              </div>
+              <div className="h-1.5 bg-warm-bg/60 rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full ${row.pctFilled >= 90 ? 'bg-emerald-500' : row.pctFilled >= 70 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/55 mb-2">
+        Recent fill activity
+      </p>
+      {governance.activity.length === 0 ? (
+        <p className="text-[11.5px] italic text-foreground/45">
+          Nothing logged yet — edits to a contact&apos;s email / phone / company / role / location / specialty / type will appear here as teammates fill them in.
+        </p>
+      ) : (
+        <ul className="space-y-1.5">
+          {governance.activity.map((a) => (
+            <li key={a.id} className="flex items-center gap-2 text-[12px]">
+              {a.userAvatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={a.userAvatarUrl} alt="" className="shrink-0 w-5 h-5 rounded-full object-cover bg-warm-bg" />
+              ) : (
+                <span className="shrink-0 w-5 h-5 rounded-full bg-warm-bg flex items-center justify-center text-[9px] font-bold text-foreground/55">
+                  {initials(a.userName)}
+                </span>
+              )}
+              <span className="flex-1 min-w-0 truncate">
+                <span className="font-semibold text-foreground">{a.userName}</span>
+                <span className="text-foreground/55"> added </span>
+                <span className="font-semibold text-foreground">{a.fieldLabel}</span>
+                {a.contactName && (
+                  <>
+                    <span className="text-foreground/55"> to </span>
+                    <span className="text-foreground">{a.contactName}</span>
+                  </>
+                )}
+              </span>
+              <span className="shrink-0 text-[10.5px] text-foreground/40 tabular-nums">{ago(a.at)}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 // Consolidated insights card. Replaces the four-tile strip with one
 // card that carries: the pipeline counters across the top, today's
 // touched-areas list in the middle, and three leaderboards across the
@@ -3807,6 +3936,24 @@ function InsightTile({
 // flipped between "by logs" and "by duration" so admissions can ask
 // either "who logged the most touches?" or "who spent the most time
 // in conversation?".
+interface GovernanceBreakdownRow {
+  key: string;
+  label: string;
+  weight: number;
+  filled: number;
+  missing: number;
+  pctFilled: number;
+}
+interface GovernanceActivityRow {
+  id: string;
+  at: string;
+  userId: string | null;
+  userName: string;
+  userAvatarUrl: string | null;
+  contactId: string | null;
+  contactName: string | null;
+  fieldLabel: string;
+}
 interface InsightsPayload {
   counts: { week: number; month: number; total: number; never: number; missingEmail?: number };
   today: {
@@ -3815,6 +3962,12 @@ interface InsightsPayload {
   };
   week: { leaderboard: { userId: string; name: string; avatarUrl: string | null; logs: number; durationSeconds: number }[] };
   month: { leaderboard: { userId: string; name: string; avatarUrl: string | null; logs: number; durationSeconds: number }[] };
+  governance?: {
+    score: number;
+    totalContacts: number;
+    breakdown: GovernanceBreakdownRow[];
+    activity: GovernanceActivityRow[];
+  };
 }
 
 function fmtTotalDuration(seconds: number): string {
@@ -3829,6 +3982,10 @@ function fmtTotalDuration(seconds: number): string {
 function InsightsCard({ fallback }: { fallback: { week: number; month: number; total: number; never: number; missingEmail: number } }) {
   const [data, setData] = useState<InsightsPayload | null>(null);
   const [mode, setMode] = useState<'logs' | 'duration'>('logs');
+  // Governance score expansion — collapsed by default; clicking the
+  // score tile (or the "Why?" affordance underneath) reveals the
+  // per-field breakdown + recent fill activity.
+  const [showGovernance, setShowGovernance] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -3847,14 +4004,27 @@ function InsightsCard({ fallback }: { fallback: { week: number; month: number; t
 
   return (
     <div className="mb-4 rounded-xl border border-black/10 bg-white overflow-hidden">
-      {/* Pipeline counters */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 px-4 py-3 border-b border-black/5">
+      {/* Pipeline counters + Data governance score. Governance is
+          a clickable tile in the same row so it reads as 'another
+          KPI' rather than a tucked-away nag. Click → expansion
+          panel underneath with the per-field breakdown + the
+          fill-activity feed. */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 px-4 py-3 border-b border-black/5">
         <InsightTile label="Contacted this week" value={counts.week} tone="fresh" />
         <InsightTile label="Contacted this month" value={counts.month} tone="cooling" />
         <InsightTile label="Total contacted" value={counts.total} tone="neutral" />
         <InsightTile label="Never contacted" value={counts.never} tone="stale" />
         <InsightTile label="Missing email" value={counts.missingEmail ?? 0} tone="missing" />
+        <GovernanceTile
+          score={data?.governance?.score ?? null}
+          totalContacts={data?.governance?.totalContacts ?? 0}
+          expanded={showGovernance}
+          onClick={() => setShowGovernance((v) => !v)}
+        />
       </div>
+      {showGovernance && data?.governance && (
+        <GovernancePanel governance={data.governance} />
+      )}
 
       {/* Areas touched today */}
       <div className="px-4 py-3 border-b border-black/5">

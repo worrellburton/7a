@@ -68,6 +68,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if ('notes' in body) patch.notes = trim(body.notes, 4000);
 
   const admin = getAdminSupabase();
+  // Snapshot the row BEFORE the update so we can diff which
+  // governance-relevant fields just transitioned empty → filled.
+  // That's what feeds the 'Donnie added an email' style activity
+  // feed under the Data governance score on /app/outreach.
+  const { data: before } = await admin
+    .from('contacts')
+    .select('id, name, email, phone, phone_cell, phone_office, company, role, location, specialty, type')
+    .eq('id', id)
+    .maybeSingle();
+
   const { data, error } = await admin
     .from('contacts')
     .update(patch)
@@ -75,6 +85,54 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     .select('*')
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Log governance-relevant field fills. Empty → filled is the
+  // important transition (the score moves); filled → edited rolls
+  // up as a generic 'updated contact' so the feed isn't blank
+  // when someone fixes a typo without changing field count.
+  if (data && before) {
+    const isEmpty = (v: unknown): boolean => {
+      if (v == null) return true;
+      if (typeof v === 'string') return v.trim() === '';
+      if (Array.isArray(v)) return v.length === 0;
+      return false;
+    };
+    const FIELDS: Array<{ key: keyof typeof patch; label: string; type: string }> = [
+      { key: 'email', label: 'email', type: 'contact.email_filled' },
+      { key: 'phone', label: 'main phone', type: 'contact.phone_filled' },
+      { key: 'phone_cell', label: 'cell phone', type: 'contact.phone_filled' },
+      { key: 'phone_office', label: 'office phone', type: 'contact.phone_filled' },
+      { key: 'company', label: 'company', type: 'contact.company_filled' },
+      { key: 'role', label: 'role', type: 'contact.role_filled' },
+      { key: 'location', label: 'location', type: 'contact.location_filled' },
+      { key: 'specialty', label: 'specialty', type: 'contact.specialty_filled' },
+      { key: 'type', label: 'type', type: 'contact.type_filled' },
+    ];
+    const beforeRow = before as Record<string, unknown>;
+    const afterRow = data as Record<string, unknown>;
+    const fills: Array<{ key: string; label: string; type: string; value: unknown }> = [];
+    for (const f of FIELDS) {
+      if (!(f.key in patch)) continue;
+      if (isEmpty(beforeRow[f.key]) && !isEmpty(afterRow[f.key])) {
+        fills.push({ key: String(f.key), label: f.label, type: f.type, value: afterRow[f.key] });
+      }
+    }
+    if (fills.length > 0) {
+      const contactName = (afterRow.name as string | null) ?? 'a contact';
+      await admin.from('activity_log').insert(
+        fills.map((f) => ({
+          user_id: user.id,
+          type: f.type,
+          target_kind: 'contact',
+          target_id: id,
+          target_label: contactName,
+          target_path: '/app/outreach',
+          metadata: { field: f.key, label: f.label },
+        })),
+      );
+    }
+  }
+
   return NextResponse.json(data);
 }
 
