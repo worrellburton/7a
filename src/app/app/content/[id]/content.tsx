@@ -1245,7 +1245,11 @@ function ImagePromptInfo({ img }: { img: DbImage }) {
 function BuildPanel({ blog, images, token, onChange }: { blog: DbBlog; images: DbImage[]; token: string | null; onChange: () => void }) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<{ message: string; details?: unknown } | null>(null);
-  const ready = (blog.selected_image_ids?.length ?? 0) === 7;
+  // Build accepts 4–7 images, matching the same threshold the
+  // Step-4 Save selection enables at. Lighter posts can still ship
+  // with 4 strong picks instead of being padded with weaker ones.
+  const selectedCount = blog.selected_image_ids?.length ?? 0;
+  const ready = selectedCount >= 4 && selectedCount <= 7;
   // Build is a long Claude call (12k token output, sometimes with a
   // retry). 90s is the median we've observed; useAutoProgress nudges
   // that toward the real number per-user via EMA.
@@ -1304,7 +1308,13 @@ function BuildPanel({ blog, images, token, onChange }: { blog: DbBlog; images: D
           ? `Building… ${Math.round(progress.progress * 100)}%`
           : blog.layout ? 'Rebuild layout' : 'Build'}
       </button>
-      {!ready && <span className="ml-2 text-[11px] text-foreground/55">Save your 7 image selection first.</span>}
+      {!ready && (
+        <span className="ml-2 text-[11px] text-foreground/55">
+          {selectedCount === 0
+            ? 'Save your image selection first (pick 4 to 7 in Step 4).'
+            : `${4 - selectedCount} more to pick — Build unlocks at 4.`}
+        </span>
+      )}
       {progress.running && <ProgressBar value={progress.progress} />}
     </Panel>
   );

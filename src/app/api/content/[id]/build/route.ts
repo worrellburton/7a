@@ -29,14 +29,22 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!blog) return NextResponse.json({ error: 'not found' }, { status: 404 });
   if (!blog.body_markdown) return NextResponse.json({ error: 'no body — generate first' }, { status: 400 });
   const ids = (blog.selected_image_ids ?? []) as string[];
-  if (ids.length !== 7) return NextResponse.json({ error: 'exactly 7 images must be selected first' }, { status: 400 });
+  // Build accepts 4–7 picks now (matches Step-4 Save selection
+  // gating). A lighter 4-image layout is a real shipping choice;
+  // earlier versions hard-required exactly 7 which forced editors
+  // to pad with weaker images they'd otherwise have skipped.
+  if (ids.length < 4 || ids.length > 7) {
+    return NextResponse.json({ error: 'select 4 to 7 images first' }, { status: 400 });
+  }
 
   const { data: imgs, error: imgErr } = await admin
     .from('blog_images')
     .select('id, url, alt, provider')
     .in('id', ids);
   if (imgErr) return NextResponse.json({ error: imgErr.message }, { status: 500 });
-  if (!imgs || imgs.length !== 7) return NextResponse.json({ error: 'could not load all 7 selected images' }, { status: 500 });
+  if (!imgs || imgs.length !== ids.length) {
+    return NextResponse.json({ error: `could not load all ${ids.length} selected images` }, { status: 500 });
+  }
 
   let layout;
   try {
