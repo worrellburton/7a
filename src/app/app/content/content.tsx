@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { EPISODES, episodeHref } from '@/lib/episodes';
 import PageAnalyticsPanel from '@/components/PageAnalyticsPanel';
+import { usePagePermissions } from '@/lib/PagePermissions';
 
 // /app/content — super-admin-only blog pipeline.
 //
@@ -57,6 +58,14 @@ const STATUS_TONES: Record<DbBlog['status'], string> = {
 
 export default function ContentLanding() {
   const { user, isSuperAdmin, session } = useAuth();
+  const { userOverrides } = usePagePermissions();
+  // A teammate has full content-pipeline access when they're a
+  // super admin OR when /app/admin/user-permissions → Content tab
+  // has flipped the toggle on for them (writes a per-user
+  // user_page_permissions row, which the requireSuperAdmin gate
+  // in /lib/content-server also honours so create/edit/publish
+  // API calls go through). Mirrors the same logic on /app/content/[id].
+  const hasContentAccess = isSuperAdmin || userOverrides['/app/content'] === true;
   const router = useRouter();
   const [rows, setRows] = useState<DbBlog[]>([]);
   const [visibility, setVisibility] = useState<Record<string, boolean>>({});
@@ -194,14 +203,14 @@ export default function ContentLanding() {
   }, [session?.access_token, analyticsFor]);
 
   if (!user) return null;
-  if (!isSuperAdmin) {
+  if (!hasContentAccess) {
     return (
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center" style={{ fontFamily: 'var(--font-body)' }}>
         <p className="text-xs uppercase tracking-[0.22em] text-foreground/45 mb-2">Marketing &amp; Admissions</p>
         <h1 className="text-2xl font-bold text-foreground mb-3" style={{ fontFamily: 'var(--font-display)' }}>Content</h1>
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-6 text-sm text-amber-900 leading-relaxed">
-          <p className="font-semibold mb-1">Super-admin only.</p>
-          <p>Publishing on the Seven Arrows blog is restricted to super admins.</p>
+          <p className="font-semibold mb-1">Content access required.</p>
+          <p>Ask a super admin to flip your toggle on in <strong>Admin → User Permissions → Content</strong>.</p>
         </div>
       </div>
     );
