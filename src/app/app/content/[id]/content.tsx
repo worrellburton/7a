@@ -647,10 +647,34 @@ function ImagesPanel({ blog, images, token, onChange, approving }: { blog: DbBlo
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<{ message: string; details?: unknown } | null>(null);
   const [tab, setTab] = useState<'generated' | 'library'>('generated');
+  // Shared key with the ReviewPanel approve flow so localStorage
+  // timing samples roll up across both surfaces — every successful
+  // 10-image generation nudges the 180s default closer to wall-time
+  // reality.
+  const imageGenProgress = useAutoProgress('approve-images', 180_000);
 
   useEffect(() => {
     setSelected(new Set(blog.selected_image_ids ?? []));
   }, [blog.selected_image_ids]);
+
+  // Drive the progress bar off either signal that says 'generation
+  // is in flight': the parent's optimistic `approving` flag (set the
+  // instant the user clicked Approve) or the persisted
+  // blog.status='images' (the route stamps that before forking the
+  // 10 parallel jobs). Once all 10 AI rows have landed we finish
+  // cleanly so useAutoProgress's EMA learns from this run.
+  const aiImagesReady = images.filter((i) => isAiImage(i.provider)).length;
+  const isGenerating = blog.status === 'images' || approving;
+  useEffect(() => {
+    if (isGenerating && !imageGenProgress.running) {
+      imageGenProgress.start();
+    } else if (!isGenerating && imageGenProgress.running) {
+      // Bar should never linger after the swirls vanish.
+      if (aiImagesReady >= 10) imageGenProgress.finish();
+      else imageGenProgress.abort();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGenerating, aiImagesReady]);
 
   function toggle(imgId: string) {
     setSelected((prev) => {
@@ -731,9 +755,21 @@ function ImagesPanel({ blog, images, token, onChange, approving }: { blog: DbBlo
         ) : (
           <>
             {generating && aiImages.length < 10 && (
-              <p className="text-[12px] text-foreground/55 mb-3">
-                Generating 10 images… <strong>{aiImages.length}/10</strong> ready · this can take a minute.
-              </p>
+              <div className="mb-3">
+                <p className="text-[12px] text-foreground/55 mb-1.5 flex items-baseline justify-between gap-2">
+                  <span>
+                    Generating 10 images… <strong>{aiImages.length}/10</strong> ready
+                  </span>
+                  <span className="text-foreground/45 tabular-nums">
+                    {Math.round(imageGenProgress.progress * 100)}%
+                  </span>
+                </p>
+                {/* Progress bar uses the same useAutoProgress EMA as
+                    the build / revise flows — the bar slows as it
+                    nears the asymptote so an overshoot still reads
+                    as 'almost done' rather than dead. */}
+                <ProgressBar value={imageGenProgress.progress} />
+              </div>
             )}
             <style jsx>{`
               @keyframes content-swirl {
