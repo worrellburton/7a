@@ -215,15 +215,30 @@ export default function ContentLanding() {
           <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Content</h1>
           <p className="mt-1 text-sm text-foreground/60">Every blog on the site, plus the AI pipeline to draft new ones.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => void createBlog()}
-          disabled={creating || !session?.access_token}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors disabled:opacity-50"
-        >
-          <span aria-hidden>+</span>
-          {creating ? 'Creating…' : 'New blog'}
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/app/content/analytics"
+            className="inline-flex items-center gap-2 px-3 py-2.5 rounded-lg border border-black/15 bg-white text-foreground/75 text-xs font-semibold uppercase tracking-wider hover:bg-warm-bg/60 transition-colors"
+            title="Cross-blog performance overview: top performers, channels, countries, devices."
+          >
+            <svg viewBox="0 0 16 16" width={13} height={13} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 13V7" />
+              <path d="M8 13V3" />
+              <path d="M13 13V9" />
+              <path d="M1.5 13.5h13" />
+            </svg>
+            Analytics
+          </Link>
+          <button
+            type="button"
+            onClick={() => void createBlog()}
+            disabled={creating || !session?.access_token}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors disabled:opacity-50"
+          >
+            <span aria-hidden>+</span>
+            {creating ? 'Creating…' : 'New blog'}
+          </button>
+        </div>
       </header>
 
       {error && (
