@@ -29,6 +29,13 @@ interface DbBlog {
   created_at: string;
   updated_at: string;
   published_at: string | null;
+  created_by: string | null;
+  // Joined by /api/content from public.users for the row authorship
+  // strip. Both stay null when the user has been deleted (FK is
+  // ON DELETE SET NULL since the 20260520_user_delete_fk_set_null
+  // migration).
+  creator_name?: string | null;
+  creator_avatar_url?: string | null;
 }
 
 const STATUS_LABELS: Record<DbBlog['status'], string> = {
@@ -55,7 +62,9 @@ export default function ContentLanding() {
   const [visibility, setVisibility] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
+  // Used to disable the "+ New blog" button while the create-and-route
+  // POST is in flight so a second click doesn't spawn a second draft.
+  const [creating, setCreating] = useState(false);
   const [analyticsFor, setAnalyticsFor] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -130,6 +139,34 @@ export default function ContentLanding() {
     return map;
   }, [rows]);
 
+  // Create a fresh draft and route straight to its detail page —
+  // no inline form, no prompt question on this list page. The
+  // prompt is now editable in Step 1 of the detail page so the
+  // marketer can think + edit + regenerate without round-tripping
+  // back here. POST accepts an empty body now (DEFAULT_PROMPT
+  // placeholder lands on the row) so the response always carries
+  // an id we can route into.
+  const createBlog = useCallback(async () => {
+    if (!session?.access_token || creating) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/content', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: '{}',
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as { error?: string }).error ?? `HTTP ${res.status}`);
+      const id = (json as { id?: string }).id;
+      if (!id) throw new Error('Create succeeded but no id returned.');
+      router.push(`/app/content/${id}`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setCreating(false);
+    }
+  }, [session?.access_token, creating, router]);
+
   // Delete an AI-pipeline post. Confirms first (the route also
   // cascades blog_revisions + blog_images), drops the row from local
   // state on success so the list reshuffles instantly, and the
@@ -180,21 +217,14 @@ export default function ContentLanding() {
         </div>
         <button
           type="button"
-          onClick={() => setShowCreate(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors"
+          onClick={() => void createBlog()}
+          disabled={creating || !session?.access_token}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors disabled:opacity-50"
         >
           <span aria-hidden>+</span>
-          New blog
+          {creating ? 'Creating…' : 'New blog'}
         </button>
       </header>
-
-      {showCreate && (
-        <NewBlogForm
-          token={session?.access_token ?? null}
-          onCancel={() => setShowCreate(false)}
-          onCreated={(id) => router.push(`/app/content/${id}`)}
-        />
-      )}
 
       {error && (
         <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-800">{error}</div>
@@ -233,6 +263,8 @@ export default function ContentLanding() {
                       analyticsOpen={expanded}
                       onToggleAnalytics={() => setAnalyticsFor(expanded ? null : r.id)}
                       onDelete={() => void deleteBlog(r.id, r.title || '(Untitled)')}
+                      creatorName={r.creator_name ?? null}
+                      creatorAvatarUrl={r.creator_avatar_url ?? null}
                     />
                     {expanded && (
                       <div className="border-t border-black/5 bg-warm-bg/30">
@@ -303,6 +335,8 @@ function BlogRow({
   analyticsOpen,
   onToggleAnalytics,
   onDelete,
+  creatorName,
+  creatorAvatarUrl,
 }: {
   title: string;
   subtitle: string;
@@ -319,7 +353,12 @@ function BlogRow({
   // are .tsx files and live outside the DB, so onDelete is undefined
   // for those rows and the button doesn't render.
   onDelete?: () => void;
+  // Author byline. Hand-coded rows don't carry these so the avatar
+  // tile is skipped — the row stays in the same shape as before.
+  creatorName?: string | null;
+  creatorAvatarUrl?: string | null;
 }) {
+  const initial = (creatorName ?? '').trim().charAt(0).toUpperCase() || '?';
   return (
     <div className="flex items-center gap-3 px-4 py-3 hover:bg-warm-bg/40 transition-colors">
       <div className="flex-1 min-w-0">
@@ -335,7 +374,21 @@ function BlogRow({
             <span className="font-semibold text-foreground truncate text-[14px]">{title}</span>
           )}
         </div>
-        <p className={`text-[11.5px] text-foreground/55 truncate ${subtitleMono ? 'font-mono' : ''}`}>{subtitle}</p>
+        <div className="flex items-center gap-2 min-w-0">
+          {(creatorName || creatorAvatarUrl) && (
+            <span className="shrink-0 inline-flex items-center gap-1 text-[11px] text-foreground/55">
+              {creatorAvatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={creatorAvatarUrl} alt="" className="w-4 h-4 rounded-full object-cover bg-warm-bg" />
+              ) : (
+                <span className="w-4 h-4 rounded-full bg-warm-bg flex items-center justify-center text-[8px] font-semibold text-foreground/55" aria-hidden="true">{initial}</span>
+              )}
+              <span className="truncate max-w-[140px]">{creatorName || 'Unknown'}</span>
+              <span className="text-foreground/30">·</span>
+            </span>
+          )}
+          <p className={`text-[11.5px] text-foreground/55 truncate ${subtitleMono ? 'font-mono' : ''}`}>{subtitle}</p>
+        </div>
       </div>
       {statusBadge}
       <button
