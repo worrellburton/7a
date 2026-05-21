@@ -24,6 +24,13 @@ interface CampaignRow {
   status: string;
   sent_at: string | null;
   created_at: string;
+  created_by: string | null;
+  // Hydrated client-side from a second select on public.users keyed
+  // by created_by. Done as a separate query (rather than a PostgREST
+  // embed) because email_campaigns has TWO FKs to users — created_by
+  // and featured_employee_id — and the embed-by-FK-name syntax is
+  // brittle if the constraint is renamed.
+  creator?: { full_name: string | null; avatar_url: string | null } | null;
 }
 
 interface RecipientAnalytics {
@@ -95,11 +102,32 @@ export default function EmailCampaignsContent() {
     void (async () => {
       const { data } = await supabase
         .from('email_campaigns')
-        .select('id, prompt, generated_subject, status, sent_at, created_at')
+        .select('id, prompt, generated_subject, status, sent_at, created_at, created_by')
         .order('created_at', { ascending: false })
         .limit(50);
       if (cancelled) return;
-      setRows((data ?? []) as CampaignRow[]);
+      const baseRows = (data ?? []) as CampaignRow[];
+      // Resolve creator names in a single follow-up select so each
+      // row in the list shows "by <name>". Falls back gracefully when
+      // the users table is unreachable or the creator was deleted.
+      const creatorIds = Array.from(new Set(baseRows.map((r) => r.created_by).filter((v): v is string => !!v)));
+      if (creatorIds.length > 0) {
+        const { data: userRows } = await supabase
+          .from('users')
+          .select('id, full_name, avatar_url')
+          .in('id', creatorIds);
+        if (cancelled) return;
+        const userById = new Map(
+          (userRows ?? []).map((u: { id: string; full_name: string | null; avatar_url: string | null }) => [u.id, u]),
+        );
+        for (const r of baseRows) {
+          if (r.created_by) {
+            const u = userById.get(r.created_by);
+            r.creator = u ? { full_name: u.full_name, avatar_url: u.avatar_url } : null;
+          }
+        }
+      }
+      setRows(baseRows);
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -262,10 +290,33 @@ function CampaignRowItem({
           <p className="text-[13.5px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>
             {subject}
           </p>
-          <p className="text-[11.5px] text-foreground/55 truncate mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-            {c.sent_at
-              ? `Sent ${formatExact(c.sent_at)} · ${formatRelative(c.sent_at)}`
-              : `Started ${formatRelative(c.created_at)}`}
+          <p className="text-[11.5px] text-foreground/55 truncate mt-0.5 flex items-center gap-1.5 flex-wrap" style={{ fontFamily: 'var(--font-body)' }}>
+            <span>
+              {c.sent_at
+                ? `Sent ${formatExact(c.sent_at)} · ${formatRelative(c.sent_at)}`
+                : `Started ${formatRelative(c.created_at)}`}
+            </span>
+            {c.creator?.full_name && (
+              <>
+                <span aria-hidden className="text-foreground/30">·</span>
+                <span className="inline-flex items-center gap-1.5 min-w-0">
+                  {c.creator.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={c.creator.avatar_url}
+                      alt=""
+                      className="w-4 h-4 rounded-full object-cover bg-warm-bg shrink-0"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <span aria-hidden className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary/10 text-primary text-[8px] font-bold shrink-0">
+                      {c.creator.full_name.trim().charAt(0).toUpperCase()}
+                    </span>
+                  )}
+                  <span className="truncate">by {c.creator.full_name}</span>
+                </span>
+              </>
+            )}
           </p>
         </div>
         <span
