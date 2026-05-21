@@ -385,6 +385,11 @@ export default function ContactsContent() {
   const [showCols, setShowCols] = useState(false);
   const [logTarget, setLogTarget] = useState<Contact | null>(null);
   const [upgradeTarget, setUpgradeTarget] = useState<Contact | null>(null);
+  // Row-1 summary cards. Both start collapsed; clicking the card
+  // flips the dropdown open in-place under the same card so the
+  // breakdown sits next to the headline it explains.
+  const [dgOpen, setDgOpen] = useState(false);
+  const [logsOpen, setLogsOpen] = useState(false);
   // Click "History" (or the row's expand chevron) toggles an inline
   // details drawer beneath the row. We hold the contact's id rather
   // than the whole contact so realtime row updates flow through to
@@ -720,6 +725,59 @@ export default function ContactsContent() {
     return { week, month, total, never };
   }, [rows]);
 
+  // Data governance: what share of the contact pool is missing
+  // something the outreach workflow depends on. We treat email,
+  // phone (any of cell/office/main), tier rating, and location as
+  // the four "critical" fields — a contact missing any of them is
+  // counted under "needs attention", and the Data Governance card
+  // headline % is that count divided by the total contact pool. The
+  // dropdown surfaces the per-field counts so it's obvious which
+  // gap is the biggest.
+  const dataGov = useMemo(() => {
+    const total = rows.length;
+    let missingEmail = 0;
+    let missingPhone = 0;
+    let missingTier = 0;
+    let missingLocation = 0;
+    let attention = 0;
+    for (const r of rows) {
+      const noEmail = !r.email;
+      const noPhone = !r.phone && !r.phone_cell && !r.phone_office;
+      const noTier = !r.rating;
+      const noLocation = !r.location && !r.formatted_address;
+      if (noEmail) missingEmail += 1;
+      if (noPhone) missingPhone += 1;
+      if (noTier) missingTier += 1;
+      if (noLocation) missingLocation += 1;
+      if (noEmail || noPhone || noTier || noLocation) attention += 1;
+    }
+    const pct = total === 0 ? 0 : Math.round((attention / total) * 100);
+    return { total, attention, pct, missingEmail, missingPhone, missingTier, missingLocation };
+  }, [rows]);
+
+  // Logs today: contacts whose most recent log lands on the local
+  // calendar day. Used to drive the "Logs today" headline card on
+  // row 1; the dropdown surfaces the week/month/total/never roll-up
+  // (formerly the standalone four-tile row) plus a preview list of
+  // the most recently-logged contacts so you can jump straight to
+  // the latest touch from the card.
+  const logsToday = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const startMs = todayStart.getTime();
+    const todayRows: Contact[] = [];
+    for (const r of rows) {
+      if (!r.last_contact_at) continue;
+      if (new Date(r.last_contact_at).getTime() >= startMs) todayRows.push(r);
+    }
+    todayRows.sort((a, b) => {
+      const at = a.last_contact_at ? new Date(a.last_contact_at).getTime() : 0;
+      const bt = b.last_contact_at ? new Date(b.last_contact_at).getTime() : 0;
+      return bt - at;
+    });
+    return { count: todayRows.length, recent: todayRows.slice(0, 6) };
+  }, [rows]);
+
   // Helper used by both the sort and the row renderer: a contact is
   // "new" to this user iff updated_at is strictly newer than the
   // user's stored last_outreach_seen_at. seenAt = null means the user
@@ -967,11 +1025,28 @@ export default function ContactsContent() {
         </div>
       </header>
 
-      <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-        <InsightTile label="Contacted this week" value={insights.week} tone="fresh" />
-        <InsightTile label="Contacted this month" value={insights.month} tone="cooling" />
-        <InsightTile label="Total contacted" value={insights.total} tone="neutral" />
-        <InsightTile label="Never contacted" value={insights.never} tone="stale" />
+      {/* Row 1 — Data Governance + Logs today. Both are summary
+          cards: the headline answers "is the pipeline healthy?" at
+          a glance, the click-to-expand dropdown surfaces the
+          breakdown without forcing a separate insights tab. The
+          two cards share a grid row so the eye reads them side-by-
+          side as paired health indicators. */}
+      <div className="mb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <DataGovernanceCard
+          stats={dataGov}
+          open={dgOpen}
+          onToggle={() => setDgOpen((o) => !o)}
+        />
+        <LogsTodayCard
+          countToday={logsToday.count}
+          recent={logsToday.recent}
+          weekTotal={insights.week}
+          monthTotal={insights.month}
+          totalContacted={insights.total}
+          neverContacted={insights.never}
+          open={logsOpen}
+          onToggle={() => setLogsOpen((o) => !o)}
+        />
       </div>
 
       <div className="mb-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
@@ -3641,6 +3716,225 @@ function InsightTile({
     <div className={`rounded-xl border px-4 py-3 ${toneCx}`}>
       <p className="text-[9px] font-bold uppercase tracking-[0.14em] opacity-70 truncate">{label}</p>
       <p className="mt-1 text-2xl font-semibold tabular-nums leading-none">{value.toLocaleString()}</p>
+    </div>
+  );
+}
+
+// Tone palette for the Data Governance headline. Above 25% needing
+// attention we flip red ("needs attention"); 10–25% sits amber; under
+// 10% reads green. The thresholds aren't arbitrary — admissions said
+// 1-in-10 contacts missing a critical field is the point where
+// outreach starts hitting dead numbers; above that the queue stops
+// being trustworthy.
+function dgTone(pct: number): { label: string; ring: string; text: string; chip: string } {
+  if (pct >= 25) return { label: 'Needs attention', ring: 'stroke-rose-500', text: 'text-rose-700', chip: 'border-rose-200/70 bg-rose-50/60' };
+  if (pct >= 10) return { label: 'Could be tidier', ring: 'stroke-amber-500', text: 'text-amber-700', chip: 'border-amber-200/70 bg-amber-50/60' };
+  return { label: 'Healthy', ring: 'stroke-emerald-500', text: 'text-emerald-700', chip: 'border-emerald-200/70 bg-emerald-50/60' };
+}
+
+function DonutPct({ pct, ringClass }: { pct: number; ringClass: string }) {
+  // Static SVG donut — radius 32, stroke 8, dasharray driven from
+  // pct. Kept inline (not a component dep) so the card has zero
+  // runtime dependencies beyond React + Tailwind.
+  const r = 32;
+  const c = 2 * Math.PI * r;
+  const clamped = Math.max(0, Math.min(100, pct));
+  const dash = (clamped / 100) * c;
+  return (
+    <svg viewBox="0 0 80 80" className="w-20 h-20" aria-hidden="true">
+      <circle cx="40" cy="40" r={r} fill="none" stroke="rgba(0,0,0,0.08)" strokeWidth="8" />
+      <circle
+        cx="40"
+        cy="40"
+        r={r}
+        fill="none"
+        strokeWidth="8"
+        strokeLinecap="round"
+        className={ringClass}
+        strokeDasharray={`${dash} ${c - dash}`}
+        transform="rotate(-90 40 40)"
+      />
+    </svg>
+  );
+}
+
+function DataGovernanceCard({
+  stats,
+  open,
+  onToggle,
+}: {
+  stats: {
+    total: number;
+    attention: number;
+    pct: number;
+    missingEmail: number;
+    missingPhone: number;
+    missingTier: number;
+    missingLocation: number;
+  };
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const tone = dgTone(stats.pct);
+  // The four field gaps, ranked descending so the biggest data
+  // problem reads first when the dropdown opens.
+  const breakdown = [
+    { key: 'email', label: 'Missing email', value: stats.missingEmail },
+    { key: 'phone', label: 'Missing phone', value: stats.missingPhone },
+    { key: 'tier', label: 'Missing tier', value: stats.missingTier },
+    { key: 'location', label: 'Missing location', value: stats.missingLocation },
+  ].sort((a, b) => b.value - a.value);
+  return (
+    <div className={`rounded-xl border ${tone.chip}`}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="w-full flex items-center gap-4 px-4 py-3 text-left"
+      >
+        <DonutPct pct={stats.pct} ringClass={tone.ring} />
+        <div className="min-w-0 flex-1">
+          <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-foreground/55">Data governance</p>
+          <p className={`mt-1 text-sm font-semibold leading-tight ${tone.text}`}>
+            <span className="text-2xl tabular-nums mr-1">{stats.pct}%</span>
+            {tone.label}
+          </p>
+          <p className="mt-0.5 text-[11px] text-foreground/55">
+            {stats.attention.toLocaleString()} of {stats.total.toLocaleString()} contacts · click for breakdown
+          </p>
+        </div>
+        <svg
+          viewBox="0 0 24 24"
+          className={`w-4 h-4 text-foreground/40 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          aria-hidden="true"
+        >
+          <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && (
+        <div className="border-t border-black/5 px-4 py-3 bg-white/60">
+          <ul className="space-y-1.5 text-[12px]">
+            {breakdown.map((b) => {
+              const fieldPct = stats.total === 0 ? 0 : Math.round((b.value / stats.total) * 100);
+              return (
+                <li key={b.key} className="flex items-center gap-3">
+                  <span className="flex-1 text-foreground/70">{b.label}</span>
+                  <span className="w-24 h-1.5 rounded-full bg-foreground/[0.06] overflow-hidden">
+                    <span
+                      className={`block h-full ${tone.ring.replace('stroke-', 'bg-')}`}
+                      style={{ width: `${fieldPct}%` }}
+                    />
+                  </span>
+                  <span className="w-14 text-right tabular-nums text-foreground/85 font-semibold">{b.value.toLocaleString()}</span>
+                  <span className="w-10 text-right tabular-nums text-foreground/45">{fieldPct}%</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LogsTodayCard({
+  countToday,
+  recent,
+  weekTotal,
+  monthTotal,
+  totalContacted,
+  neverContacted,
+  open,
+  onToggle,
+}: {
+  countToday: number;
+  recent: Contact[];
+  weekTotal: number;
+  monthTotal: number;
+  totalContacted: number;
+  neverContacted: number;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="rounded-xl border border-black/10 bg-warm-bg/40">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        className="w-full flex items-center gap-4 px-4 py-3 text-left"
+      >
+        <span
+          className="w-20 h-20 rounded-2xl bg-white border border-black/5 shadow-sm flex items-center justify-center text-[44px] leading-none"
+          aria-hidden="true"
+        >
+          📋
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-foreground/55">Logs today</p>
+          <p className="mt-1 text-sm font-semibold leading-tight text-foreground">
+            <span className="text-2xl tabular-nums mr-1">{countToday.toLocaleString()}</span>
+            {countToday === 1 ? 'contact logged' : 'contacts logged'}
+          </p>
+          <p className="mt-0.5 text-[11px] text-foreground/55">
+            {weekTotal.toLocaleString()} this week · click for breakdown
+          </p>
+        </div>
+        <svg
+          viewBox="0 0 24 24"
+          className={`w-4 h-4 text-foreground/40 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          aria-hidden="true"
+        >
+          <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+      {open && (
+        <div className="border-t border-black/5 px-4 py-3 bg-white/60 space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <LogStat label="This week" value={weekTotal} tone="fresh" />
+            <LogStat label="This month" value={monthTotal} tone="cooling" />
+            <LogStat label="Total contacted" value={totalContacted} tone="neutral" />
+            <LogStat label="Never contacted" value={neverContacted} tone="stale" />
+          </div>
+          {recent.length > 0 && (
+            <div>
+              <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-foreground/55 mb-1.5">
+                Most recent today
+              </p>
+              <ul className="space-y-0.5 text-[12px]">
+                {recent.map((c) => (
+                  <li key={c.id} className="flex items-center gap-2">
+                    <span className="flex-1 truncate text-foreground/80">{c.name}</span>
+                    <span className="text-foreground/45 text-[11px] tabular-nums">
+                      {c.last_contact_at ? new Date(c.last_contact_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LogStat({ label, value, tone }: { label: string; value: number; tone: 'fresh' | 'cooling' | 'stale' | 'neutral' }) {
+  const toneCx =
+    tone === 'fresh' ? 'text-emerald-700' :
+    tone === 'cooling' ? 'text-amber-700' :
+    tone === 'stale' ? 'text-rose-700' :
+    'text-foreground/85';
+  return (
+    <div className="rounded-lg border border-black/5 bg-white px-2.5 py-2">
+      <p className="text-[8.5px] font-bold uppercase tracking-[0.14em] text-foreground/55 truncate">{label}</p>
+      <p className={`mt-0.5 text-lg font-semibold tabular-nums leading-none ${toneCx}`}>{value.toLocaleString()}</p>
     </div>
   );
 }
