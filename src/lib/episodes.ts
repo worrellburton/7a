@@ -40,6 +40,22 @@ export interface Episode {
    * an attributed author. New posts should always set this.
    */
   authorSlug?: string;
+  /**
+   * Slug of the credentialed clinician who medically reviewed the
+   * post. Matches a BLOG_AUTHORS entry with isMedicalReviewer:true.
+   * Optional only because legacy episodes don't set it; the render
+   * layer (BlogPostMeta + MedicalWebPage JSON-LD) falls back to
+   * DEFAULT_REVIEWER_SLUG when null, so every YMYL post still emits
+   * a reviewedBy block.
+   */
+  reviewerSlug?: string;
+  /**
+   * ISO date when the reviewer last validated the post. Used by
+   * MedicalWebPage.lastReviewed. Falls back to publishedAt when
+   * unset, so older posts read as 'reviewed at publish time'
+   * rather than 'never reviewed'.
+   */
+  lastReviewedAt?: string;
 }
 
 export const EPISODES: Episode[] = [

@@ -5,6 +5,12 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/AuthProvider';
 import EditableBlogPreview from '@/components/EditableBlogPreview';
 import type { Layout } from '@/lib/content-claude';
+import {
+  BLOG_AUTHORS,
+  BLOG_REVIEWERS,
+  findAuthorBySlug,
+  findReviewerBySlug,
+} from '@/lib/blogAuthors';
 
 // One screen, six panels stacked vertically. Each panel light-greys
 // itself out until the prior step has run, so the user moves through
@@ -29,6 +35,13 @@ interface DbBlog {
   created_at: string;
   updated_at: string;
   published_at: string | null;
+  // E-E-A-T byline. Both slugs match a BLOG_AUTHORS entry in
+  // /lib/blogAuthors.ts. Null falls back to DEFAULT_*_SLUG at
+  // render time, so legacy rows still ship a credentialed
+  // reviewer to MedicalWebPage.reviewedBy.
+  author_slug?: string | null;
+  reviewer_slug?: string | null;
+  last_reviewed_at?: string | null;
 }
 interface DbImage {
   id: string;
@@ -148,6 +161,15 @@ export default function BlogEditor({ id }: { id: string }) {
       <PromptPanel
         blogId={blog.id}
         prompt={blog.prompt ?? ''}
+        token={token}
+        onChange={() => void load()}
+      />
+
+      <BylinePanel
+        blogId={blog.id}
+        authorSlug={blog.author_slug ?? null}
+        reviewerSlug={blog.reviewer_slug ?? null}
+        lastReviewedAt={blog.last_reviewed_at ?? null}
         token={token}
         onChange={() => void load()}
       />
@@ -391,10 +413,15 @@ function ErrorWithCopy({ message, details }: { message: string; details?: unknow
   );
 }
 
-function Panel({ heading, step, children }: { heading: string; step: number; children: React.ReactNode }) {
+function Panel({ heading, step, children }: { heading: string; step: number | string; children: React.ReactNode }) {
+  // `step` accepts a number ('Step 3') or a short label like
+  // 'E-E-A-T' for ancillary panels that don't slot into the
+  // 1-7 build pipeline — drawn the same way so the visual rhythm
+  // matches.
+  const isNumeric = typeof step === 'number';
   return (
     <section className="mb-5 rounded-2xl border border-black/10 bg-white p-5">
-      <p className="text-[10px] uppercase tracking-[0.18em] text-foreground/45 font-bold mb-1">Step {step}</p>
+      <p className="text-[10px] uppercase tracking-[0.18em] text-foreground/45 font-bold mb-1">{isNumeric ? `Step ${step}` : step}</p>
       <h2 className="text-lg font-bold text-foreground mb-3" style={{ fontFamily: 'var(--font-display)' }}>{heading}</h2>
       {children}
     </section>
@@ -459,6 +486,123 @@ function PromptPanel({ blogId, prompt, token, onChange }: { blogId: string; prom
         {saving ? <span>Saving…</span> : <span>Auto-saves when you click away.</span>}
         {err && <span className="text-rose-700">· {err}</span>}
       </div>
+    </Panel>
+  );
+}
+
+function BylinePanel({
+  blogId,
+  authorSlug,
+  reviewerSlug,
+  lastReviewedAt,
+  token,
+  onChange,
+}: {
+  blogId: string;
+  authorSlug: string | null;
+  reviewerSlug: string | null;
+  lastReviewedAt: string | null;
+  token: string | null;
+  onChange: () => void;
+}) {
+  // E-E-A-T + GEO byline. The author + medical reviewer drive the
+  // visible 'Written by ... · Medically reviewed by ...' line on
+  // the public post AND the schema.org/MedicalWebPage block in the
+  // page head — both of which Google + AI search engines score for
+  // YMYL content. Server-side defaults fill in a credentialed
+  // reviewer when these are null, but every published post should
+  // pick a real author + reviewer so the byline is accurate.
+  const author = findAuthorBySlug(authorSlug);
+  const reviewer = findReviewerBySlug(reviewerSlug);
+  const [saving, setSaving] = useState<'author' | 'reviewer' | 'reviewedAt' | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function patch(field: 'author_slug' | 'reviewer_slug' | 'last_reviewed_at', value: string | null) {
+    if (!token) return;
+    setSaving(field === 'author_slug' ? 'author' : field === 'reviewer_slug' ? 'reviewer' : 'reviewedAt');
+    setErr(null);
+    try {
+      const res = await fetch(`/api/content/${blogId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ [field]: value }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as { error?: string }).error ?? `HTTP ${res.status}`);
+      onChange();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  return (
+    <Panel heading="Byline" step="E-E-A-T">
+      <p className="text-[12.5px] text-foreground/65 mb-3 leading-relaxed">
+        Drives the visible byline on the public post and the
+        {' '}<code className="font-mono text-[11px] px-1 py-[1px] rounded bg-warm-bg/70 border border-black/10">MedicalWebPage</code>{' '}
+        JSON-LD block Google + AI search engines read. Posts ship with credentialed defaults
+        when these are blank, but every published post should pick a real author + reviewer.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <label className="block">
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-foreground/45 mb-1">Written by</span>
+          <select
+            value={authorSlug ?? ''}
+            onChange={(e) => void patch('author_slug', e.target.value || null)}
+            disabled={saving === 'author'}
+            className="w-full rounded-md border border-black/10 px-2 py-1.5 text-[12.5px] bg-white"
+          >
+            <option value="">{saving === 'author' ? 'Saving…' : '— Use default —'}</option>
+            {BLOG_AUTHORS.map((a) => (
+              <option key={a.slug} value={a.slug}>
+                {a.name}{a.credentials ? `, ${a.credentials}` : ''} · {a.title}
+              </option>
+            ))}
+          </select>
+          {author && (
+            <p className="mt-1 text-[10.5px] text-foreground/55 truncate">{author.bio ?? author.title}</p>
+          )}
+        </label>
+        <label className="block">
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-foreground/45 mb-1">Medically reviewed by</span>
+          <select
+            value={reviewerSlug ?? ''}
+            onChange={(e) => void patch('reviewer_slug', e.target.value || null)}
+            disabled={saving === 'reviewer'}
+            className="w-full rounded-md border border-black/10 px-2 py-1.5 text-[12.5px] bg-white"
+          >
+            <option value="">{saving === 'reviewer' ? 'Saving…' : '— Use default —'}</option>
+            {BLOG_REVIEWERS.map((r) => (
+              <option key={r.slug} value={r.slug}>
+                {r.name}{r.credentials ? `, ${r.credentials}` : ''} · {r.title}
+              </option>
+            ))}
+          </select>
+          {reviewer && (
+            <p className="mt-1 text-[10.5px] text-foreground/55 truncate">Credentialed clinician — drives MedicalWebPage.reviewedBy.</p>
+          )}
+        </label>
+        <div>
+          <span className="block text-[10px] font-bold uppercase tracking-wider text-foreground/45 mb-1">Last reviewed</span>
+          <p className="text-[12.5px] text-foreground/85 mb-1">
+            {lastReviewedAt
+              ? new Date(lastReviewedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+              : 'Never (defaults to publish date)'}
+          </p>
+          <button
+            type="button"
+            onClick={() => void patch('last_reviewed_at', new Date().toISOString())}
+            disabled={saving === 'reviewedAt'}
+            className="px-2.5 py-1 rounded-md text-[11px] font-semibold border border-black/15 bg-white hover:bg-warm-bg/60 disabled:opacity-50"
+            title="Stamps lastReviewed today — AI search engines deprioritise medical content older than ~12 months without a fresh review stamp."
+          >
+            {saving === 'reviewedAt' ? 'Saving…' : 'Mark reviewed today'}
+          </button>
+        </div>
+      </div>
+      {err && <p className="mt-2 text-[11.5px] text-rose-700">{err}</p>}
     </Panel>
   );
 }
