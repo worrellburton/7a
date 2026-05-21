@@ -1,5 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
+import { NextResponse } from 'next/server';
+import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 
 // GET /api/contacts/insights
 //
@@ -86,8 +86,15 @@ function leaderboardFor(
   return out;
 }
 
-export async function GET(req: NextRequest) {
-  const user = await getUserFromRequest(req);
+export async function GET() {
+  // Cookie-session auth — the InsightsCard's plain fetch doesn't
+  // send an Authorization header, so the older getUserFromRequest
+  // bearer-token gate was 401-ing every call. The response
+  // omitted `governance` and the badge showed '—' / 'Calculating…'
+  // while the count tiles kept rendering off the client-side
+  // fallback in content.tsx.
+  const supabase = await getServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const admin = getAdminSupabase();
