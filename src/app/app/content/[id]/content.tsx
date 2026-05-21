@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthProvider';
 import EditableBlogPreview from '@/components/EditableBlogPreview';
+import { usePagePermissions } from '@/lib/PagePermissions';
 import type { Layout } from '@/lib/content-claude';
 import {
   BLOG_AUTHORS,
@@ -76,6 +77,11 @@ interface DbRevision {
 
 export default function BlogEditor({ id }: { id: string }) {
   const { user, isSuperAdmin, session } = useAuth();
+  const { userOverrides } = usePagePermissions();
+  // Super admin OR per-user content-page override (same gate as
+  // /app/content). Matches the requireSuperAdmin server-side gate
+  // in /lib/content-server so the page UI and the API agree.
+  const hasContentAccess = isSuperAdmin || userOverrides['/app/content'] === true;
   const [blog, setBlog] = useState<DbBlog | null>(null);
   const [images, setImages] = useState<DbImage[]>([]);
   const [revisions, setRevisions] = useState<DbRevision[]>([]);
@@ -129,8 +135,8 @@ export default function BlogEditor({ id }: { id: string }) {
   }, [blog?.status, images, load]);
 
   if (!user) return null;
-  if (!isSuperAdmin) {
-    return <div className="px-4 py-10 text-center text-foreground/55">Super-admin only.</div>;
+  if (!hasContentAccess) {
+    return <div className="px-4 py-10 text-center text-foreground/55">Content access required. Ask a super admin to flip your toggle on in Admin → User Permissions → Content.</div>;
   }
   if (loading && !blog) return <div className="px-4 py-10 text-center text-foreground/55">Loading…</div>;
   if (!blog) return <div className="px-4 py-10 text-center text-foreground/55">{error ?? 'Not found.'}</div>;
