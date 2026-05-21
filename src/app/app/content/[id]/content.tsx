@@ -68,6 +68,15 @@ export default function BlogEditor({ id }: { id: string }) {
   const [revisions, setRevisions] = useState<DbRevision[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Lifted from ReviewPanel so the Step 4 ImagesPanel can render the
+  // 10 placeholder swirls the instant the user clicks
+  // 'Approve & generate 10 images', not after the route returns.
+  // The route sets blogs.status='images' server-side before the
+  // parallel generation kicks off, but the client doesn't observe
+  // that until the response lands (the request blocks for 90s–4min).
+  // Treating `approving` as an optimistic equivalent of status='images'
+  // closes that visual gap.
+  const [approving, setApproving] = useState(false);
 
   const load = useCallback(async () => {
     if (!session?.access_token) return;
@@ -136,7 +145,12 @@ export default function BlogEditor({ id }: { id: string }) {
         <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-800">{error}</div>
       )}
 
-      <PromptPanel prompt={blog.prompt ?? ''} />
+      <PromptPanel
+        blogId={blog.id}
+        prompt={blog.prompt ?? ''}
+        token={token}
+        onChange={() => void load()}
+      />
 
       <GeneratePanel
         blog={blog}
@@ -150,6 +164,8 @@ export default function BlogEditor({ id }: { id: string }) {
           token={token}
           revisions={revisions}
           onChange={() => void load()}
+          onStartApprove={() => setApproving(true)}
+          onFinishApprove={() => setApproving(false)}
         />
       )}
 
@@ -159,6 +175,7 @@ export default function BlogEditor({ id }: { id: string }) {
           images={images}
           token={token}
           onChange={() => void load()}
+          approving={approving}
         />
       )}
 
@@ -384,10 +401,64 @@ function Panel({ heading, step, children }: { heading: string; step: number; chi
   );
 }
 
-function PromptPanel({ prompt }: { prompt: string }) {
+function PromptPanel({ blogId, prompt, token, onChange }: { blogId: string; prompt: string; token: string | null; onChange: () => void }) {
+  // Step 1 is editable now — clicking '+ New blog' on the list page
+  // drops the user here with a placeholder, and they refine the
+  // prompt before clicking Generate body. Auto-saves on blur via
+  // PATCH /api/content/[id]; refreshes the parent so GeneratePanel
+  // reads the freshest prompt on its next click.
+  const [draft, setDraft] = useState(prompt);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  // Keep the textarea in sync when the parent refetches a newer
+  // prompt (e.g. another tab edited it). Only does so when the user
+  // isn't mid-edit — comparing against the last saved value, not
+  // the in-progress draft.
+  const lastSavedRef = useRef(prompt);
+  useEffect(() => {
+    if (lastSavedRef.current !== prompt) {
+      lastSavedRef.current = prompt;
+      setDraft(prompt);
+    }
+  }, [prompt]);
+
+  async function save() {
+    const trimmed = draft.trim();
+    if (trimmed === lastSavedRef.current.trim()) return;
+    if (!token) return;
+    setSaving(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/content/${blogId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ prompt: trimmed }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as { error?: string }).error ?? `HTTP ${res.status}`);
+      lastSavedRef.current = trimmed;
+      onChange();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <Panel heading="Prompt" step={1}>
-      <p className="text-[13.5px] text-foreground/80 leading-relaxed whitespace-pre-wrap">{prompt || '(no prompt saved)'}</p>
+      <textarea
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => void save()}
+        rows={4}
+        placeholder="Describe what this post should be about — topic, angle, anything the model should hold onto."
+        className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13.5px] leading-relaxed bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 resize-y"
+      />
+      <div className="mt-1 flex items-center gap-2 text-[11px] text-foreground/45">
+        {saving ? <span>Saving…</span> : <span>Auto-saves when you click away.</span>}
+        {err && <span className="text-rose-700">· {err}</span>}
+      </div>
     </Panel>
   );
 }
@@ -442,7 +513,7 @@ function GeneratePanel({ blog, token, onComplete }: { blog: DbBlog; token: strin
   );
 }
 
-function ReviewPanel({ blog, token, revisions, onChange }: { blog: DbBlog; token: string | null; revisions: DbRevision[]; onChange: () => void }) {
+function ReviewPanel({ blog, token, revisions, onChange, onStartApprove, onFinishApprove }: { blog: DbBlog; token: string | null; revisions: DbRevision[]; onChange: () => void; onStartApprove: () => void; onFinishApprove: () => void }) {
   const [instruction, setInstruction] = useState('');
   // Separate flags per action so a long-running revise doesn't disable
   // the Approve button (or vice-versa). Errors are also scoped so a
@@ -451,11 +522,6 @@ function ReviewPanel({ blog, token, revisions, onChange }: { blog: DbBlog; token
   const [approving, setApproving] = useState(false);
   const [err, setErr] = useState<{ message: string; details?: unknown } | null>(null);
   const reviseProgress = useAutoProgress('revise', 35_000);
-  // Image-generation is 10 in parallel (5 gpt-image-2 + 5 nano-banana-2);
-  // wall time has been 90s–4min in practice. 180s default is the sweet
-  // spot — the bar slows as it nears the asymptote so an overshoot
-  // still reads as "almost done" rather than dead.
-  const approveProgress = useAutoProgress('approve-images', 180_000);
 
   async function revise() {
     if (!token || !instruction.trim()) return;
@@ -487,7 +553,11 @@ function ReviewPanel({ blog, token, revisions, onChange }: { blog: DbBlog; token
   async function approve() {
     if (!token) return;
     setApproving(true); setErr(null);
-    approveProgress.start();
+    // Tell the parent so Step 4 ImagesPanel flips into 'generating'
+    // and shows the 10 placeholder swirls immediately — the route
+    // blocks for 90s–4min and we don't want the user to think
+    // nothing happened.
+    onStartApprove();
     try {
       // Approve = kick off image generation. The route returns per-image
       // failure detail in `failures` so we carry the full payload into
@@ -499,16 +569,14 @@ function ReviewPanel({ blog, token, revisions, onChange }: { blog: DbBlog; token
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         setErr({ message: json.error ?? `HTTP ${res.status}`, details: json });
-        approveProgress.abort();
         return;
       }
-      approveProgress.finish();
       onChange();
     } catch (e) {
-      approveProgress.abort();
       setErr({ message: e instanceof Error ? e.message : String(e) });
     } finally {
       setApproving(false);
+      onFinishApprove();
     }
   }
 
@@ -547,12 +615,14 @@ function ReviewPanel({ blog, token, revisions, onChange }: { blog: DbBlog; token
               onClick={approve}
               disabled={revising || approving}
               className="px-3 py-1.5 rounded-md bg-primary text-white text-[11.5px] font-semibold disabled:opacity-50"
+              // Progress feedback lives in Step 4 (the Images card)
+              // now — the 10 placeholder swirls render there the
+              // instant the button is clicked, which reads as
+              // 'images are being made over there' instead of 'a
+              // grey progress bar is here'.
             >
-              {approving
-                ? `Generating 10 images… ${Math.round(approveProgress.progress * 100)}%`
-                : 'Approve & generate 10 images'}
+              {approving ? 'Sent to image gen ↓' : 'Approve & generate 10 images'}
             </button>
-            {approveProgress.running && <ProgressBar value={approveProgress.progress} />}
           </div>
           {revisions.length > 0 && (
             <div className="mt-4">
@@ -572,7 +642,7 @@ function ReviewPanel({ blog, token, revisions, onChange }: { blog: DbBlog; token
   );
 }
 
-function ImagesPanel({ blog, images, token, onChange }: { blog: DbBlog; images: DbImage[]; token: string | null; onChange: () => void }) {
+function ImagesPanel({ blog, images, token, onChange, approving }: { blog: DbBlog; images: DbImage[]; token: string | null; onChange: () => void; approving: boolean }) {
   const [selected, setSelected] = useState<Set<string>>(new Set(blog.selected_image_ids ?? []));
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<{ message: string; details?: unknown } | null>(null);
@@ -618,7 +688,11 @@ function ImagesPanel({ blog, images, token, onChange }: { blog: DbBlog; images: 
   // "10 images on the way" instead of a blank panel. Each slot the
   // server hasn't returned yet renders an animated conic-gradient
   // swirl; arrived images take their slot in order as they land.
-  const generating = blog.status === 'images';
+  // `approving` is the optimistic counterpart to status='images' —
+  // see the lifted state in BlogEditor. Either signal flips this
+  // panel into 'generating' mode so 10 placeholder swirls render
+  // straight away.
+  const generating = blog.status === 'images' || approving;
   // The blog_images table now mixes two sources: AI-generated (provider
   // != 'library') and pulled-in library entries. Each source tab only
   // shows its own rows; selections from either tab roll up into the same
