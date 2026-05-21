@@ -1,25 +1,14 @@
-// Resend REST API helper — direct fetch instead of the SDK so we
+// Resend REST API transport — direct fetch instead of the SDK so we
 // don't add a dependency for one POST.
 //
-// Env contract:
-//   RESEND_API_KEY    — server-only API key from resend.com/api-keys.
-//   RESEND_FROM       — verified sender. e.g. "Seven Arrows <noreply@…>".
-//                       Required once you switch off the resend.dev
-//                       sandbox; the route reads this every send so
-//                       changing it doesn't require a redeploy.
-//   RESEND_TO_VOB     — comma-separated recipient list for the VOB
-//                       form. Defaults to admissions@sevenarrowsrecoveryarizona.com
-//                       so a missing env doesn't silently drop the
-//                       submission on the floor.
+// This module is the low-level transport ONLY. It does not read any
+// environment variables. Callers must supply the API key and the
+// `from` header explicitly. Per-product wrappers under
+// src/lib/mailers/* (e.g. vob.ts) own the env contract for their
+// own Resend account / project, which is how we keep transactional
+// VOB sends isolated from the digital-marketing Resend account.
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
-// Sending domain verified in Resend is sevenarrowsrecovery.com (the
-// non-Arizona suffix). The marketing site lives at the Arizona TLD
-// but the corporate mail domain is the shorter one — that's the
-// only address Resend will let us send from until/unless a second
-// domain is added and verified.
-const DEFAULT_FROM = 'Seven Arrows Admissions <noreply@sevenarrowsrecovery.com>';
-const DEFAULT_VOB_TO = 'admissions@sevenarrowsrecovery.com';
 
 export interface EmailAttachment {
   /** Filename the recipient sees. */
@@ -31,36 +20,20 @@ export interface EmailAttachment {
 }
 
 export interface SendEmailArgs {
+  /** Resend API key — caller supplies. No process.env fallback. */
+  apiKey: string;
+  /** From header. Required; caller supplies. */
+  from: string;
   to: string | string[];
   subject: string;
   html?: string;
   text?: string;
   replyTo?: string;
   attachments?: EmailAttachment[];
-  /** Override the From header for this send. */
-  from?: string;
 }
 
 export interface SendEmailResult {
   id: string;
-}
-
-function loadKey(): string {
-  const key = process.env.RESEND_API_KEY;
-  if (!key) throw new Error('RESEND_API_KEY is not configured');
-  return key;
-}
-
-export function isEmailConfigured(): boolean {
-  return Boolean(process.env.RESEND_API_KEY);
-}
-
-export function defaultVobRecipients(): string[] {
-  const raw = (process.env.RESEND_TO_VOB || DEFAULT_VOB_TO).trim();
-  return raw
-    .split(',')
-    .map((e) => e.trim())
-    .filter(Boolean);
 }
 
 function toBase64(bytes: ArrayBuffer | Uint8Array): string {
@@ -80,11 +53,11 @@ function toBase64(bytes: ArrayBuffer | Uint8Array): string {
 }
 
 export async function sendEmail(args: SendEmailArgs): Promise<SendEmailResult> {
-  const key = loadKey();
-  const from = args.from || process.env.RESEND_FROM || DEFAULT_FROM;
+  if (!args.apiKey) throw new Error('sendEmail: apiKey is required');
+  if (!args.from) throw new Error('sendEmail: from is required');
 
   const payload: Record<string, unknown> = {
-    from,
+    from: args.from,
     to: Array.isArray(args.to) ? args.to : [args.to],
     subject: args.subject,
   };
@@ -102,7 +75,7 @@ export async function sendEmail(args: SendEmailArgs): Promise<SendEmailResult> {
   const res = await fetch(RESEND_ENDPOINT, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${key}`,
+      Authorization: `Bearer ${args.apiKey}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(payload),

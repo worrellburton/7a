@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { defaultVobRecipients, escapeHtml, isEmailConfigured, sendEmail, type EmailAttachment } from '@/lib/email-resend';
+import { escapeHtml, type EmailAttachment } from '@/lib/email-resend';
+import { isVobEmailConfigured, sendVobEmail } from '@/lib/mailers/vob';
 
 // POST /api/public/vob
 // Public endpoint. Receives insurance-verification requests from the
@@ -11,6 +12,10 @@ import { defaultVobRecipients, escapeHtml, isEmailConfigured, sendEmail, type Em
 // route forwards everything straight to Resend as email attachments
 // and then drops the bytes. Nothing is written to vob_requests or any
 // other table — Resend is the only record of the submission.
+//
+// Resend tenancy: VOB sends use the transactional Resend account
+// (RESEND_VOB_API_KEY), not the digital-marketing one. See
+// src/lib/mailers/vob.ts for the env contract.
 
 export const dynamic = 'force-dynamic';
 // Form posts can carry two ~10 MB card photos plus the JSON fields.
@@ -136,8 +141,8 @@ function buildEmail(args: {
 }
 
 export async function POST(req: NextRequest) {
-  if (!isEmailConfigured()) {
-    console.error('[vob] RESEND_API_KEY is not configured');
+  if (!isVobEmailConfigured()) {
+    console.error('[vob] RESEND_VOB_API_KEY is not configured');
     return NextResponse.json({ error: 'Email is not configured' }, { status: 503 });
   }
 
@@ -183,8 +188,7 @@ export async function POST(req: NextRequest) {
   });
 
   try {
-    await sendEmail({
-      to: defaultVobRecipients(),
+    await sendVobEmail({
       subject,
       text,
       html,
