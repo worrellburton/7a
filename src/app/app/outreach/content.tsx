@@ -5247,15 +5247,15 @@ function ContactMobileCard({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className={`rounded-xl border bg-white p-4 ${selected ? 'border-primary/40 ring-1 ring-primary/20' : 'border-black/10'}`}>
-      <div className="flex items-start justify-between gap-3">
+    <div className={`rounded-xl border bg-white p-3.5 ${selected ? 'border-primary/40 ring-1 ring-primary/20' : 'border-black/10'}`}>
+      <div className="flex items-start justify-between gap-2.5">
         <div className="min-w-0 flex-1 flex items-start gap-2">
           <input
             type="checkbox"
             aria-label={`Select ${contact.name}`}
             checked={selected}
             onChange={onToggleSelect}
-            className="mt-1 accent-primary w-4 h-4 shrink-0"
+            className={`mt-1 accent-primary w-4 h-4 shrink-0 transition-opacity ${selected ? 'opacity-100' : 'opacity-30'}`}
           />
           <div className="min-w-0 flex-1">
           <p className="font-semibold text-foreground text-[13px] leading-tight">{contact.name}</p>
@@ -5291,18 +5291,18 @@ function ContactMobileCard({
         <TimeSinceCell contact={contact} />
       </div>
 
-      <dl className="mt-3 space-y-1.5 text-[12px]">
+      <dl className="mt-2.5 space-y-1 text-[12px]">
         {contact.specialty && (
           <div className="flex items-baseline gap-2">
-            <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Focus</dt>
-            <dd className="text-foreground/75">{contact.specialty}</dd>
+            <dt className="text-[9px] font-bold tracking-[0.14em] uppercase text-foreground/45 w-14 shrink-0">Focus</dt>
+            <dd className="text-foreground/75 min-w-0 flex-1">{contact.specialty}</dd>
           </div>
         )}
         {contact.company_website && (() => {
           const href = normaliseUrl(contact.company_website);
           return (
             <div className="flex items-baseline gap-2">
-              <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Site</dt>
+              <dt className="text-[9px] font-bold tracking-[0.14em] uppercase text-foreground/45 w-14 shrink-0">Site</dt>
               <dd className="min-w-0 flex-1 break-all">
                 {href ? (
                   <a
@@ -5322,41 +5322,49 @@ function ContactMobileCard({
         })()}
         {contact.phone && (
           <div className="flex items-baseline gap-2">
-            <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Phone</dt>
-            <dd className="min-w-0 flex-1"><CopyableCell value={contact.phone} mono /></dd>
+            <dt className="text-[9px] font-bold tracking-[0.14em] uppercase text-foreground/45 w-14 shrink-0">Phone</dt>
+            <dd className="min-w-0 flex-1">
+              <a href={`tel:${contact.phone.replace(/[^+\d]/g, '')}`} className="text-foreground/85 tabular-nums hover:text-primary">
+                {contact.phone}
+              </a>
+            </dd>
           </div>
         )}
         {contact.email && (
           <div className="flex items-baseline gap-2">
-            <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Email</dt>
-            <dd className="min-w-0 flex-1 break-all"><CopyableCell value={contact.email} /></dd>
+            <dt className="text-[9px] font-bold tracking-[0.14em] uppercase text-foreground/45 w-14 shrink-0">Email</dt>
+            <dd className="min-w-0 flex-1 break-all">
+              <a href={`mailto:${contact.email}`} className="text-foreground/85 hover:text-primary">
+                {contact.email}
+              </a>
+            </dd>
           </div>
         )}
         {contact.location && (
           <div className="flex items-baseline gap-2">
-            <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Location</dt>
-            <dd className="text-foreground/75">{contact.location}</dd>
+            <dt className="text-[9px] font-bold tracking-[0.14em] uppercase text-foreground/45 w-14 shrink-0">Location</dt>
+            <dd className="text-foreground/75 min-w-0 flex-1">{contact.location}</dd>
           </div>
         )}
         {contact.notes && (
           <div className="flex items-baseline gap-2">
-            <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 w-16 shrink-0">Notes</dt>
-            <dd className="text-foreground/75 whitespace-pre-wrap">{contact.notes}</dd>
+            <dt className="text-[9px] font-bold tracking-[0.14em] uppercase text-foreground/45 w-14 shrink-0">Notes</dt>
+            <dd className="text-foreground/75 whitespace-pre-wrap min-w-0 flex-1">{contact.notes}</dd>
           </div>
         )}
       </dl>
 
       {contact.last_contact_at && (
-        <div className="mt-3 pt-3 border-t border-black/5 flex items-center gap-2">
+        <div className="mt-2.5 pt-2.5 border-t border-black/5 flex items-center gap-2">
           {contact.last_contact_by_avatar_url ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={contact.last_contact_by_avatar_url}
               alt={contact.last_contact_by_name ?? 'User'}
-              className="w-7 h-7 rounded-full object-cover bg-warm-bg"
+              className="w-6 h-6 rounded-full object-cover bg-warm-bg"
             />
           ) : (
-            <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-[10px] font-semibold text-foreground/55">
+            <div className="w-6 h-6 rounded-full bg-warm-bg flex items-center justify-center text-[10px] font-semibold text-foreground/55">
               {(contact.last_contact_by_name || '?').charAt(0).toUpperCase()}
             </div>
           )}
@@ -5374,20 +5382,21 @@ function ContactMobileCard({
         </div>
       )}
 
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-2.5 flex items-center gap-1.5">
         <button
           type="button"
           onClick={onContact}
           aria-label="Log a contact"
           title="Log a contact"
-          className="sa-log-button flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-primary/10 text-primary text-[18px] leading-none border border-primary/20 hover:bg-primary/15 transition-colors"
+          className="sa-log-button flex-1 inline-flex items-center justify-center gap-1.5 px-3 h-9 rounded-md bg-primary/10 text-primary text-[14px] leading-none border border-primary/20 hover:bg-primary/15 active:bg-primary/20 transition-colors"
         >
           <span aria-hidden>🪵</span>
+          <span className="text-[11px] font-semibold uppercase tracking-wider">Log</span>
         </button>
         <button
           type="button"
           onClick={onHistory}
-          className={`flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 rounded-md text-[11px] font-semibold border transition-colors ${expanded ? 'bg-foreground text-white border-foreground' : 'border-black/10 text-foreground/75 hover:bg-warm-bg/60'}`}
+          className={`flex-1 inline-flex items-center justify-center gap-1 px-3 h-9 rounded-md text-[11px] font-semibold uppercase tracking-wider border transition-colors ${expanded ? 'bg-foreground text-white border-foreground' : 'border-black/10 text-foreground/75 hover:bg-warm-bg/60 active:bg-warm-bg/80'}`}
           aria-expanded={expanded}
         >
           History
@@ -5395,11 +5404,11 @@ function ContactMobileCard({
             <ChevronDownIcon />
           </span>
         </button>
-        <div className="relative">
+        <div className="relative shrink-0">
           <button
             type="button"
             onClick={() => setOpen((v) => !v)}
-            className="inline-flex items-center justify-center w-9 h-9 rounded-md border border-black/10 text-foreground/55 hover:bg-warm-bg/60"
+            className="inline-flex items-center justify-center w-9 h-9 rounded-md border border-black/10 text-foreground/55 hover:bg-warm-bg/60 active:bg-warm-bg/80"
             aria-label="More"
             aria-haspopup="menu"
             aria-expanded={open}
