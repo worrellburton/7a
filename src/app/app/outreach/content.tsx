@@ -4050,19 +4050,28 @@ function InsightsCard({ fallback }: { fallback: { week: number; month: number; t
 
   return (
     <div className="mb-4 rounded-xl border border-black/10 bg-white overflow-hidden">
-      {/* Featured data-governance badge + pipeline counters.
-          Layout: governance badge on the left (big copper ring,
-          score in the centre, click toggles the breakdown panel)
-          + five KPI tiles flowing to its right. Stacks on mobile
-          so the badge stays the hero on a phone too. */}
-      <div className="px-4 py-4 border-b border-black/5 flex flex-col lg:flex-row gap-4 lg:items-center">
+      {/* Row 1 — Data governance, on its own row so the badge
+          doesn't fight for visual weight with the KPI tiles. */}
+      <div className="px-4 py-4 border-b border-black/5">
         <GovernanceBadge
           score={data?.governance?.score ?? null}
           totalContacts={data?.governance?.totalContacts ?? 0}
           expanded={showGovernance}
           onClick={() => setShowGovernance((v) => !v)}
         />
-        <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      </div>
+      {showGovernance && data?.governance && (
+        <GovernancePanel governance={data.governance} />
+      )}
+      {/* Row 2 — Pipeline log counters. Separate band underneath
+          governance so the two concepts don't intermingle: row
+          one is 'how complete is the data?', row two is 'how
+          actively are we logging touches against it?'. */}
+      <div className="px-4 py-4 border-b border-black/5">
+        <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/55 mb-3">
+          Logs
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           <InsightTile label="Contacted this week" value={counts.week} tone="fresh" />
           <InsightTile label="Contacted this month" value={counts.month} tone="cooling" />
           <InsightTile label="Total contacted" value={counts.total} tone="neutral" />
@@ -4070,9 +4079,6 @@ function InsightsCard({ fallback }: { fallback: { week: number; month: number; t
           <InsightTile label="Missing email" value={counts.missingEmail ?? 0} tone="missing" />
         </div>
       </div>
-      {showGovernance && data?.governance && (
-        <GovernancePanel governance={data.governance} />
-      )}
 
       {/* Areas touched today */}
       <div className="px-4 py-3 border-b border-black/5">
