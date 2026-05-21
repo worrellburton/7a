@@ -16,12 +16,23 @@ import Lever from './Lever';
 // fully reachable from this commit so each subsequent phase is
 // a focused swap of one stub.
 
+interface RecipientOption { id: string; email: string; name: string | null }
 interface PreviewPayload {
-  window: { startsAt: string; endsAt: string; label: string };
+  window: { startsAt: string; endsAt: string; label: string } | null;
   counts: { total: number; uniqueContacts: number; uniqueReps: number };
   leaderboard: { userId: string; name: string; logs: number }[];
-  defaultRecipients: { id: string; email: string; name: string | null }[];
+  defaultRecipients: RecipientOption[];
   phase: number;
+}
+interface HistoryEntry {
+  pulledAt: string;
+  pulledBy: string | null;
+  pulledByName: string | null;
+  sent: number;
+  failed: number;
+  simulated: number;
+  subject: string | null;
+  total: number | null;
 }
 
 export default function LogReportLever() {
@@ -29,7 +40,14 @@ export default function LogReportLever() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pulling, setPulling] = useState(false);
-  const [lastPull, setLastPull] = useState<null | { sent: number; at: string; simulated?: boolean }>(null);
+  const [lastPull, setLastPull] = useState<null | { sent: number; failed?: number; at: string; simulated?: boolean }>(null);
+  // Recipients picker — defaults to every super admin returned by
+  // the preview endpoint. The puller can deselect names per send.
+  const [selectedRecipientIds, setSelectedRecipientIds] = useState<Set<string>>(new Set());
+  const [showRecipients, setShowRecipients] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<HistoryEntry[] | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const [showTest, setShowTest] = useState(false);
   const [testEmail, setTestEmail] = useState('');
   const [testing, setTesting] = useState(false);
@@ -83,22 +101,56 @@ export default function LogReportLever() {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
+  // Seed the recipient selection from the preview payload — every
+  // default recipient starts checked. Re-running the preview
+  // doesn't clobber a user's deselections.
+  useEffect(() => {
+    if (!preview) return;
+    setSelectedRecipientIds((prev) => {
+      if (prev.size > 0) return prev;
+      return new Set(preview.defaultRecipients.map((r) => r.id));
+    });
+  }, [preview]);
+
+  async function loadHistory() {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch('/api/levers/log-report/history?limit=5', { cache: 'no-store' });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) setHistory((json.history ?? []) as HistoryEntry[]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  function toggleRecipient(id: string) {
+    setSelectedRecipientIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   const pull = async () => {
     if (pulling) return;
     setPulling(true);
     setError(null);
     try {
+      const recipientIds = Array.from(selectedRecipientIds);
       const res = await fetch('/api/levers/log-report/pull', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ recipientIds: recipientIds.length > 0 ? recipientIds : undefined }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         setError(json?.error ?? `HTTP ${res.status}`);
         return;
       }
-      setLastPull({ sent: json.sent ?? 0, at: new Date().toISOString(), simulated: json.simulated });
+      setLastPull({ sent: json.sent ?? 0, failed: json.failed ?? 0, at: new Date().toISOString(), simulated: json.simulated });
+      // Refresh history so the new pull lands in the disclosure.
+      void loadHistory();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Pull failed');
     } finally {
@@ -154,7 +206,7 @@ export default function LogReportLever() {
         tone="amber"
       />
 
-      <div className="mt-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-white/55">
+      <div className="mt-3 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-white/55 flex-wrap justify-center">
         <button
           type="button"
           onClick={() => void openPreview()}
@@ -170,6 +222,29 @@ export default function LogReportLever() {
         >
           Send test email
         </button>
+        <span className="text-white/20">·</span>
+        <button
+          type="button"
+          onClick={() => { setShowRecipients((v) => !v); setShowHistory(false); }}
+          className={`px-2 py-1 rounded transition-colors ${showRecipients ? 'bg-white/10 text-white' : 'hover:text-white/85'}`}
+        >
+          Recipients ({selectedRecipientIds.size})
+        </button>
+        <span className="text-white/20">·</span>
+        <button
+          type="button"
+          onClick={() => {
+            setShowHistory((v) => {
+              const next = !v;
+              if (next && history == null) void loadHistory();
+              return next;
+            });
+            setShowRecipients(false);
+          }}
+          className={`px-2 py-1 rounded transition-colors ${showHistory ? 'bg-white/10 text-white' : 'hover:text-white/85'}`}
+        >
+          History
+        </button>
       </div>
       {showPreview && (
         <PreviewPopup
@@ -184,6 +259,73 @@ export default function LogReportLever() {
       {error && (
         <div className="mt-3 rounded-lg border border-rose-400/30 bg-rose-950/40 px-3 py-2 text-xs text-rose-200">
           {error}
+        </div>
+      )}
+
+      {showRecipients && (
+        <div className="mt-4 w-full max-w-md rounded-lg border border-white/10 bg-black/30 backdrop-blur px-4 py-3">
+          <p className="text-[11px] text-white/55 mb-2">
+            Choose who receives the 🪵 log report when the lever fires. Defaults to every super admin.
+          </p>
+          {(preview?.defaultRecipients ?? []).length === 0 ? (
+            <p className="text-[12px] text-white/55 italic">No eligible recipients yet — every super admin needs an email on file.</p>
+          ) : (
+            <ul className="space-y-1 max-h-48 overflow-y-auto">
+              {(preview?.defaultRecipients ?? []).map((r) => {
+                const checked = selectedRecipientIds.has(r.id);
+                return (
+                  <li key={r.id}>
+                    <label className="flex items-center gap-2 text-[12.5px] text-white/85 cursor-pointer hover:bg-white/5 rounded px-1.5 py-1">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleRecipient(r.id)}
+                        className="accent-amber-400"
+                      />
+                      <span className="flex-1 truncate">
+                        <span className="font-semibold">{r.name ?? r.email}</span>
+                        {r.name && <span className="ml-1 text-white/45">· {r.email}</span>}
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {showHistory && (
+        <div className="mt-4 w-full max-w-md rounded-lg border border-white/10 bg-black/30 backdrop-blur px-4 py-3">
+          <p className="text-[11px] text-white/55 mb-2">
+            Last five 🪵 log report sends — manual pulls + the Monday-morning cron.
+          </p>
+          {historyLoading ? (
+            <p className="text-[12px] text-white/55 italic">Loading…</p>
+          ) : !history || history.length === 0 ? (
+            <p className="text-[12px] text-white/55 italic">Nothing in the activity feed yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {history.map((h) => (
+                <li key={h.pulledAt} className="text-[12px] text-white/85 leading-snug">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="font-semibold">
+                      {h.pulledByName ?? 'Cron'}
+                    </span>
+                    <span className="text-white/45 text-[11px] tabular-nums">
+                      {new Date(h.pulledAt).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })}
+                    </span>
+                  </div>
+                  <div className="text-white/55 text-[11px]">
+                    {h.sent > 0 && <span className="text-emerald-300">{h.sent} sent</span>}
+                    {h.simulated > 0 && <span className="ml-2 text-amber-200">{h.simulated} simulated</span>}
+                    {h.failed > 0 && <span className="ml-2 text-rose-300">{h.failed} failed</span>}
+                    {h.total != null && <span className="ml-2 text-white/35">· recap of {h.total} touchpoint{h.total === 1 ? '' : 's'}</span>}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
@@ -224,7 +366,12 @@ export default function LogReportLever() {
             {lastPull.simulated && <span className="ml-2 font-normal text-emerald-200/65 text-[11px]">(Phase 1 stub)</span>}
             <span className="ml-2 font-normal text-emerald-200/65 text-xs">{new Date(lastPull.at).toLocaleTimeString()}</span>
           </p>
-          <p className="text-[12px] text-emerald-100/80">Sent to {lastPull.sent} teammate{lastPull.sent === 1 ? '' : 's'}.</p>
+          <p className="text-[12px] text-emerald-100/80">
+            Sent to {lastPull.sent} teammate{lastPull.sent === 1 ? '' : 's'}.
+            {!!lastPull.failed && lastPull.failed > 0 && (
+              <span className="ml-2 text-rose-200">{lastPull.failed} failed.</span>
+            )}
+          </p>
         </div>
       )}
     </div>
