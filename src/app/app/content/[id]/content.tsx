@@ -1068,29 +1068,13 @@ function LibraryTab({
 
   return (
     <div>
-      {libraryImages.length > 0 && (
-        <>
-          <p className="text-[10.5px] font-bold uppercase tracking-wider text-foreground/45 mb-2">
-            Added to this blog ({libraryImages.length})
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-4">
-            {libraryImages.map((img) => (
-              <div key={img.id} className="relative">
-                <ImageCard img={img} selected={selected.has(img.id)} onToggle={() => onToggle(img.id)} />
-                <button
-                  type="button"
-                  onClick={() => removeImage(img.id)}
-                  className="absolute -top-1.5 -right-1.5 z-20 inline-flex items-center justify-center w-5 h-5 rounded-full bg-white border border-black/15 text-foreground/60 hover:text-rose-600 hover:border-rose-300 shadow-sm text-[12px] leading-none"
-                  title="Remove from this blog"
-                  aria-label="Remove from this blog"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        </>
-      )}
+      {/* 'Added to this blog' strip removed — the Your-selection strip
+          at the bottom of Step 4 already surfaces the same picks (plus
+          AI ones) in one consolidated place, so showing the imported
+          library images twice on the same panel was redundant. The
+          underlying `libraryImages` array is still kept and selected
+          alongside the AI grid; this tab now just renders the
+          searchable library directly. */}
 
       <div className="flex items-center justify-between gap-2 mb-2">
         <p className="text-[10.5px] font-bold uppercase tracking-wider text-foreground/45">
