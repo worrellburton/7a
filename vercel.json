@@ -24,7 +24,7 @@
     },
     {
       "path": "/api/cron/levers/log-report",
-      "schedule": "0 1 * * 1"
+      "schedule": "0 * * * *"
     }
   ]
 }
