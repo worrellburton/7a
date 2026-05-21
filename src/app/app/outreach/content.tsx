@@ -3840,9 +3840,9 @@ function GovernanceBadge({
       onClick={onClick}
       title="Data governance: how complete your contact records are. Click for the per-field breakdown."
       aria-expanded={expanded}
-      className={`shrink-0 group inline-flex items-center gap-3 rounded-2xl px-3 py-2 transition-colors ${expanded ? 'bg-warm-bg/70 ring-1 ring-black/10' : 'hover:bg-warm-bg/40'}`}
+      className={`w-full group inline-flex items-center gap-3 rounded-2xl px-3 py-2 transition-colors ${expanded ? 'bg-warm-bg/70 ring-1 ring-black/10' : 'hover:bg-warm-bg/40'}`}
     >
-      <div className="relative w-[108px] h-[108px]">
+      <div className="relative w-[108px] h-[108px] shrink-0">
         <svg viewBox="0 0 108 108" className="absolute inset-0 -rotate-90" aria-hidden="true">
           <circle cx="54" cy="54" r={radius} fill="none" stroke="rgba(44,24,16,0.10)" strokeWidth="9" />
           <circle
@@ -3881,6 +3881,53 @@ function GovernanceBadge({
         </p>
         <p className="mt-0.5 text-[10.5px] text-foreground/55">
           {totalContacts > 0 ? `${totalContacts.toLocaleString()} contacts · click for breakdown` : 'click for breakdown'}
+          <span aria-hidden className="ml-1 text-foreground/35">{expanded ? '▾' : '▸'}</span>
+        </p>
+      </div>
+    </button>
+  );
+}
+
+// Sibling of GovernanceBadge: same outer shape + dimensions, but
+// the left tile is a clipboard emoji and the headline is today's
+// log count. Pairs with GovernanceBadge in row 1 so the two
+// "is the pipeline healthy?" signals (data completeness + log
+// activity) read side-by-side. Click toggles the expanded panel
+// below row 1.
+function LogsTodayBadge({
+  count,
+  weekTotal,
+  expanded,
+  onClick,
+}: {
+  count: number;
+  weekTotal: number;
+  expanded: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title="Logs today: touchpoints logged against contacts today. Click for the week / month / total breakdown."
+      aria-expanded={expanded}
+      className={`w-full group inline-flex items-center gap-3 rounded-2xl px-3 py-2 transition-colors ${expanded ? 'bg-warm-bg/70 ring-1 ring-black/10' : 'hover:bg-warm-bg/40'}`}
+    >
+      <div className="relative w-[108px] h-[108px] shrink-0 rounded-2xl bg-warm-bg/60 border border-black/10 flex items-center justify-center">
+        <span aria-hidden="true" className="text-[56px] leading-none select-none">
+          📋
+        </span>
+      </div>
+      <div className="text-left min-w-0">
+        <p className="text-[9.5px] font-bold uppercase tracking-[0.22em] text-foreground/55">
+          Logs today
+        </p>
+        <p className="mt-0.5 text-[12.5px] font-semibold text-foreground">
+          <span className="text-2xl tabular-nums mr-1" style={{ fontFamily: 'var(--font-display)' }}>{count}</span>
+          {count === 1 ? 'touchpoint' : 'touchpoints'}
+        </p>
+        <p className="mt-0.5 text-[10.5px] text-foreground/55">
+          {weekTotal.toLocaleString()} this week · click for breakdown
           <span aria-hidden className="ml-1 text-foreground/35">{expanded ? '▾' : '▸'}</span>
         </p>
       </div>
@@ -4032,6 +4079,13 @@ function InsightsCard({ fallback }: { fallback: { week: number; month: number; t
   // score tile (or the "Why?" affordance underneath) reveals the
   // per-field breakdown + recent fill activity.
   const [showGovernance, setShowGovernance] = useState(false);
+  // Logs-today expansion. The KPI tiles (Contacted this week /
+  // month / total / never / Missing email) used to live in their
+  // own permanent row; collapsing them behind the Logs-today badge
+  // keeps row 1 a two-card "is the pipeline healthy?" summary
+  // without burying the detail — one click brings the full tile
+  // strip back.
+  const [showLogs, setShowLogs] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -4047,38 +4101,54 @@ function InsightsCard({ fallback }: { fallback: { week: number; month: number; t
   const week = data?.week.leaderboard ?? [];
   const month = data?.month.leaderboard ?? [];
   const areas = data?.today.areas ?? [];
+  // Total touchpoints logged today across every user — used as the
+  // headline number on the new Logs-today badge. Sum of per-user
+  // logs from today's leaderboard, which the insights endpoint
+  // already groups for the leaderboard row.
+  const logsTodayCount = today.reduce((s, e) => s + e.logs, 0);
 
   return (
     <div className="mb-4 rounded-xl border border-black/10 bg-white overflow-hidden">
-      {/* Row 1 — Data governance, on its own row so the badge
-          doesn't fight for visual weight with the KPI tiles. */}
+      {/* Row 1 — Data governance + Logs today, side-by-side. The
+          two badges read as paired pipeline-health signals: the
+          left answers "is the data complete?" and the right
+          answers "are we logging touches against it?". Each is
+          its own click-to-expand affordance; the expansion
+          panels mount inline below row 1 so the breakdown sits
+          right under the headline it explains. */}
       <div className="px-4 py-4 border-b border-black/5">
-        <GovernanceBadge
-          score={data?.governance?.score ?? null}
-          totalContacts={data?.governance?.totalContacts ?? 0}
-          expanded={showGovernance}
-          onClick={() => setShowGovernance((v) => !v)}
-        />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <GovernanceBadge
+            score={data?.governance?.score ?? null}
+            totalContacts={data?.governance?.totalContacts ?? 0}
+            expanded={showGovernance}
+            onClick={() => setShowGovernance((v) => !v)}
+          />
+          <LogsTodayBadge
+            count={logsTodayCount}
+            weekTotal={counts.week}
+            expanded={showLogs}
+            onClick={() => setShowLogs((v) => !v)}
+          />
+        </div>
       </div>
       {showGovernance && data?.governance && (
         <GovernancePanel governance={data.governance} />
       )}
-      {/* Row 2 — Pipeline log counters. Separate band underneath
-          governance so the two concepts don't intermingle: row
-          one is 'how complete is the data?', row two is 'how
-          actively are we logging touches against it?'. */}
-      <div className="px-4 py-4 border-b border-black/5">
-        <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/55 mb-3">
-          Logs
-        </p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          <InsightTile label="Contacted this week" value={counts.week} tone="fresh" />
-          <InsightTile label="Contacted this month" value={counts.month} tone="cooling" />
-          <InsightTile label="Total contacted" value={counts.total} tone="neutral" />
-          <InsightTile label="Never contacted" value={counts.never} tone="stale" />
-          <InsightTile label="Missing email" value={counts.missingEmail ?? 0} tone="missing" />
+      {showLogs && (
+        <div className="px-4 py-4 border-b border-black/5">
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/55 mb-3">
+            Logs
+          </p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <InsightTile label="Contacted this week" value={counts.week} tone="fresh" />
+            <InsightTile label="Contacted this month" value={counts.month} tone="cooling" />
+            <InsightTile label="Total contacted" value={counts.total} tone="neutral" />
+            <InsightTile label="Never contacted" value={counts.never} tone="stale" />
+            <InsightTile label="Missing email" value={counts.missingEmail ?? 0} tone="missing" />
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Areas touched today */}
       <div className="px-4 py-3 border-b border-black/5">
