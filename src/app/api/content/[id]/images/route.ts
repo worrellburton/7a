@@ -71,6 +71,14 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (gate.error) return gate.error;
   const { id } = await ctx.params;
 
+  // `?mode=append` keeps the existing 10 (or N) images and tacks on
+  // 10 more so the editor can request another batch when the first
+  // pass doesn't have a strong enough pick. Position numbers continue
+  // from max(existing.position) + 1 so the gallery stays ordered and
+  // the parity rule (gpt at even / nano at odd) still decides which
+  // model runs against which slot.
+  const mode = new URL(req.url).searchParams.get('mode') === 'append' ? 'append' : 'replace';
+
   const admin = getAdminSupabase();
   const { data: blog, error: readErr } = await admin
     .from('blogs')
@@ -81,9 +89,31 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!blog) return NextResponse.json({ error: 'not found' }, { status: 404 });
   if (!blog.body_markdown) return NextResponse.json({ error: 'no body to illustrate yet' }, { status: 400 });
 
-  // Clear any previous image set so a re-run doesn't double up.
-  await admin.from('blog_images').delete().eq('blog_id', id);
-  await admin.from('blogs').update({ status: 'images', selected_image_ids: null }).eq('id', id);
+  let basePosition = 0;
+  if (mode === 'append') {
+    // Find the next free slot — only AI rows count for parity. We
+    // round basePosition up to an even number so the gpt/nano
+    // parity rule keeps holding (even = gpt, odd = nano).
+    const { data: maxRow } = await admin
+      .from('blog_images')
+      .select('position')
+      .eq('blog_id', id)
+      .not('provider', 'eq', 'library')
+      .order('position', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const next = ((maxRow?.position as number | null) ?? -1) + 1;
+    basePosition = next % 2 === 0 ? next : next + 1;
+    // Don't clear the existing set on append — that's the whole
+    // point. Status stays at 'images' so the in-progress swirls
+    // render for the new slots; selected_image_ids stays intact so
+    // any picks the editor already made survive.
+    await admin.from('blogs').update({ status: 'images' }).eq('id', id);
+  } else {
+    // Clear any previous image set so a re-run doesn't double up.
+    await admin.from('blog_images').delete().eq('blog_id', id);
+    await admin.from('blogs').update({ status: 'images', selected_image_ids: null }).eq('id', id);
+  }
 
   // 1) Ask Claude for 10 distinct visual concepts. Each concept carries
   //    a style tag (photoreal | editorial | illustrative) — Claude's
@@ -112,16 +142,20 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const GPT_ASPECTS: ImageAspect[] = ['landscape', 'landscape', 'square', 'square', 'portrait'];
   const jobs = concepts.map((c, idx) => {
     const finalPrompt = `${c.prompt.trim()} ${STYLE_MODIFIERS[c.style]}`;
-    const useGpt = idx % 2 === 0;
+    // Slot offset so an append-mode batch lands after the existing
+    // images. basePosition is 0 on a fresh run, an even number on
+    // append.
+    const slot = basePosition + idx;
+    const useGpt = slot % 2 === 0;
     if (useGpt) {
       const aspect = GPT_ASPECTS[Math.floor(idx / 2)] ?? 'square';
       return generateWithGptImage(finalPrompt, c.alt, aspect, c.style)
-        .then((img) => ({ ok: true as const, img, position: idx }))
-        .catch((err) => ({ ok: false as const, error: err instanceof Error ? err.message : String(err), position: idx }));
+        .then((img) => ({ ok: true as const, img, position: slot }))
+        .catch((err) => ({ ok: false as const, error: err instanceof Error ? err.message : String(err), position: slot }));
     }
     return generateWithNanoBanana2(finalPrompt, c.alt, c.style)
-      .then((img) => ({ ok: true as const, img, position: idx }))
-      .catch((err) => ({ ok: false as const, error: err instanceof Error ? err.message : String(err), position: idx }));
+      .then((img) => ({ ok: true as const, img, position: slot }))
+      .catch((err) => ({ ok: false as const, error: err instanceof Error ? err.message : String(err), position: slot }));
   });
   const results = await Promise.all(jobs);
 
