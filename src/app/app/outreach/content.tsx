@@ -3800,11 +3800,14 @@ function InsightTile({
   );
 }
 
-// Data governance score tile. Visually matches InsightTile but
-// clickable — toggles the breakdown panel underneath the strip.
-// Tone shifts on the score itself: green high, amber mid, rose
-// low so it reads as an at-a-glance signal.
-function GovernanceTile({
+// Featured data-governance badge. Big SVG ring on the left of the
+// KPI strip; the percent sits in the centre of the ring at a
+// hero font size. Click toggles the breakdown panel.
+//
+// Colour shifts on the score itself: copper green at ≥90, amber
+// 70–89, rose under 70. The empty-track is a faint warm-grey so
+// even at 5% the ring still reads as a ring.
+function GovernanceBadge({
   score,
   totalContacts,
   expanded,
@@ -3815,29 +3818,72 @@ function GovernanceTile({
   expanded: boolean;
   onClick: () => void;
 }) {
-  const tone =
-    score == null ? 'text-foreground/40' :
+  const ringTone =
+    score == null ? '#a3a3a3' :
+    score >= 90 ? '#15803d' :   // emerald-700
+    score >= 70 ? '#b87333' :   // copper
+    '#be123c';                  // rose-700
+  const textTone =
+    score == null ? 'text-foreground/45' :
     score >= 90 ? 'text-emerald-700' :
-    score >= 70 ? 'text-amber-700' :
+    score >= 70 ? 'text-[#8b5523]' :
     'text-rose-700';
+  // Ring math. r=44 → circumference ~276. Arc length = pct * C.
+  const radius = 44;
+  const circumference = 2 * Math.PI * radius;
+  const pct = score == null ? 0 : Math.max(0, Math.min(100, score));
+  const arc = (pct / 100) * circumference;
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`min-w-0 text-left rounded-md -mx-1 px-1 py-0.5 transition-colors ${expanded ? 'bg-warm-bg/60' : 'hover:bg-warm-bg/40'}`}
-      title="Data governance score: how complete the contact records are. Click to see why."
+      title="Data governance: how complete your contact records are. Click for the per-field breakdown."
       aria-expanded={expanded}
+      className={`shrink-0 group inline-flex items-center gap-3 rounded-2xl px-3 py-2 transition-colors ${expanded ? 'bg-warm-bg/70 ring-1 ring-black/10' : 'hover:bg-warm-bg/40'}`}
     >
-      <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-foreground/55 truncate flex items-center gap-1">
-        Data governance
-        <span aria-hidden className="text-foreground/35">{expanded ? '▾' : '▸'}</span>
-      </p>
-      <p className={`mt-0.5 text-xl font-semibold tabular-nums leading-none ${tone}`}>
-        {score == null ? '—' : `${score}%`}
-      </p>
-      <p className="mt-0.5 text-[9.5px] text-foreground/40 truncate">
-        {totalContacts > 0 ? `${totalContacts.toLocaleString()} contacts` : 'click for breakdown'}
-      </p>
+      <div className="relative w-[108px] h-[108px]">
+        <svg viewBox="0 0 108 108" className="absolute inset-0 -rotate-90" aria-hidden="true">
+          <circle cx="54" cy="54" r={radius} fill="none" stroke="rgba(44,24,16,0.10)" strokeWidth="9" />
+          <circle
+            cx="54"
+            cy="54"
+            r={radius}
+            fill="none"
+            stroke={ringTone}
+            strokeWidth="9"
+            strokeLinecap="round"
+            strokeDasharray={`${arc} ${circumference}`}
+            style={{ transition: 'stroke-dasharray 600ms cubic-bezier(0.4,0,0.2,1)' }}
+          />
+        </svg>
+        <div className="absolute inset-0 flex flex-col items-center justify-center">
+          <span className={`text-2xl font-semibold tabular-nums leading-none ${textTone}`} style={{ fontFamily: 'var(--font-display)' }}>
+            {score == null ? '—' : `${Math.round(score)}`}
+          </span>
+          {score != null && (
+            <span className={`text-[10px] font-bold uppercase tracking-[0.18em] mt-0.5 ${textTone} opacity-80`}>
+              %
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="text-left min-w-0">
+        <p className="text-[9.5px] font-bold uppercase tracking-[0.22em] text-foreground/55">
+          Data governance
+        </p>
+        <p className="mt-0.5 text-[12.5px] font-semibold text-foreground">
+          {score == null
+            ? 'Calculating…'
+            : score >= 90 ? 'Excellent'
+            : score >= 70 ? 'Solid · room to fill'
+            : 'Needs attention'}
+        </p>
+        <p className="mt-0.5 text-[10.5px] text-foreground/55">
+          {totalContacts > 0 ? `${totalContacts.toLocaleString()} contacts · click for breakdown` : 'click for breakdown'}
+          <span aria-hidden className="ml-1 text-foreground/35">{expanded ? '▾' : '▸'}</span>
+        </p>
+      </div>
     </button>
   );
 }
@@ -4004,23 +4050,25 @@ function InsightsCard({ fallback }: { fallback: { week: number; month: number; t
 
   return (
     <div className="mb-4 rounded-xl border border-black/10 bg-white overflow-hidden">
-      {/* Pipeline counters + Data governance score. Governance is
-          a clickable tile in the same row so it reads as 'another
-          KPI' rather than a tucked-away nag. Click → expansion
-          panel underneath with the per-field breakdown + the
-          fill-activity feed. */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 px-4 py-3 border-b border-black/5">
-        <InsightTile label="Contacted this week" value={counts.week} tone="fresh" />
-        <InsightTile label="Contacted this month" value={counts.month} tone="cooling" />
-        <InsightTile label="Total contacted" value={counts.total} tone="neutral" />
-        <InsightTile label="Never contacted" value={counts.never} tone="stale" />
-        <InsightTile label="Missing email" value={counts.missingEmail ?? 0} tone="missing" />
-        <GovernanceTile
+      {/* Featured data-governance badge + pipeline counters.
+          Layout: governance badge on the left (big copper ring,
+          score in the centre, click toggles the breakdown panel)
+          + five KPI tiles flowing to its right. Stacks on mobile
+          so the badge stays the hero on a phone too. */}
+      <div className="px-4 py-4 border-b border-black/5 flex flex-col lg:flex-row gap-4 lg:items-center">
+        <GovernanceBadge
           score={data?.governance?.score ?? null}
           totalContacts={data?.governance?.totalContacts ?? 0}
           expanded={showGovernance}
           onClick={() => setShowGovernance((v) => !v)}
         />
+        <div className="flex-1 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <InsightTile label="Contacted this week" value={counts.week} tone="fresh" />
+          <InsightTile label="Contacted this month" value={counts.month} tone="cooling" />
+          <InsightTile label="Total contacted" value={counts.total} tone="neutral" />
+          <InsightTile label="Never contacted" value={counts.never} tone="stale" />
+          <InsightTile label="Missing email" value={counts.missingEmail ?? 0} tone="missing" />
+        </div>
       </div>
       {showGovernance && data?.governance && (
         <GovernancePanel governance={data.governance} />
