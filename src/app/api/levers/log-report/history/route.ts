@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
+import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 
 // GET /api/levers/log-report/history?limit=10
 //
@@ -21,10 +21,10 @@ interface RawPullRow {
 }
 
 export async function GET(req: NextRequest) {
-  const user = await getUserFromRequest(req);
+  const supabase = await getServerSupabase();
+  const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const admin = getAdminSupabase();
-  const { data: meRow } = await admin
+  const { data: meRow } = await supabase
     .from('users')
     .select('is_super_admin')
     .eq('id', user.id)
@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
   if (meRow?.is_super_admin !== true) {
     return NextResponse.json({ error: 'Super admin only' }, { status: 403 });
   }
+  const admin = getAdminSupabase();
 
   const limit = Math.min(50, Math.max(1, Number(new URL(req.url).searchParams.get('limit') ?? '10')));
 
