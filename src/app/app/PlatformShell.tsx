@@ -179,6 +179,17 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M8.05 12.95 15.95 17.55" />
     </svg>
   ),
+  // Email Campaigns — envelope with a small sparkle in the corner so
+  // the icon reads as "AI-built outbound mail" instead of a plain
+  // inbox glyph (which would collide visually with Notes / website
+  // requests).
+  '/app/email-campaigns': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="m3 7 9 6 9-6" />
+      <path d="M19 3v2M21 4h-2" />
+    </svg>
+  ),
   // Connect-4 — a 3-column board glyph with one filled chip,
   // signalling "play / game" without leaning on a generic
   // gamepad icon that would clash with the otherwise hand-drawn
@@ -284,13 +295,19 @@ const pageIcons: Record<string, React.ReactNode> = {
     </svg>
   ),
   '/app/outreach': (
-    // Address book / contact card — distinct from the team-people
-    // icon so the two surfaces don't read as duplicates.
+    // Marketing (formerly Outreach) — megaphone glyph for broadcasting
+    // to referrers, leads, and downgraded partners.
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4" y="3" width="16" height="18" rx="2" />
-      <circle cx="12" cy="10" r="2.4" />
-      <path d="M8.5 17a3.5 3.5 0 017 0" />
-      <path d="M2 7h2M2 12h2M2 17h2" />
+      <path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z" />
+      <path d="M15 8a4 4 0 0 1 0 8" />
+      <path d="M18 5a8 8 0 0 1 0 14" />
+    </svg>
+  ),
+  '/app/donations': (
+    // Donations — hand offering a heart-coin so the icon conveys
+    // "philanthropy / giving" without leaning on a literal $.
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 11c0 5.5-7 10-7 10z" />
     </svg>
   ),
   '/app/incoming-users': (
@@ -340,6 +357,15 @@ const pageIcons: Record<string, React.ReactNode> = {
       <circle cx="11" cy="11" r="7" />
       <line x1="21" y1="21" x2="16.65" y2="16.65" />
       <path d="M8 11h6M11 8v6" />
+    </svg>
+  ),
+  '/app/content': (
+    // Page with a pen tip — composing long-form blog content.
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h11l5 5v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z" />
+      <path d="M14 4v5h5" />
+      <path d="m14.5 13.5-4 4-2 .5.5-2 4-4z" />
+      <path d="m13.5 12.5 1.4-1.4a1.2 1.2 0 0 1 1.7 0l.3.3a1.2 1.2 0 0 1 0 1.7l-1.4 1.4" />
     </svg>
   ),
   '/app/geo': (
@@ -396,71 +422,28 @@ export { pageIcons };
  * as the centered identity anchor; this badge is the chrome anchor.
  */
 function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
-  const big = size === 'md';
-  const dim = big ? 36 : 28;
+  const dim = size === 'md' ? 20 : 18;
   return (
-    <span className="relative inline-flex items-center" aria-label="Seven Arrows Recovery">
-      <style jsx>{`
-        @keyframes sa-logo-glow {
-          0%, 100% {
-            opacity: 0.42;
-            transform: scale(0.92);
-          }
-          50% {
-            opacity: 0.72;
-            transform: scale(1.08);
-          }
-        }
-        @keyframes sa-feather-drift {
-          0%, 100% { transform: rotate(-2deg) translateY(0); }
-          50%      { transform: rotate(1deg) translateY(-1px); }
-        }
-      `}</style>
-      {/* Outer glow halo — pulsing breath behind the badge. */}
-      <span
+    <span
+      className="inline-flex items-center justify-center text-primary"
+      aria-label="Seven Arrows Recovery"
+    >
+      <svg
         aria-hidden="true"
-        className="pointer-events-none absolute"
-        style={{
-          inset: big ? '-10px' : '-8px',
-          background:
-            'radial-gradient(closest-side, rgba(188,107,74,0.55) 0%, rgba(188,107,74,0.22) 40%, transparent 75%)',
-          filter: 'blur(8px)',
-          animation: 'sa-logo-glow 2.6s ease-in-out infinite',
-        }}
-      />
-      {/* Mark — copper-gradient rounded square with a white feather */}
-      <span
-        className="relative inline-flex items-center justify-center rounded-xl text-white"
-        style={{
-          width: dim,
-          height: dim,
-          background:
-            'linear-gradient(135deg, #d4794a 0%, #bc6b4a 45%, #a45a3d 100%)',
-          boxShadow:
-            '0 4px 12px -3px rgba(188,107,74,0.55), inset 0 1px 0 rgba(255,255,255,0.32), inset 0 -1px 0 rgba(0,0,0,0.08)',
-        }}
+        width={dim}
+        height={dim}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={1.75}
+        strokeLinecap="round"
+        strokeLinejoin="round"
       >
-        <svg
-          aria-hidden="true"
-          width={big ? 22 : 18}
-          height={big ? 22 : 18}
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={1.9}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          style={{
-            animation: 'sa-feather-drift 4.2s ease-in-out infinite',
-            transformOrigin: '50% 80%',
-          }}
-        >
-          {/* Lucide-style feather glyph */}
-          <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
-          <line x1="16" y1="8" x2="2" y2="22" />
-          <line x1="17.5" y1="15" x2="9" y2="15" />
-        </svg>
-      </span>
+        {/* Lucide-style feather glyph */}
+        <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
+        <line x1="16" y1="8" x2="2" y2="22" />
+        <line x1="17.5" y1="15" x2="9" y2="15" />
+      </svg>
     </span>
   );
 }
@@ -958,7 +941,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         />
         <div className="flex flex-col h-full w-64">
         {/* Logo / Brand */}
-        <div className="p-5 border-b border-gray-100">
+        <div className="px-6 py-5 border-b border-gray-100">
           <Link href="/app" className={`flex items-center gap-2.5 transition-all duration-500 ease-out ${navMounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
             <SevenArrowsLogo />
 
@@ -991,8 +974,15 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           </label>
         </div>
 
-        {/* Nav links — grouped by department */}
-        <nav className="flex-1 p-3 space-y-0.5 overflow-y-auto">
+        {/* Nav links — grouped by department.
+            `min-h-0` is required so the flex child can actually shrink
+            below its content's intrinsic height; without it the nav
+            overflows the parent panel (which has `overflow-hidden`)
+            and items at the bottom get clipped with no way to scroll
+            to them. Most visible on Windows + 125%/150% display
+            scaling, where the viewport height the sticky parent gets
+            ends up shorter than the nav's natural content height. */}
+        <nav className="sa-sidebar-scroll flex-1 min-h-0 p-3 space-y-0.5 overflow-y-auto">
           {(() => {
             let animIdx = 0;
             const renderLink = (item: PageConfig) => {

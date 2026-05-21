@@ -21,6 +21,7 @@ import {
   type BlogIdea,
   type KeywordCategoryForIdeas,
 } from '@/lib/seo/keywordFit';
+import { BLOG_AUTHORS } from '@/lib/blogAuthors';
 
 const KEYWORD_STORAGE_KEY = 'sa-seo:keyword-ranks';
 
@@ -1230,6 +1231,14 @@ function BlogIdeasSection({
   category: KeywordCategoryForIdeas;
 }) {
   const ideas: BlogIdea[] = ideasForKeyword(keywordText, category);
+  // Author dropdown — sourced from the curated BLOG_AUTHORS list
+  // (each entry maps to a real team member by their public_slug).
+  // Google's E-E-A-T signals favor posts attributed to named,
+  // credentialed people; the selected author flows into the
+  // generated prompt + the post's byline + the Article JSON-LD
+  // Person reference.
+  const [authorSlug, setAuthorSlug] = useState<string>(BLOG_AUTHORS[0]?.slug ?? '');
+  const author = BLOG_AUTHORS.find((a) => a.slug === authorSlug) ?? null;
   return (
     <section>
       <h3 className="text-[11px] font-semibold tracking-[0.22em] uppercase text-foreground/55 mb-2">
@@ -1237,6 +1246,37 @@ function BlogIdeasSection({
       </h3>
       <p className="text-[11px] text-foreground/50 mb-3">
         Recovery Roadmap-style episode pitches that target <em className="not-italic font-semibold">&ldquo;{keywordText}&rdquo;</em> in the H1, URL, title, meta, and body. Each card copies a Claude Code prompt that builds the full episode in the Recovery Roadmap voice and registers it on the hub.
+      </p>
+      <div className="flex flex-wrap items-center gap-2 mb-3 rounded-lg border border-black/5 bg-white px-3 py-2">
+        <label htmlFor="blog-author-select" className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
+          Author
+        </label>
+        <select
+          id="blog-author-select"
+          value={authorSlug}
+          onChange={(e) => setAuthorSlug(e.target.value)}
+          className="px-2 py-1 rounded-md border border-black/10 bg-white text-[12px] text-foreground"
+        >
+          {BLOG_AUTHORS.map((a) => (
+            <option key={a.slug} value={a.slug}>
+              {a.name}{a.credentials ? `, ${a.credentials}` : ''} · {a.title}
+            </option>
+          ))}
+        </select>
+        {author && (
+          <a
+            href={`/who-we-are/meet-our-team/${author.slug}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ml-auto text-[11px] text-primary hover:underline"
+            title="Open this team member's public profile in a new tab"
+          >
+            View profile →
+          </a>
+        )}
+      </div>
+      <p className="text-[10.5px] text-foreground/45 mb-3 italic">
+        Pick the staff member to be attributed as the author. The generated post gets a byline linking to <span className="font-mono not-italic">/who-we-are/meet-our-team/{authorSlug || '<slug>'}</span> plus Article JSON-LD with that Person as the author — what Google&apos;s E-E-A-T signals reward.
       </p>
       <ul className="space-y-2">
         {ideas.map((idea) => (
@@ -1258,7 +1298,16 @@ function BlogIdeasSection({
               </p>
             </div>
             <CopyPromptButton
-              getPrompt={() => buildBlogCreationPrompt({ keyword_text: keywordText, idea })}
+              getPrompt={() => buildBlogCreationPrompt({
+                keyword_text: keywordText,
+                idea,
+                author: author ? {
+                  slug: author.slug,
+                  name: author.name,
+                  title: author.title,
+                  credentials: author.credentials,
+                } : undefined,
+              })}
               label="Copy prompt"
               size="sm"
             />

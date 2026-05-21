@@ -68,6 +68,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if ('notes' in body) patch.notes = trim(body.notes, 4000);
 
   const admin = getAdminSupabase();
+  // Snapshot the row BEFORE the update so we can diff which
+  // governance-relevant fields just transitioned empty → filled.
+  // That's what feeds the 'Donnie added an email' style activity
+  // feed under the Data governance score on /app/outreach.
+  const { data: before } = await admin
+    .from('contacts')
+    .select('id, name, email, phone, phone_cell, phone_office, company, role, location, specialty, type')
+    .eq('id', id)
+    .maybeSingle();
+
   const { data, error } = await admin
     .from('contacts')
     .update(patch)
@@ -75,6 +85,88 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     .select('*')
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Log governance-relevant field fills. Empty → filled is the
+  // important transition (the score moves); filled → edited rolls
+  // up as a generic 'updated contact' so the feed isn't blank
+  // when someone fixes a typo without changing field count.
+  if (data && before) {
+    const isEmpty = (v: unknown): boolean => {
+      if (v == null) return true;
+      if (typeof v === 'string') return v.trim() === '';
+      if (Array.isArray(v)) return v.length === 0;
+      return false;
+    };
+    const FIELDS: Array<{ key: keyof typeof patch; label: string; type: string }> = [
+      { key: 'email', label: 'email', type: 'contact.email_filled' },
+      { key: 'phone', label: 'main phone', type: 'contact.phone_filled' },
+      { key: 'phone_cell', label: 'cell phone', type: 'contact.phone_filled' },
+      { key: 'phone_office', label: 'office phone', type: 'contact.phone_filled' },
+      { key: 'company', label: 'company', type: 'contact.company_filled' },
+      { key: 'role', label: 'role', type: 'contact.role_filled' },
+      { key: 'location', label: 'location', type: 'contact.location_filled' },
+      { key: 'specialty', label: 'specialty', type: 'contact.specialty_filled' },
+      { key: 'type', label: 'type', type: 'contact.type_filled' },
+    ];
+    const beforeRow = before as Record<string, unknown>;
+    const afterRow = data as Record<string, unknown>;
+    const fills: Array<{ key: string; label: string; type: string; value: unknown }> = [];
+    for (const f of FIELDS) {
+      if (!(f.key in patch)) continue;
+      if (isEmpty(beforeRow[f.key]) && !isEmpty(afterRow[f.key])) {
+        fills.push({ key: String(f.key), label: f.label, type: f.type, value: afterRow[f.key] });
+      }
+    }
+    if (fills.length > 0) {
+      const contactName = (afterRow.name as string | null) ?? 'a contact';
+      await admin.from('activity_log').insert(
+        fills.map((f) => ({
+          user_id: user.id,
+          type: f.type,
+          target_kind: 'contact',
+          target_id: id,
+          target_label: contactName,
+          target_path: '/app/outreach',
+          metadata: { field: f.key, label: f.label },
+        })),
+      );
+
+      // Also write ONE contact_logs row crediting the editor with a
+      // 'Data Entry' touchpoint, so the rep gets a line on the
+      // per-rep leaderboard (and the methods mix) for fixing data.
+      // One row per save, not per field — a single edit that fills
+      // three fields counts as one touchpoint, with the comment
+      // listing what got filled.
+      const labels = fills.map((f) => f.label);
+      const dedupLabels = Array.from(new Set(labels));
+      const summary = dedupLabels.length === 1
+        ? `Filled in ${dedupLabels[0]}.`
+        : `Filled in ${dedupLabels.slice(0, -1).join(', ')} and ${dedupLabels[dedupLabels.length - 1]}.`;
+      const nowIso = new Date().toISOString();
+      await admin.from('contact_logs').insert({
+        contact_id: id,
+        method: 'Data Entry',
+        comments: summary,
+        contacted_by: user.id,
+        contacted_at: nowIso,
+        duration_seconds: 0,
+      });
+      // Bump the denormalised last_contact_* columns so the
+      // outreach grid surfaces the data-entry touch in the same
+      // 'last contact' column the row already uses for phone /
+      // in-person / etc.
+      await admin
+        .from('contacts')
+        .update({
+          last_contact_at: nowIso,
+          last_contact_by: user.id,
+          last_contact_method: 'Data Entry',
+          last_contact_comments: summary,
+        })
+        .eq('id', id);
+    }
+  }
+
   return NextResponse.json(data);
 }
 

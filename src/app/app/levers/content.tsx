@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthProvider';
 import JdReminderLever from './JdReminderLever';
+import LogReportLever from './LogReportLever';
 
 // Levers page — primed as a horizontal control-room console.
 //
@@ -100,6 +101,7 @@ export default function LeversContent() {
             style={{ scrollbarWidth: 'none' }}
           >
             <JdReminderLever />
+            <LogReportLever />
             {/* Future levers slot in here — same shape: a Lever
                 visual + per-lever data wiring. */}
           </div>

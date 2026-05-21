@@ -29,6 +29,33 @@ export interface Episode {
    * so the listings link to the right place.
    */
   href?: string;
+  /**
+   * Stable slug of the person who authored the post. Matches a
+   * `users.public_slug` value on the team table — the byline links
+   * out to /who-we-are/meet-our-team/<authorSlug> and the JSON-LD
+   * Article schema references the same URL as the Person author,
+   * which is what Google's E-E-A-T signals want to see.
+   *
+   * Optional only because legacy/imported episodes might not have
+   * an attributed author. New posts should always set this.
+   */
+  authorSlug?: string;
+  /**
+   * Slug of the credentialed clinician who medically reviewed the
+   * post. Matches a BLOG_AUTHORS entry with isMedicalReviewer:true.
+   * Optional only because legacy episodes don't set it; the render
+   * layer (BlogPostMeta + MedicalWebPage JSON-LD) falls back to
+   * DEFAULT_REVIEWER_SLUG when null, so every YMYL post still emits
+   * a reviewedBy block.
+   */
+  reviewerSlug?: string;
+  /**
+   * ISO date when the reviewer last validated the post. Used by
+   * MedicalWebPage.lastReviewed. Falls back to publishedAt when
+   * unset, so older posts read as 'reviewed at publish time'
+   * rather than 'never reviewed'.
+   */
+  lastReviewedAt?: string;
 }
 
 export const EPISODES: Episode[] = [
@@ -42,6 +69,7 @@ export const EPISODES: Episode[] = [
     publishedDisplay: 'March 24, 2026',
     image: '/images/resident-reading-window.jpg',
     imageAlt: 'When Drinking Stops Working',
+    authorSlug: 'lindsay-rothschild',
   },
   {
     number: 2,
@@ -53,6 +81,7 @@ export const EPISODES: Episode[] = [
     publishedDisplay: 'March 24, 2026',
     image: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=800&q=80',
     imageAlt: 'What Happens When You Walk Through the Door',
+    authorSlug: 'lindsay-rothschild',
   },
   {
     number: 3,
@@ -64,6 +93,7 @@ export const EPISODES: Episode[] = [
     publishedDisplay: 'April 24, 2026',
     image: '/images/equine-therapy-portrait.jpg',
     imageAlt: 'What Actually Happens in Equine Therapy',
+    authorSlug: 'lindsay-rothschild',
   },
   {
     number: 4,
@@ -75,6 +105,7 @@ export const EPISODES: Episode[] = [
     publishedDisplay: 'April 26, 2026',
     image: 'https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?w=1200&q=80',
     imageAlt: "A regulated therapist sitting calmly across from a client",
+    authorSlug: 'lindsay-rothschild',
   },
   {
     number: 5,
@@ -86,6 +117,7 @@ export const EPISODES: Episode[] = [
     publishedDisplay: 'April 26, 2026',
     image: 'https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=1200&q=80',
     imageAlt: 'A wide horizon at first light — building toward something, not chasing what is broken',
+    authorSlug: 'lindsay-rothschild',
   },
   {
     number: 6,
@@ -97,6 +129,7 @@ export const EPISODES: Episode[] = [
     publishedDisplay: 'April 26, 2026',
     image: 'https://images.unsplash.com/photo-1455849318743-b2233052fcff?w=1200&q=80',
     imageAlt: 'A person at the foot of a long ladder — the polyvagal ladder you climb up and down all day',
+    authorSlug: 'lindsay-rothschild',
   },
   {
     number: 7,
@@ -719,4 +752,125 @@ export function episodeImage(ep: Pick<Episode, 'image' | 'number'>): string {
   const i = ((ep.number - 1) % LEGACY_ROTATION_IMAGES.length + LEGACY_ROTATION_IMAGES.length)
     % LEGACY_ROTATION_IMAGES.length;
   return LEGACY_ROTATION_IMAGES[i];
+}
+
+/** Server-side: fetch the set of slugs flagged hidden=true in the
+ * `blog_visibility` table. Lazy import keeps the server-only
+ * Supabase helper out of any client-side bundle that pulls in
+ * episodes.ts. Returns an empty set on any failure so a transient
+ * Supabase outage never blanks out the public Recovery Roadmap. */
+export async function getHiddenSlugs(): Promise<Set<string>> {
+  try {
+    const { getAdminSupabase } = await import('@/lib/supabase-server');
+    const admin = getAdminSupabase();
+    const { data, error } = await admin
+      .from('blog_visibility')
+      .select('slug, hidden')
+      .eq('hidden', true);
+    if (error || !data) return new Set();
+    return new Set(data.map((r) => r.slug as string));
+  } catch {
+    return new Set();
+  }
+}
+
+/** Server-side: fetch published AI-pipeline blogs and hydrate them into
+ * Episode-shaped records so they slot into the same listings the
+ * hand-coded EPISODES feed. Numbering continues after the static set
+ * so an AI post becomes "Episode 52", "Episode 53", etc. by
+ * publication order. */
+export async function getPublishedBlogEpisodes(): Promise<Episode[]> {
+  // Lazy import keeps the server-only Supabase helper out of any
+  // client-side bundle that pulls in episodes.ts.
+  const { getAdminSupabase } = await import('@/lib/supabase-server');
+  const admin = getAdminSupabase();
+  const { data, error } = await admin
+    .from('blogs')
+    .select('slug, title, published_at, body_markdown, layout')
+    .eq('status', 'published')
+    .order('published_at', { ascending: true });
+  if (error || !data) return [];
+
+  const maxStaticNumber = EPISODES.reduce((m, e) => Math.max(m, e.number), 0);
+  return data.map((row, idx) => {
+    type LayoutShape = { blocks?: Array<{ type?: string; image?: { url?: string; alt?: string } }> };
+    const layout = row.layout as LayoutShape | null;
+    const hero = layout?.blocks?.find((b) => b?.type === 'hero');
+    const heroImg = hero?.image?.url ?? null;
+    const heroAlt = hero?.image?.alt ?? null;
+    const firstImage = layout?.blocks?.find((b) => b?.type === 'image' && (b as { url?: string }).url);
+    const inlineImg = (firstImage as { url?: string } | undefined)?.url ?? null;
+    const inlineAlt = (firstImage as { alt?: string } | undefined)?.alt ?? null;
+    const image = heroImg || inlineImg || LEGACY_PLACEHOLDER;
+    const imageAlt = heroAlt || inlineAlt || (row.title as string | null) || 'Seven Arrows blog post';
+
+    const body = (row.body_markdown as string | null) ?? '';
+    const firstPara = body
+      .split('\n')
+      .map((l) => l.trim())
+      .find((l) => l && !l.startsWith('#') && !l.startsWith('!') && !l.startsWith('-') && !l.startsWith('>'))
+      ?? '';
+    const blurb = firstPara.length > 180 ? firstPara.slice(0, 177).trimEnd() + '…' : firstPara || (row.title as string | null) || '';
+
+    const publishedAt = (row.published_at as string | null) ?? new Date().toISOString();
+    const publishedDisplay = (() => {
+      try {
+        return new Date(publishedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+      } catch { return publishedAt.slice(0, 10); }
+    })();
+
+    return {
+      number: maxStaticNumber + idx + 1,
+      slug: row.slug as string,
+      title: (row.title as string | null) ?? 'Untitled',
+      blurb,
+      publishedAt: publishedAt.slice(0, 10),
+      publishedDisplay,
+      image,
+      imageAlt,
+    } satisfies Episode;
+  });
+}
+
+/** Merge published AI blogs into the static episodes list, deduping by
+ * slug so a static + AI duplicate never both render. Sorts newest
+ * first by publishedAt. Visibility-hidden slugs are filtered out. */
+export async function getAllEpisodesNewestFirst(): Promise<Episode[]> {
+  const [published, hidden] = await Promise.all([
+    getPublishedBlogEpisodes(),
+    getHiddenSlugs(),
+  ]);
+  const seen = new Set<string>();
+  const merged: Episode[] = [];
+  for (const ep of [...published, ...EPISODES]) {
+    if (seen.has(ep.slug)) continue;
+    seen.add(ep.slug);
+    if (hidden.has(ep.slug)) continue;
+    merged.push(ep);
+  }
+  merged.sort((a, b) => {
+    if (a.publishedAt === b.publishedAt) return b.number - a.number;
+    return a.publishedAt < b.publishedAt ? 1 : -1;
+  });
+  return merged;
+}
+
+/** Merge published AI blogs into the static episodes list, sorted by
+ * episode number ascending (the chronological "Series" view).
+ * Visibility-hidden slugs are filtered out. */
+export async function getAllEpisodesByNumber(): Promise<Episode[]> {
+  const [published, hidden] = await Promise.all([
+    getPublishedBlogEpisodes(),
+    getHiddenSlugs(),
+  ]);
+  const seen = new Set<string>();
+  const merged: Episode[] = [];
+  for (const ep of [...EPISODES, ...published]) {
+    if (seen.has(ep.slug)) continue;
+    seen.add(ep.slug);
+    if (hidden.has(ep.slug)) continue;
+    merged.push(ep);
+  }
+  merged.sort((a, b) => a.number - b.number);
+  return merged;
 }

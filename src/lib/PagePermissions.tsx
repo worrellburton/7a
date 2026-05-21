@@ -64,8 +64,9 @@ const defaultPages: PageConfig[] = [
   { path: '/app/job-descriptions', label: 'Job Descriptions', adminOnly: false, section: 'nav', sort_order: 10, allowedDepartments: [], departmentId: null },
   { path: '/app/tours', label: 'Tours', adminOnly: false, section: 'nav', sort_order: 11, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/admissions', label: 'Admissions', adminOnly: false, section: 'nav', sort_order: 15, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
-  { path: '/app/partnerships', label: 'Partnerships', adminOnly: false, section: 'nav', sort_order: 15.5, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
-  { path: '/app/outreach', label: 'Outreach', adminOnly: false, section: 'nav', sort_order: 15.6, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/app/outreach', label: 'Marketing', adminOnly: false, section: 'nav', sort_order: 15.2, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/app/partnerships', label: 'BD Partnerships', adminOnly: false, section: 'nav', sort_order: 15.4, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/app/donations', label: 'Donations', adminOnly: false, section: 'nav', sort_order: 15.6, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/intake-paperwork', label: 'Intake Paperwork', adminOnly: false, section: 'nav', sort_order: 16, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/seo', label: 'SEO', adminOnly: false, section: 'nav', sort_order: 20, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/geo', label: 'GEO', adminOnly: false, section: 'nav', sort_order: 21, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
@@ -82,6 +83,15 @@ const defaultPages: PageConfig[] = [
   // in directly. Every /api/social-media/* route enforces the same
   // server-side via requireSuperAdmin.
   { path: '/app/social-media', label: 'Social Media', adminOnly: true, section: 'nav', sort_order: 25, allowedDepartments: [], departmentId: null },
+  // Content — super-admin-only AI blog pipeline. Same gating pattern
+  // as Social Media: adminOnly here for the sidebar, runtime
+  // is_super_admin check inside the page + every /api/content/*
+  // route via requireSuperAdmin.
+  { path: '/app/content', label: 'Content', adminOnly: true, section: 'nav', sort_order: 26, allowedDepartments: [], departmentId: null },
+  // Email Campaigns — marketing-email build → recipients → send.
+  // Lives in the Marketing department group like social-media; not
+  // admin-only since the same marketing folks own the social channel.
+  { path: '/app/email-campaigns', label: 'Email Campaigns', adminOnly: false, section: 'nav', sort_order: 27, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/document-manager', label: 'Document Manager', adminOnly: false, section: 'nav', sort_order: 17, allowedDepartments: [], departmentId: null },
   // Org Chart is now accessed from inside another page (no longer in the popup menu).
   { path: '/app/reviews', label: 'Reviews', adminOnly: true, section: 'popup', sort_order: 6, allowedDepartments: [], departmentId: null },

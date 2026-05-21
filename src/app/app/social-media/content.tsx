@@ -9,7 +9,7 @@ import { PlatformIcon, type PlatformId } from './PlatformIcon';
 import { MediaPicker, type PickedMedia } from './MediaPicker';
 import { PostStatusToast, type PostStatus, type PerPlatformResult } from './PostStatusToast';
 import { PLATFORM_SPECS, type MediaSpec, type VideoSpec } from './platform-specs';
-import ScheduleSlotsPanel from './ScheduleSlotsPanel';
+import ScheduleSlotsPanel, { ReadyToGoCard, occurrencesFor, type ReadyDraft, type ScheduleSlot } from './ScheduleSlotsPanel';
 
 // ── Cross-tab Send-to-Compose handoff ────────────────────────────────
 //
@@ -248,7 +248,7 @@ const TABS: { id: Tab; label: string; description: string }[] = [
 ];
 
 function readTab(raw: string | null): Tab {
-  if (raw === 'post' || raw === 'creative') return raw;
+  if (raw === 'post' || raw === 'creative' || raw === 'overview') return raw;
   return 'overview';
 }
 
@@ -259,7 +259,6 @@ function readTab(raw: string | null): Tab {
 const LAST_TAB_KEY = 'social_media_last_tab_v1';
 
 function SubNav() {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const tabRaw = searchParams.get('tab');
@@ -277,22 +276,35 @@ function SubNav() {
     }
   }, [tabRaw, active]);
 
-  const select = (id: Tab) => {
+  // Top-level tabs render as <Link> so the click rides Next's
+  // standard link semantics. Earlier the same fix on the Post /
+  // Creative sub-navs (commit 2babb0c) resolved cases where an
+  // onClick + router.push was getting swallowed by the outer
+  // Suspense boundary re-suspending mid-navigation, leaving the
+  // body stuck on the prior pane.
+  const hrefFor = (id: Tab): string => {
     const next = new URLSearchParams(searchParams.toString());
-    if (id === 'overview') next.delete('tab');
-    else next.set('tab', id);
-    // Clear sub on top-level tab change so a stale ?sub=ai from
-    // Creative doesn't render an empty state under Post.
+    // Always write tab=<id> (even for overview) so the URL is
+    // deterministic and router.push always sees a path-string
+    // change — clicking Overview from ?tab=creative previously
+    // tried to navigate to the bare path, which in some Next
+    // router states didn't propagate to the SocialTabBody
+    // useSearchParams consumer.
+    next.set('tab', id);
     next.delete('sub');
     const qs = next.toString();
-    try { localStorage.setItem(LAST_TAB_KEY, id); } catch { /* no-op */ }
-    router.push(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+    // qs is never empty (we always set ?tab=…) so the ternary
+    // from the pre-fix version is gone — leaves the URL update
+    // deterministic, which is what made the Overview tab
+    // reliably re-render after the previous bare-path push
+    // stopped propagating.
+    return `${pathname}?${qs}`;
   };
 
   // Arrow-key keyboard nav across the tab strip — left/right cycles,
   // home/end jump to the ends. Matches the WAI-ARIA Authoring
   // Practices recommendation for role=tablist.
-  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const tabRefs = useRef<Array<HTMLAnchorElement | null>>([]);
   const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const idx = TABS.findIndex((t) => t.id === active);
     if (idx < 0) return;
@@ -303,7 +315,7 @@ function SubNav() {
     else if (e.key === 'End') nextIdx = TABS.length - 1;
     else return;
     e.preventDefault();
-    select(TABS[nextIdx].id);
+    tabRefs.current[nextIdx]?.click();
     tabRefs.current[nextIdx]?.focus();
   };
 
@@ -317,25 +329,25 @@ function SubNav() {
       {TABS.map((t, i) => {
         const selected = active === t.id;
         return (
-          <button
+          <Link
             key={t.id}
             ref={(el) => { tabRefs.current[i] = el; }}
-            type="button"
+            href={hrefFor(t.id)}
+            scroll={false}
             role="tab"
             id={`tab-${t.id}`}
             aria-selected={selected}
             aria-controls={`tabpanel-${t.id}`}
             tabIndex={selected ? 0 : -1}
-            onClick={() => select(t.id)}
             title={t.description}
-            className={`flex-1 min-w-0 px-4 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+            className={`flex-1 min-w-0 px-4 py-2.5 rounded-xl text-sm font-semibold text-center transition-colors ${
               selected
                 ? 'bg-foreground text-white shadow-sm'
                 : 'text-foreground/65 hover:bg-warm-bg/40'
             }`}
           >
             {t.label}
-          </button>
+          </Link>
         );
       })}
     </div>
@@ -1301,38 +1313,118 @@ function SchedulePostsBody({
     [history],
   );
   const connectedPlatforms = accounts?.activeSocialAccounts ?? [];
+
+  // Slots and scheduling closure are owned by ScheduleSlotsPanel,
+  // but the Scheduled Posts card needs both to accept drops too —
+  // panel hands them up via callbacks so we don't duplicate the
+  // fetch or the POST flow.
+  const [slots, setSlots] = useState<ScheduleSlot[]>([]);
+  const scheduleRef = useRef<((draft: ReadyDraft, at: Date) => Promise<void>) | null>(null);
+  const onScheduleReady = useCallback((handler: (draft: ReadyDraft, at: Date) => Promise<void>) => {
+    scheduleRef.current = handler;
+  }, []);
+
+  const scheduleOnNextOpenSlot = useCallback(async (draft: ReadyDraft) => {
+    if (!scheduleRef.current) return { ok: false, error: 'Scheduler not ready yet — try again in a moment.' };
+    if (slots.length === 0) return { ok: false, error: 'Add a schedule slot first, then drop a draft to auto-queue it.' };
+    // Walk every slot, take its very next future occurrence,
+    // pick the earliest across all slots that isn't already
+    // claimed by an existing scheduled post (±5 min window —
+    // same tolerance OccurrenceCell uses to match queued
+    // posts to a slot occurrence).
+    const now = new Date();
+    const claimed = new Set(
+      scheduledLite
+        .map((p) => Date.parse(p.scheduleDate))
+        .filter((t) => Number.isFinite(t)),
+    );
+    let pick: Date | null = null;
+    for (const slot of slots) {
+      const next = occurrencesFor(slot, now, 12);
+      for (const occ of next) {
+        const t = occ.getTime();
+        let isClaimed = false;
+        for (const c of claimed) {
+          if (Math.abs(c - t) < 5 * 60 * 1000) { isClaimed = true; break; }
+        }
+        if (isClaimed) continue;
+        if (!pick || occ < pick) pick = occ;
+        break;
+      }
+    }
+    if (!pick) return { ok: false, error: 'No open occurrences in the next 12 — all slots are filled.' };
+    await scheduleRef.current(draft, pick);
+    return { ok: true, when: pick };
+  }, [slots, scheduledLite]);
+
   return (
     <div className="space-y-4">
       <ScheduleSlotsPanel
-        readyDrafts={readyDrafts}
         connectedPlatforms={connectedPlatforms}
         scheduledPosts={scheduledLite}
         onPostScheduled={refreshHistory}
+        onSlotsChange={setSlots}
+        onScheduleHandlerReady={onScheduleReady}
       />
+      <ReadyToGoCard drafts={readyDrafts} />
       <ScheduledPanel
         posts={history}
         loading={historyLoading}
         error={historyErr}
         onChanged={refreshHistory}
+        onDropDraft={scheduleOnNextOpenSlot}
       />
     </div>
   );
 }
 
 function ScheduledPanel({
-  posts, loading, error, onChanged,
+  posts, loading, error, onChanged, onDropDraft,
 }: {
   posts: HistoryPost[];
   loading: boolean;
   error: string | null;
   onChanged: () => void;
+  onDropDraft?: (draft: ReadyDraft) => Promise<{ ok: boolean; when?: Date; error?: string }>;
 }) {
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [dropMsg, setDropMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const queue = useMemo(() => {
     return posts
       .filter(isScheduledPending)
       .sort((a, b) => Date.parse(a.scheduleDate || '') - Date.parse(b.scheduleDate || ''));
   }, [posts]);
+
+  const onZoneDragOver = (e: React.DragEvent) => {
+    if (!onDropDraft) return;
+    if (e.dataTransfer.types.includes('application/x-ready-draft')) {
+      e.preventDefault();
+      setDragOver(true);
+    }
+  };
+  const onZoneDrop = async (e: React.DragEvent) => {
+    if (!onDropDraft) return;
+    e.preventDefault();
+    setDragOver(false);
+    try {
+      const raw = e.dataTransfer.getData('application/x-ready-draft');
+      if (!raw) return;
+      const draft = JSON.parse(raw) as ReadyDraft;
+      const result = await onDropDraft(draft);
+      if (result.ok && result.when) {
+        setDropMsg({
+          kind: 'ok',
+          text: `Queued for ${result.when.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`,
+        });
+      } else {
+        setDropMsg({ kind: 'err', text: result.error ?? 'Could not schedule.' });
+      }
+      window.setTimeout(() => setDropMsg(null), 6000);
+    } catch {
+      /* malformed payload — ignore */
+    }
+  };
 
   const cancel = async (id: string) => {
     if (!confirm('Cancel this scheduled post?')) return;
@@ -1358,25 +1450,45 @@ function ScheduledPanel({
   };
 
   return (
-    <section className="rounded-2xl border border-black/10 bg-white p-5">
+    <section
+      onDragOver={onZoneDragOver}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={onZoneDrop}
+      className={`rounded-2xl border bg-white p-5 transition-colors ${
+        dragOver ? 'border-primary ring-2 ring-primary/20 bg-primary/[0.02]' : 'border-black/10'
+      }`}
+    >
       <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
         <div>
           <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Scheduled posts</h2>
           <p className="text-[11px] text-foreground/45 mt-0.5">
-            Queued but not yet sent. Cancel any row to pull it back.
+            Queued but not yet sent. Cancel any row to pull it back. Or drop a Ready-to-Go draft on this card to auto-queue it on the next open slot.
           </p>
         </div>
         {loading && <span className="text-xs text-foreground/40">Loading…</span>}
       </div>
+      {dropMsg && (
+        <p className={`rounded-lg px-3 py-2 text-xs mb-3 ${
+          dropMsg.kind === 'ok'
+            ? 'bg-emerald-50 border border-emerald-200 text-emerald-800'
+            : 'bg-red-50 border border-red-200 text-red-800'
+        }`}>
+          {dropMsg.text}
+        </p>
+      )}
       {error && (
         <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-800 mb-3">
           {error}
         </p>
       )}
       {queue.length === 0 && !loading ? (
-        <div className="rounded-xl border border-dashed border-black/10 bg-warm-bg/30 px-5 py-10 text-center">
+        <div className={`rounded-xl border-dashed bg-warm-bg/30 px-5 py-10 text-center ${
+          dragOver ? 'border-2 border-primary/50' : 'border border-black/10'
+        }`}>
           <p className="text-sm text-foreground/55 max-w-md mx-auto">
-            Nothing scheduled. Use Compose &rarr; <em>Schedule for later</em> to queue a post.
+            {dragOver
+              ? 'Drop to queue on the next open slot.'
+              : <>Nothing scheduled. Use Compose &rarr; <em>Schedule for later</em> to queue a post — or drop a Ready-to-Go draft here.</>}
           </p>
         </div>
       ) : (
@@ -1964,17 +2076,34 @@ function CreativeLibraryPanel() {
                   }`}
                   title={label}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={row.thumbUrl}
-                    alt={label}
-                    loading="lazy"
-                    className="w-full h-full object-cover"
-                  />
+                  {row.kind === 'video' ? (
+                    // Render the video itself with preload="metadata"
+                    // so the browser paints the first frame as a
+                    // native poster — works even when we don't have
+                    // a separate thumbnail_url stored. muted+playsInline
+                    // keeps tiles silent on hover-play.
+                    <video
+                      src={row.url}
+                      poster={row.thumbUrl && row.thumbUrl !== row.url ? row.thumbUrl : undefined}
+                      preload="metadata"
+                      muted
+                      playsInline
+                      className="w-full h-full object-cover bg-black"
+                      aria-label={label}
+                    />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={row.thumbUrl}
+                      alt={label}
+                      loading="lazy"
+                      className="w-full h-full object-cover"
+                    />
+                  )}
                   {row.kind === 'video' && (
                     <span
                       aria-hidden="true"
-                      className="absolute inset-0 flex items-center justify-center bg-black/20"
+                      className="absolute inset-0 flex items-center justify-center bg-black/20 pointer-events-none"
                     >
                       <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-black/55 text-white">
                         <svg className="w-4 h-4 ml-0.5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -2411,6 +2540,27 @@ function CreativeAiPanel() {
 
 // ── Connected accounts strip ──────────────────────────────────────
 
+// Build an outbound URL to the platform's profile/dashboard for a
+// given handle. Falls back to the platform's home/dashboard if no
+// handle is known — every connected pill is clickable.
+function accountUrlFor(platform: string, handle: string | null): string {
+  const h = (handle ?? '').replace(/^@/, '').trim();
+  switch (platform) {
+    case 'facebook':   return h ? `https://www.facebook.com/${encodeURIComponent(h)}` : 'https://www.facebook.com/sevenarrowsrecovery';
+    case 'instagram':  return h ? `https://www.instagram.com/${encodeURIComponent(h)}/` : 'https://www.instagram.com/sevenarrowsrecovery/';
+    case 'linkedin':   return h ? `https://www.linkedin.com/in/${encodeURIComponent(h)}` : 'https://www.linkedin.com/company/sevenarrowsrecovery/';
+    case 'twitter':    return h ? `https://twitter.com/${encodeURIComponent(h)}` : 'https://twitter.com/home';
+    case 'tiktok':     return h ? `https://www.tiktok.com/@${encodeURIComponent(h)}` : 'https://www.tiktok.com/';
+    case 'youtube':    return h ? `https://www.youtube.com/@${encodeURIComponent(h)}` : 'https://studio.youtube.com/';
+    case 'pinterest':  return h ? `https://www.pinterest.com/${encodeURIComponent(h)}/` : 'https://www.pinterest.com/';
+    case 'gmb':        return 'https://business.google.com/';
+    case 'reddit':     return h ? `https://www.reddit.com/user/${encodeURIComponent(h)}` : 'https://www.reddit.com/';
+    case 'threads':    return h ? `https://www.threads.net/@${encodeURIComponent(h)}` : 'https://www.threads.net/';
+    case 'bluesky':    return h ? `https://bsky.app/profile/${encodeURIComponent(h)}` : 'https://bsky.app/';
+    default:           return 'https://app.ayrshare.com/';
+  }
+}
+
 function ConnectedAccountsStrip({
   accounts, loading, error, onChanged,
 }: {
@@ -2423,9 +2573,7 @@ function ConnectedAccountsStrip({
 
   // Refresh the connected-accounts list when the user returns to
   // this tab — covers the "linked an account on Ayrshare's
-  // dashboard and came back" flow. (Account linking happens in
-  // Ayrshare's own UI; the strip here is a status indicator
-  // only — it stays in sync without a click handler.)
+  // dashboard and came back" flow.
   useEffect(() => {
     const onFocus = () => onChanged();
     window.addEventListener('focus', onFocus);
@@ -2449,33 +2597,19 @@ function ConnectedAccountsStrip({
           const display = accounts?.displayNames?.[p.id]?.displayName
             ?? accounts?.displayNames?.[p.id]?.username
             ?? null;
-          // Pill is presentational only — no click handler. Connecting
-          // accounts happens in the Ayrshare dashboard, so the strip
-          // is a status indicator rather than an action surface.
-          return (
-            <span
-              key={p.id}
-              className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${
-                isActive
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                  : 'border-dashed border-foreground/25 bg-white text-foreground/60'
-              }`}
-              title={isActive
-                ? `Connected${display ? ` as ${display}` : ''}`
-                : `${p.label} — not connected`}
-            >
+          const pillClass = `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${
+            isActive
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300'
+              : 'border-dashed border-foreground/25 bg-white text-foreground/60'
+          }`;
+          const pillBody = (
+            <>
               <PlatformIcon
                 platform={p.id as PlatformId}
                 size={14}
-                // Mute the brand color when not yet connected so the
-                // dashed-border pill reads as "available" rather than
-                // a live channel.
                 color={isActive ? undefined : 'rgba(0,0,0,0.3)'}
               />
               <span>{p.label}</span>
-              {/* Green dot for connected pills — sits to the right of
-                  the label so the brand glyph stays the primary visual
-                  anchor and the dot reads as a discrete "live" cue. */}
               {isActive && (
                 <span
                   aria-label="Connected"
@@ -2485,6 +2619,37 @@ function ConnectedAccountsStrip({
               {isActive && display && (
                 <span className="text-[10px] text-emerald-700/70 font-normal">@{display.replace(/^@/, '')}</span>
               )}
+              {isActive && (
+                <svg className="w-3 h-3 text-emerald-700/60" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              )}
+            </>
+          );
+          if (isActive) {
+            // Connected → open the public profile (or platform
+            // dashboard for GMB) in a new tab. New tab + noopener
+            // so the admin keeps the composer in front of them.
+            return (
+              <a
+                key={p.id}
+                href={accountUrlFor(p.id, display)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={pillClass}
+                title={`Open ${p.label}${display ? ` (${display})` : ''} in a new tab`}
+              >
+                {pillBody}
+              </a>
+            );
+          }
+          return (
+            <span
+              key={p.id}
+              className={pillClass}
+              title={`${p.label} — not connected`}
+            >
+              {pillBody}
             </span>
           );
         })}
