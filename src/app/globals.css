@@ -1237,3 +1237,26 @@ tr:hover .sa-engagement-cell {
     box-shadow: 0 0 0 3px rgba(188, 107, 74, 0.30), 0 0 14px 2px rgba(188, 107, 74, 0.45);
   }
 }
+
+/* ── iOS Safari auto-zoom prevention ─────────────────────────────
+ * When a user taps an <input>, <select>, or <textarea> on iOS and
+ * the element's font-size is below 16px, Safari forcibly zooms in
+ * to make the field readable — and never zooms back out, so the
+ * page is left rendered larger than 100% with no easy way back
+ * short of a pinch-out. The fix is universally to render those
+ * controls at >= 16px on small screens. We scope to <= 640px so
+ * the desktop UI keeps its tighter 11-13px fields.
+ *
+ * Why this stays here forever: the existing
+ *   <meta name="viewport" content="..., maximum-scale=1" />
+ * stops *user-driven* pinch zoom but iOS still triggers the
+ * auto-zoom on focus regardless of viewport — only the font-size
+ * rule actually defeats it. Apple has documented this behaviour
+ * for years; the 16px rule is the canonical workaround. */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

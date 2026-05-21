@@ -818,6 +818,11 @@ function ImagesPanel({ blog, images, token, onChange, approving }: { blog: DbBlo
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<{ message: string; details?: unknown } | null>(null);
   const [tab, setTab] = useState<'generated' | 'library'>('generated');
+  // Declared up here (not below near generateMore) because the
+  // isGenerating useMemo + the slotCount expression downstream both
+  // read it — keeping declaration above first use silences TS's
+  // 'used before declaration' check.
+  const [generatingMore, setGeneratingMore] = useState(false);
   // Shared key with the ReviewPanel approve flow so localStorage
   // timing samples roll up across both surfaces — every successful
   // 10-image generation nudges the 180s default closer to wall-time
@@ -835,7 +840,11 @@ function ImagesPanel({ blog, images, token, onChange, approving }: { blog: DbBlo
   // 10 parallel jobs). Once all 10 AI rows have landed we finish
   // cleanly so useAutoProgress's EMA learns from this run.
   const aiImagesReady = images.filter((i) => isAiImage(i.provider)).length;
-  const isGenerating = blog.status === 'images' || approving;
+  // `generatingMore` (this panel's local 'Generate 10 more' click)
+  // counts as in-flight too — the route flips status='images'
+  // server-side but the page doesn't see that until the response
+  // lands, so we ride the local flag for instant feedback.
+  const isGenerating = blog.status === 'images' || approving || generatingMore;
   useEffect(() => {
     if (isGenerating && !imageGenProgress.running) {
       imageGenProgress.start();
@@ -854,6 +863,30 @@ function ImagesPanel({ blog, images, token, onChange, approving }: { blog: DbBlo
       else if (next.size < 7) next.add(imgId);
       return next;
     });
+  }
+
+  // generatingMore state lives near the top of ImagesPanel — see
+  // the comment there. This is just the handler that flips it.
+  async function generateMore() {
+    if (!token || generatingMore) return;
+    setGeneratingMore(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/content/${blog.id}/images?mode=append`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErr({ message: json.error ?? `HTTP ${res.status}`, details: json });
+        return;
+      }
+      onChange();
+    } catch (e) {
+      setErr({ message: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setGeneratingMore(false);
+    }
   }
 
   async function saveSelection() {
@@ -894,7 +927,16 @@ function ImagesPanel({ blog, images, token, onChange, approving }: { blog: DbBlo
   // 7-image set.
   const aiImages = images.filter((i) => isAiImage(i.provider));
   const libraryImages = images.filter((i) => !isAiImage(i.provider));
-  const slotCount = generating ? 10 : aiImages.length;
+  // On append mode (generatingMore), we already have the existing
+  // batch — render those PLUS 10 placeholder swirls for the new
+  // ones that are about to land. On a fresh run (approving / no
+  // images yet), 10 swirls. After everything's done, just the
+  // images we have.
+  const slotCount = generatingMore && aiImages.length > 0
+    ? aiImages.length + 10
+    : generating
+      ? Math.max(10, aiImages.length)
+      : aiImages.length;
   const showGrid = generating || aiImages.length > 0;
   const selectedAi = aiImages.filter((i) => selected.has(i.id)).length;
   const selectedLib = libraryImages.filter((i) => selected.has(i.id)).length;
@@ -1009,7 +1051,7 @@ function ImagesPanel({ blog, images, token, onChange, approving }: { blog: DbBlo
         selected={selected}
         onToggle={toggle}
       />
-      <div className="mt-3 flex items-center gap-2">
+      <div className="mt-3 flex items-center gap-2 flex-wrap">
         <button
           type="button"
           onClick={saveSelection}
@@ -1018,6 +1060,20 @@ function ImagesPanel({ blog, images, token, onChange, approving }: { blog: DbBlo
           title={selected.size >= 4 ? 'Save selection' : 'Pick at least 4 to enable'}
         >
           {busy ? 'Saving…' : 'Save selection'}
+        </button>
+        {/* "Generate 10 more" appends a fresh batch using
+            ?mode=append — keeps the editor's existing picks +
+            generated images, and lays the new 10 alongside so they
+            can browse a wider candidate set without losing what
+            they already chose. */}
+        <button
+          type="button"
+          onClick={() => void generateMore()}
+          disabled={busy || generatingMore || generating}
+          className="px-3 py-1.5 rounded-md bg-warm-bg/80 text-foreground/85 text-[11.5px] font-semibold border border-black/15 hover:bg-warm-bg disabled:opacity-50"
+          title="Generate another 10 AI images and append them to the gallery. Existing picks stay selected."
+        >
+          {generatingMore ? 'Generating 10 more…' : '+ Generate 10 more'}
         </button>
         <span className="text-[11px] text-foreground/45">
           {selected.size >= 4
