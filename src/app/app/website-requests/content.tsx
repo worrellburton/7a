@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import { openEligibilityPdf } from './eligibility-pdf';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
+import HipaaAttestation from '@/components/HipaaAttestation';
 
 // Single tabbed page combining the four formerly-separate Website
 // Requests views (Overview · VObs · Forms · Careers). Tab state is
@@ -86,7 +87,15 @@ export default function WebsiteRequestsContent() {
       </div>
 
       {tab === 'overview' && <OverviewPanel onJump={selectTab} />}
-      {tab === 'vobs' && <VobsPanel />}
+      {tab === 'vobs' && (
+        <HipaaAttestation
+          surfaceId="website-requests-vobs"
+          surfaceLabel="VOB requests"
+          surfacePath="/app/website-requests?tab=vobs"
+        >
+          <VobsPanel />
+        </HipaaAttestation>
+      )}
       {tab === 'forms' && <FormsPanel mode="forms" />}
       {tab === 'careers' && <CareersPanel />}
       {tab === 'spam' && <FormsPanel mode="spam" />}
