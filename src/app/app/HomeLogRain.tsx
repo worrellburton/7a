@@ -310,7 +310,10 @@ export default function HomeLogRain({
 
   // ─── Particle factory ──────────────────────────────────────────────
   const spawnParticle = useCallback((meta: LogDrop, opts?: { atRandom?: boolean; preSettled?: boolean }) => {
-    if (!size) return;
+    // Desktop physics path needs container dimensions to compute
+    // spawn coordinates; mobile static path doesn't, so let it
+    // through before size is measured.
+    if (!size && !isMobile) return;
     if (seenIdsRef.current.has(meta.id)) return;
     seenIdsRef.current.add(meta.id);
 
@@ -324,9 +327,12 @@ export default function HomeLogRain({
     const r = fontSize * 0.7;
 
     // Spawn x: spread across the inner 70–80% of the width so logs
-    // don't pile up only against the side walls.
-    const xPad = size.w * 0.12;
-    const spawnX = xPad + Math.random() * (size.w - xPad * 2);
+    // don't pile up only against the side walls. Mobile static
+    // path ignores x/y entirely; default to 0s when size isn't
+    // measured (e.g. early-mount mobile spawn before layout).
+    const width = size?.w ?? 0;
+    const xPad = width * 0.12;
+    const spawnX = width > 0 ? xPad + Math.random() * (width - xPad * 2) : 0;
 
     if (opts?.preSettled) {
       // "Already seen" — drop straight onto the floor with zero
@@ -351,7 +357,7 @@ export default function HomeLogRain({
     } else {
       // Live drop — fall from above the layer with a tiny downward
       // push so the motion reads as physical instantly.
-      const spawnY = size.h + r + 12;
+      const spawnY = (size?.h ?? 0) + r + 12;
       const p: Particle = {
         id: meta.id,
         meta,
@@ -411,10 +417,19 @@ export default function HomeLogRain({
       for (const meta of alreadySeen) {
         spawnParticle(meta, { preSettled: true });
       }
-      // New-since-last-visit batch: staggered fall from the top.
-      for (let i = 0; i < newSinceLastVisit.length; i += 1) {
-        const meta = newSinceLastVisit[i];
-        setTimeout(() => spawnParticle(meta, { atRandom: true }), i * BACKFILL_STAGGER_MS);
+      // New-since-last-visit batch. Desktop: staggered fall from
+      // the top. Mobile: no animation path at all — spawn them all
+      // in one frame so the static pile fills immediately instead
+      // of popping in one item at a time.
+      if (isMobile) {
+        for (const meta of newSinceLastVisit) {
+          spawnParticle(meta, { preSettled: true });
+        }
+      } else {
+        for (let i = 0; i < newSinceLastVisit.length; i += 1) {
+          const meta = newSinceLastVisit[i];
+          setTimeout(() => spawnParticle(meta, { atRandom: true }), i * BACKFILL_STAGGER_MS);
+        }
       }
 
       // Bump lastSeen to the newest log we just observed (or now,
@@ -431,9 +446,13 @@ export default function HomeLogRain({
   }, [session?.access_token, spawnParticle, onCountChange]);
 
   useEffect(() => {
-    if (!enabled || !size) return;
+    if (!enabled) return;
+    // Desktop needs size for spawn-x/spawn-y math; mobile renders a
+    // static pile that doesn't depend on container measurement, so
+    // fetch immediately on mobile.
+    if (!isMobile && !size) return;
     void fetchToday();
-  }, [enabled, size, fetchToday]);
+  }, [enabled, size, isMobile, fetchToday]);
 
   // ─── Phase 6: realtime live drops ──────────────────────────────────
   useEffect(() => {
@@ -523,8 +542,13 @@ export default function HomeLogRain({
   }, [enabled, fetchToday, onCountChange, renderTick]); // renderTick re-arms after each cycle
 
   // ─── Phase 3+4: physics loop ───────────────────────────────────────
+  // Desktop only — mobile bypasses the simulation entirely and
+  // renders a static CSS pile (see renderer below). The collision
+  // pass was burning frame budget on midrange phones even with
+  // particle counts capped at 40, and a static pile reads as
+  // 'pile' just as well visually.
   useEffect(() => {
-    if (!enabled || !size) return;
+    if (!enabled || !size || isMobile) return;
     let raf = 0;
     let lastT = performance.now();
 
@@ -660,81 +684,95 @@ export default function HomeLogRain({
 
   if (!enabled) return null;
 
+  // Tap/hover handler shared between the desktop physics path
+  // and the mobile static path.
+  const openTooltipForRect = (meta: LogDrop, rect: DOMRect) => {
+    setHover({ meta, left: rect.left + rect.width / 2, top: rect.top });
+  };
+
   return (
     <>
-      <div
-        ref={containerRef}
-        // Mobile: fixed to the viewport (the centerpiece flex item
-        // is short because the orbit is also fixed). Negative
-        // z-index keeps the rain behind regular page content (the
-        // mission footer, WIP pill, action stack) which otherwise
-        // sits at z-auto and got eaten by z-0 fixed. The home
-        // container has `isolation: isolate` so the negative
-        // z-index stays scoped to the page, not behind the body
-        // background.
+      {isMobile ? (
+        // ─── Mobile: static CSS pile ──────────────────────────────────
+        // No physics, no rAF, no collisions. Logs render as a
+        // flex-wrap-reverse strip pinned to the bottom of the
+        // viewport so they fill upward from the floor and can never
+        // fall off-screen. Each emoji gets a deterministic-ish
+        // rotation based on its index so the pile reads as
+        // 'tumbled' without a per-particle physics state.
         //
-        // Desktop: absolute inside the centerpiece. The orbit at
-        // z-50 inside the same stacking context still tucks the
+        // overflow-hidden + max-height clamp the pile so a busy day
+        // doesn't push logs past the orbit; once we hit MAX_MOBILE
+        // particles the oldest cycle out the top (handled by the
+        // spawn capper).
+        <div
+          ref={containerRef}
+          className="fixed inset-x-0 bottom-0 -z-10 overflow-hidden pointer-events-none px-2"
+          style={{ maxHeight: '40vh' }}
+          aria-hidden="true"
+        >
+          <div className="flex flex-wrap-reverse items-end justify-center gap-x-1 gap-y-0.5 pb-2">
+            {particles.map((p, idx) => (
+              <span
+                key={p.id}
+                className="select-none pointer-events-auto inline-block"
+                style={{
+                  fontSize: `${p.size}px`,
+                  lineHeight: 1,
+                  filter: 'drop-shadow(0 1px 2px rgba(70, 40, 20, 0.18))',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  touchAction: 'manipulation',
+                  transform: `rotate(${((idx * 37) % 40) - 20}deg)`,
+                }}
+                onTouchStart={(e) => {
+                  openTooltipForRect(p.meta, e.currentTarget.getBoundingClientRect());
+                  if (tapTimerRef.current) window.clearTimeout(tapTimerRef.current);
+                  tapTimerRef.current = window.setTimeout(() => setHover(null), TAP_TOOLTIP_MS);
+                }}
+              >
+                🪵
+              </span>
+            ))}
+          </div>
+        </div>
+      ) : (
+        // ─── Desktop: physics-based rain ──────────────────────────────
+        // Absolute inside the centerpiece, full physics loop. The
+        // orbit at z-50 inside the same stacking context tucks the
         // rain behind it.
-        //
-        // Height is 100svh on mobile so the iOS URL bar collapse
-        // doesn't cause the layer to remeasure as a shorter
-        // viewport mid-fall.
-        className="fixed sm:absolute inset-0 -z-10 sm:z-0 overflow-hidden pointer-events-none"
-        aria-hidden="true"
-      >
-        {size && particles.map((p) => {
-          // Y in our physics frame is "distance above floor"; CSS
-          // wants top, so flip to (h - y - r) and use top so
-          // transform-origin stays at the center.
-          const cssLeft = p.x;
-          const cssTop = size.h - p.y;
-          // Touch handler: surface the tooltip pinned to the tapped
-          // log for ~2s, then auto-dismiss. Hover handlers stay for
-          // pointer devices. No keyboard surface — these are
-          // ambient and non-essential.
-          const openTooltipAt = (rect: DOMRect) => {
-            setHover({
-              meta: p.meta,
-              left: rect.left + rect.width / 2,
-              top: rect.top,
-            });
-          };
-          return (
-            <span
-              key={p.id}
-              className="absolute select-none pointer-events-auto"
-              style={{
-                left: 0,
-                top: 0,
-                transform: `translate3d(${cssLeft - p.size / 2}px, ${cssTop - p.size / 2}px, 0) rotate(${p.rot}deg)`,
-                fontSize: `${p.size}px`,
-                lineHeight: 1,
-                filter: 'drop-shadow(0 2px 3px rgba(70, 40, 20, 0.18))',
-                cursor: isMobile ? 'pointer' : 'help',
-                willChange: 'transform',
-                userSelect: 'none',
-                touchAction: 'manipulation',
-              }}
-              onMouseEnter={(e) => {
-                if (isMobile) return; // touch handler covers mobile
-                openTooltipAt(e.currentTarget.getBoundingClientRect());
-              }}
-              onMouseLeave={() => { if (!isMobile) setHover(null); }}
-              onTouchStart={(e) => {
-                openTooltipAt(e.currentTarget.getBoundingClientRect());
-                if (tapTimerRef.current) window.clearTimeout(tapTimerRef.current);
-                tapTimerRef.current = window.setTimeout(
-                  () => setHover(null),
-                  TAP_TOOLTIP_MS,
-                );
-              }}
-            >
-              🪵
-            </span>
-          );
-        })}
-      </div>
+        <div
+          ref={containerRef}
+          className="absolute inset-0 z-0 overflow-hidden pointer-events-none"
+          aria-hidden="true"
+        >
+          {size && particles.map((p) => {
+            const cssLeft = p.x;
+            const cssTop = size.h - p.y;
+            return (
+              <span
+                key={p.id}
+                className="absolute select-none pointer-events-auto"
+                style={{
+                  left: 0,
+                  top: 0,
+                  transform: `translate3d(${cssLeft - p.size / 2}px, ${cssTop - p.size / 2}px, 0) rotate(${p.rot}deg)`,
+                  fontSize: `${p.size}px`,
+                  lineHeight: 1,
+                  filter: 'drop-shadow(0 2px 3px rgba(70, 40, 20, 0.18))',
+                  cursor: 'help',
+                  willChange: 'transform',
+                  userSelect: 'none',
+                }}
+                onMouseEnter={(e) => openTooltipForRect(p.meta, e.currentTarget.getBoundingClientRect())}
+                onMouseLeave={() => setHover(null)}
+              >
+                🪵
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       {/* Hover tooltip — portaled to body so it's never clipped by
           the centerpiece's overflow. Pointer-events disabled so the
