@@ -383,6 +383,12 @@ export default function HomeLogRain({
       const removed = particlesRef.current.splice(0, particlesRef.current.length - cap);
       for (const x of removed) seenIdsRef.current.delete(x.id);
     }
+
+    // particlesRef is a ref, so React won't re-render unless we
+    // bump a state value. The old physics rAF loop did this every
+    // frame; with that loop disabled, we have to bump explicitly
+    // each spawn so the new emoji actually renders.
+    setRenderTick((n) => (n + 1) % 1_000_000);
   }, [size, isMobile]);
 
   // ─── Phase 5: backfill today's logs on mount ───────────────────────
