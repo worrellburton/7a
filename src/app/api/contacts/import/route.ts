@@ -29,6 +29,28 @@ function trim(value: unknown, max = 600): string | null {
   return t.length > max ? t.slice(0, max) : t;
 }
 
+interface DedupKeyForCheck { name: string; email: string | null; websiteHost: string | null }
+function extractHost(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const u = raw.startsWith('http') ? new URL(raw) : new URL(`https://${raw}`);
+    return u.host.toLowerCase().replace(/^www\./, '') || null;
+  } catch {
+    return null;
+  }
+}
+function findDuplicate(
+  candidate: DedupKeyForCheck,
+  existing: DedupKeyForCheck[],
+): 'name' | 'email' | 'company_website' | null {
+  for (const e of existing) {
+    if (candidate.name && candidate.name === e.name) return 'name';
+    if (candidate.email && candidate.email === e.email) return 'email';
+    if (candidate.websiteHost && candidate.websiteHost === e.websiteHost) return 'company_website';
+  }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   const user = await getUserFromRequest(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -43,14 +65,50 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'CSV too large — split into batches of 500 or fewer rows' }, { status: 413 });
   }
 
+  const admin = getAdminSupabase();
+
+  // Pull the existing roster's identifiers ahead of the insert so
+  // we can dedup before sending anything to the DB. Match on the
+  // three reliable identity keys: lower(name), lower(email), and
+  // the domain-stripped host of company_website. Any one match
+  // makes the incoming row a duplicate of an existing contact.
+  const { data: existingRows } = await admin
+    .from('contacts')
+    .select('name, email, company_website')
+    .limit(20000);
+  interface DedupKey { name: string; email: string | null; websiteHost: string | null }
+  const existing: DedupKey[] = ((existingRows ?? []) as Array<{ name: string | null; email: string | null; company_website: string | null }>).map((r) => ({
+    name: (r.name || '').trim().toLowerCase(),
+    email: (r.email || '').trim().toLowerCase() || null,
+    websiteHost: extractHost(r.company_website),
+  }));
+
   const inserts: Record<string, unknown>[] = [];
   const errors: { row: number; reason: string }[] = [];
+  // Surface the duplicates back to the client so the import modal
+  // can prompt the user with "these N rows were skipped because
+  // they're already in the CRM" — name + which existing field
+  // matched so the user can decide what to do.
+  const duplicates: Array<{ row: number; name: string; matchedOn: 'name' | 'email' | 'company_website' }> = [];
   incoming.forEach((raw, idx) => {
     const name = trim(raw?.name, 200);
     if (!name) {
       errors.push({ row: idx + 1, reason: 'Missing name' });
       return;
     }
+    const candidate: DedupKey = {
+      name: name.toLowerCase(),
+      email: trim(raw?.email, 200)?.toLowerCase() ?? null,
+      websiteHost: null,
+    };
+    const dupe = findDuplicate(candidate, existing);
+    if (dupe) {
+      duplicates.push({ row: idx + 1, name, matchedOn: dupe });
+      return;
+    }
+    // Track this candidate so a CSV containing the same row twice
+    // doesn't insert both copies.
+    existing.push(candidate);
     inserts.push({
       name,
       role: trim(raw.role, 200),
@@ -63,10 +121,13 @@ export async function POST(req: NextRequest) {
   });
 
   if (inserts.length === 0) {
-    return NextResponse.json({ created: 0, skipped: incoming.length, errors }, { status: 400 });
+    return NextResponse.json({
+      created: 0,
+      skipped: incoming.length,
+      duplicates,
+      errors,
+    }, { status: duplicates.length > 0 ? 200 : 400 });
   }
-
-  const admin = getAdminSupabase();
   const CHUNK = 100;
   let created = 0;
   const insertedIds: string[] = [];
@@ -117,6 +178,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     created,
     skipped: incoming.length - created,
+    duplicates,
     errors,
   });
 }
