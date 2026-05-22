@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
   const admin = getAdminSupabase();
   const CHUNK = 100;
   let created = 0;
+  const insertedIds: string[] = [];
   for (let i = 0; i < inserts.length; i += CHUNK) {
     const slice = inserts.slice(i, i + CHUNK);
     const { error, data } = await admin.from('contacts').insert(slice).select('id');
@@ -77,6 +78,40 @@ export async function POST(req: NextRequest) {
       continue;
     }
     created += data?.length ?? 0;
+    for (const row of (data ?? []) as Array<{ id: string }>) insertedIds.push(row.id);
+  }
+
+  // Per-row 'Data Entry' touchpoint so each imported contact shows
+  // up in the outreach activity feed + home log-rain attributed to
+  // the importer. Insert logs in chunks too so a 500-row CSV
+  // doesn't blow the request body limit.
+  if (insertedIds.length > 0) {
+    const nowIso = new Date().toISOString();
+    const LOG_CHUNK = 100;
+    for (let i = 0; i < insertedIds.length; i += LOG_CHUNK) {
+      const slice = insertedIds.slice(i, i + LOG_CHUNK);
+      const { error: logErr } = await admin.from('contact_logs').insert(
+        slice.map((id) => ({
+          contact_id: id,
+          method: 'Data Entry',
+          comments: 'Contact added via CSV import.',
+          contacted_by: user.id,
+          contacted_at: nowIso,
+          duration_seconds: 0,
+        })),
+      );
+      if (logErr) {
+        console.warn('[contacts/import] data-entry log insert failed:', logErr.message);
+        // Don't include in user-facing errors[] — the contacts
+        // themselves landed; only the activity feed is impacted.
+      }
+    }
+    await admin.from('contacts').update({
+      last_contact_at: nowIso,
+      last_contact_by: user.id,
+      last_contact_method: 'Data Entry',
+      last_contact_comments: 'Contact added via CSV import.',
+    }).in('id', insertedIds);
   }
 
   return NextResponse.json({

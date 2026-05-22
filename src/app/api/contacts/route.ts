@@ -160,5 +160,32 @@ export async function POST(req: NextRequest) {
     .select('*')
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Credit the adder with a 'Data Entry' touchpoint so the new
+  // contact surfaces in the outreach activity feed (and the home
+  // log-rain) the same way an edit-fill does. Failure is logged
+  // but doesn't roll back the contact — losing the log row is
+  // less bad than refusing to create the contact.
+  if (data?.id) {
+    const nowIso = new Date().toISOString();
+    const { error: logErr } = await admin.from('contact_logs').insert({
+      contact_id: data.id,
+      method: 'Data Entry',
+      comments: 'Contact added.',
+      contacted_by: user.id,
+      contacted_at: nowIso,
+      duration_seconds: 0,
+    });
+    if (logErr) console.warn('[contacts] data-entry log insert failed:', logErr.message);
+    // Mirror the bump the PATCH path does so the row's 'last
+    // contact' column reflects the create-time touchpoint.
+    await admin.from('contacts').update({
+      last_contact_at: nowIso,
+      last_contact_by: user.id,
+      last_contact_method: 'Data Entry',
+      last_contact_comments: 'Contact added.',
+    }).eq('id', data.id);
+  }
+
   return NextResponse.json(data, { status: 201 });
 }
