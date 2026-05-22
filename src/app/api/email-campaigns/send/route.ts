@@ -115,7 +115,51 @@ export async function POST(req: NextRequest) {
   // sequentially so a single recipient's three writes
   // (recipients update + sends insert + contact_logs insert +
   // contacts update) remain ordered for that contact.
-  const MAX_PARALLEL = 6;
+  const MAX_PARALLEL = 4;
+
+  // Resend's free / default-tier limit is 5 requests/sec. The
+  // worker pool can fire faster than that under low latency, so we
+  // gate every Resend fetch through a sliding-window limiter that
+  // keeps the moving rate at ≤ RESEND_RPS per second. The buffer
+  // (subtracting one from the configured cap) leaves headroom for
+  // any retries we kick on a 429 so a retry doesn't immediately
+  // race back into the same limit.
+  const RESEND_RPS = 4;
+  const RESEND_WINDOW_MS = 1000;
+  const recentSends: number[] = [];
+  const acquireResendSlot = async () => {
+    while (true) {
+      const now = Date.now();
+      while (recentSends.length > 0 && now - recentSends[0] >= RESEND_WINDOW_MS) {
+        recentSends.shift();
+      }
+      if (recentSends.length < RESEND_RPS) {
+        recentSends.push(now);
+        return;
+      }
+      const wait = RESEND_WINDOW_MS - (now - recentSends[0]) + 5;
+      await new Promise((r) => setTimeout(r, Math.max(wait, 25)));
+    }
+  };
+
+  const sendViaResend = async (toEmail: string): Promise<Response> => {
+    await acquireResendSlot();
+    return fetch(RESEND_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from,
+        to: [toEmail],
+        subject: campaign.generated_subject,
+        html: campaign.generated_html,
+        reply_to: replyTo,
+      }),
+    });
+  };
+
   let cursor = 0;
   const handleOne = async (r: typeof recipients[number]) => {
     let ok = false;
@@ -128,39 +172,45 @@ export async function POST(req: NextRequest) {
       ok = true;
       responseText = 'simulated — RESEND_API_KEY not configured';
     } else {
-      try {
-        const res = await fetch(RESEND_URL, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from,
-            to: [r.email],
-            subject: campaign.generated_subject,
-            html: campaign.generated_html,
-            reply_to: replyTo,
-          }),
-        });
-        statusCode = res.status;
-        const txt = await res.text();
-        responseText = txt.slice(0, 2000);
-        if (res.ok) {
-          ok = true;
-          try {
-            const parsed = JSON.parse(txt) as { id?: string };
-            providerId = parsed.id ?? null;
-          } catch { /* non-JSON body — keep id null */ }
-        } else {
+      // Resend will still occasionally return 429 even with the
+      // local 5-req/sec limiter (clock skew, retries colliding with
+      // a concurrent campaign, etc). Retry transient 429s with
+      // exponential backoff before declaring the recipient failed.
+      const MAX_ATTEMPTS = 4;
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+        try {
+          const res = await sendViaResend(r.email);
+          statusCode = res.status;
+          const txt = await res.text();
+          responseText = txt.slice(0, 2000);
+          if (res.ok) {
+            ok = true;
+            errText = null;
+            try {
+              const parsed = JSON.parse(txt) as { id?: string };
+              providerId = parsed.id ?? null;
+            } catch { /* non-JSON body — keep id null */ }
+            break;
+          }
           // Keep the whole response body (capped at 4k) so the
           // finalize page's Provider Response panel can show the
           // marketer the full diagnostic, not just a teaser.
           errText = `HTTP ${res.status}: ${txt.slice(0, 4000)}`;
+          if (res.status !== 429 || attempt === MAX_ATTEMPTS) break;
+          // Respect Retry-After if Resend sends one; otherwise back
+          // off 500ms · 1s · 2s before retrying.
+          const retryAfterHdr = res.headers.get('retry-after');
+          const retryAfterSec = retryAfterHdr ? Number(retryAfterHdr) : NaN;
+          const backoffMs = Number.isFinite(retryAfterSec) && retryAfterSec > 0
+            ? Math.min(retryAfterSec * 1000, 5000)
+            : 500 * 2 ** (attempt - 1);
+          await new Promise((res2) => setTimeout(res2, backoffMs));
+        } catch (err) {
+          errText = err instanceof Error ? err.message : String(err);
+          responseText = errText;
+          if (attempt === MAX_ATTEMPTS) break;
+          await new Promise((res2) => setTimeout(res2, 500 * 2 ** (attempt - 1)));
         }
-      } catch (err) {
-        errText = err instanceof Error ? err.message : String(err);
-        responseText = errText;
       }
     }
 
