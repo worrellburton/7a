@@ -580,15 +580,38 @@ export default function HomeLogRain({
           }}
         >
           <div className="rounded-lg bg-foreground/95 text-white px-3 py-2 text-[11.5px] leading-snug shadow-lg max-w-[260px]">
-            <p className="font-semibold">
-              {hover.meta.by_name ?? 'A teammate'} · {methodLabel(hover.meta.method)}
-            </p>
-            <p className="text-white/75 mt-0.5">
-              {hover.meta.contact_name
-                ? <>with <span className="font-medium">{hover.meta.contact_name}</span></>
-                : <span className="italic">contact name not loaded</span>}
-            </p>
-            <p className="text-white/45 mt-1 text-[10px] tracking-wider uppercase">
+            <div className="flex items-center gap-2">
+              {/* Avatar of the rep who logged the touchpoint.
+                  Falls back to a monogram bubble when avatar_url
+                  is missing (e.g. realtime drops that haven't been
+                  enriched yet, or users without a profile photo). */}
+              {hover.meta.by_avatar ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={hover.meta.by_avatar}
+                  alt=""
+                  className="w-7 h-7 rounded-full object-cover ring-1 ring-white/15 shrink-0"
+                />
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className="w-7 h-7 rounded-full bg-white/10 text-white/70 flex items-center justify-center text-[11px] font-semibold shrink-0"
+                >
+                  {(hover.meta.by_name ?? '?').trim().slice(0, 1).toUpperCase()}
+                </span>
+              )}
+              <div className="min-w-0">
+                <p className="font-semibold truncate">
+                  {hover.meta.by_name ?? 'A teammate'} · {methodLabel(hover.meta.method)}
+                </p>
+                <p className="text-white/75 mt-0.5">
+                  {hover.meta.contact_name
+                    ? <>with <span className="font-medium">{hover.meta.contact_name}</span></>
+                    : <span className="italic">contact name not loaded</span>}
+                </p>
+              </div>
+            </div>
+            <p className="text-white/45 mt-1.5 text-[10px] tracking-wider uppercase">
               {timeOfDay(hover.meta.made_at)}
             </p>
           </div>
