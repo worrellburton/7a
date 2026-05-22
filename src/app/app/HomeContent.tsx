@@ -14,6 +14,7 @@ import JdSignatureNagModal from './JdSignatureNagModal';
 // import in source so the re-enable diff is one line.
 // import HomeClientsRow from './HomeClientsRow';
 import HomeOnlineOrbit, { type OrbitHorse } from './HomeOnlineOrbit';
+import HomeDailyLogsChip from './HomeDailyLogsChip';
 import HomeConnect4Nudge from './HomeConnect4Nudge';
 
 interface RecentUser {
@@ -559,12 +560,12 @@ export default function HomeContent() {
               </div>
             </div>
 
-            {/* RIGHT (top row): single "+" button that opens a small
-                dropdown with the two creation entry points. Hidden
-                for alumni — Feature Request + New Facilities are
-                staff-only flows and don't apply to the alumni home
-                experience. */}
-            <div ref={addMenuRef} className={`relative shrink-0 ${userKind === 'alumni' ? 'hidden' : ''}`}>
+            {/* Right cluster — just the create (+) button now. The
+                old log-rain toggle moved to a chip under the orbit
+                (HomeDailyLogsChip below) so the header reads
+                cleaner. */}
+            <div className={`shrink-0 ${userKind === 'alumni' ? 'hidden' : ''}`}>
+            <div ref={addMenuRef} className="relative">
               <button
                 type="button"
                 onClick={() => setAddMenuOpen((v) => !v)}
@@ -647,6 +648,13 @@ export default function HomeContent() {
             </div>
           </section>
         )}
+
+        {/* Daily-logs chip sits directly under the orbit. Clicking
+            opens /app/logs which renders the full-screen rain
+            visualisation (today's logs falling). Replaces the
+            ambient on-home rain layer + the header toggle the
+            chip used to live on. */}
+        {recentUsers.length > 0 && <HomeDailyLogsChip />}
         <HomeConnect4Nudge onOpponentChange={setC4OpponentId} />
 
         {/* Phase 6: action stack — pending signatures + signed JD,
