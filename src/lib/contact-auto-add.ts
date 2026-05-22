@@ -16,6 +16,7 @@ import {
   callGeminiForCandidates,
   cleanSuggestedContacts,
   loadRoster,
+  looksLikePersonName,
   type SuggestProvider,
   type SuggestedContact,
 } from './contact-suggest';
@@ -91,12 +92,30 @@ export async function autoAddOneContact(opts: {
   // name.
   const dedupCandidates = await fetchDedupCandidates(opts.admin);
 
-  const picked = cleaned.find((c) => !isDuplicate(c, dedupCandidates));
+  // Two-pass pick: prefer named individuals; fall back nowhere —
+  // the cron/lever paths should never silently insert a row whose
+  // `name` is a job title or org. If the whole batch is orgs, the
+  // run is a no-op and we'll pull a different batch next hour.
+  const eligible = cleaned.filter((c) => !isDuplicate(c, dedupCandidates));
+  const namedEligible = eligible.filter((c) => looksLikePersonName(c.name));
+  const picked = namedEligible[0];
   if (!picked) {
+    if (eligible.length === 0) {
+      return {
+        inserted: null,
+        provider,
+        reason: 'all_duplicates',
+        candidatesConsidered: cleaned.length,
+      };
+    }
+    // We had non-duplicate candidates but none were people — every
+    // one was a team / center / "& Associates" type. Report that
+    // distinctly so the lever can explain the no-op clearly.
     return {
       inserted: null,
       provider,
-      reason: 'all_duplicates',
+      reason: 'no_candidate',
+      error: 'All candidates were org / team names, not individual people. Try again or change the steer.',
       candidatesConsidered: cleaned.length,
     };
   }

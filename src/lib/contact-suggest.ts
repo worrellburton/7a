@@ -78,6 +78,8 @@ CRITICAL — admissions needs to actually CALL or EMAIL these people. Every cand
   - Prefer to SKIP that candidate and pick a different real organization where contact info IS publicly listed (a clinic's intake line, an interventionist's published practice email, a state-licensed therapist's directory entry, etc.).
   - If you keep a candidate where only one of the two is recoverable, set the unknown one to null AND list it inside "missing" so the admin can see the gap. Never fabricate a phone number or email — if you didn't see it on a real page, it goes in "missing".
 
+NAME RULE — strongly prefer the name of an ACTUAL PERSON (e.g. an interventionist's full name, a therapist's full name, a clinic owner's name) over a team / department / org name. "Sarah Lutz, LCSW" is good. "Admissions Team", "Intake Coordinator", "Royal Life Centers", "Heather R. Hayes & Associates" are NOT good — they're org or role labels, not people. If you can only surface a department for a given org, SKIP that org and pick a different one where a named clinician or owner is publicly listed.
+
 Output STRICT JSON only — no prose, no markdown fences. Shape:
 
 {
@@ -294,4 +296,85 @@ function normaliseTypeArray(value: unknown): string[] | null {
     out.push(t);
   }
   return out.length === 0 ? null : out;
+}
+
+// ─── Person-name heuristic ────────────────────────────────────────
+//
+// True when `name` reads like an actual human (first + last, maybe
+// with credentials after a comma) rather than a job title, team,
+// or organisation. Used by the unattended cron + lever and by the
+// "Only people with names" toggle in the Add-with-AI modal so we
+// never stash rows like "Admissions Team" or "Heather R. Hayes &
+// Associates, Inc." as contact records.
+//
+// Conservative on purpose — false negatives ("Mary Smith" gets
+// rejected) are cheap because the AI batch is small and we just
+// pull a different candidate; false positives ("Bridges Counseling
+// Center" gets accepted) are loud because they clog the CRM.
+
+const ROLE_BANLIST = new Set([
+  // job titles
+  'intake', 'admissions', 'coordinator', 'director', 'manager',
+  'specialist', 'team', 'department', 'desk', 'office', 'billing',
+  'reception', 'receptionist', 'staff', 'admin', 'administrator',
+  'support', 'concierge', 'liaison', 'representative', 'rep',
+  'counselor', 'therapist', 'clinician', 'nurse', 'doctor', 'dr',
+  'physician', 'practitioner', 'provider', 'professional',
+  // org-y words
+  'center', 'centers', 'centre', 'centres', 'clinic', 'clinics',
+  'services', 'recovery', 'wellness', 'counseling', 'counselling',
+  'institute', 'group', 'partners', 'foundation', 'house', 'home',
+  'healing', 'health', 'associates', 'consulting', 'treatment',
+  'inc', 'incorporated', 'llc', 'llp', 'pllc', 'corp', 'corporation',
+  'pc', 'pa', 'co', 'company', 'network', 'system', 'systems',
+  'solutions', 'partners', 'collective',
+  // explicit non-names
+  'unknown', 'tbd', 'main', 'general', 'info', 'contact', 'the',
+]);
+
+// Words/markers that immediately disqualify the string as a person
+// name regardless of what surrounds them — these are unambiguous
+// org signals.
+const ORG_REGEX = /\b(inc|llc|llp|pllc|p\.?c|p\.?a|corp|incorporated|associates|treatment|center[s]?|centre[s]?|clinics?|services?|consulting|institute|foundation|network|wellness|recovery|counseling|counselling)\b/i;
+
+function stripCleanWord(t: string): string {
+  return t.toLowerCase().replace(/[^a-z]/g, '');
+}
+
+export function looksLikePersonName(name: string | null | undefined): boolean {
+  if (!name) return false;
+  // Strip credentials after the first comma so "Eric McLaughlin,
+  // LCSW, CCMI-M" reduces to "Eric McLaughlin".
+  const namePart = name.split(',')[0].trim();
+  if (!namePart) return false;
+
+  // Hard rejections — these signals are reliable enough that any
+  // match disqualifies the candidate without looking at the rest.
+  if (/[&/]/.test(namePart)) return false;                  // "& Associates" / "Detox/PHP"
+  if (/\d/.test(namePart)) return false;                    // "Intervention 911"
+  if (ORG_REGEX.test(namePart)) return false;               // org-suffix tokens
+
+  const tokens = namePart.split(/\s+/).filter(Boolean);
+  // Need at least 2 word tokens; a person typically has first + last.
+  if (tokens.length < 2) return false;
+  // 5+ tokens before the comma — almost always an org name like
+  // "Royal Life Centers at The Haven".
+  if (tokens.length > 4) return false;
+
+  // First token has to look like a first name — capital-starting,
+  // letters/hyphens/apostrophes only. Lets through hyphens
+  // (Mary-Jane) and apostrophes (O'Brien).
+  if (!/^[A-Z][A-Za-z'-]*$/.test(tokens[0])) return false;
+
+  // Reject when every token is banlisted ("Intake Coordinator",
+  // "Front Desk", "Admissions Team").
+  const cleaned = tokens.map(stripCleanWord);
+  if (cleaned.every((t) => ROLE_BANLIST.has(t))) return false;
+
+  // Reject when 2+ tokens are banlisted — strong org signal
+  // ("Bridges Counseling Center" has 'Counseling' + 'Center').
+  const banCount = cleaned.filter((t) => ROLE_BANLIST.has(t)).length;
+  if (banCount >= 2) return false;
+
+  return true;
 }
