@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import JdReminderLever from './JdReminderLever';
 import LogReportLever from './LogReportLever';
+import AutoContactLever from './AutoContactLever';
 
 // Levers page — vertical stack of independent console cards, one
 // per lever, on a scrollable page.
@@ -127,6 +128,10 @@ export default function LeversContent() {
 
         <ConsoleCard label="Log Report" authorizedEmail={user.email}>
           <LogReportLever />
+        </ConsoleCard>
+
+        <ConsoleCard label="Auto-contact" authorizedEmail={user.email}>
+          <AutoContactLever />
         </ConsoleCard>
         {/* Future levers stack here as additional ConsoleCard
             children. Same chrome, independent state. */}

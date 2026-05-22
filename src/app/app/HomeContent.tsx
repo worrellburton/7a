@@ -472,7 +472,11 @@ export default function HomeContent() {
   }
 
   return (
-    <div data-home-no-scroll className="relative flex flex-col min-h-full overflow-x-clip">
+    // `isolation: isolate` scopes the negative z-index used by the
+    // ambient backdrop + the mobile log-rain layer to this stacking
+    // context so they stay BEHIND home-content elements rather than
+    // disappearing behind the body's background.
+    <div data-home-no-scroll className="relative flex flex-col min-h-full overflow-x-clip isolation-auto" style={{ isolation: 'isolate' }}>
       {/* Phase 3: ambient backdrop. Three soft warm orbs sit behind
           everything so the glass surfaces have something colorful to
           refract. Pointer-events off so they never trap clicks. */}
