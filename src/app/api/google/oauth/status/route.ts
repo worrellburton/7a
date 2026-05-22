@@ -1,19 +1,20 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
+import { getAdminSupabase } from '@/lib/supabase-server';
+import { requirePageAccess } from '@/lib/page-access';
 
-// GET /api/google/oauth/status — admin only.
-// Reports whether a Google refresh token is on file and which source
-// it came from (DB vs the legacy env-var fallback). Used by the
-// "Reconnect Google" UI to show the last-connected timestamp.
+// GET /api/google/oauth/status — readable by any user the
+// /app/analytics page is open to. Reports whether a Google refresh
+// token is on file and which source it came from (DB vs the legacy
+// env-var fallback). The Analytics page renders the "Connect
+// Google" banner based on this, so non-admin viewers who have been
+// granted /app/analytics need to read the status too (only the
+// /oauth/start + /oauth/callback writes stay admin-only).
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: row } = await supabase.from('users').select('is_admin').eq('id', user.id).maybeSingle();
-  if (!row?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const { isAdmin, isSuperAdmin, error: authError } = await requirePageAccess('/app/analytics');
+  if (authError) return authError;
 
   const admin = getAdminSupabase();
   const { data } = await admin
