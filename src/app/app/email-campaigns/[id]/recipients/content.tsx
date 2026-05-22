@@ -34,7 +34,24 @@ interface ContactRow {
   email: string;
   role: string | null;
   location: string | null;
+  // Type is a multi-value column on contacts (Detox, PHP, IOP, etc.).
+  // Surfaced here so the recipient picker can filter the list by
+  // touchpoint type — e.g. send a campaign only to Interventionists.
+  type: string[] | null;
 }
+
+// Canonical type-filter options. Matches the chips on the contact-
+// edit modal so the two surfaces feel like the same vocabulary.
+const TYPE_OPTIONS = [
+  'Detox',
+  'PHP',
+  'IOP',
+  'RTC',
+  'Outpatient',
+  'Extended Care',
+  'Interventionist',
+  'Therapist',
+] as const;
 
 export default function RecipientsContent({ campaignId }: { campaignId: string }) {
   const router = useRouter();
@@ -44,6 +61,17 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
+  // Selected type chips (Detox / PHP / IOP / …). Multi-select with
+  // OR semantics — a contact matches when ANY of its `type` values
+  // is in this set. Empty set = no type filter applied.
+  const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set());
+  const toggleType = (t: string) => {
+    setTypeFilter((prev) => {
+      const next = new Set(prev);
+      if (next.has(t)) next.delete(t); else next.add(t);
+      return next;
+    });
+  };
   const [loading, setLoading] = useState(true);
   const [calculating, setCalculating] = useState(false);
   const [continuing, setContinuing] = useState(false);
@@ -59,7 +87,7 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
           .eq('id', campaignId)
           .maybeSingle(),
         supabase.from('contacts')
-          .select('id, name, email, role, location')
+          .select('id, name, email, role, location, type')
           .not('email', 'is', null)
           .neq('email', '')
           .order('name', { ascending: true })
@@ -113,14 +141,22 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return contacts;
-    return contacts.filter((c) =>
-      c.name.toLowerCase().includes(q) ||
-      c.email.toLowerCase().includes(q) ||
-      (c.role ?? '').toLowerCase().includes(q) ||
-      (c.location ?? '').toLowerCase().includes(q),
-    );
-  }, [contacts, query]);
+    const hasTypes = typeFilter.size > 0;
+    if (!q && !hasTypes) return contacts;
+    return contacts.filter((c) => {
+      if (hasTypes) {
+        const ts = Array.isArray(c.type) ? c.type : [];
+        if (!ts.some((t) => typeFilter.has(t))) return false;
+      }
+      if (!q) return true;
+      return (
+        c.name.toLowerCase().includes(q)
+        || c.email.toLowerCase().includes(q)
+        || (c.role ?? '').toLowerCase().includes(q)
+        || (c.location ?? '').toLowerCase().includes(q)
+      );
+    });
+  }, [contacts, query, typeFilter]);
 
   const toggle = (id: string) => {
     setSelected((prev) => {
@@ -274,7 +310,7 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
             </button>
           </div>
         </header>
-        <div className="px-4 py-3 border-b border-black/5">
+        <div className="px-4 py-3 border-b border-black/5 space-y-2">
           <input
             type="text"
             value={query}
@@ -283,6 +319,40 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
             className="w-full px-3 py-1.5 rounded-md border border-black/10 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/30"
             style={{ fontFamily: 'var(--font-body)' }}
           />
+          {/* Type-filter chip row. Picks any combination — OR
+              semantics within the row, AND with the search box. */}
+          <div className="flex items-center gap-1.5 flex-wrap" style={{ fontFamily: 'var(--font-body)' }}>
+            <span className="text-[9.5px] font-bold tracking-[0.22em] uppercase text-foreground/45 mr-1">
+              Type
+            </span>
+            {TYPE_OPTIONS.map((t) => {
+              const on = typeFilter.has(t);
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => toggleType(t)}
+                  aria-pressed={on}
+                  className={`px-2 py-0.5 rounded-full border text-[11px] font-semibold transition-colors ${
+                    on
+                      ? 'border-primary bg-primary/10 text-primary'
+                      : 'border-black/10 bg-white text-foreground/65 hover:border-foreground/30 hover:text-foreground'
+                  }`}
+                >
+                  {t}
+                </button>
+              );
+            })}
+            {typeFilter.size > 0 && (
+              <button
+                type="button"
+                onClick={() => setTypeFilter(new Set())}
+                className="px-2 py-0.5 rounded-full text-[11px] font-semibold text-foreground/55 hover:text-foreground"
+              >
+                Clear types
+              </button>
+            )}
+          </div>
         </div>
         {loading ? (
           <p className="px-4 py-10 text-[12.5px] text-foreground/55 italic text-center" style={{ fontFamily: 'var(--font-body)' }}>
@@ -292,7 +362,9 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
           <p className="px-4 py-10 text-[12.5px] text-foreground/55 italic text-center" style={{ fontFamily: 'var(--font-body)' }}>
             {contacts.length === 0
               ? 'No contacts have email addresses yet. Add one from /app/outreach.'
-              : 'No contacts match that search.'}
+              : typeFilter.size > 0 && !query
+                ? `No contacts match ${Array.from(typeFilter).join(' · ')}.`
+                : 'No contacts match that filter.'}
           </p>
         ) : (
           <ul className="divide-y divide-black/5 max-h-[60vh] overflow-y-auto">
