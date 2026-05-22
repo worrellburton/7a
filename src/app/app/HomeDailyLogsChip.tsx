@@ -1,86 +1,84 @@
 'use client';
 
-// Minimal "logs today" indicator under the Online-today orbit on
-// /app. Clicking opens /app/logs — a dedicated full-screen rain
-// page so the visual flourish that used to live ambient on the
-// home page now has its own real estate. Hover surfaces a small
-// helper line so the affordance reads as 'click to open'.
-
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
 
-export default function HomeDailyLogsChip() {
-  const { user, session } = useAuth();
-  const [count, setCount] = useState<number | null>(null);
+// Small pill that sits just under the Online Orbit on the home page,
+// linking to /app/daily-logs. Reads the count + the historical
+// single-day record from /api/contacts/logs-today (the same endpoint
+// the dedicated page hydrates from) so a quick glance from home
+// answers "how many touches landed today?" and "did we beat the
+// record yet?" without leaving the dashboard.
 
-  // Initial fetch — uses the same /api/contact-logs/today endpoint
-  // the rain page consumes so the count matches what the lever
-  // preview / activity feed report.
+interface ChipPayload {
+  total: number;
+  record: { count: number; date: string } | null;
+}
+
+function fmtRecordDate(yyyyMmDd: string): string {
+  const [y, m, d] = yyyyMmDd.split('-').map(Number);
+  if (!y || !m || !d) return yyyyMmDd;
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+export default function HomeDailyLogsChip() {
+  const { session } = useAuth();
+  const [data, setData] = useState<ChipPayload | null>(null);
+
   useEffect(() => {
     if (!session?.access_token) return;
     let cancelled = false;
-    void (async () => {
+    (async () => {
       try {
-        const res = await fetch('/api/contact-logs/today', {
-          cache: 'no-store',
-          credentials: 'include',
-        });
-        if (!res.ok) return;
-        const json = (await res.json()) as { count?: number; logs?: unknown[] };
-        if (cancelled) return;
-        if (typeof json.count === 'number') setCount(json.count);
-        else if (Array.isArray(json.logs)) setCount(json.logs.length);
+        const r = await fetch('/api/contacts/logs-today', { credentials: 'include' });
+        if (!r.ok) return;
+        const j = (await r.json()) as ChipPayload;
+        if (!cancelled) setData(j);
       } catch {
-        // non-fatal — realtime will bring the number up to date
+        // Silent — chip stays absent if the fetch fails.
       }
     })();
     return () => { cancelled = true; };
   }, [session?.access_token]);
 
-  // Realtime — every new contact_logs row bumps the count by one
-  // until the next refresh. We don't worry about deletes; the
-  // initial fetch on each load re-anchors the number.
-  useEffect(() => {
-    if (!user?.id) return;
-    const channel = supabase
-      .channel(`home-daily-logs-chip-${user.id}-${Math.random().toString(36).slice(2, 7)}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'contact_logs' },
-        () => setCount((c) => (c == null ? 1 : c + 1)),
-      )
-      .subscribe();
-    return () => { void supabase.removeChannel(channel); };
-  }, [user?.id]);
+  if (!data) return null;
+
+  const beatRecord = data.record != null && data.total > data.record.count && data.total > 0;
 
   return (
-    <div className="flex justify-center">
+    <div className="flex flex-col items-center gap-1.5" style={{ fontFamily: 'var(--font-body)' }}>
       <Link
-        href="/app/logs"
-        aria-label="Open today's log rain"
-        title="Click to watch today's logs fall"
-        className="group inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-emerald-400/40 bg-emerald-50/80 text-emerald-700 text-[11px] font-semibold uppercase tracking-[0.18em] hover:border-emerald-500/70 hover:bg-emerald-100/90 hover:text-emerald-800 hover:shadow-sm transition-all"
-        style={{ fontFamily: 'var(--font-body)' }}
+        href="/app/daily-logs"
+        className="group inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-white/85 supports-[backdrop-filter]:bg-white/65 backdrop-blur-md px-3.5 py-1.5 shadow-[0_8px_22px_-12px_rgba(16,84,57,0.45)] hover:border-emerald-500/70 hover:shadow-[0_12px_26px_-12px_rgba(16,84,57,0.55)] transition-all"
+        title="See every log that landed today"
       >
-        <span aria-hidden="true">🪵</span>
-        <span>Daily logs</span>
-        <span
-          className={`inline-block w-1.5 h-1.5 rounded-full ${count != null ? 'bg-emerald-500' : 'bg-foreground/25'}`}
-          aria-hidden="true"
-        />
-        <span className="tabular-nums text-emerald-700/85">{count ?? '—'}</span>
-        {/* Hover-only nudge — invisible until pointer enters the
-            chip, then slides in as a quick reminder that the chip
-            is clickable. */}
-        <span
-          aria-hidden="true"
-          className="ml-0.5 text-emerald-700/40 opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          →
+        <span aria-hidden className="text-base leading-none">🪵</span>
+        <span className="text-[10.5px] font-bold uppercase tracking-[0.22em] text-emerald-700">
+          Daily logs
         </span>
+        <span aria-hidden className="text-emerald-700/40 text-[9px]">•</span>
+        <span className="text-[13px] font-bold text-emerald-700 tabular-nums leading-none">
+          {data.total}
+        </span>
+        <span aria-hidden className="ml-0.5 text-emerald-700/60 text-[10px] transition-transform duration-200 group-hover:translate-x-0.5">→</span>
       </Link>
+
+      {data.record && (
+        <p className="text-[10px] text-foreground/55 tabular-nums">
+          {beatRecord ? (
+            <>
+              <span className="font-bold uppercase tracking-wider text-amber-700">New record!</span>
+              <span className="ml-1.5 text-foreground/50">previous {data.record.count} · {fmtRecordDate(data.record.date)}</span>
+            </>
+          ) : (
+            <>
+              <span className="font-semibold uppercase tracking-wider text-foreground/45 text-[9.5px]">Daily record</span>
+              <span className="ml-1.5">{data.record.count} on {fmtRecordDate(data.record.date)}</span>
+            </>
+          )}
+        </p>
+      )}
     </div>
   );
 }
