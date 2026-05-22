@@ -5977,7 +5977,11 @@ function SuggestWithClaudeModal({
   type Phase = 'prompt' | 'loading' | 'review' | 'submitting' | 'error';
   const [phase, setPhase] = useState<Phase>('prompt');
   const [steer, setSteer] = useState('');
-  const [count, setCount] = useState(8);
+  // Locked to 5 for now — Claude + web_search is cost-bounded by
+  // request count, so we cap small until we've sized real-world
+  // usage. The 8/10/15/25/50 options stay in the dropdown but are
+  // disabled so the affordance still hints at where this goes.
+  const [count, setCount] = useState(5);
   const [suggestions, setSuggestions] = useState<ClaudeSuggestion[]>([]);
   // Phase 6: per-row checked state — a Set of indices into `suggestions`.
   // Pre-populated with every index when suggestions land so admissions
@@ -6115,11 +6119,11 @@ function SuggestWithClaudeModal({
           <ModalField label="How many to suggest">
             <select value={count} onChange={(e) => setCount(parseInt(e.target.value, 10))} className="modal-input">
               <option value={5}>5</option>
-              <option value={8}>8</option>
-              <option value={10}>10</option>
-              <option value={15}>15</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
+              <option value={8} disabled>8 — coming soon</option>
+              <option value={10} disabled>10 — coming soon</option>
+              <option value={15} disabled>15 — coming soon</option>
+              <option value={25} disabled>25 — coming soon</option>
+              <option value={50} disabled>50 — coming soon</option>
             </select>
           </ModalField>
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-black/5">
