@@ -117,6 +117,11 @@ export async function GET() {
   });
 
   // ── Leaderboard for today ────────────────────────────────────
+  // Always returns up to TOP_N entries. If fewer teammates have
+  // logged than TOP_N, pad with active users who haven't logged
+  // yet (alphabetical) and mark them placeholder=true so the UI
+  // can render them dimmed with a "waiting" label.
+  const TOP_N = 5;
   const lbAgg = new Map<string, { logs: number; durationSeconds: number }>();
   for (const l of todayLogs) {
     if (!l.contacted_by) continue;
@@ -125,7 +130,7 @@ export async function GET() {
     slot.durationSeconds += l.duration_seconds ?? 0;
     lbAgg.set(l.contacted_by, slot);
   }
-  const leaderboard = Array.from(lbAgg.entries())
+  const realLeaders = Array.from(lbAgg.entries())
     .map(([userId, slot]) => {
       const u = usersById.get(userId);
       return {
@@ -134,13 +139,43 @@ export async function GET() {
         avatarUrl: u?.avatar_url ?? null,
         logs: slot.logs,
         durationSeconds: slot.durationSeconds,
+        placeholder: false,
       };
     })
     .sort((a, b) => {
       if (a.logs !== b.logs) return b.logs - a.logs;
       if (a.durationSeconds !== b.durationSeconds) return b.durationSeconds - a.durationSeconds;
       return a.name.localeCompare(b.name);
-    });
+    })
+    .slice(0, TOP_N);
+
+  // Pad with active teammates who haven't logged today, so the
+  // scoreboard always shows up to TOP_N slots. Exclude anyone
+  // already on the leaderboard.
+  type LeaderRow = typeof realLeaders[number];
+  let leaderboard: LeaderRow[] = realLeaders;
+  if (realLeaders.length < TOP_N) {
+    const onBoard = new Set(realLeaders.map((r) => r.userId));
+    const { data: actives } = await admin
+      .from('users')
+      .select('id, full_name, email, avatar_url')
+      .eq('status', 'active')
+      .order('full_name', { ascending: true });
+    const padding: LeaderRow[] = [];
+    for (const u of (actives ?? []) as UserLite[]) {
+      if (onBoard.has(u.id)) continue;
+      padding.push({
+        userId: u.id,
+        name: u.full_name?.trim() || u.email || 'Teammate',
+        avatarUrl: u.avatar_url ?? null,
+        logs: 0,
+        durationSeconds: 0,
+        placeholder: true,
+      });
+      if (realLeaders.length + padding.length >= TOP_N) break;
+    }
+    leaderboard = [...realLeaders, ...padding];
+  }
 
   // ── Historical daily record ──────────────────────────────────
   // Bucket every contact_logs row by Phoenix calendar day and pick

@@ -33,6 +33,10 @@ interface LeaderboardEntry {
   avatarUrl: string | null;
   logs: number;
   durationSeconds: number;
+  // True when this row is padding (active teammate who hasn't
+  // logged today) so the API can return 5 board slots even when
+  // fewer than 5 teammates have logged.
+  placeholder?: boolean;
 }
 
 interface DailyLogsPayload {
@@ -229,12 +233,14 @@ export default function DailyLogsContent() {
 
       {/* The rain. Pointer-events: none on the layer so hovering only
           fires on each individual 🪵 (set to pointer-events: auto in
-          the .daily-log-pin class below). Fixed/absolute inset 0 so
-          logs can fall freely without inflating page layout — the
-          scoreboard below renders in normal flow underneath. */}
+          the .daily-log-pin class below). z-40 puts every log + its
+          tooltip ABOVE the scoreboard card (z-30) so a log behind the
+          card surface still shows its tooltip when hovered — and so
+          every log on the page is reachable, not just the ones outside
+          the scoreboard's bounding box. */}
       <div
         aria-hidden={false}
-        className="pointer-events-none absolute inset-0 z-10"
+        className="pointer-events-none absolute inset-0 z-40"
         role="list"
         aria-label={`${data?.total ?? 0} daily logs`}
       >
@@ -272,24 +278,40 @@ export default function DailyLogsContent() {
         ))}
       </div>
 
-      {/* Scoreboard — slides under the headline / rain. Sits in
-          normal flow so the page scrolls past the rain and into the
-          leaderboard. */}
-      <div className="relative z-30 max-w-3xl mx-auto px-4 sm:px-6 pt-72 sm:pt-80 pb-12" style={{ fontFamily: 'var(--font-body)' }}>
-        <section className="rounded-2xl border border-black/10 bg-white/85 backdrop-blur-sm shadow-[0_18px_40px_-24px_rgba(60,48,42,0.35)] overflow-hidden">
-          <header className="px-5 py-4 border-b border-black/5 flex items-baseline justify-between gap-2">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/55">
-                Today&apos;s scoreboard
-              </p>
-              <h2 className="mt-0.5 text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
-                Log leaders
-              </h2>
-            </div>
-            <span className="text-[10.5px] tabular-nums text-foreground/45">
-              {data?.leaderboard.length ?? 0} {(data?.leaderboard.length ?? 0) === 1 ? 'teammate' : 'teammates'}
-            </span>
-          </header>
+      {/* Scoreboard — overlay on top of the rain layer. The OUTER
+          wrapper is pointer-events-none so logs that fall behind the
+          card stay hoverable through it (the card is semi-transparent
+          and you can see those logs through the bg-white/65). The
+          inner card flips pointer-events back on for itself so its
+          content is still selectable / readable. */}
+      <div
+        className="relative z-30 max-w-2xl mx-auto px-4 sm:px-6 pt-72 sm:pt-80 pb-12 pointer-events-none"
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        {/* Card stays pointer-events-none so logs behind its
+            translucent surface can still be hovered through it. The
+            card has no interactive children (no buttons / links / form
+            inputs) so losing text selection here is an acceptable
+            trade for keeping every log reachable. */}
+        <section className="pointer-events-none rounded-2xl border border-black/10 bg-white/65 supports-[backdrop-filter]:bg-white/55 backdrop-blur-md shadow-[0_18px_40px_-24px_rgba(60,48,42,0.35)] overflow-hidden">
+          {(() => {
+            const realCount = (data?.leaderboard ?? []).filter((r) => !r.placeholder).length;
+            return (
+              <header className="px-5 py-4 border-b border-black/5 flex items-baseline justify-between gap-2">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/55">
+                    Today&apos;s scoreboard <span className="ml-1 text-emerald-700">· top 5</span>
+                  </p>
+                  <h2 className="mt-0.5 text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+                    Log leaders
+                  </h2>
+                </div>
+                <span className="text-[10.5px] tabular-nums text-foreground/45">
+                  {realCount} {realCount === 1 ? 'teammate' : 'teammates'} logged
+                </span>
+              </header>
+            );
+          })()}
 
           {!data ? (
             <p className="px-5 py-8 text-[12px] italic text-foreground/45 text-center">Loading…</p>
@@ -299,8 +321,10 @@ export default function DailyLogsContent() {
             </p>
           ) : (
             <ol className="divide-y divide-black/5">
-              {data.leaderboard.map((row, idx) => {
-                const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : null;
+              {data.leaderboard.slice(0, 5).map((row, idx) => {
+                const medal = !row.placeholder
+                  ? (idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : null)
+                  : null;
                 const initials = (row.name || '?')
                   .split(/\s+/)
                   .filter(Boolean)
@@ -308,11 +332,11 @@ export default function DailyLogsContent() {
                   .map((p) => p[0]?.toUpperCase() ?? '')
                   .join('') || '?';
                 const topShare = data.leaderboard[0]?.logs ?? 1;
-                const barPct = Math.max(6, Math.round((row.logs / topShare) * 100));
+                const barPct = row.placeholder ? 0 : Math.max(6, Math.round((row.logs / topShare) * 100));
                 return (
                   <li
                     key={row.userId}
-                    className="flex items-center gap-3 px-5 py-3 hover:bg-warm-bg/40 transition-colors"
+                    className={`flex items-center gap-3 px-5 py-3 transition-colors ${row.placeholder ? 'opacity-55 hover:opacity-75' : 'hover:bg-warm-bg/40'}`}
                   >
                     <span
                       className="shrink-0 w-7 text-center text-[12px] font-bold tabular-nums text-foreground/55"
@@ -325,7 +349,7 @@ export default function DailyLogsContent() {
                       <img
                         src={row.avatarUrl}
                         alt=""
-                        className="shrink-0 w-8 h-8 rounded-full object-cover border border-white shadow-sm"
+                        className={`shrink-0 w-8 h-8 rounded-full object-cover border border-white shadow-sm ${row.placeholder ? 'grayscale' : ''}`}
                       />
                     ) : (
                       <span className="shrink-0 w-8 h-8 rounded-full bg-primary/15 text-primary text-[11px] font-bold flex items-center justify-center border border-white shadow-sm">
@@ -334,22 +358,26 @@ export default function DailyLogsContent() {
                     )}
                     <div className="min-w-0 flex-1">
                       <p className="text-[13px] font-semibold text-foreground truncate">{row.name}</p>
-                      <div className="mt-1 h-1.5 bg-warm-bg/70 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-primary to-amber-500 rounded-full"
-                          style={{ width: `${barPct}%` }}
-                        />
-                      </div>
+                      {row.placeholder ? (
+                        <p className="mt-0.5 text-[10px] italic text-foreground/45">No logs yet today</p>
+                      ) : (
+                        <div className="mt-1 h-1.5 bg-warm-bg/70 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-gradient-to-r from-primary to-amber-500 rounded-full"
+                            style={{ width: `${barPct}%` }}
+                          />
+                        </div>
+                      )}
                     </div>
                     <div className="shrink-0 text-right">
                       <p
-                        className="text-[18px] font-bold text-foreground tabular-nums leading-none"
+                        className={`text-[18px] font-bold tabular-nums leading-none ${row.placeholder ? 'text-foreground/35' : 'text-foreground'}`}
                         style={{ fontFamily: 'var(--font-display)' }}
                       >
-                        {row.logs}
+                        {row.placeholder ? '—' : row.logs}
                       </p>
                       <p className="mt-0.5 text-[10px] uppercase tracking-wider text-foreground/45">
-                        {fmtDuration(row.durationSeconds)}
+                        {row.placeholder ? '' : fmtDuration(row.durationSeconds)}
                       </p>
                     </div>
                   </li>
