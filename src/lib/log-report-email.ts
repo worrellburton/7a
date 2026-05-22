@@ -154,8 +154,8 @@ function header(data: LogReportData): string {
         <p style="font-family:${FONT_BODY};font-size:13.5px;color:${INK_MUTE};margin:0 0 16px 0;">
           ${escapeHtml(dateLine)}
         </p>
-        <p style="font-family:${FONT_BODY};font-size:13px;line-height:1.6;color:${INK_MUTE};margin:0 auto;max-width:440px;">
-          A <strong style="color:${INK};font-weight:600;">log</strong> is one recorded touchpoint with a contact &mdash; a phone call, an in-person visit, a text, an email, or a dropped-off voicemail. Every time a teammate logs an interaction in Outreach, it adds to this week&rsquo;s total.
+        <p style="font-family:${FONT_BODY};font-size:13px;line-height:1.6;color:${INK_MUTE};margin:0 auto;max-width:460px;">
+          A <strong style="color:${INK};font-weight:600;">log</strong> is one recorded interaction with a contact &mdash; a phone call, an in-person visit, a text, an email, a dropped-off voicemail, a <strong style="color:${INK};font-weight:600;">new contact added</strong>, or a previously-empty field <strong style="color:${INK};font-weight:600;">filled in</strong>. Outreach touches count toward the headline; adds and field fills count as <em>data work</em> in the breakdowns below.
         </p>
       </td>
     </tr>
