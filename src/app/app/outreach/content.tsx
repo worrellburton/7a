@@ -21,6 +21,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { createPortal } from 'react-dom';
 import { DepartmentPageNav } from '../DepartmentPageNav';
 import { SearchSelectCell } from '@/components/SearchSelectCell';
+import { looksLikePersonName } from '@/lib/contact-suggest';
 import {
   CONTACT_METHODS,
   CONTACT_METHOD_BY_VALUE,
@@ -6118,6 +6119,12 @@ function SuggestWithClaudeModal({
   // admin can still pick them up if they want to fill the gap by
   // hand.
   const [strictContactInfo, setStrictContactInfo] = useState(true);
+  // When ON (default), candidates whose `name` looks like a team /
+  // org / job title (e.g. "Admissions Team", "Heather R. Hayes &
+  // Associates") are filtered out of the review list. The picker
+  // still posts to bulk with the user's selections — this is a
+  // visibility filter, not a hard server-side gate.
+  const [onlyNamedPeople, setOnlyNamedPeople] = useState(true);
   // Surface what Claude omitted vs what it returned. Lets us say
   // "Claude could not find phone+email for 12 of 25 candidates" and
   // explain why the count is short.
@@ -6301,15 +6308,18 @@ function SuggestWithClaudeModal({
       )}
 
       {phase === 'review' && (() => {
-        // Build the list to render based on the strict toggle. The
+        // Build the list to render based on the two toggles. The
         // checkbox state is keyed by original index so toggling
-        // strict doesn't lose the user's selections.
-        const visible = strictContactInfo
-          ? suggestions
-              .map((s, i) => ({ s, i }))
-              .filter(({ s }) => s.missing.length === 0)
-          : suggestions.map((s, i) => ({ s, i }));
+        // either filter doesn't lose the user's selections.
+        const visible = suggestions
+          .map((s, i) => ({ s, i }))
+          .filter(({ s }) => {
+            if (strictContactInfo && s.missing.length > 0) return false;
+            if (onlyNamedPeople && !looksLikePersonName(s.name)) return false;
+            return true;
+          });
         const completeCount = suggestions.filter((s) => s.missing.length === 0).length;
+        const orgCount = suggestions.filter((s) => !looksLikePersonName(s.name)).length;
         return (
         <div className="px-0 sm:px-0 py-0">
           <div className="px-6 pt-5 pb-3 border-b border-black/5">
@@ -6349,6 +6359,35 @@ function SuggestWithClaudeModal({
             {missingCount === 0 && (
               <p className="mt-2 text-[11px] text-emerald-700">✓ Every candidate came back with both a phone and an email.</p>
             )}
+            {/* Org / team filter — defaults ON so the review list
+                doesn't surface things like 'Admissions Team' or
+                'Heather R. Hayes & Associates, Inc.' (org names
+                that slipped through the prompt). Toggling off
+                surfaces the org-y rows too. */}
+            <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-3 py-2 rounded-lg border border-black/10 bg-warm-bg/40 text-[11.5px] text-foreground/75">
+              <span>
+                {orgCount > 0 && onlyNamedPeople ? (
+                  <>
+                    <span className="font-semibold">{orgCount}</span> candidate{orgCount === 1 ? '' : 's'} read as team / org names (e.g. &quot;Admissions Team&quot;) and {orgCount === 1 ? 'is' : 'are'} hidden by default — we only want named people in the CRM.
+                  </>
+                ) : orgCount > 0 ? (
+                  <>
+                    <span className="font-semibold">{orgCount}</span> candidate{orgCount === 1 ? '' : 's'} read as team / org names. Turn the toggle back on to hide them.
+                  </>
+                ) : (
+                  <>All candidates have an individual person&apos;s name. ✓</>
+                )}
+              </span>
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none shrink-0">
+                <input
+                  type="checkbox"
+                  checked={onlyNamedPeople}
+                  onChange={(e) => setOnlyNamedPeople(e.target.checked)}
+                  className="accent-primary w-3.5 h-3.5"
+                />
+                <span className="font-medium">Only add people with names</span>
+              </label>
+            </div>
           </div>
           <ul className="divide-y divide-black/5 max-h-[55vh] overflow-y-auto">
             {visible.map(({ s, i }) => {
