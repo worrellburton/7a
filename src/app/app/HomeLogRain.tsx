@@ -64,26 +64,36 @@ interface Particle {
 
 const STORAGE_KEY = 'sa.home.show_log_rain';
 const LAST_SEEN_KEY = 'sa.home.log_rain.last_seen_at';
-// Mobile gets lower particle ceilings + a cheaper collision loop so
-// the rAF can hold 60 fps on midrange phones. Desktop keeps the
-// richer defaults.
 const MOBILE_BREAKPOINT_PX = 640;
-const MAX_PARTICLES_DESKTOP = 150;
-// 40 (not 80) on phones. Even with collision iters lowered to 2,
-// midrange mobile devices stutter at 60+ particles because the
-// O(n²) pass dominates the rAF frame; 40 keeps the pile reading
-// as 'piled' while leaving headroom for jank-free scroll + the
-// orbit's ring animation.
-const MAX_PARTICLES_MOBILE = 40;
-const COLLISION_ITERS_DESKTOP = 3;
+// Desktop: a real pile but bounded — 120 is more than enough to
+// read as 'today's logs piled up' without flooding the rAF.
+// Mobile: static layout (no rAF), tighter cap to keep the DOM
+// span list short on phones.
+const MAX_PARTICLES_DESKTOP = 120;
+const MAX_PARTICLES_MOBILE = 30;
+// 4 collision iters give noticeably tighter packing than 3 with
+// no measurable rAF cost on desktop. Mobile uses static layout
+// so the iter constant is unused there.
+const COLLISION_ITERS_DESKTOP = 4;
 const COLLISION_ITERS_MOBILE = 2;
 const GRAVITY = 0.55;          // px/frame²
-const REST_VELOCITY = 0.15;    // below this, particle "rests" on the pile
-const RESTITUTION = 0.18;      // bounce loss on floor / collisions
-const FRICTION = 0.985;        // air drag per frame
-const ROT_DRAG = 0.97;         // angular velocity drag
-const BACKFILL_STAGGER_MS = 80;// ms between live-replay drops
+// Lower restitution = less bounce = pile settles faster + flatter.
+// Old value (0.18) had visible jitter as logs landed; 0.08 reads
+// as 'wood lands on wood' (almost no bounce).
+const RESTITUTION = 0.08;
+const REST_VELOCITY = 0.4;     // velocity threshold to call a particle settled (raised from 0.15 so we stop integrating sooner)
+const FRICTION = 0.97;         // air drag per frame (raised from 0.985 so horizontal velocity bleeds off faster — keeps the pile centred instead of drifting)
+const ROT_DRAG = 0.93;         // angular velocity drag (raised so rotation calms quickly)
+const BACKFILL_STAGGER_MS = 50;// ms between live-replay drops
 const TAP_TOOLTIP_MS = 1800;   // touch-tap shows tooltip for this long
+// Spawn x is constrained to a centred column so the pile heaps
+// in the middle instead of spanning the whole viewport. 0.30
+// means spawns land between 30% and 70% of the container width.
+const SPAWN_X_INSET = 0.30;
+// Pile floor sits this fraction up from the container's bottom
+// so the heap reads as 'on the desert floor' beneath the orbit,
+// not glued to the page footer.
+const FLOOR_INSET_FRAC = 0.06;
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -320,19 +330,29 @@ export default function HomeLogRain({
     // Bigger emojis on mobile, not smaller — they need to actually
     // be visible + tappable on a small viewport. Pile density is
     // capped by MAX_PARTICLES_MOBILE so the screen doesn't fill
-    // up.
+    // up. Desktop emoji size is slightly larger now (18-22 vs the
+    // old 16-22) so the pile reads as 'logs' from across the room.
     const fontSize = isMobile
       ? 18 + Math.random() * 6   // 18–24px on mobile
-      : 16 + Math.random() * 6;  // 16–22px on desktop
+      : 18 + Math.random() * 4;  // 18–22px on desktop
     const r = fontSize * 0.7;
 
-    // Spawn x: spread across the inner 70–80% of the width so logs
-    // don't pile up only against the side walls. Mobile static
-    // path ignores x/y entirely; default to 0s when size isn't
-    // measured (e.g. early-mount mobile spawn before layout).
+    // Spawn x: constrained to the centred 40% of the container
+    // (30%–70%) so the pile heaps in the middle of the screen
+    // instead of spanning the full viewport. The wider 12-88%
+    // spawn used to produce a thin horizontal wave; this column
+    // gives a proper mound. Mobile static path ignores x/y
+    // entirely; default to 0s when size isn't measured (early-
+    // mount mobile spawn before layout).
     const width = size?.w ?? 0;
-    const xPad = width * 0.12;
-    const spawnX = width > 0 ? xPad + Math.random() * (width - xPad * 2) : 0;
+    const xMin = width * SPAWN_X_INSET;
+    const xMax = width * (1 - SPAWN_X_INSET);
+    const spawnX = width > 0 ? xMin + Math.random() * (xMax - xMin) : 0;
+
+    // Floor sits FLOOR_INSET_FRAC up from the container's bottom
+    // so the pile reads as 'on the desert floor below the orbit',
+    // not glued to the page footer.
+    const floorY = (size?.h ?? 0) * FLOOR_INSET_FRAC;
 
     if (opts?.preSettled) {
       // "Already seen" — drop straight onto the floor with zero
@@ -343,14 +363,14 @@ export default function HomeLogRain({
         id: meta.id,
         meta,
         x: spawnX,
-        y: r + Math.random() * 3,       // sitting on the floor
+        y: floorY + r + Math.random() * 3,
         vx: 0,
         vy: 0,
         r,
-        rot: (Math.random() - 0.5) * 40,
+        rot: (Math.random() - 0.5) * 30,  // less rotation — pile reads as 'stacked', not 'tumbled'
         rotVel: 0,
         size: fontSize,
-        settled: false,                 // let physics resolve overlaps once
+        settled: false,                   // let physics resolve overlaps once
         bornAt: performance.now(),
       };
       particlesRef.current.push(p);
@@ -363,11 +383,14 @@ export default function HomeLogRain({
         meta,
         x: spawnX,
         y: spawnY,
-        vx: (Math.random() - 0.5) * 1.2,
+        // Less horizontal jitter so the fall reads as 'dropped',
+        // not 'thrown'. Vertical impulse stays so the fall feels
+        // physical right away.
+        vx: (Math.random() - 0.5) * 0.6,
         vy: opts?.atRandom ? -1.5 - Math.random() * 0.8 : -2.0 - Math.random() * 1.0,
         r,
-        rot: Math.random() * 60 - 30,
-        rotVel: (Math.random() - 0.5) * 4,
+        rot: Math.random() * 40 - 20,     // narrower rot range so logs land flatter
+        rotVel: (Math.random() - 0.5) * 2,
         size: fontSize,
         settled: false,
         bornAt: performance.now(),
@@ -383,6 +406,15 @@ export default function HomeLogRain({
       const removed = particlesRef.current.splice(0, particlesRef.current.length - cap);
       for (const x of removed) seenIdsRef.current.delete(x.id);
     }
+
+    // Bump the render tick on every spawn so the React tree
+    // reflects the new particle. On desktop the rAF loop also
+    // bumps every frame, so this is a no-op overhead; on mobile
+    // (no rAF loop in the static-pile branch) it's the ONLY
+    // signal that pulls the new particle into the DOM — without
+    // it the mobile pile renders as empty even with 100+ entries
+    // in the ref.
+    setRenderTick((n) => (n + 1) % 1_000_000);
   }, [size, isMobile]);
 
   // ─── Phase 5: backfill today's logs on mount ───────────────────────
@@ -568,9 +600,15 @@ export default function HomeLogRain({
       }
 
       const ps = particlesRef.current;
-      const floorY = 0; // bottom of the layer in our flipped frame
-      const leftWall = 0;
-      const rightWall = size.w;
+      // Floor sits FLOOR_INSET_FRAC up from the container's bottom
+      // so the pile reads as a base layer rather than touching the
+      // page footer. Walls are narrower than the full width too —
+      // we constrain the pile column so a log can't drift to the
+      // edge of the screen, only to the edge of the heap zone.
+      const floorY = (size?.h ?? 0) * FLOOR_INSET_FRAC;
+      const wallInset = (size?.w ?? 0) * 0.18;
+      const leftWall = wallInset;
+      const rightWall = (size?.w ?? 0) - wallInset;
 
       // Integrate.
       for (const p of ps) {
@@ -593,17 +631,21 @@ export default function HomeLogRain({
           p.vx = -p.vx * RESTITUTION;
         }
 
-        // Floor
+        // Floor — clamp on landing, kill most of the bounce, drop
+        // horizontal momentum quickly so logs don't skid sideways
+        // out of the pile column.
         if (p.y - p.r < floorY) {
           p.y = floorY + p.r;
           p.vy = -p.vy * RESTITUTION;
-          p.vx *= 0.9;
-          p.rotVel *= 0.5;
+          p.vx *= 0.6;                  // was 0.9 — kills skid
+          p.rotVel *= 0.3;              // was 0.5 — kills wobble
           if (Math.abs(p.vy) < REST_VELOCITY && Math.abs(p.vx) < REST_VELOCITY) {
-            p.vy = 0; p.vx = 0; p.rotVel *= 0.4;
-            // Don't mark settled yet — wait until collisions also
-            // calm down. Otherwise an incoming top-falling log
-            // wouldn't push this one out of the way.
+            p.vy = 0; p.vx = 0; p.rotVel = 0;
+            // Mark settled immediately when at the floor + slow.
+            // Was 'wait for collisions to also calm down' — that
+            // never actually happened in practice and left the
+            // pile twitching forever.
+            p.settled = true;
           }
         }
       }
@@ -648,12 +690,14 @@ export default function HomeLogRain({
         }
       }
 
-      // Settle pass: anything that's barely moving and resting on
-      // the floor (or on another settled particle) goes inactive.
+      // Settle pass: anything that's barely moving goes inactive,
+      // regardless of whether it's at the floor or resting on
+      // another particle. Without this the pile's upper layer
+      // jitters indefinitely as new drops nudge old ones.
       for (const p of ps) {
         if (p.settled) continue;
         const slow = Math.abs(p.vx) < REST_VELOCITY && Math.abs(p.vy) < REST_VELOCITY;
-        if (slow && p.y - p.r <= 1) {
+        if (slow) {
           p.settled = true;
           p.vx = 0; p.vy = 0; p.rotVel = 0;
         }
@@ -707,11 +751,11 @@ export default function HomeLogRain({
         // spawn capper).
         <div
           ref={containerRef}
-          className="fixed inset-x-0 bottom-0 -z-10 overflow-hidden pointer-events-none px-2"
-          style={{ maxHeight: '40vh' }}
+          className="fixed inset-x-0 bottom-0 -z-10 overflow-hidden pointer-events-none px-3"
+          style={{ maxHeight: '35vh' }}
           aria-hidden="true"
         >
-          <div className="flex flex-wrap-reverse items-end justify-center gap-x-1 gap-y-0.5 pb-2">
+          <div className="flex flex-wrap-reverse items-end justify-center gap-x-0.5 gap-y-0 pb-3">
             {particles.map((p, idx) => (
               <span
                 key={p.id}
@@ -740,15 +784,25 @@ export default function HomeLogRain({
         // ─── Desktop: physics-based rain ──────────────────────────────
         // Absolute inside the centerpiece, full physics loop. The
         // orbit at z-50 inside the same stacking context tucks the
-        // rain behind it.
+        // rain behind it. Max-width caps the pile column on wide
+        // monitors — without this, a 1600px viewport spread the
+        // pile across the full screen as a thin wave instead of
+        // a centred mound.
         <div
           ref={containerRef}
-          className="absolute inset-0 z-0 overflow-hidden pointer-events-none"
+          className="absolute inset-x-0 bottom-0 top-0 z-0 overflow-hidden pointer-events-none mx-auto"
+          style={{ maxWidth: '900px' }}
           aria-hidden="true"
         >
           {size && particles.map((p) => {
             const cssLeft = p.x;
             const cssTop = size.h - p.y;
+            // Settled logs get a slightly tighter shadow + no
+            // will-change (frees compositor layers once the
+            // particle stops moving).
+            const shadow = p.settled
+              ? 'drop-shadow(0 1px 2px rgba(70, 40, 20, 0.22))'
+              : 'drop-shadow(0 3px 5px rgba(70, 40, 20, 0.18))';
             return (
               <span
                 key={p.id}
@@ -759,9 +813,9 @@ export default function HomeLogRain({
                   transform: `translate3d(${cssLeft - p.size / 2}px, ${cssTop - p.size / 2}px, 0) rotate(${p.rot}deg)`,
                   fontSize: `${p.size}px`,
                   lineHeight: 1,
-                  filter: 'drop-shadow(0 2px 3px rgba(70, 40, 20, 0.18))',
+                  filter: shadow,
                   cursor: 'help',
-                  willChange: 'transform',
+                  willChange: p.settled ? 'auto' : 'transform',
                   userSelect: 'none',
                 }}
                 onMouseEnter={(e) => openTooltipForRect(p.meta, e.currentTarget.getBoundingClientRect())}
