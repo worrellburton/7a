@@ -383,12 +383,6 @@ export default function HomeLogRain({
       const removed = particlesRef.current.splice(0, particlesRef.current.length - cap);
       for (const x of removed) seenIdsRef.current.delete(x.id);
     }
-
-    // particlesRef is a ref, so React won't re-render unless we
-    // bump a state value. The old physics rAF loop did this every
-    // frame; with that loop disabled, we have to bump explicitly
-    // each spawn so the new emoji actually renders.
-    setRenderTick((n) => (n + 1) % 1_000_000);
   }, [size, isMobile]);
 
   // ─── Phase 5: backfill today's logs on mount ───────────────────────
@@ -418,13 +412,25 @@ export default function HomeLogRain({
         else alreadySeen.push(log);
       }
 
-      // Both batches drop into the static pile in one frame — the
-      // renderer is flex-wrap-reverse so they fill upward from the
-      // floor without any animation needed. (Staggered fall used to
-      // live here for the desktop physics path; that path is gone,
-      // so all spawns are pre-settled now.)
-      for (const meta of alreadySeen) spawnParticle(meta, { preSettled: true });
-      for (const meta of newSinceLastVisit) spawnParticle(meta, { preSettled: true });
+      // Pre-settled batch: same frame, no animation. Collision pass
+      // sorts out the brief overlap.
+      for (const meta of alreadySeen) {
+        spawnParticle(meta, { preSettled: true });
+      }
+      // New-since-last-visit batch. Desktop: staggered fall from
+      // the top. Mobile: no animation path at all — spawn them all
+      // in one frame so the static pile fills immediately instead
+      // of popping in one item at a time.
+      if (isMobile) {
+        for (const meta of newSinceLastVisit) {
+          spawnParticle(meta, { preSettled: true });
+        }
+      } else {
+        for (let i = 0; i < newSinceLastVisit.length; i += 1) {
+          const meta = newSinceLastVisit[i];
+          setTimeout(() => spawnParticle(meta, { atRandom: true }), i * BACKFILL_STAGGER_MS);
+        }
+      }
 
       // Bump lastSeen to the newest log we just observed (or now,
       // whichever is larger) so the next refresh treats all of
@@ -481,10 +487,7 @@ export default function HomeLogRain({
             contact_id: row.contact_id,
             contact_name: null,
           };
-          // Live drop joins the static pile in place. The flex
-          // append + the brief mount transition reads as 'a new
-          // log just landed' without needing a physics fall.
-          spawnParticle(meta, { preSettled: true });
+          spawnParticle(meta);
           onCountChange?.(seenIdsRef.current.size);
           // Touch the lastSeen mark forward as live drops arrive so
           // a refresh right after won't re-animate them.
@@ -539,13 +542,13 @@ export default function HomeLogRain({
   }, [enabled, fetchToday, onCountChange, renderTick]); // renderTick re-arms after each cycle
 
   // ─── Phase 3+4: physics loop ───────────────────────────────────────
-  // Disabled. The renderer is now a unified static flex-wrap pile
-  // that auto-formats based on viewport width — no x/y math, no
-  // collision pass, no rAF needed. Kept the loop scaffolding in
-  // place (early-returns immediately) so reverting to the physics
-  // version is a one-line change if we ever want it back.
+  // Desktop only — mobile bypasses the simulation entirely and
+  // renders a static CSS pile (see renderer below). The collision
+  // pass was burning frame budget on midrange phones even with
+  // particle counts capped at 40, and a static pile reads as
+  // 'pile' just as well visually.
   useEffect(() => {
-    if (!enabled || !size || isMobile || true) return;
+    if (!enabled || !size || isMobile) return;
     let raf = 0;
     let lastT = performance.now();
 
@@ -567,7 +570,7 @@ export default function HomeLogRain({
       const ps = particlesRef.current;
       const floorY = 0; // bottom of the layer in our flipped frame
       const leftWall = 0;
-      const rightWall = size?.w ?? 0;
+      const rightWall = size.w;
 
       // Integrate.
       for (const p of ps) {
@@ -689,53 +692,87 @@ export default function HomeLogRain({
 
   return (
     <>
-      {/* Unified responsive pile. Same on every screen size — a
-          flex-wrap-reverse strip pinned to the bottom of the
-          viewport. flex-wrap is what makes this auto-format:
-          narrow viewport = fewer logs per row, more rows;
-          wide viewport = more per row, fewer rows. Pile fills
-          upward from the floor and is naturally clamped by
-          max-height so it can't dominate the screen.
-          Mobile: -z-10 sits behind page content (isolation: isolate
-          on the home container scopes it). Desktop: keeps the same
-          stacking — orbit at z-50 is above; mission footer etc.
-          ride above the pile. */}
-      <div
-        ref={containerRef}
-        className="fixed inset-x-0 bottom-0 -z-10 overflow-hidden pointer-events-none px-2 sm:px-6"
-        style={{ maxHeight: 'min(45vh, 360px)' }}
-        aria-hidden="true"
-      >
-        <div className="flex flex-wrap-reverse items-end justify-center gap-x-1 gap-y-0.5 pb-2 sm:gap-x-1.5">
-          {particles.map((p, idx) => (
-            <span
-              key={p.id}
-              className="select-none pointer-events-auto inline-block"
-              style={{
-                fontSize: `${p.size}px`,
-                lineHeight: 1,
-                filter: 'drop-shadow(0 1px 2px rgba(70, 40, 20, 0.18))',
-                cursor: isMobile ? 'pointer' : 'help',
-                userSelect: 'none',
-                touchAction: 'manipulation',
-                transform: `rotate(${((idx * 37) % 40) - 20}deg)`,
-              }}
-              onMouseEnter={(e) => {
-                if (isMobile) return;
-                openTooltipForRect(p.meta, e.currentTarget.getBoundingClientRect());
-              }}
-              onMouseLeave={() => { if (!isMobile) setHover(null); }}
-              onTouchStart={(e) => {
-                openTooltipForRect(p.meta, e.currentTarget.getBoundingClientRect());
-                if (tapTimerRef.current) window.clearTimeout(tapTimerRef.current);
-                tapTimerRef.current = window.setTimeout(() => setHover(null), TAP_TOOLTIP_MS);
-              }}
-            >
-              🪵
-            </span>
-          ))}
+      {isMobile ? (
+        // ─── Mobile: static CSS pile ──────────────────────────────────
+        // No physics, no rAF, no collisions. Logs render as a
+        // flex-wrap-reverse strip pinned to the bottom of the
+        // viewport so they fill upward from the floor and can never
+        // fall off-screen. Each emoji gets a deterministic-ish
+        // rotation based on its index so the pile reads as
+        // 'tumbled' without a per-particle physics state.
+        //
+        // overflow-hidden + max-height clamp the pile so a busy day
+        // doesn't push logs past the orbit; once we hit MAX_MOBILE
+        // particles the oldest cycle out the top (handled by the
+        // spawn capper).
+        <div
+          ref={containerRef}
+          className="fixed inset-x-0 bottom-0 -z-10 overflow-hidden pointer-events-none px-2"
+          style={{ maxHeight: '40vh' }}
+          aria-hidden="true"
+        >
+          <div className="flex flex-wrap-reverse items-end justify-center gap-x-1 gap-y-0.5 pb-2">
+            {particles.map((p, idx) => (
+              <span
+                key={p.id}
+                className="select-none pointer-events-auto inline-block"
+                style={{
+                  fontSize: `${p.size}px`,
+                  lineHeight: 1,
+                  filter: 'drop-shadow(0 1px 2px rgba(70, 40, 20, 0.18))',
+                  cursor: 'pointer',
+                  userSelect: 'none',
+                  touchAction: 'manipulation',
+                  transform: `rotate(${((idx * 37) % 40) - 20}deg)`,
+                }}
+                onTouchStart={(e) => {
+                  openTooltipForRect(p.meta, e.currentTarget.getBoundingClientRect());
+                  if (tapTimerRef.current) window.clearTimeout(tapTimerRef.current);
+                  tapTimerRef.current = window.setTimeout(() => setHover(null), TAP_TOOLTIP_MS);
+                }}
+              >
+                🪵
+              </span>
+            ))}
+          </div>
         </div>
-      </div>
+      ) : (
+        // ─── Desktop: physics-based rain ──────────────────────────────
+        // Absolute inside the centerpiece, full physics loop. The
+        // orbit at z-50 inside the same stacking context tucks the
+        // rain behind it.
+        <div
+          ref={containerRef}
+          className="absolute inset-0 z-0 overflow-hidden pointer-events-none"
+          aria-hidden="true"
+        >
+          {size && particles.map((p) => {
+            const cssLeft = p.x;
+            const cssTop = size.h - p.y;
+            return (
+              <span
+                key={p.id}
+                className="absolute select-none pointer-events-auto"
+                style={{
+                  left: 0,
+                  top: 0,
+                  transform: `translate3d(${cssLeft - p.size / 2}px, ${cssTop - p.size / 2}px, 0) rotate(${p.rot}deg)`,
+                  fontSize: `${p.size}px`,
+                  lineHeight: 1,
+                  filter: 'drop-shadow(0 2px 3px rgba(70, 40, 20, 0.18))',
+                  cursor: 'help',
+                  willChange: 'transform',
+                  userSelect: 'none',
+                }}
+                onMouseEnter={(e) => openTooltipForRect(p.meta, e.currentTarget.getBoundingClientRect())}
+                onMouseLeave={() => setHover(null)}
+              >
+                🪵
+              </span>
+            );
+          })}
+        </div>
+      )}
 
       {/* Hover tooltip — portaled to body so it's never clipped by
           the centerpiece's overflow. Pointer-events disabled so the
