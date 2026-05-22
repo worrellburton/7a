@@ -31,8 +31,16 @@ interface SuggestedContact {
   type: string[] | null;
   specialty: string | null;
   role: string | null;
+  // Phone + email are required by the admissions workflow — the
+  // sheet is useless without a way to reach the contact. Claude is
+  // told to skip a candidate entirely if it can't surface both with
+  // reasonable confidence, but if a partial slips through we keep
+  // it and tag the gap in `missing` so the modal can flag it.
+  phone: string | null;
+  email: string | null;
   location: string | null;
   notes: string | null;
+  missing: Array<'phone' | 'email'>;
 }
 
 export const dynamic = 'force-dynamic';
@@ -82,6 +90,10 @@ export async function POST(req: NextRequest) {
 
 Your job: suggest realistic candidate CONTACTS the admissions team might add to their CRM. Every suggestion must look like a plausible real-world referrer or clinical partner — never invent obvious fakes. Lean on common, well-known classes of orgs and roles. When in doubt, leave optional fields null instead of fabricating specifics.
 
+CRITICAL — admissions needs to actually CALL or EMAIL these people. Every candidate MUST come with a phone number AND an email address that you have real-world reason to believe is correct. If you cannot identify either with reasonable confidence:
+  - Prefer to SKIP that candidate and pick a different real organization where contact info is publicly known (a clinic's main intake line, an interventionist's published practice email, etc.).
+  - If you keep a candidate where only one of the two is recoverable, set the unknown one to null AND list it inside "missing" so the admin can see the gap. Never fabricate a phone number or email.
+
 Output STRICT JSON only — no prose, no markdown fences. Shape:
 
 {
@@ -93,8 +105,11 @@ Output STRICT JSON only — no prose, no markdown fences. Shape:
       "type": string[] | null,  // one or more of: "Detox", "PHP", "IOP", "RTC", "Outpatient", "Extended Care", "Interventionist", "Therapist" — pick every offering that applies (e.g. ["Detox","RTC"] for a facility with both tracks)
       "specialty": "Trauma · Eating Disorders · Dual Diagnosis · Family · etc. or null",
       "role": "Therapist | Interventionist | Owner | Admissions | etc. or null",
+      "phone": "+1 555 123 4567 or main intake line, real and verifiable, or null if unknown",
+      "email": "intake@example.org or known practice address, real and verifiable, or null if unknown",
       "location": "City, ST or null",
-      "notes": "Short reason this contact is worth pursuing — 1–2 sentences"
+      "notes": "Short reason this contact is worth pursuing — 1–2 sentences",
+      "missing": []  // include "phone" and/or "email" here when those fields are null
     }
   ]
 }`;
@@ -193,13 +208,39 @@ ${userPrompt ? `Additional steer from admissions: ${userPrompt}\n\n` : ''}Sugges
           })(),
           specialty: typeof c.specialty === 'string' && c.specialty.trim() ? c.specialty.trim().slice(0, 200) : null,
           role: typeof c.role === 'string' && c.role.trim() ? c.role.trim().slice(0, 200) : null,
+          phone: typeof c.phone === 'string' && c.phone.trim() ? c.phone.trim().slice(0, 60) : null,
+          email: typeof c.email === 'string' && c.email.trim() ? c.email.trim().slice(0, 200) : null,
           location: typeof c.location === 'string' && c.location.trim() ? c.location.trim().slice(0, 200) : null,
           notes: typeof c.notes === 'string' && c.notes.trim() ? c.notes.trim().slice(0, 4000) : null,
+          // Derive `missing` from what actually came back rather than
+          // trusting Claude's own list — keeps the badge honest if
+          // the model says "missing": [] but also returned null.
+          missing: (() => {
+            const out: Array<'phone' | 'email'> = [];
+            const phoneOk = typeof c.phone === 'string' && c.phone.trim().length > 0;
+            const emailOk = typeof c.email === 'string' && c.email.trim().length > 0;
+            if (!phoneOk) out.push('phone');
+            if (!emailOk) out.push('email');
+            return out;
+          })(),
         });
       }
     }
 
-    return NextResponse.json({ contacts: cleaned });
+    // Split the cleaned list so the modal can render the contacts
+    // Claude actually surfaced phone+email for separately from the
+    // partials. Admissions can opt in to the partials once they see
+    // the count.
+    const complete = cleaned.filter((c) => c.missing.length === 0);
+    const partial = cleaned.filter((c) => c.missing.length > 0);
+
+    return NextResponse.json({
+      contacts: cleaned,
+      complete,
+      partial,
+      missingCount: partial.length,
+      totalReturned: cleaned.length,
+    });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

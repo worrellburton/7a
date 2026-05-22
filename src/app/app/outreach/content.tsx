@@ -5958,8 +5958,11 @@ interface ClaudeSuggestion {
   type: string[] | null;
   specialty: string | null;
   role: string | null;
+  phone: string | null;
+  email: string | null;
   location: string | null;
   notes: string | null;
+  missing: Array<'phone' | 'email'>;
 }
 
 function SuggestWithClaudeModal({
@@ -5979,8 +5982,19 @@ function SuggestWithClaudeModal({
   // Phase 6: per-row checked state — a Set of indices into `suggestions`.
   // Pre-populated with every index when suggestions land so admissions
   // can opt-OUT rather than opt-in (the common case is "accept most
-  // of them").
+  // of them"). Rows that came back with missing phone/email are NOT
+  // pre-checked — admissions has to consciously opt them in.
   const [checked, setChecked] = useState<Set<number>>(new Set());
+  // When on (default), only candidates Claude returned with BOTH a
+  // phone and an email are listed. Toggling off reveals the partial
+  // candidates with "Phone unknown" / "Email unknown" badges so the
+  // admin can still pick them up if they want to fill the gap by
+  // hand.
+  const [strictContactInfo, setStrictContactInfo] = useState(true);
+  // Surface what Claude omitted vs what it returned. Lets us say
+  // "Claude could not find phone+email for 12 of 25 candidates" and
+  // explain why the count is short.
+  const [missingCount, setMissingCount] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   async function findCandidates() {
@@ -6000,10 +6014,27 @@ function SuggestWithClaudeModal({
         return;
       }
       const list = Array.isArray(json?.contacts) ? (json.contacts as ClaudeSuggestion[]) : [];
-      setSuggestions(list);
-      setChecked(new Set(list.map((_, i) => i)));
-      setPhase(list.length === 0 ? 'error' : 'review');
-      if (list.length === 0) setErrorMsg('Claude did not suggest any contacts. Try a different steer.');
+      // Defensive — older API responses don't carry `missing`; treat
+      // the absence as "complete" so the new client doesn't choke on
+      // legacy payloads.
+      const normalised = list.map((s) => ({ ...s, missing: Array.isArray(s.missing) ? s.missing : [] }));
+      setSuggestions(normalised);
+      setMissingCount(typeof json?.missingCount === 'number' ? json.missingCount : normalised.filter((s) => s.missing.length > 0).length);
+      // Pre-check only the complete rows. Partials are revealed when
+      // the admin toggles strict mode off; they have to opt them in.
+      setChecked(new Set(normalised.map((s, i) => (s.missing.length === 0 ? i : -1)).filter((i) => i >= 0)));
+      const completeCount = normalised.filter((s) => s.missing.length === 0).length;
+      if (normalised.length === 0) {
+        setErrorMsg(`Claude could not find any candidates with both a phone and an email. Try a different steer (specific cities, named referrer networks, or alumni-driven leads usually unstick this).`);
+        setPhase('error');
+      } else {
+        setPhase('review');
+        if (completeCount === 0) {
+          // Edge case: only partials came back. Show them but flip
+          // strict off so they're visible by default.
+          setStrictContactInfo(false);
+        }
+      }
     } catch (e) {
       setErrorMsg(String(e));
       setPhase('error');
@@ -6097,21 +6128,61 @@ function SuggestWithClaudeModal({
         </div>
       )}
 
-      {phase === 'review' && (
+      {phase === 'review' && (() => {
+        // Build the list to render based on the strict toggle. The
+        // checkbox state is keyed by original index so toggling
+        // strict doesn't lose the user's selections.
+        const visible = strictContactInfo
+          ? suggestions
+              .map((s, i) => ({ s, i }))
+              .filter(({ s }) => s.missing.length === 0)
+          : suggestions.map((s, i) => ({ s, i }));
+        const completeCount = suggestions.filter((s) => s.missing.length === 0).length;
+        return (
         <div className="px-0 sm:px-0 py-0">
-          <div className="px-6 pt-5 pb-3 flex items-center justify-between border-b border-black/5">
-            <div>
-              <p className="text-[12.5px] font-semibold text-foreground">{checked.size} of {suggestions.length} selected</p>
-              <p className="text-[11px] text-foreground/55">Uncheck anyone you don't want to add. Click Continue when ready.</p>
+          <div className="px-6 pt-5 pb-3 border-b border-black/5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[12.5px] font-semibold text-foreground">{checked.size} of {visible.length} selected</p>
+                <p className="text-[11px] text-foreground/55">Uncheck anyone you don't want to add. Click Continue when ready.</p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button type="button" onClick={() => toggleAll(true)} className="px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60">Select all</button>
+                <button type="button" onClick={() => toggleAll(false)} className="px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60">Clear</button>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <button type="button" onClick={() => toggleAll(true)} className="px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60">Select all</button>
-              <button type="button" onClick={() => toggleAll(false)} className="px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60">Clear</button>
-            </div>
+            {/* Contact-info gap banner. Claude was asked to surface
+                phone + email for every candidate; this row tells
+                admissions how many came back complete vs partial,
+                with a toggle to reveal the partials. */}
+            {missingCount > 0 && (
+              <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 text-[11.5px] text-amber-900">
+                <span>
+                  <span className="font-semibold">{missingCount}</span> of {suggestions.length} candidates came back without a verified phone and/or email.
+                  {completeCount === 0
+                    ? ' All candidates below are partial — fill the missing fields by hand before adding.'
+                    : ` ${completeCount} complete candidate${completeCount === 1 ? '' : 's'} ${completeCount === 1 ? 'is' : 'are'} shown by default.`}
+                </span>
+                <label className="inline-flex items-center gap-2 cursor-pointer select-none shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={!strictContactInfo}
+                    onChange={(e) => setStrictContactInfo(!e.target.checked)}
+                    className="accent-amber-600 w-3.5 h-3.5"
+                  />
+                  <span className="font-medium">Show partials</span>
+                </label>
+              </div>
+            )}
+            {missingCount === 0 && (
+              <p className="mt-2 text-[11px] text-emerald-700">✓ Every candidate came back with both a phone and an email.</p>
+            )}
           </div>
           <ul className="divide-y divide-black/5 max-h-[55vh] overflow-y-auto">
-            {suggestions.map((s, i) => {
+            {visible.map(({ s, i }) => {
               const isOn = checked.has(i);
+              const phoneMissing = s.missing.includes('phone');
+              const emailMissing = s.missing.includes('email');
               return (
                 <li key={i} className={`px-6 py-3 transition-colors ${isOn ? 'bg-white' : 'bg-warm-bg/30'}`}>
                   <label className="flex items-start gap-3 cursor-pointer">
@@ -6137,6 +6208,29 @@ function SuggestWithClaudeModal({
                         {s.location && <span>· {s.location}</span>}
                         {s.specialty && <span>· {s.specialty}</span>}
                       </div>
+                      <div className="mt-1 flex items-center flex-wrap gap-x-2 gap-y-0.5 text-[11px]">
+                        {/* Phone — value if Claude found one, badge
+                            if it didn't. Admissions needs this column
+                            to be obvious at a glance. */}
+                        {s.phone ? (
+                          <span className="font-mono text-foreground/80">{s.phone}</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9.5px] font-semibold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">
+                            Phone unknown
+                          </span>
+                        )}
+                        <span className="text-foreground/30">·</span>
+                        {s.email ? (
+                          <span className="font-mono text-foreground/80">{s.email}</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9.5px] font-semibold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">
+                            Email unknown
+                          </span>
+                        )}
+                        {(phoneMissing || emailMissing) && (
+                          <span className="text-[10px] text-foreground/40">· you'll need to fill the gap by hand</span>
+                        )}
+                      </div>
                       {s.notes && (
                         <p className="mt-1 text-[11.5px] text-foreground/70 leading-snug">{s.notes}</p>
                       )}
@@ -6158,7 +6252,8 @@ function SuggestWithClaudeModal({
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {phase === 'submitting' && (
         <div className="px-6 py-12 flex flex-col items-center justify-center gap-3 text-center">
