@@ -21,6 +21,11 @@ interface LogDrop {
   id: string;
   made_at: string;
   method: string | null;
+  // Free-text the touchpoint author left (or the system wrote for
+  // Data Entry / New Contact). The home log-rain tooltip surfaces
+  // this for Data Entry rows so admins see what fields were filled
+  // without opening the contact.
+  comments: string | null;
   by_id: string | null;
   by_name: string | null;
   by_avatar: string | null;
@@ -53,7 +58,7 @@ export async function GET() {
   // very generous cap.
   const { data: rows, error } = await admin
     .from('contact_logs')
-    .select('id, contacted_at, method, contacted_by, contact_id, users:contacted_by(full_name, avatar_url), contacts:contact_id(name)')
+    .select('id, contacted_at, method, comments, contacted_by, contact_id, users:contacted_by(full_name, avatar_url), contacts:contact_id(name)')
     .gte('contacted_at', since)
     .order('contacted_at', { ascending: true })
     .limit(500);
@@ -67,6 +72,7 @@ export async function GET() {
     id: string;
     contacted_at: string;
     method: string | null;
+    comments: string | null;
     contacted_by: string | null;
     contact_id: string | null;
     users: { full_name: string | null; avatar_url: string | null } | null;
@@ -77,6 +83,7 @@ export async function GET() {
     id: r.id,
     made_at: r.contacted_at,
     method: r.method,
+    comments: r.comments,
     by_id: r.contacted_by,
     by_name: r.users?.full_name ?? null,
     by_avatar: r.users?.avatar_url ?? null,
