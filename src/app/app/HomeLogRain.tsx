@@ -58,14 +58,22 @@ interface Particle {
 // ─── Constants ────────────────────────────────────────────────────────
 
 const STORAGE_KEY = 'sa.home.show_log_rain';
-const MAX_PARTICLES = 150; // oldest fade out beyond this
-const GRAVITY = 0.55;       // px/frame²
-const REST_VELOCITY = 0.15; // below this, particle "rests" on the pile
-const RESTITUTION = 0.18;   // bounce loss on floor / collisions
-const FRICTION = 0.985;     // air drag per frame
-const COLLISION_ITERS = 3;  // pairwise correction passes per step
-const ROT_DRAG = 0.97;      // angular velocity drag
-const BACKFILL_STAGGER_MS = 80; // ms between replay drops
+const LAST_SEEN_KEY = 'sa.home.log_rain.last_seen_at';
+// Mobile gets lower particle ceilings + a cheaper collision loop so
+// the rAF can hold 60 fps on midrange phones. Desktop keeps the
+// richer defaults.
+const MOBILE_BREAKPOINT_PX = 640;
+const MAX_PARTICLES_DESKTOP = 150;
+const MAX_PARTICLES_MOBILE = 80;
+const COLLISION_ITERS_DESKTOP = 3;
+const COLLISION_ITERS_MOBILE = 2;
+const GRAVITY = 0.55;          // px/frame²
+const REST_VELOCITY = 0.15;    // below this, particle "rests" on the pile
+const RESTITUTION = 0.18;      // bounce loss on floor / collisions
+const FRICTION = 0.985;        // air drag per frame
+const ROT_DRAG = 0.97;         // angular velocity drag
+const BACKFILL_STAGGER_MS = 80;// ms between live-replay drops
+const TAP_TOOLTIP_MS = 1800;   // touch-tap shows tooltip for this long
 
 // ─── Helpers ──────────────────────────────────────────────────────────
 
@@ -86,17 +94,49 @@ function msUntilPhxMidnight(): number {
 
 function methodLabel(m: string | null): string {
   if (!m) return 'touchpoint';
-  const map: Record<string, string> = {
-    call: 'call',
-    text: 'text',
-    email: 'email',
-    in_person: 'in-person visit',
-    voicemail: 'voicemail',
-    note: 'note',
-    data_entry: 'data entry',
-    email_campaign: 'email campaign',
-  };
-  return map[m] ?? m.replace(/_/g, ' ');
+  // The DB stores method as already-capitalised display strings
+  // (e.g. 'Phone', 'Data Entry', 'New Contact'), so return as-is
+  // when it matches the known canon. Fall back to a snake-to-words
+  // pass for any legacy or future enum value.
+  const known = new Set([
+    'Phone',
+    'In Person',
+    'Left Message',
+    'Text Message',
+    'Email',
+    'Email Campaign',
+    'Data Entry',
+    'New Contact',
+    'Smoke Signals',
+    'Walkie Talkie',
+    'Tin Can Phone',
+  ]);
+  if (known.has(m)) return m;
+  return m.replace(/_/g, ' ');
+}
+
+// "Last seen" tracks the newest log timestamp this browser has
+// already observed, so a refresh doesn't re-animate every log of
+// the day — only ones that arrived since the last visit fall. Logs
+// older than lastSeen pre-settle silently at the bottom of the
+// pile.
+function readLastSeenMs(): number {
+  if (typeof window === 'undefined') return Date.now();
+  try {
+    const raw = window.localStorage.getItem(LAST_SEEN_KEY);
+    if (!raw) return Date.now(); // first visit ever — treat all today's logs as already-seen
+    const t = new Date(raw).getTime();
+    return Number.isFinite(t) ? t : Date.now();
+  } catch {
+    return Date.now();
+  }
+}
+
+function writeLastSeenMs(ms: number): void {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(LAST_SEEN_KEY, new Date(ms).toISOString());
+  } catch { /* best-effort */ }
 }
 
 function timeOfDay(iso: string): string {
@@ -169,7 +209,9 @@ export function HomeLogRainToggle({
       style={{ fontFamily: 'var(--font-body)' }}
     >
       <span aria-hidden="true">🪵</span>
-      <span>Logs on home</span>
+      {/* Full label on tablet+; just the dot + count on phones so
+          the hero row can hold both this chip and the + button. */}
+      <span className="hidden sm:inline">Logs on home</span>
       <span
         className={`inline-block w-1.5 h-1.5 rounded-full ${enabled ? 'bg-emerald-500' : 'bg-foreground/30'}`}
         aria-hidden="true"
@@ -199,6 +241,23 @@ export default function HomeLogRain({
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
   const [hover, setHover] = useState<HoverInfo | null>(null);
   const [portalReady, setPortalReady] = useState(false);
+  // Mobile vs desktop drives particle ceilings, font-size range,
+  // collision-iter budget, and the touch-vs-hover affordance. We
+  // watch matchMedia so a rotate / dev-tools resize re-applies.
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT_PX}px)`);
+    const apply = () => setIsMobile(mql.matches);
+    apply();
+    mql.addEventListener?.('change', apply);
+    return () => mql.removeEventListener?.('change', apply);
+  }, []);
+  // Touch-tap tooltip auto-dismiss timer.
+  const tapTimerRef = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (tapTimerRef.current) window.clearTimeout(tapTimerRef.current);
+  }, []);
 
   // Particle list lives in a ref so the rAF loop can mutate in place
   // without forcing a React re-render on every frame. We then snap a
@@ -236,48 +295,81 @@ export default function HomeLogRain({
   }, [enabled]);
 
   // ─── Particle factory ──────────────────────────────────────────────
-  const spawnParticle = useCallback((meta: LogDrop, opts?: { atRandom?: boolean }) => {
+  const spawnParticle = useCallback((meta: LogDrop, opts?: { atRandom?: boolean; preSettled?: boolean }) => {
     if (!size) return;
     if (seenIdsRef.current.has(meta.id)) return;
     seenIdsRef.current.add(meta.id);
 
-    // Slight size variance keeps the pile from looking like a brick
-    // grid. 16–22px font ⇒ ~12–16px collision radius.
-    const fontSize = 16 + Math.random() * 6;
+    // Mobile gets slightly smaller emojis so a pile of 30+ logs at
+    // the bottom of a 360-wide viewport doesn't read as a wall of
+    // brown. Desktop keeps the chunkier range.
+    const fontSize = isMobile
+      ? 14 + Math.random() * 4   // 14–18px on mobile
+      : 16 + Math.random() * 6;  // 16–22px on desktop
     const r = fontSize * 0.7;
 
-    // Spawn x: spread across the inner ~70% of the width so logs
+    // Spawn x: spread across the inner 70–80% of the width so logs
     // don't pile up only against the side walls.
-    const spawnX = size.w * 0.15 + Math.random() * size.w * 0.7;
-    // Spawn from just above the top of the layer with a small
-    // downward push so the fall feels physical instantly.
-    const spawnY = size.h + r + 12;
+    const xPad = size.w * 0.12;
+    const spawnX = xPad + Math.random() * (size.w - xPad * 2);
 
-    const p: Particle = {
-      id: meta.id,
-      meta,
-      x: spawnX,
-      y: spawnY,
-      vx: (Math.random() - 0.5) * 1.2,
-      vy: opts?.atRandom ? -1.5 - Math.random() * 0.8 : -2.0 - Math.random() * 1.0,
-      r,
-      rot: Math.random() * 60 - 30,
-      rotVel: (Math.random() - 0.5) * 4,
-      size: fontSize,
-      settled: false,
-      bornAt: performance.now(),
-    };
-    particlesRef.current.push(p);
+    if (opts?.preSettled) {
+      // "Already seen" — drop straight onto the floor with zero
+      // velocity. The collision pass will redistribute overlaps in
+      // a frame or two. Visually reads as 'already piled' rather
+      // than 'just fell'.
+      const p: Particle = {
+        id: meta.id,
+        meta,
+        x: spawnX,
+        y: r + Math.random() * 3,       // sitting on the floor
+        vx: 0,
+        vy: 0,
+        r,
+        rot: (Math.random() - 0.5) * 40,
+        rotVel: 0,
+        size: fontSize,
+        settled: false,                 // let physics resolve overlaps once
+        bornAt: performance.now(),
+      };
+      particlesRef.current.push(p);
+    } else {
+      // Live drop — fall from above the layer with a tiny downward
+      // push so the motion reads as physical instantly.
+      const spawnY = size.h + r + 12;
+      const p: Particle = {
+        id: meta.id,
+        meta,
+        x: spawnX,
+        y: spawnY,
+        vx: (Math.random() - 0.5) * 1.2,
+        vy: opts?.atRandom ? -1.5 - Math.random() * 0.8 : -2.0 - Math.random() * 1.0,
+        r,
+        rot: Math.random() * 60 - 30,
+        rotVel: (Math.random() - 0.5) * 4,
+        size: fontSize,
+        settled: false,
+        bornAt: performance.now(),
+      };
+      particlesRef.current.push(p);
+    }
 
-    // Cap visible particles. Oldest first to fade out (we just drop
-    // them; the DOM unmount handles the visual disappearance).
-    if (particlesRef.current.length > MAX_PARTICLES) {
-      const removed = particlesRef.current.splice(0, particlesRef.current.length - MAX_PARTICLES);
+    // Cap visible particles per platform. Oldest first to fade out
+    // (we just drop them; the DOM unmount handles the visual
+    // disappearance).
+    const cap = isMobile ? MAX_PARTICLES_MOBILE : MAX_PARTICLES_DESKTOP;
+    if (particlesRef.current.length > cap) {
+      const removed = particlesRef.current.splice(0, particlesRef.current.length - cap);
       for (const x of removed) seenIdsRef.current.delete(x.id);
     }
-  }, [size]);
+  }, [size, isMobile]);
 
   // ─── Phase 5: backfill today's logs on mount ───────────────────────
+  // Anything older than the lastSeen timestamp spawns pre-settled at
+  // the bottom (no animation, no stagger). Anything newer drops from
+  // the top with the same backfill stagger we had before — so logs
+  // that arrived between the user's last refresh and this one still
+  // get the "look, this happened while you were away" reveal.
   const fetchToday = useCallback(async () => {
     if (!session?.access_token) return;
     try {
@@ -289,12 +381,35 @@ export default function HomeLogRain({
       const json = (await res.json()) as { logs: LogDrop[] };
       const logs = Array.isArray(json.logs) ? json.logs : [];
       onCountChange?.(logs.length);
-      // Stagger the replay so the screen doesn't get a vertical
-      // pillar of overlapping spawns at frame 0.
-      for (let i = 0; i < logs.length; i += 1) {
-        const meta = logs[i];
+
+      const lastSeen = readLastSeenMs();
+      const alreadySeen: LogDrop[] = [];
+      const newSinceLastVisit: LogDrop[] = [];
+      for (const log of logs) {
+        const ts = new Date(log.made_at).getTime();
+        if (Number.isFinite(ts) && ts > lastSeen) newSinceLastVisit.push(log);
+        else alreadySeen.push(log);
+      }
+
+      // Pre-settled batch: same frame, no animation. Collision pass
+      // sorts out the brief overlap.
+      for (const meta of alreadySeen) {
+        spawnParticle(meta, { preSettled: true });
+      }
+      // New-since-last-visit batch: staggered fall from the top.
+      for (let i = 0; i < newSinceLastVisit.length; i += 1) {
+        const meta = newSinceLastVisit[i];
         setTimeout(() => spawnParticle(meta, { atRandom: true }), i * BACKFILL_STAGGER_MS);
       }
+
+      // Bump lastSeen to the newest log we just observed (or now,
+      // whichever is larger) so the next refresh treats all of
+      // today's logs through this moment as already-seen.
+      const newest = logs.reduce(
+        (acc, l) => Math.max(acc, new Date(l.made_at).getTime() || 0),
+        lastSeen,
+      );
+      writeLastSeenMs(Math.max(newest, Date.now()));
     } catch {
       // non-fatal; realtime will still surface new ones
     }
@@ -338,6 +453,10 @@ export default function HomeLogRain({
           };
           spawnParticle(meta);
           onCountChange?.(seenIdsRef.current.size);
+          // Touch the lastSeen mark forward as live drops arrive so
+          // a refresh right after won't re-animate them.
+          const ts = new Date(meta.made_at).getTime();
+          if (Number.isFinite(ts)) writeLastSeenMs(Math.max(readLastSeenMs(), ts));
           // Best-effort enrich: pull the joined row for a richer
           // tooltip a beat later. Failure is silent.
           void enrichLater(meta.id);
@@ -370,9 +489,15 @@ export default function HomeLogRain({
     if (!enabled) return;
     const t = setTimeout(() => {
       // The day rolled — clear pile, clear de-dupe, refetch from 0.
+      // Bump lastSeen to the new midnight so any logs that landed
+      // in the new day so far are treated as already-seen (the
+      // page was open through midnight; if a teammate happened to
+      // log in the same second the user wasn't actively watching).
+      // New logs from this moment on will animate normally.
       particlesRef.current = [];
       seenIdsRef.current = new Set();
       dayKeyRef.current = phxDayKey();
+      writeLastSeenMs(Date.now());
       setRenderTick((n) => n + 1);
       onCountChange?.(0);
       void fetchToday();
@@ -444,7 +569,8 @@ export default function HomeLogRain({
 
       // Pairwise circle collisions — O(n²) but n is capped at 150,
       // so worst-case ~11k checks/frame. Plenty of headroom.
-      for (let iter = 0; iter < COLLISION_ITERS; iter += 1) {
+      const collisionIters = isMobile ? COLLISION_ITERS_MOBILE : COLLISION_ITERS_DESKTOP;
+      for (let iter = 0; iter < collisionIters; iter += 1) {
         for (let i = 0; i < ps.length; i += 1) {
           for (let j = i + 1; j < ps.length; j += 1) {
             const a = ps[i];
@@ -498,7 +624,7 @@ export default function HomeLogRain({
 
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, [enabled, size]);
+  }, [enabled, size, isMobile]);
 
   // ─── Phase 9: cleanup when disabled ────────────────────────────────
   useEffect(() => {
@@ -521,11 +647,14 @@ export default function HomeLogRain({
     <>
       <div
         ref={containerRef}
-        // Behind the orbit (which is z-50), above the page background.
-        // pointer-events: none on the container so the layer never
-        // blocks clicks on the page; each particle re-enables its own
-        // pointer-events so hover still works.
-        className="absolute inset-0 z-0 overflow-hidden pointer-events-none"
+        // On mobile the orbit is `fixed` to viewport center and the
+        // centerpiece flex item it would otherwise live in doesn't
+        // cover the visible viewport. Use `fixed inset-0` so the
+        // rain layer covers the full screen on small viewports;
+        // desktop drops back to `absolute inset-0` inside the
+        // centerpiece (orbit is z-50 there too, so rain at z-0 still
+        // tucks behind it).
+        className="fixed sm:absolute inset-0 z-0 overflow-hidden pointer-events-none"
         aria-hidden="true"
       >
         {size && particles.map((p) => {
@@ -534,6 +663,17 @@ export default function HomeLogRain({
           // transform-origin stays at the center.
           const cssLeft = p.x;
           const cssTop = size.h - p.y;
+          // Touch handler: surface the tooltip pinned to the tapped
+          // log for ~2s, then auto-dismiss. Hover handlers stay for
+          // pointer devices. No keyboard surface — these are
+          // ambient and non-essential.
+          const openTooltipAt = (rect: DOMRect) => {
+            setHover({
+              meta: p.meta,
+              left: rect.left + rect.width / 2,
+              top: rect.top,
+            });
+          };
           return (
             <span
               key={p.id}
@@ -545,19 +685,24 @@ export default function HomeLogRain({
                 fontSize: `${p.size}px`,
                 lineHeight: 1,
                 filter: 'drop-shadow(0 2px 3px rgba(70, 40, 20, 0.18))',
-                cursor: 'help',
+                cursor: isMobile ? 'pointer' : 'help',
                 willChange: 'transform',
                 userSelect: 'none',
+                touchAction: 'manipulation',
               }}
               onMouseEnter={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                setHover({
-                  meta: p.meta,
-                  left: rect.left + rect.width / 2,
-                  top: rect.top,
-                });
+                if (isMobile) return; // touch handler covers mobile
+                openTooltipAt(e.currentTarget.getBoundingClientRect());
               }}
-              onMouseLeave={() => setHover(null)}
+              onMouseLeave={() => { if (!isMobile) setHover(null); }}
+              onTouchStart={(e) => {
+                openTooltipAt(e.currentTarget.getBoundingClientRect());
+                if (tapTimerRef.current) window.clearTimeout(tapTimerRef.current);
+                tapTimerRef.current = window.setTimeout(
+                  () => setHover(null),
+                  TAP_TOOLTIP_MS,
+                );
+              }}
             >
               🪵
             </span>
