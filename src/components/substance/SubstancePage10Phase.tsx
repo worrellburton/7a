@@ -30,6 +30,8 @@ export default function SubstancePage10Phase({ content }: { content: SubstanceCo
         title={content.hero.title}
         description={content.hero.description}
         breadcrumbs={content.hero.breadcrumbs}
+        labelAs={content.hero.labelAs}
+        titleAs={content.hero.titleAs}
         ctas={[
           {
             kind: 'phone',

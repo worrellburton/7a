@@ -52,6 +52,13 @@ interface PageHeroProps {
    *  max-w-7xl container; "narrow" uses max-w-3xl so the hero's left
    *  edge lines up with a 3xl reading column beneath it (blog posts). */
   width?: 'wide' | 'narrow';
+  /** SEO overrides — swap which slot carries the page's <h1>. The
+   *  visual styling stays identical; only the rendered tag changes.
+   *  Defaults preserve the legacy behaviour (label as <p>, title as
+   *  <h1>). Used by /what-we-treat/* pages that want a keyword-rich
+   *  H1 in the eyebrow slot. */
+  labelAs?: 'p' | 'h1';
+  titleAs?: 'h1' | 'h2';
 }
 
 // Temporary placeholder backdrop used on every inner page until we
@@ -190,6 +197,8 @@ export default function PageHero({
   meta,
   ctas,
   width = 'wide',
+  labelAs = 'p',
+  titleAs = 'h1',
 }: PageHeroProps) {
   // A `video` (defaulted) takes precedence. Callers can still pass an
   // explicit `image` to opt out of the shared placeholder clip.
@@ -295,20 +304,43 @@ export default function PageHero({
             </nav>
           )}
 
-          <p
-            className="flex items-center gap-4 text-[11px] tracking-[0.22em] uppercase font-semibold text-white/80 mb-4"
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            <span className="block w-10 h-px bg-white/70" aria-hidden="true" />
-            {label}
-          </p>
+          {/* Eyebrow row. Renders as <p> by default; pages that want
+              this slot to carry the H1 (titleAs='h2' pages) pass
+              labelAs='h1' so the markup-level hierarchy is correct
+              without changing the visual styling. */}
+          {labelAs === 'h1' ? (
+            <h1
+              className="flex items-center gap-4 text-[11px] tracking-[0.22em] uppercase font-semibold text-white/80 mb-4"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <span className="block w-10 h-px bg-white/70" aria-hidden="true" />
+              {label}
+            </h1>
+          ) : (
+            <p
+              className="flex items-center gap-4 text-[11px] tracking-[0.22em] uppercase font-semibold text-white/80 mb-4"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <span className="block w-10 h-px bg-white/70" aria-hidden="true" />
+              {label}
+            </p>
+          )}
 
-          <h1
-            className="text-4xl sm:text-5xl lg:text-[4rem] font-bold tracking-tight leading-[1.05] mb-5"
-            style={{ fontFamily: 'var(--font-display)' }}
-          >
-            {renderTitle(title)}
-          </h1>
+          {titleAs === 'h2' ? (
+            <h2
+              className="text-4xl sm:text-5xl lg:text-[4rem] font-bold tracking-tight leading-[1.05] mb-5"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              {renderTitle(title)}
+            </h2>
+          ) : (
+            <h1
+              className="text-4xl sm:text-5xl lg:text-[4rem] font-bold tracking-tight leading-[1.05] mb-5"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              {renderTitle(title)}
+            </h1>
+          )}
 
           {description && (
             <p
