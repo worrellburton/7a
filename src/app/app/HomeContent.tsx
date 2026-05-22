@@ -14,7 +14,7 @@ import JdSignatureNagModal from './JdSignatureNagModal';
 // import in source so the re-enable diff is one line.
 // import HomeClientsRow from './HomeClientsRow';
 import HomeOnlineOrbit, { type OrbitHorse } from './HomeOnlineOrbit';
-import HomeLogRain, { HomeLogRainToggle, useShowRainPreference } from './HomeLogRain';
+import HomeDailyLogsChip from './HomeDailyLogsChip';
 import HomeConnect4Nudge from './HomeConnect4Nudge';
 
 interface RecentUser {
@@ -82,11 +82,6 @@ export default function HomeContent() {
   // New facilities entry points. Single round button to reduce
   // hero-band visual weight.
   const [addMenuOpen, setAddMenuOpen] = useState(false);
-  // Per-user preference + observed count for the home log-rain
-  // feature. Lifted here so the chip in the header and the rain
-  // layer inside the centerpiece share state.
-  const [logRainEnabled, setLogRainEnabled] = useShowRainPreference();
-  const [logRainCount, setLogRainCount] = useState(0);
   const addMenuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!addMenuOpen) return;
@@ -573,12 +568,11 @@ export default function HomeContent() {
                 "+" button. Toggle sits to the left of + so it doesn't
                 fight the create affordance for attention. Hidden for
                 alumni — both controls are staff-only. */}
-            <div className={`flex items-center gap-2 shrink-0 ${userKind === 'alumni' ? 'hidden' : ''}`}>
-              <HomeLogRainToggle
-                enabled={logRainEnabled}
-                onChange={setLogRainEnabled}
-                count={logRainCount}
-              />
+            {/* Right cluster — just the create (+) button now. The
+                old log-rain toggle moved to a chip under the orbit
+                (HomeDailyLogsChip below) so the header reads
+                cleaner. */}
+            <div className={`shrink-0 ${userKind === 'alumni' ? 'hidden' : ''}`}>
             <div ref={addMenuRef} className="relative">
               <button
                 type="button"
@@ -648,15 +642,6 @@ export default function HomeContent() {
             + Ask Policies stack at the dead center of that space. */}
         <div className="relative flex-1 flex flex-col items-stretch justify-center gap-4 sm:gap-6 lg:gap-8 mt-2 lg:mt-0">
 
-        {/* Log rain — falls behind the orbit and piles at the floor
-            of the centerpiece. Renders absolutely so it doesn't
-            push the orbit / Ask-Policies stack around. Toggle in
-            the hero controls visibility. */}
-        <HomeLogRain
-          enabled={logRainEnabled}
-          onCountChange={setLogRainCount}
-        />
-
         {/* Centered, slowly-rotating ring of teammates active in the
             last 24 hours, with the horse roster orbiting in the inner
             ring. See HomeOnlineOrbit.tsx for the anatomy + animation.
@@ -672,6 +657,13 @@ export default function HomeContent() {
             </div>
           </section>
         )}
+
+        {/* Daily-logs chip sits directly under the orbit. Clicking
+            opens /app/logs which renders the full-screen rain
+            visualisation (today's logs falling). Replaces the
+            ambient on-home rain layer + the header toggle the
+            chip used to live on. */}
+        {recentUsers.length > 0 && <HomeDailyLogsChip />}
         <HomeConnect4Nudge onOpponentChange={setC4OpponentId} />
 
         {/* Phase 6: action stack — pending signatures + signed JD,
