@@ -564,10 +564,6 @@ export default function HomeContent() {
               </div>
             </div>
 
-            {/* RIGHT (top row): log-rain toggle chip + the single
-                "+" button. Toggle sits to the left of + so it doesn't
-                fight the create affordance for attention. Hidden for
-                alumni — both controls are staff-only. */}
             {/* Right cluster — just the create (+) button now. The
                 old log-rain toggle moved to a chip under the orbit
                 (HomeDailyLogsChip below) so the header reads
