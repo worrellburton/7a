@@ -4006,6 +4006,47 @@ function GovernanceBadge({
   );
 }
 
+// Sibling of GovernanceBadge: prominent contact-count display so
+// the "how big is the book?" answer reads at first glance. No
+// expansion — pure headline. Pairs with the two activity badges to
+// form a three-tile health row at the top of the insights card.
+function TotalContactsBadge({
+  total,
+  weekTouched,
+  monthTouched,
+}: {
+  total: number;
+  weekTouched: number;
+  monthTouched: number;
+}) {
+  const weekPct = total > 0 ? Math.round((weekTouched / total) * 100) : 0;
+  return (
+    <div
+      title={`${total.toLocaleString()} contacts on the books. ${weekTouched.toLocaleString()} touched this week (${weekPct}%); ${monthTouched.toLocaleString()} this month.`}
+      className="w-full inline-flex items-center gap-3 rounded-2xl px-3 py-2 bg-warm-bg/40"
+    >
+      <div className="relative w-[108px] h-[108px] shrink-0 rounded-2xl bg-warm-bg/70 border border-black/10 flex items-center justify-center">
+        <span aria-hidden="true" className="text-[44px] leading-none select-none">📇</span>
+      </div>
+      <div className="text-left min-w-0">
+        <p className="text-[9.5px] font-bold uppercase tracking-[0.22em] text-foreground/55">
+          Total contacts
+        </p>
+        <p className="mt-0.5 text-[12.5px] font-semibold text-foreground">
+          <span className="text-2xl tabular-nums mr-1" style={{ fontFamily: 'var(--font-display)' }}>
+            {total.toLocaleString()}
+          </span>
+          {total === 1 ? 'contact' : 'contacts'}
+        </p>
+        <p className="mt-0.5 text-[10.5px] text-foreground/55">
+          {weekTouched.toLocaleString()} touched this week
+          {total > 0 && <span className="text-foreground/40"> · {weekPct}%</span>}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // Sibling of GovernanceBadge: same outer shape + dimensions, but
 // the left tile is a clipboard emoji and the headline is today's
 // log count. Pairs with GovernanceBadge in row 1 so the two
@@ -4054,8 +4095,28 @@ function LogsTodayBadge({
 }
 
 // Per-field breakdown + recent fill activity. Mounts inline under
-// the KPI strip when the GovernanceTile is clicked.
-function GovernancePanel({ governance }: { governance: { score: number; totalContacts: number; breakdown: GovernanceBreakdownRow[]; activity: GovernanceActivityRow[] } }) {
+// the KPI strip when the GovernanceTile is clicked. Now split into
+// two labelled subsections so the reader knows which question each
+// chunk answers:
+//   * Missing information — which fields are blank, weighted (email
+//     counts triple). Drives the data-governance score.
+//   * Health information — how many of the records have actually
+//     been touched (week / month / ever / never / no-email). Tells
+//     you whether the book is being worked, not just filled.
+function GovernancePanel({
+  governance,
+  health,
+}: {
+  governance: { score: number; totalContacts: number; breakdown: GovernanceBreakdownRow[]; activity: GovernanceActivityRow[] };
+  health: {
+    total: number;
+    week: number;
+    month: number;
+    everContacted: number;
+    never: number;
+    missingEmail: number;
+  };
+}) {
   const initials = (s: string) =>
     s.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
   const ago = (iso: string) => {
@@ -4068,74 +4129,122 @@ function GovernancePanel({ governance }: { governance: { score: number; totalCon
     const d = Math.floor(h / 24);
     return `${d}d`;
   };
+  const total = health.total || 1;
+  // Engagement-health rows. Order matches the funnel reading:
+  // touched lately → cooling → ever-contacted → never → unreachable.
+  // Each row's `pct` is "share of the book this number represents"
+  // so a 60%-of-book-touched-this-week reads visually.
+  const healthRows: Array<{ key: string; label: string; value: number; pct: number; tone: 'good' | 'warn' | 'bad' }> = [
+    { key: 'week',          label: 'Touched this week',  value: health.week,           pct: Math.round((health.week / total) * 100),           tone: 'good' },
+    { key: 'month',         label: 'Touched this month', value: health.month,          pct: Math.round((health.month / total) * 100),          tone: 'good' },
+    { key: 'ever',          label: 'Ever touched',       value: health.everContacted,  pct: Math.round((health.everContacted / total) * 100),  tone: 'good' },
+    { key: 'never',         label: 'Never touched',      value: health.never,          pct: Math.round((health.never / total) * 100),          tone: 'warn' },
+    { key: 'noEmail',       label: 'Unreachable by email', value: health.missingEmail, pct: Math.round((health.missingEmail / total) * 100),   tone: 'bad' },
+  ];
   return (
-    <div className="px-4 py-3 border-b border-black/5 bg-warm-bg/30">
-      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/55 mb-2">
-        Why {governance.score}% · what&apos;s missing
-      </p>
-      <p className="text-[11.5px] text-foreground/55 mb-3">
-        Email counts triple — every empty email holds back the campaign pipeline. Each row shows how many of {governance.totalContacts.toLocaleString()} contacts have that field filled in.
-      </p>
-      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
-        {governance.breakdown.map((row) => {
-          const pct = Math.max(2, Math.min(100, row.pctFilled));
-          return (
-            <li key={row.key} className="rounded-lg border border-black/5 bg-white px-3 py-2">
-              <div className="flex items-baseline justify-between gap-2 mb-1">
-                <span className="text-[12px] font-semibold text-foreground">
-                  {row.label}
-                  {row.weight > 1 && (
-                    <span className="ml-1.5 text-[9.5px] font-bold uppercase tracking-wider text-rose-700 bg-rose-50 border border-rose-200 rounded px-1 py-[1px]">×{row.weight}</span>
+    <div className="px-4 py-3 border-b border-black/5 bg-warm-bg/30 space-y-5">
+      {/* ── Missing information ───────────────────────────────── */}
+      <section>
+        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/55 mb-2">
+          Missing information · {governance.score}% complete
+        </p>
+        <p className="text-[11.5px] text-foreground/55 mb-3">
+          Email counts triple — every empty email holds back the campaign pipeline. Each row shows how many of {governance.totalContacts.toLocaleString()} contacts have that field filled in.
+        </p>
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {governance.breakdown.map((row) => {
+            const pct = Math.max(2, Math.min(100, row.pctFilled));
+            return (
+              <li key={row.key} className="rounded-lg border border-black/5 bg-white px-3 py-2">
+                <div className="flex items-baseline justify-between gap-2 mb-1">
+                  <span className="text-[12px] font-semibold text-foreground">
+                    {row.label}
+                    {row.weight > 1 && (
+                      <span className="ml-1.5 text-[9.5px] font-bold uppercase tracking-wider text-rose-700 bg-rose-50 border border-rose-200 rounded px-1 py-[1px]">×{row.weight}</span>
+                    )}
+                  </span>
+                  <span className="text-[11px] tabular-nums text-foreground/55">{row.pctFilled}% · {row.missing} missing</span>
+                </div>
+                <div className="h-1.5 bg-warm-bg/60 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${row.pctFilled >= 90 ? 'bg-emerald-500' : row.pctFilled >= 70 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      {/* ── Health information ────────────────────────────────── */}
+      <section>
+        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/55 mb-2">
+          Health information · how the book is being worked
+        </p>
+        <p className="text-[11.5px] text-foreground/55 mb-3">
+          Counts of {health.total.toLocaleString()} contacts grouped by how recently they were touched. Untouched records are leads that haven&apos;t been worked yet; unreachable-by-email records can&apos;t receive a campaign at all until the gap is filled.
+        </p>
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {healthRows.map((row) => {
+            const pct = Math.max(2, Math.min(100, row.pct));
+            const barColor =
+              row.tone === 'good' ? 'bg-emerald-500'
+              : row.tone === 'warn' ? 'bg-amber-500'
+              : 'bg-rose-500';
+            return (
+              <li key={row.key} className="rounded-lg border border-black/5 bg-white px-3 py-2">
+                <div className="flex items-baseline justify-between gap-2 mb-1">
+                  <span className="text-[12px] font-semibold text-foreground">{row.label}</span>
+                  <span className="text-[11px] tabular-nums text-foreground/55">{row.value.toLocaleString()} · {row.pct}%</span>
+                </div>
+                <div className="h-1.5 bg-warm-bg/60 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      {/* ── Recent fill activity ──────────────────────────────── */}
+      <section>
+        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/55 mb-2">
+          Recent fill activity
+        </p>
+        {governance.activity.length === 0 ? (
+          <p className="text-[11.5px] italic text-foreground/45">
+            Nothing logged yet — edits to a contact&apos;s email / phone / company / role / location / specialty / type will appear here as teammates fill them in.
+          </p>
+        ) : (
+          <ul className="space-y-1.5">
+            {governance.activity.map((a) => (
+              <li key={a.id} className="flex items-center gap-2 text-[12px]">
+                {a.userAvatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={a.userAvatarUrl} alt="" className="shrink-0 w-5 h-5 rounded-full object-cover bg-warm-bg" />
+                ) : (
+                  <span className="shrink-0 w-5 h-5 rounded-full bg-warm-bg flex items-center justify-center text-[9px] font-bold text-foreground/55">
+                    {initials(a.userName)}
+                  </span>
+                )}
+                <span className="flex-1 min-w-0 truncate">
+                  <span className="font-semibold text-foreground">{a.userName}</span>
+                  <span className="text-foreground/55"> added </span>
+                  <span className="font-semibold text-foreground">{a.fieldLabel}</span>
+                  {a.contactName && (
+                    <>
+                      <span className="text-foreground/55"> to </span>
+                      <span className="text-foreground">{a.contactName}</span>
+                    </>
                   )}
                 </span>
-                <span className="text-[11px] tabular-nums text-foreground/55">{row.pctFilled}% · {row.missing} missing</span>
-              </div>
-              <div className="h-1.5 bg-warm-bg/60 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full ${row.pctFilled >= 90 ? 'bg-emerald-500' : row.pctFilled >= 70 ? 'bg-amber-500' : 'bg-rose-500'}`}
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-
-      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/55 mb-2">
-        Recent fill activity
-      </p>
-      {governance.activity.length === 0 ? (
-        <p className="text-[11.5px] italic text-foreground/45">
-          Nothing logged yet — edits to a contact&apos;s email / phone / company / role / location / specialty / type will appear here as teammates fill them in.
-        </p>
-      ) : (
-        <ul className="space-y-1.5">
-          {governance.activity.map((a) => (
-            <li key={a.id} className="flex items-center gap-2 text-[12px]">
-              {a.userAvatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={a.userAvatarUrl} alt="" className="shrink-0 w-5 h-5 rounded-full object-cover bg-warm-bg" />
-              ) : (
-                <span className="shrink-0 w-5 h-5 rounded-full bg-warm-bg flex items-center justify-center text-[9px] font-bold text-foreground/55">
-                  {initials(a.userName)}
-                </span>
-              )}
-              <span className="flex-1 min-w-0 truncate">
-                <span className="font-semibold text-foreground">{a.userName}</span>
-                <span className="text-foreground/55"> added </span>
-                <span className="font-semibold text-foreground">{a.fieldLabel}</span>
-                {a.contactName && (
-                  <>
-                    <span className="text-foreground/55"> to </span>
-                    <span className="text-foreground">{a.contactName}</span>
-                  </>
-                )}
-              </span>
-              <span className="shrink-0 text-[10.5px] text-foreground/40 tabular-nums">{ago(a.at)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+                <span className="shrink-0 text-[10.5px] text-foreground/40 tabular-nums">{ago(a.at)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
@@ -4227,15 +4336,19 @@ function InsightsCard({ fallback }: { fallback: { week: number; month: number; t
 
   return (
     <div className="mb-4 rounded-xl border border-black/10 bg-white overflow-hidden">
-      {/* Row 1 — Data governance + Logs today, side-by-side. The
-          two badges read as paired pipeline-health signals: the
-          left answers "is the data complete?" and the right
-          answers "are we logging touches against it?". Each is
-          its own click-to-expand affordance; the expansion
-          panels mount inline below row 1 so the breakdown sits
-          right under the headline it explains. */}
+      {/* Row 1 — Total contacts (size of the book) + Data governance
+          (how complete each record is) + Logs today (how active the
+          pipeline is). Three pipeline-health signals side-by-side
+          so the answer to "is the book big, clean, and being
+          worked?" reads in one glance. Each click-to-expand badge
+          mounts its detail panel inline below row 1. */}
       <div className="px-4 py-4 border-b border-black/5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <TotalContactsBadge
+            total={data?.governance?.totalContacts ?? (counts.total + counts.never)}
+            weekTouched={counts.week}
+            monthTouched={counts.month}
+          />
           <GovernanceBadge
             score={data?.governance?.score ?? null}
             totalContacts={data?.governance?.totalContacts ?? 0}
@@ -4251,7 +4364,17 @@ function InsightsCard({ fallback }: { fallback: { week: number; month: number; t
         </div>
       </div>
       {showGovernance && data?.governance && (
-        <GovernancePanel governance={data.governance} />
+        <GovernancePanel
+          governance={data.governance}
+          health={{
+            total: data.governance.totalContacts,
+            week: counts.week,
+            month: counts.month,
+            everContacted: counts.total,
+            never: counts.never,
+            missingEmail: counts.missingEmail ?? 0,
+          }}
+        />
       )}
       {showLogs && (
         <div className="px-4 py-4 border-b border-black/5">
