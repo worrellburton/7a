@@ -356,6 +356,23 @@ export default function ContactsContent() {
     }).catch(() => { /* silent — map will just show fewer pins */ });
   }, [viewMode, session?.access_token, rows]);
   const [showAdd, setShowAdd] = useState(false);
+  // Single + dropdown that consolidates Add-with-Claude / Upload CSV /
+  // Add contact. Replaces the three-button row that lived in the header.
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const addMenuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!showAddMenu) return;
+    const onDown = (e: MouseEvent) => {
+      if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) setShowAddMenu(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowAddMenu(false); };
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [showAddMenu]);
   // Mobile-only "New log" quick-action: open a slim modal that asks
   // for a person's name + the same fields as LogContactModal. If
   // the name matches an existing contact we log against it; if not
@@ -1043,62 +1060,60 @@ export default function ContactsContent() {
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setViewMode((v) => (v === 'map' ? 'table' : 'map'))}
-            aria-pressed={viewMode === 'map'}
-            className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2 rounded-lg border text-xs font-semibold uppercase tracking-wider transition-colors ${
-              viewMode === 'map'
-                ? 'border-foreground bg-foreground text-white'
-                : 'border-black/10 bg-white text-foreground/70 hover:border-foreground/30 hover:text-foreground'
-            }`}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13 6-3m-6 3V7m6 10 5.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-1.447-.894L15 4m0 13V4m-6 3 6-3" />
-            </svg>
-            Map
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode((v) => (v === 'insights' ? 'table' : 'insights'))}
-            aria-pressed={viewMode === 'insights'}
-            className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2 rounded-lg border text-xs font-semibold uppercase tracking-wider transition-colors ${
-              viewMode === 'insights'
-                ? 'border-foreground bg-foreground text-white'
-                : 'border-black/10 bg-white text-foreground/70 hover:border-foreground/30 hover:text-foreground'
-            }`}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 3v18h18" />
-              <path d="M7 15l4-6 4 4 5-9" />
-            </svg>
-            Insights
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowSuggest(true)}
-            className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 sm:py-2 rounded-lg border border-primary/30 bg-primary/5 text-primary text-xs font-semibold uppercase tracking-wider hover:bg-primary/10 transition-colors"
-          >
-            <SparkleIcon />
-            Add with Claude
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowImport(true)}
-            className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-foreground text-xs font-semibold uppercase tracking-wider hover:bg-warm-bg/60 transition-colors"
-          >
-            <UploadIcon />
-            Upload CSV
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowAdd(true)}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 rounded-lg bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors"
-          >
-            <PlusIcon />
-            Add contact
-          </button>
+        {/* Single "+" button collapses what used to be three separate
+            buttons in the header (Add with Claude, Upload CSV, Add
+            contact) into one dropdown. Map / Insights moved down to
+            the tier-filter row so the header is just title + add. */}
+        <div className="flex items-center gap-2" ref={addMenuRef}>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowAddMenu((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={showAddMenu}
+              className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-lg bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors"
+            >
+              <PlusIcon />
+              Add
+              <svg className={`w-3 h-3 transition-transform ${showAddMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            {showAddMenu && (
+              <div
+                role="menu"
+                className="absolute right-0 mt-1.5 min-w-[14rem] rounded-lg border border-black/10 bg-white shadow-lg z-30 overflow-hidden"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setShowAddMenu(false); setShowAdd(true); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-[12.5px] text-foreground hover:bg-warm-bg/60 text-left"
+                >
+                  <PlusIcon />
+                  Add contact
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setShowAddMenu(false); setShowSuggest(true); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-[12.5px] text-primary hover:bg-primary/5 text-left"
+                >
+                  <SparkleIcon />
+                  Add with Claude
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setShowAddMenu(false); setShowImport(true); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-[12.5px] text-foreground hover:bg-warm-bg/60 text-left border-t border-black/5"
+                >
+                  <UploadIcon />
+                  Upload CSV
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -1150,6 +1165,41 @@ export default function ContactsContent() {
               </button>
             );
           })}
+          {/* Map + Insights view-mode toggles. Used to live in the
+              header; moved inline with the tier filters so the
+              header is just title + Add button. */}
+          <span className="w-px h-5 bg-black/10 mx-1" aria-hidden="true" />
+          <button
+            type="button"
+            onClick={() => setViewMode((v) => (v === 'map' ? 'table' : 'map'))}
+            aria-pressed={viewMode === 'map'}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11.5px] font-semibold border transition-colors ${
+              viewMode === 'map'
+                ? 'border-foreground bg-foreground text-white'
+                : 'bg-white text-foreground/55 border-black/10 hover:bg-warm-bg/60'
+            }`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13 6-3m-6 3V7m6 10 5.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-1.447-.894L15 4m0 13V4m-6 3 6-3" />
+            </svg>
+            Map
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode((v) => (v === 'insights' ? 'table' : 'insights'))}
+            aria-pressed={viewMode === 'insights'}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11.5px] font-semibold border transition-colors ${
+              viewMode === 'insights'
+                ? 'border-foreground bg-foreground text-white'
+                : 'bg-white text-foreground/55 border-black/10 hover:bg-warm-bg/60'
+            }`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 3v18h18" />
+              <path d="M7 15l4-6 4 4 5-9" />
+            </svg>
+            Insights
+          </button>
         </div>
         {/* Manage Columns only matters for the desktop table; on
             mobile every field is visible inside each card. */}
