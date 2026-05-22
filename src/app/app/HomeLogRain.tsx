@@ -69,7 +69,12 @@ const LAST_SEEN_KEY = 'sa.home.log_rain.last_seen_at';
 // richer defaults.
 const MOBILE_BREAKPOINT_PX = 640;
 const MAX_PARTICLES_DESKTOP = 150;
-const MAX_PARTICLES_MOBILE = 80;
+// 40 (not 80) on phones. Even with collision iters lowered to 2,
+// midrange mobile devices stutter at 60+ particles because the
+// O(n²) pass dominates the rAF frame; 40 keeps the pile reading
+// as 'piled' while leaving headroom for jank-free scroll + the
+// orbit's ring animation.
+const MAX_PARTICLES_MOBILE = 40;
 const COLLISION_ITERS_DESKTOP = 3;
 const COLLISION_ITERS_MOBILE = 2;
 const GRAVITY = 0.55;          // px/frame²
@@ -309,11 +314,12 @@ export default function HomeLogRain({
     if (seenIdsRef.current.has(meta.id)) return;
     seenIdsRef.current.add(meta.id);
 
-    // Mobile gets slightly smaller emojis so a pile of 30+ logs at
-    // the bottom of a 360-wide viewport doesn't read as a wall of
-    // brown. Desktop keeps the chunkier range.
+    // Bigger emojis on mobile, not smaller — they need to actually
+    // be visible + tappable on a small viewport. Pile density is
+    // capped by MAX_PARTICLES_MOBILE so the screen doesn't fill
+    // up.
     const fontSize = isMobile
-      ? 14 + Math.random() * 4   // 14–18px on mobile
+      ? 18 + Math.random() * 6   // 18–24px on mobile
       : 16 + Math.random() * 6;  // 16–22px on desktop
     const r = fontSize * 0.7;
 
@@ -658,14 +664,23 @@ export default function HomeLogRain({
     <>
       <div
         ref={containerRef}
-        // On mobile the orbit is `fixed` to viewport center and the
-        // centerpiece flex item it would otherwise live in doesn't
-        // cover the visible viewport. Use `fixed inset-0` so the
-        // rain layer covers the full screen on small viewports;
-        // desktop drops back to `absolute inset-0` inside the
-        // centerpiece (orbit is z-50 there too, so rain at z-0 still
-        // tucks behind it).
-        className="fixed sm:absolute inset-0 z-0 overflow-hidden pointer-events-none"
+        // Mobile: fixed to the viewport (the centerpiece flex item
+        // is short because the orbit is also fixed). Negative
+        // z-index keeps the rain behind regular page content (the
+        // mission footer, WIP pill, action stack) which otherwise
+        // sits at z-auto and got eaten by z-0 fixed. The home
+        // container has `isolation: isolate` so the negative
+        // z-index stays scoped to the page, not behind the body
+        // background.
+        //
+        // Desktop: absolute inside the centerpiece. The orbit at
+        // z-50 inside the same stacking context still tucks the
+        // rain behind it.
+        //
+        // Height is 100svh on mobile so the iOS URL bar collapse
+        // doesn't cause the layer to remeasure as a shorter
+        // viewport mid-fall.
+        className="fixed sm:absolute inset-0 -z-10 sm:z-0 overflow-hidden pointer-events-none"
         aria-hidden="true"
       >
         {size && particles.map((p) => {
