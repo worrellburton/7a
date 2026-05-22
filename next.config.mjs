@@ -202,7 +202,7 @@ const nextConfig = {
   async headers() {
     return [
       {
-        source: '/_next/static/chunks/:path',
+        source: '/_next/static/chunks/:path*',
         headers: [
           { key: 'X-Robots-Tag', value: 'noindex' },
         ],
