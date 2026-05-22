@@ -15,6 +15,7 @@ import JdSignatureNagModal from './JdSignatureNagModal';
 // import HomeClientsRow from './HomeClientsRow';
 import HomeOnlineOrbit, { type OrbitHorse } from './HomeOnlineOrbit';
 import HomeConnect4Nudge from './HomeConnect4Nudge';
+import HomeDailyLogsChip from './HomeDailyLogsChip';
 
 interface RecentUser {
   id: string;
@@ -642,8 +643,13 @@ export default function HomeContent() {
             screen. sm+: returns to normal flex flow. */}
         {recentUsers.length > 0 && (
           <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:relative sm:top-auto sm:left-auto sm:translate-x-0 sm:translate-y-0 pointer-events-none sm:pointer-events-auto">
-            <div className="pointer-events-auto">
+            <div className="pointer-events-auto flex flex-col items-center gap-3">
               <HomeOnlineOrbit users={recentUsers} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
+              {/* Live count of touchpoints logged today + the historical
+                  daily record below it. Clicks through to /app/daily-logs,
+                  the dedicated rain-of-logs surface with the per-user
+                  scoreboard. */}
+              <HomeDailyLogsChip />
             </div>
           </section>
         )}
