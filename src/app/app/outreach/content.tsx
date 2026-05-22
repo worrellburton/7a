@@ -1100,7 +1100,7 @@ export default function ContactsContent() {
                   className="w-full flex items-center gap-2 px-3 py-2 text-[12.5px] text-primary hover:bg-primary/5 text-left"
                 >
                   <SparkleIcon />
-                  Add with Claude
+                  Add with AI
                 </button>
                 <button
                   type="button"
@@ -6122,6 +6122,10 @@ function SuggestWithClaudeModal({
   // "Claude could not find phone+email for 12 of 25 candidates" and
   // explain why the count is short.
   const [missingCount, setMissingCount] = useState(0);
+  // Provider picker — same endpoint, different backend. Claude
+  // (Anthropic + hosted web_search) is the default; Gemini 2.5 Pro
+  // (Google + native google_search grounding) is the alt.
+  const [provider, setProvider] = useState<'claude' | 'gemini'>('claude');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   async function findCandidates() {
@@ -6132,7 +6136,7 @@ function SuggestWithClaudeModal({
       const res = await fetch('/api/contacts/suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ prompt: steer.trim(), count }),
+        body: JSON.stringify({ prompt: steer.trim(), count, provider }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -6224,19 +6228,41 @@ function SuggestWithClaudeModal({
   }
 
   return (
-    <ModalShell title="Add with Claude" eyebrow="AI-assisted outreach" onClose={onClose}>
+    <ModalShell title="Add with AI" eyebrow="AI-assisted outreach" onClose={onClose}>
       {phase === 'prompt' && (
         <div className="px-6 py-5 space-y-4">
           <p className="text-[12.5px] text-foreground/65 leading-relaxed">
-            Claude will research realistic candidate contacts the admissions team might want to track — referrers, clinical partners, alumni leads. You'll get a list with checkboxes; only the ones you keep get added.
+            An AI assistant will research realistic candidate contacts the admissions team might want to track — referrers, clinical partners, alumni leads. You&apos;ll get a list with checkboxes; only the ones you keep get added.
           </p>
+          {/* Provider picker — pick the model that runs the search.
+              Same endpoint + same dedup; just a different backend.
+              Useful for comparing outputs side-by-side. */}
+          <ModalField label="Model">
+            <div className="inline-flex items-center gap-1 rounded-md border border-black/10 bg-white p-1">
+              {([
+                ['claude', 'Claude'],
+                ['gemini', 'Gemini Pro'],
+              ] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setProvider(key)}
+                  className={`px-3 py-1 rounded text-[12px] font-semibold transition-colors ${
+                    provider === key ? 'bg-foreground text-white' : 'text-foreground/65 hover:text-foreground'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </ModalField>
           <ModalField label="Steer (optional)" full hint="e.g. 'Arizona detox owners', 'PHP programs we haven't reached yet'">
             <textarea
               value={steer}
               onChange={(e) => setSteer(e.target.value)}
               rows={3}
               className="modal-input resize-none"
-              placeholder="Tell Claude what kind of contacts to look for…"
+              placeholder={`Tell ${provider === 'gemini' ? 'Gemini' : 'Claude'} what kind of contacts to look for…`}
             />
           </ModalField>
           <ModalField label="How many to suggest">
