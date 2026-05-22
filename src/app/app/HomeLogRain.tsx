@@ -26,6 +26,11 @@ interface LogDrop {
   id: string;
   made_at: string;
   method: string | null;
+  // Free-text describing the touch — for Data Entry rows this is
+  // the "added phone, added email" summary the PATCH route writes,
+  // which the tooltip surfaces verbatim so admins see what was
+  // filled without opening the contact.
+  comments: string | null;
   by_id: string | null;
   by_name: string | null;
   by_avatar: string | null;
@@ -156,6 +161,11 @@ function timeOfDay(iso: string): string {
 // feature on first refresh after deploy; they can turn it off and the
 // preference sticks across sessions.
 
+// Default ON for every visitor. Only an explicit '0' in
+// localStorage (meaning the user toggled it off in a previous
+// session) overrides the default — every other state (no key,
+// '1', malformed, storage unavailable) lands on ON so the
+// feature is visible by default.
 export function useShowRainPreference(): [boolean, (next: boolean) => void] {
   const [enabled, setEnabled] = useState(true);
 
@@ -163,8 +173,7 @@ export function useShowRainPreference(): [boolean, (next: boolean) => void] {
     if (typeof window === 'undefined') return;
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw === '0') setEnabled(false);
-      else setEnabled(true);
+      setEnabled(raw === '0' ? false : true);
     } catch {
       // localStorage unavailable — leave default ON
     }
@@ -200,7 +209,7 @@ export function HomeLogRainToggle({
       type="button"
       onClick={() => onChange(!enabled)}
       aria-pressed={enabled}
-      title={enabled ? 'Hide log rain on home' : 'Show log rain on home'}
+      title={enabled ? 'Hide daily logs on home' : 'Show daily logs on home'}
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10.5px] font-semibold uppercase tracking-[0.16em] transition-colors ${
         enabled
           ? 'border-emerald-400/40 bg-emerald-50/80 text-emerald-700 hover:bg-emerald-100'
@@ -211,7 +220,7 @@ export function HomeLogRainToggle({
       <span aria-hidden="true">🪵</span>
       {/* Full label on tablet+; just the dot + count on phones so
           the hero row can hold both this chip and the + button. */}
-      <span className="hidden sm:inline">Logs on home</span>
+      <span className="hidden sm:inline">Daily logs</span>
       <span
         className={`inline-block w-1.5 h-1.5 rounded-full ${enabled ? 'bg-emerald-500' : 'bg-foreground/30'}`}
         aria-hidden="true"
@@ -433,6 +442,7 @@ export default function HomeLogRain({
             id: string;
             contacted_at: string;
             method: string | null;
+            comments: string | null;
             contacted_by: string | null;
             contact_id: string | null;
           };
@@ -445,6 +455,7 @@ export default function HomeLogRain({
             id: row.id,
             made_at: row.contacted_at,
             method: row.method,
+            comments: row.comments,
             by_id: row.contacted_by,
             by_name: null,
             by_avatar: null,
@@ -749,11 +760,33 @@ export default function HomeLogRain({
                 <p className="font-semibold truncate">
                   {hover.meta.by_name ?? 'A teammate'} · {methodLabel(hover.meta.method)}
                 </p>
-                <p className="text-white/75 mt-0.5">
-                  {hover.meta.contact_name
-                    ? <>with <span className="font-medium">{hover.meta.contact_name}</span></>
-                    : <span className="italic">contact name not loaded</span>}
-                </p>
+                {/* Body line is method-aware:
+                    · New Contact → "added <name>"
+                    · Data Entry  → the comments verbatim ("added phone, added email")
+                    · everything else (Phone / Email / etc.) → "with <name>"
+                    Falls back to italic placeholder when the meta
+                    hasn't been enriched yet (very early in a realtime drop). */}
+                {(() => {
+                  const m = hover.meta.method;
+                  const name = hover.meta.contact_name;
+                  if (m === 'New Contact') {
+                    return name
+                      ? <p className="text-white/75 mt-0.5">added <span className="font-medium">{name}</span></p>
+                      : <p className="text-white/55 mt-0.5 italic">contact name not loaded</p>;
+                  }
+                  if (m === 'Data Entry') {
+                    const summary = (hover.meta.comments ?? '').trim();
+                    return (
+                      <p className="text-white/75 mt-0.5">
+                        {summary || <span className="italic">filled in fields</span>}
+                        {name && <span className="text-white/55"> on <span className="font-medium">{name}</span></span>}
+                      </p>
+                    );
+                  }
+                  return name
+                    ? <p className="text-white/75 mt-0.5">with <span className="font-medium">{name}</span></p>
+                    : <p className="text-white/55 mt-0.5 italic">contact name not loaded</p>;
+                })()}
               </div>
             </div>
             <p className="text-white/45 mt-1.5 text-[10px] tracking-wider uppercase">
