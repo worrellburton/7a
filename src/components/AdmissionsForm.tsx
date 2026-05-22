@@ -39,6 +39,7 @@ interface FormState {
   email: string;
   dateOfBirth: string;
   insuranceProvider: string;
+  memberId: string;
   cardFront: File | null;
   cardBack: File | null;
 }
@@ -53,6 +54,7 @@ export default function AdmissionsForm() {
     email: '',
     dateOfBirth: '',
     insuranceProvider: '',
+    memberId: '',
     cardFront: null,
     cardBack: null,
   });
@@ -115,6 +117,7 @@ export default function AdmissionsForm() {
           email: formData.email,
           dateOfBirth: formData.dateOfBirth || null,
           insuranceProvider: formData.insuranceProvider,
+          memberId: formData.memberId || null,
           cardFrontPath: front.path,
           cardBackPath: back.path,
         }),
@@ -286,6 +289,27 @@ export default function AdmissionsForm() {
           <option value="Anthem">Anthem</option>
           <option value="Other">Other</option>
         </select>
+      </div>
+
+      <div>
+        <label
+          htmlFor="memberId"
+          className="block text-sm font-semibold text-foreground mb-1"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          Member ID <span className="font-normal text-foreground/50">(optional)</span>
+        </label>
+        <input
+          type="text"
+          id="memberId"
+          name="memberId"
+          value={formData.memberId}
+          onChange={handleChange}
+          autoComplete="off"
+          inputMode="text"
+          className="w-full rounded-lg border border-foreground/20 bg-white px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+          style={{ fontFamily: 'var(--font-body)' }}
+        />
       </div>
 
       {/* Insurance card upload */}

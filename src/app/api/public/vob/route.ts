@@ -41,6 +41,8 @@ interface Body {
   date_of_birth?: string | null;
   insuranceProvider?: string;
   insurance_provider?: string;
+  memberId?: string | null;
+  member_id?: string | null;
   cardFrontPath?: string | null;
   cardBackPath?: string | null;
 }
@@ -101,6 +103,7 @@ export async function POST(req: NextRequest) {
   const email = trim(body.email, 200);
   const insurance_provider = trim(body.insuranceProvider ?? body.insurance_provider, 200);
   const date_of_birth = parseDob(body.dateOfBirth ?? body.date_of_birth);
+  const member_id = trim(body.memberId ?? body.member_id, 80);
   const card_front_path = trim(body.cardFrontPath, 300);
   const card_back_path = trim(body.cardBackPath, 300);
   // Card paths are only trusted if they sit inside the random-token
@@ -160,6 +163,7 @@ export async function POST(req: NextRequest) {
     email,
     date_of_birth,
     insurance_provider,
+    member_id,
     hasFront: !!frontAttachment,
     hasBack: !!backAttachment,
     requestedFront: !!safeFront,
@@ -247,6 +251,7 @@ interface EmailParams {
   email: string | null;
   date_of_birth: string | null;
   insurance_provider: string | null;
+  member_id: string | null;
   hasFront: boolean;
   hasBack: boolean;
   requestedFront: boolean;
@@ -273,6 +278,7 @@ function renderVobEmail(p: EmailParams): string {
       <tr><td style="padding: 6px 12px 6px 0; color: #6b574a; font-size: 12px; vertical-align: top;">Email</td><td style="padding: 6px 0; color: #1c100b;">${mail}</td></tr>
       <tr><td style="padding: 6px 12px 6px 0; color: #6b574a; font-size: 12px; vertical-align: top;">Date of birth</td><td style="padding: 6px 0; color: #1c100b;">${escapeHtml(prettyDob(p.date_of_birth))}</td></tr>
       <tr><td style="padding: 6px 12px 6px 0; color: #6b574a; font-size: 12px; vertical-align: top;">Insurance provider</td><td style="padding: 6px 0; color: #1c100b;">${p.insurance_provider ? escapeHtml(p.insurance_provider) : 'Not provided'}</td></tr>
+      <tr><td style="padding: 6px 12px 6px 0; color: #6b574a; font-size: 12px; vertical-align: top;">Member ID</td><td style="padding: 6px 0; color: #1c100b;">${p.member_id ? escapeHtml(p.member_id) : 'Not provided'}</td></tr>
     </tbody>
   </table>
 
