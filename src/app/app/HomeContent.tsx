@@ -643,13 +643,23 @@ export default function HomeContent() {
             screen. sm+: returns to normal flex flow. */}
         {recentUsers.length > 0 && (
           <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:relative sm:top-auto sm:left-auto sm:translate-x-0 sm:translate-y-0 pointer-events-none sm:pointer-events-auto">
-            <div className="pointer-events-auto flex flex-col items-center gap-3">
+            {/* Mobile flips the order so the Daily Logs chip sits ABOVE
+                the orbit — otherwise the orbit's rim avatars cover it
+                and the tap target is impossible to hit on a phone.
+                Desktop keeps the chip below the orbit where there's
+                room without the ring overlapping. */}
+            <div className="pointer-events-auto flex flex-col-reverse items-center gap-5 sm:flex-col sm:gap-3">
               <HomeOnlineOrbit users={recentUsers} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
               {/* Live count of touchpoints logged today + the historical
                   daily record below it. Clicks through to /app/daily-logs,
                   the dedicated rain-of-logs surface with the per-user
-                  scoreboard. */}
-              <HomeDailyLogsChip />
+                  scoreboard. Sits above the orbit on mobile, below on
+                  desktop — see flex-direction flip above. z-[60] keeps
+                  the chip + record line above any rim avatars that
+                  would otherwise cover its bottom edge. */}
+              <div className="relative z-[60]">
+                <HomeDailyLogsChip />
+              </div>
             </div>
           </section>
         )}
