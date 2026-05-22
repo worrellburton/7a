@@ -7872,7 +7872,12 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
   const [normalising, setNormalising] = useState(false);
   const [aiNotes, setAiNotes] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<{ created: number; skipped: number; errors: { row: number; reason: string }[] } | null>(null);
+  const [result, setResult] = useState<{
+    created: number;
+    skipped: number;
+    errors: { row: number; reason: string }[];
+    duplicates: { row: number; name: string; matchedOn: 'name' | 'email' | 'company_website' }[];
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function onFileChange(f: File | null) {
@@ -7948,6 +7953,7 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
         created: json.created ?? 0,
         skipped: json.skipped ?? 0,
         errors: Array.isArray(json.errors) ? json.errors : [],
+        duplicates: Array.isArray(json.duplicates) ? json.duplicates : [],
       });
     } finally {
       setImporting(false);
@@ -8095,20 +8101,47 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
 
           {/* Done */}
           {result && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 px-4 py-3">
-              <p className="text-[13px] font-semibold text-emerald-900">
-                Created {result.created} {result.created === 1 ? 'contact' : 'contacts'}
-                {result.skipped > 0 && <span className="text-foreground/55"> · {result.skipped} skipped</span>}
-              </p>
-              {result.errors.length > 0 && (
-                <ul className="mt-2 space-y-0.5 text-[11px] text-foreground/70 max-h-32 overflow-y-auto">
-                  {result.errors.slice(0, 20).map((e, i) => (
-                    <li key={i}><span className="text-foreground/45">Row {e.row}:</span> {e.reason}</li>
-                  ))}
-                  {result.errors.length > 20 && (
-                    <li className="text-foreground/40 italic">+ {result.errors.length - 20} more</li>
-                  )}
-                </ul>
+            <div className="space-y-2">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 px-4 py-3">
+                <p className="text-[13px] font-semibold text-emerald-900">
+                  Created {result.created} {result.created === 1 ? 'contact' : 'contacts'}
+                  {result.skipped > 0 && <span className="text-foreground/55"> · {result.skipped} skipped</span>}
+                </p>
+                {result.errors.length > 0 && (
+                  <ul className="mt-2 space-y-0.5 text-[11px] text-foreground/70 max-h-32 overflow-y-auto">
+                    {result.errors.slice(0, 20).map((e, i) => (
+                      <li key={i}><span className="text-foreground/45">Row {e.row}:</span> {e.reason}</li>
+                    ))}
+                    {result.errors.length > 20 && (
+                      <li className="text-foreground/40 italic">+ {result.errors.length - 20} more</li>
+                    )}
+                  </ul>
+                )}
+              </div>
+              {/* Already-in-the-CRM rows. Shown distinctly from the
+                  validation errors above so the user can tell 'this
+                  contact already exists' from 'this row was broken'. */}
+              {result.duplicates.length > 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3">
+                  <p className="text-[13px] font-semibold text-amber-900">
+                    {result.duplicates.length} {result.duplicates.length === 1 ? 'row' : 'rows'} already in the CRM — not imported
+                  </p>
+                  <p className="text-[11.5px] text-amber-900/75 mt-0.5">
+                    We matched on the contact&apos;s name, email, or company website. Edit the existing record from the outreach grid instead of re-importing.
+                  </p>
+                  <ul className="mt-2 space-y-0.5 text-[11.5px] text-amber-900/85 max-h-40 overflow-y-auto">
+                    {result.duplicates.slice(0, 30).map((d, i) => (
+                      <li key={i}>
+                        <span className="text-amber-900/55">Row {d.row}:</span>{' '}
+                        <span className="font-medium">{d.name}</span>{' '}
+                        <span className="text-amber-900/55">· matched on {d.matchedOn.replace('_', ' ')}</span>
+                      </li>
+                    ))}
+                    {result.duplicates.length > 30 && (
+                      <li className="text-amber-900/55 italic">+ {result.duplicates.length - 30} more</li>
+                    )}
+                  </ul>
+                </div>
               )}
             </div>
           )}
