@@ -2,10 +2,12 @@ import type { SubstanceContent } from './types';
 
 export const heroinContent: SubstanceContent = {
   hero: {
-    label: 'Heroin Addiction Treatment',
+    label: 'Heroin Addiction Treatment in Arizona',
     title: 'Heroin is the strongest argument against ever believing willpower is enough.',
     description:
-      'At Seven Arrows Recovery, heroin use disorder is treated with the seriousness it deserves: medical detox coordination, medication-assisted treatment, trauma-informed therapy, and a residential structure that holds your nervous system while it learns how to function without the drug.',
+      'Heroin is a brain problem before it is a behavior problem. The receptors do not reset overnight, the cravings do not respond to discipline, and the trauma underneath does not resolve on its own. Our heroin rehab in Arizona was designed around that reality. Seven Arrows Recovery coordinates medical detox, manages MAT, runs trauma therapy that actually goes deep, and keeps you in a residential setting long enough for the work to stick.',
+    labelAs: 'h1',
+    titleAs: 'h2',
     breadcrumbs: [
       { label: 'Home', href: '/' },
       { label: 'What We Treat', href: '/what-we-treat' },
@@ -21,9 +23,9 @@ export const heroinContent: SubstanceContent = {
       </>
     ),
     paragraphs: [
-      "Heroin is diacetylmorphine — chemically designed to cross the blood-brain barrier faster than morphine. It reaches mu-receptors within seconds, producing the warm, full-body quieting that users describe as finally feeling safe.",
+      "Heroin is diacetylmorphine, chemically designed to cross the blood-brain barrier faster than morphine. It reaches mu-receptors within seconds, producing the warm, full-body quieting that users describe as finally feeling safe.",
       'That speed is the trap. The brain learns, at a cellular level, that this exact chemistry is the fastest route to relief from pain, grief, anxiety, and the nervous-system dysregulation that often drove use in the first place. Endogenous opioid production collapses under the weight of the flood.',
-      'Recovery rewires the learning. With MAT scaffolding, trauma-informed therapy, and a nervous system that finally gets to stabilize, the body begins manufacturing its own relief again.',
+      'Recovery rewires the learning. With MAT scaffolding, trauma-informed therapy, and a nervous system that finally gets to stabilize, the body begins manufacturing its own relief again. That is what makes heroin rehab in Arizona different from trying to white-knuckle through it alone.',
     ],
     chart: {
       natural: { label: 'endogenous opioids', color: '#2f6f5e' },
@@ -33,14 +35,10 @@ export const heroinContent: SubstanceContent = {
   },
   cycle: {
     eyebrow: 'The Cycle',
-    title: (
-      <>
-        Four stages. <em className="not-italic text-primary">Running on a four-hour clock.</em>
-      </>
-    ),
+    title: 'How Heroin Affects the Brain: Fast, Complete, and Hard to Un-Teach',
     paragraphs: [
       "Heroin has an aggressive half-life. Most daily users are in withdrawal within four to six hours of their last dose, which is why the loop is so punishing: the drug that provided relief is also the thing causing the suffering that relief is for.",
-      'Residential care is often the first time in years the body gets to stay out of withdrawal for a sustained window. That alone begins the work.',
+      'Residential heroin treatment is often the first time in years the body gets to stay out of withdrawal for a sustained window. At our heroin rehab in Arizona, medical support and MAT are in place from day one, so the nervous system finally has room to begin the work.',
     ],
     stages: [
       { label: 'Use', hint: 'Warmth, safety, quiet' },
@@ -56,7 +54,7 @@ export const heroinContent: SubstanceContent = {
         Heroin overdose risk is <em className="not-italic text-accent">higher than it has ever been</em>.
       </>
     ),
-    body: 'Fentanyl contamination has changed the heroin landscape in a way that cannot be overstated. The drug you buy today is almost never only heroin — and the dose that felt survivable yesterday can be fatal today. Respiratory depression, not the drug itself, is what kills people.',
+    body: 'Fentanyl contamination has changed the heroin landscape in a way that cannot be overstated. The drug you buy today is almost never only heroin, and the dose that felt survivable yesterday can be fatal today. Respiratory depression, not the drug itself, is what kills people — which is why admission to a heroin detox center with 24/7 medical oversight is not overcaution. It is the baseline.',
     stats: [
       {
         value: 80,
@@ -82,13 +80,8 @@ export const heroinContent: SubstanceContent = {
   },
   withdrawal: {
     eyebrow: 'The First Thirty Days',
-    title: (
-      <>
-        Heroin withdrawal is <em className="not-italic text-primary">survivable</em> — and almost
-        nobody survives it alone more than a few times.
-      </>
-    ),
-    body: 'Medically, opioid withdrawal is rarely fatal on its own. Psychologically and physically, it is one of the most painful detoxes in medicine — which is exactly why unsupported attempts to quit usually end in relapse within days. We coordinate medical detox and MAT induction carefully.',
+    title: 'Heroin Detox in Arizona: Survivable, but Almost Nobody Gets Through It Alone',
+    body: 'Medically, opioid withdrawal is rarely fatal on its own. Psychologically and physically, it is one of the most painful detoxes in medicine, which is exactly why unsupported attempts to quit usually end in relapse within days. At our heroin detox center in Arizona, medical detox and MAT induction are coordinated carefully, so the hardest window is never faced without clinical support.',
     phases: [
       {
         label: 'Acute withdrawal',
@@ -114,13 +107,8 @@ export const heroinContent: SubstanceContent = {
   },
   personas: {
     eyebrow: 'Who We Actually See',
-    title: (
-      <>
-        Five patterns through our door —{' '}
-        <em className="not-italic text-primary">and one shared question underneath.</em>
-      </>
-    ),
-    body: "The common question underneath almost every heroin admission is: what was I trying to quiet? The answer is usually in the body before it is in the story.",
+    title: 'Who Comes to Our Arizona Heroin Rehab: One Shared Question Underneath',
+    body: "The common question underneath almost every admission to our Arizona heroin rehab is: what was I trying to quiet? The answer is usually in the body before it is in the story.",
     personas: [
       {
         label: 'The pill-to-heroin pipeline',
@@ -151,13 +139,8 @@ export const heroinContent: SubstanceContent = {
   },
   approach: {
     eyebrow: 'Our Approach',
-    title: (
-      <>
-        Medication is scaffolding. <em className="not-italic text-primary">Therapy is the rebuild.</em>{' '}
-        Community is the roof.
-      </>
-    ),
-    body: 'Medication-assisted treatment is evidence-based, life-saving, and fully supported here. It is not a lesser form of sobriety — it is the difference between relapse-and-overdose and sustained recovery for most people with opioid use disorder.',
+    title: 'Our Heroin Addiction Rehab in Arizona: Medication, Therapy, Community',
+    body: 'Our heroin treatment center in Arizona runs medication-assisted treatment because it is evidence-based, life-saving, and the difference between relapse-and-overdose and sustained recovery for most people with opioid use disorder. It is not a lesser form of sobriety.',
     flagship: {
       title: 'MAT-first, therapy-anchored opioid treatment',
       body: 'Buprenorphine, methadone, or naltrexone protocols held by an addiction-medicine physician, paired tightly with trauma-informed psychotherapy. Medication stabilizes the biology; therapy changes the life it holds.',
@@ -204,8 +187,8 @@ export const heroinContent: SubstanceContent = {
       </>
     ),
     paragraphs: [
-      'Most alumni describe the shift as happening sometime between weeks four and ten — a walk becomes pleasant, a meal tastes like a meal, a hug from family actually registers in the body. The endogenous opioid system is relearning.',
-      'Sleep, movement, connection, and meaning are the four pillars that carry the curve back up. Each is literally how the brain makes its own version of what heroin was providing.',
+      'Most alumni describe the shift as happening sometime between weeks four and ten: a walk becomes pleasant, a meal tastes like a meal, a hug from family actually registers in the body. The endogenous opioid system is relearning.',
+      'Sleep, movement, connection, and meaning are the four pillars of sustained heroin addiction rehab that carry the curve back up. Each is literally how the brain makes its own version of what heroin was providing.',
     ],
     anchors: [
       { x: 0.12, label: 'Sleep', hint: 'Pain tolerance returns' },
@@ -250,6 +233,6 @@ export const heroinContent: SubstanceContent = {
         The body remembers comfort. <em className="not-italic text-accent">Yours can too.</em>
       </>
     ),
-    body: 'Our admissions team can verify your insurance, coordinate medical detox, and begin MAT planning within 24 to 48 hours. One confidential call gets the cardiologist, the psychiatrist, and the trauma clinician on the same page.',
+    body: 'Our admissions team can verify your insurance, coordinate heroin detox in Arizona, and begin MAT planning within 24 to 48 hours. One confidential call gets the cardiologist, the psychiatrist, and the trauma clinician on the same page.',
   },
 };

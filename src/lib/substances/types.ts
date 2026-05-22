@@ -132,6 +132,13 @@ export interface SubstanceHero {
   title: string;
   description: string;
   breadcrumbs: { label: string; href?: string }[];
+  // Heading-tag overrides for SEO. Defaults: label renders as <p>,
+  // title renders as <h1>. Pages that want the eyebrow to carry the
+  // page H1 (e.g. "Heroin Addiction Treatment in Arizona") set
+  // labelAs: 'h1' + titleAs: 'h2' to swap the hierarchy without
+  // changing the visual layout.
+  labelAs?: 'p' | 'h1';
+  titleAs?: 'h1' | 'h2';
 }
 
 export interface SubstanceContent {
