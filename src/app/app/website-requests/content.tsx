@@ -7,18 +7,20 @@ import { openEligibilityPdf } from './eligibility-pdf';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 
-// Single tabbed page combining the four formerly-separate Website
-// Requests views (Overview · VObs · Forms · Careers). Tab state is
-// reflected in ?tab=… so admins can deep-link / refresh and stay on
-// the same view.
+// Single tabbed page combining the Website Requests views
+// (Overview · Forms · Careers · Spam). Tab state is reflected in
+// ?tab=… so admins can deep-link / refresh and stay on the same view.
+//
+// VOBs used to be a tab here; they now route directly to the
+// admissions email group from /api/public/vob, so there's no admin
+// queue to surface. Deep links to ?tab=vobs fall back to overview.
 //
 // Each tab does its own data fetch on activation; the lists are
 // small enough that there's no value in pre-fetching all four.
 
-type Tab = 'overview' | 'vobs' | 'forms' | 'careers' | 'spam';
+type Tab = 'overview' | 'forms' | 'careers' | 'spam';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
-  { id: 'vobs', label: 'VOBs' },
   { id: 'forms', label: 'Forms' },
   { id: 'careers', label: 'Careers' },
   { id: 'spam', label: 'Spam' },
@@ -27,7 +29,6 @@ const TABS: { id: Tab; label: string }[] = [
 function isTab(v: string | null): v is Tab {
   return (
     v === 'overview'
-    || v === 'vobs'
     || v === 'forms'
     || v === 'careers'
     || v === 'spam'
@@ -86,7 +87,6 @@ export default function WebsiteRequestsContent() {
       </div>
 
       {tab === 'overview' && <OverviewPanel onJump={selectTab} />}
-      {tab === 'vobs' && <VobsPanel />}
       {tab === 'forms' && <FormsPanel mode="forms" />}
       {tab === 'careers' && <CareersPanel />}
       {tab === 'spam' && <FormsPanel mode="spam" />}
@@ -142,35 +142,36 @@ function OverviewPanel({ onJump }: { onJump: (t: Tab) => void }) {
   if (!data) return <p className="text-sm text-foreground/50">Loading…</p>;
 
   return (
-    <div className="grid sm:grid-cols-2 gap-4">
-      <CategoryCard
-        title="VOBs"
-        onClick={() => onJump('vobs')}
-        description="Insurance verification requests from the admissions form."
-        total={data.vobs.total}
-        newCount={data.vobs.new}
-        tone="amber"
-        recent={data.vobs.recent.map((r) => ({
-          id: r.id,
-          line1: r.full_name,
-          line2: r.insurance_provider ?? '(no insurance listed)',
-          ts: r.received_at,
-        }))}
-      />
-      <CategoryCard
-        title="Forms"
-        onClick={() => onJump('forms')}
-        description="Contact, footer, and exit-intent submissions from the public site."
-        total={data.forms.total}
-        newCount={data.forms.new}
-        tone="blue"
-        recent={data.forms.recent.map((r) => ({
-          id: r.id,
-          line1: [r.first_name, r.last_name].filter(Boolean).join(' ') || r.email || '(no name)',
-          line2: `${r.source ?? 'unknown source'}${r.email && (r.first_name || r.last_name) ? ` · ${r.email}` : ''}`,
-          ts: r.created_at,
-        }))}
-      />
+    <div className="space-y-4">
+      {/* VOBs are no longer surfaced here — they route directly to
+          the admissions email group. The notice below is the only
+          breadcrumb left on the page so anyone hunting for the old
+          queue knows where it went. */}
+      <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3 text-[13px] text-amber-900">
+        <p className="font-semibold mb-0.5">VOBs are emailed directly to admissions.</p>
+        <p className="text-amber-900/80">
+          The VOBs queue was retired — every insurance-verification submission
+          now sends a complete email (cards included) to the admissions inbox
+          the moment it's submitted. No admin login required to act on one.
+        </p>
+      </div>
+
+      <div className="grid sm:grid-cols-1 gap-4">
+        <CategoryCard
+          title="Forms"
+          onClick={() => onJump('forms')}
+          description="Contact, footer, and exit-intent submissions from the public site."
+          total={data.forms.total}
+          newCount={data.forms.new}
+          tone="blue"
+          recent={data.forms.recent.map((r) => ({
+            id: r.id,
+            line1: [r.first_name, r.last_name].filter(Boolean).join(' ') || r.email || '(no name)',
+            line2: `${r.source ?? 'unknown source'}${r.email && (r.first_name || r.last_name) ? ` · ${r.email}` : ''}`,
+            ts: r.created_at,
+          }))}
+        />
+      </div>
     </div>
   );
 }
