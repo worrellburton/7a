@@ -5,16 +5,17 @@ import { requireWebsiteRequestsAccess } from '@/lib/website-requests-auth';
 // GET /api/website-requests/unread-count
 //
 // Accessible to admins and Marketing & Admissions department members.
-// Returns two parallel views of the inbox:
-//   * `total / vobs / forms` — submissions with status='new' and not
-//     marked spam (the sidebar badge has used this shape since
-//     launch). Spam rows are excluded so a wave of bot submissions
-//     doesn't keep the badge lit indefinitely.
-//   * `unresponded` — submissions where responded_at is NULL and
-//     not spam, broken down into VOBs / contact forms / careers. The
-//     home-page widget uses this; "responded" is the action a
-//     coordinator actually takes ("I responded" button), which is a
-//     stronger signal than the legacy status enum.
+// Returns counts for the remaining inbox surfaces:
+//   * `total / forms` — contact submissions with status='new' and
+//     not marked spam (the sidebar badge has used this shape since
+//     launch).
+//   * `unresponded` — contact submissions where responded_at is
+//     NULL and not spam, broken down into forms / careers.
+//
+// VOBs are no longer counted here — they email directly to the
+// admissions group from /api/public/vob, so there's no queue to
+// burn down. The `vobs` field stays on the response (always 0) so
+// older clients don't break, but new clients should ignore it.
 
 export const dynamic = 'force-dynamic';
 
@@ -25,31 +26,25 @@ export async function GET() {
 
   const admin = getAdminSupabase();
   const [
-    vobsNew,
     formsNew,
-    vobsUnresponded,
     formsUnresponded,
     careersUnresponded,
   ] = await Promise.all([
-    admin.from('vob_requests').select('id', { count: 'exact', head: true }).eq('status', 'new').is('spam_at', null),
     admin.from('contact_submissions').select('id', { count: 'exact', head: true }).eq('status', 'new').is('spam_at', null),
-    admin.from('vob_requests').select('id', { count: 'exact', head: true }).is('responded_at', null).is('spam_at', null),
     admin.from('contact_submissions').select('id', { count: 'exact', head: true }).is('responded_at', null).is('spam_at', null).neq('source', 'careers'),
     admin.from('contact_submissions').select('id', { count: 'exact', head: true }).is('responded_at', null).is('spam_at', null).eq('source', 'careers'),
   ]);
 
-  const vobCount = vobsNew.count ?? 0;
   const formsCount = formsNew.count ?? 0;
-  const vobsUn = vobsUnresponded.count ?? 0;
   const formsUn = formsUnresponded.count ?? 0;
   const careersUn = careersUnresponded.count ?? 0;
   return NextResponse.json({
-    total: vobCount + formsCount,
-    vobs: vobCount,
+    total: formsCount,
+    vobs: 0,
     forms: formsCount,
     unresponded: {
-      total: vobsUn + formsUn + careersUn,
-      vobs: vobsUn,
+      total: formsUn + careersUn,
+      vobs: 0,
       forms: formsUn,
       careers: careersUn,
     },
