@@ -6067,7 +6067,26 @@ function SuggestWithClaudeModal({
   }
 
   function toggleAll(all: boolean) {
-    setChecked(all ? new Set(suggestions.map((_, i) => i)) : new Set());
+    // Scope "Select all" / "Clear" to what the user can actually see.
+    // When strict mode is on, hidden partials should not silently
+    // join the selection — clicking Select-all on a 7-row list and
+    // ending up posting 20 contacts to the DB is the wrong shape.
+    const visibleIndices = suggestions
+      .map((s, i) => (strictContactInfo && s.missing.length > 0 ? -1 : i))
+      .filter((i) => i >= 0);
+    if (all) {
+      setChecked(new Set(visibleIndices));
+    } else {
+      // Clear only the visible indices; preserve any opt-in
+      // selections the user made on rows that are currently hidden
+      // (e.g. they toggled partials on, picked a few, then toggled
+      // strict back on — those picks shouldn't disappear).
+      setChecked((prev) => {
+        const next = new Set(prev);
+        for (const i of visibleIndices) next.delete(i);
+        return next;
+      });
+    }
   }
   function toggleOne(i: number) {
     setChecked((prev) => {
