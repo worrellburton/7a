@@ -17,13 +17,20 @@ export interface LogReportMethodCount {
   method: string;
   count: number;
   durationSec: number;
+  // Methods that are system-generated (the rep clicked Add / filled
+  // a field) rather than active outreach (Phone / Email / etc.).
+  // Drives a separate stack in the KPI band so a CSV import of 100
+  // contacts doesn't read as 100 touchpoints in the weekly recap.
+  isDataMethod: boolean;
 }
 
 export interface LogReportLeaderRow {
   userId: string;
   name: string;
   avatarUrl: string | null;
-  logs: number;
+  logs: number;          // total (outreach + data) for sort stability
+  outreachLogs: number;  // Phone / In Person / Email / etc.
+  dataLogs: number;      // Data Entry + New Contact
   durationSec: number;
 }
 
@@ -47,17 +54,30 @@ export interface LogReportData {
     label: string;           // e.g. "May 14 – May 20, 2026"
   };
   counts: {
-    total: number;
+    total: number;           // all logs in the window
+    outreach: number;        // logs whose method is an outreach touchpoint
+    dataWork: number;        // logs whose method is Data Entry / New Contact
+    newContacts: number;     // subset of dataWork — adds only
+    fieldFills: number;      // subset of dataWork — Data Entry only
     uniqueContacts: number;
     uniqueReps: number;
     totalDurationSec: number;
   };
   byMethod: LogReportMethodCount[];   // sorted desc by count
-  leaderboard: LogReportLeaderRow[];  // sorted desc by logs, top 8
+  leaderboard: LogReportLeaderRow[];  // sorted desc by outreach then total
   topAreas: LogReportAreaRow[];       // sorted desc by count, top 8
   topContacts: LogReportContactRow[]; // sorted desc by touches, top 10
   generatedAt: string;                // ISO timestamp the report was rendered
   appOrigin?: string;                 // for the in-email "Open dashboard" CTA
+}
+
+// Methods that count as "data work" rather than outreach. Kept
+// next to the type definitions so consumers (data builder + the
+// renderer below + the preview stub at the bottom of this file)
+// agree on the split.
+export const DATA_METHODS: ReadonlySet<string> = new Set(['Data Entry', 'New Contact']);
+export function isDataMethod(method: string | null | undefined): boolean {
+  return !!method && DATA_METHODS.has(method);
 }
 
 // ─── Palette ─────────────────────────────────────────────────────
@@ -143,18 +163,26 @@ function header(data: LogReportData): string {
 }
 
 function kpiBand(data: LogReportData): string {
-  const stats: Array<[string, string]> = [
-    ['Total logs', fmtNumber(data.counts.total)],
-    ['Reps', fmtNumber(data.counts.uniqueReps)],
-    ['Contacts', fmtNumber(data.counts.uniqueContacts)],
-    ['Time on the phones', fmtDuration(data.counts.totalDurationSec)],
+  // 'Outreach' is the first slot now (the headline number the
+  // exec scan wants). Data work shows up as a smaller secondary
+  // line under it so adds/fills are visible without inflating the
+  // touchpoint count. Other three slots stay as they were.
+  const dataLine =
+    data.counts.dataWork > 0
+      ? `${fmtNumber(data.counts.dataWork)} data work`
+      : '';
+  const stats: Array<[string, string, string?]> = [
+    ['Outreach', fmtNumber(data.counts.outreach), dataLine],
+    ['Reps', fmtNumber(data.counts.uniqueReps), ''],
+    ['Contacts', fmtNumber(data.counts.uniqueContacts), ''],
+    ['Time on the phones', fmtDuration(data.counts.totalDurationSec), ''],
   ];
   return `
     <tr>
       <td style="padding:8px 24px 0 24px;background:${BONE};">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
           <tr>
-            ${stats.map(([label, value]) => `
+            ${stats.map(([label, value, subline]) => `
               <td style="padding:16px 12px;text-align:center;background:${SAND};border-radius:12px;vertical-align:top;width:25%;">
                 <div style="font-family:${FONT_BODY};font-size:9.5px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase;color:${INK_MUTE};margin-bottom:6px;">
                   ${escapeHtml(label)}
@@ -162,6 +190,7 @@ function kpiBand(data: LogReportData): string {
                 <div style="font-family:${FONT_SERIF};font-size:26px;font-weight:500;line-height:1;color:${INK};">
                   ${escapeHtml(value)}
                 </div>
+                ${subline ? `<div style="font-family:${FONT_BODY};font-size:10.5px;color:${INK_MUTE};margin-top:6px;">+ ${escapeHtml(subline)}</div>` : ''}
               </td>
               <td style="width:8px;background:${BONE};">&nbsp;</td>
             `).join('')}
@@ -207,14 +236,21 @@ function leaderboard(data: LogReportData): string {
       </tr>
     `;
   }
-  const maxLogs = Math.max(...data.leaderboard.map((r) => r.logs), 1);
+  // Rank by outreach logs so the leader bar reflects who actually
+  // ran touchpoints, not who imported a spreadsheet. Data-log count
+  // is annotated as a smaller line under the duration so the work
+  // is still acknowledged.
+  const maxOutreach = Math.max(...data.leaderboard.map((r) => r.outreachLogs), 1);
   return `
     <tr>
       <td style="padding:0 40px 24px 40px;background:${BONE};">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
           ${data.leaderboard.map((row, idx) => {
-            const pct = Math.max(4, Math.round((row.logs / maxLogs) * 100));
+            const pct = Math.max(4, Math.round((row.outreachLogs / maxOutreach) * 100));
             const initials = initialsFor(row.name);
+            const dataLine = row.dataLogs > 0
+              ? `<div style="font-family:${FONT_BODY};font-size:11px;color:${INK_MUTE};">+ ${fmtNumber(row.dataLogs)} data work</div>`
+              : '';
             return `
               <tr>
                 <td style="padding:8px 0 8px 0;vertical-align:middle;width:32px;">
@@ -229,8 +265,9 @@ function leaderboard(data: LogReportData): string {
                   </div>
                 </td>
                 <td style="padding:8px 0 8px 0;vertical-align:middle;text-align:right;width:96px;">
-                  <div style="font-family:${FONT_BODY};font-size:13px;color:${INK};font-weight:700;">${fmtNumber(row.logs)} logs</div>
+                  <div style="font-family:${FONT_BODY};font-size:13px;color:${INK};font-weight:700;">${fmtNumber(row.outreachLogs)} outreach</div>
                   <div style="font-family:${FONT_BODY};font-size:11px;color:${INK_MUTE};">${fmtDuration(row.durationSec)}</div>
+                  ${dataLine}
                 </td>
               </tr>
             `;
@@ -273,14 +310,23 @@ function methodsTable(data: LogReportData): string {
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
           ${data.byMethod.map((m) => {
             const pct = Math.round((m.count / total) * 100);
+            // Visually demote data methods (Data Entry, New Contact)
+            // so they read as 'admin work, not outreach' on first
+            // scan: muted label + a muted bar in INK_MUTE instead of
+            // the copper outreach bar, plus a small 'data' tag.
+            const barColor = m.isDataMethod ? INK_MUTE : COPPER_DEEP;
+            const labelColor = m.isDataMethod ? INK_MUTE : INK;
+            const tag = m.isDataMethod
+              ? `<span style="margin-left:8px;font-size:9.5px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:${INK_MUTE};">Data</span>`
+              : '';
             return `
               <tr>
-                <td style="padding:6px 0;vertical-align:middle;font-family:${FONT_BODY};font-size:13px;color:${INK};">
-                  ${escapeHtml(m.method)}
+                <td style="padding:6px 0;vertical-align:middle;font-family:${FONT_BODY};font-size:13px;color:${labelColor};">
+                  ${escapeHtml(m.method)}${tag}
                 </td>
                 <td style="padding:6px 12px;vertical-align:middle;">
                   <div style="height:6px;background:${SAND};border-radius:3px;overflow:hidden;">
-                    <div style="height:6px;width:${pct}%;background:${COPPER_DEEP};border-radius:3px;">&nbsp;</div>
+                    <div style="height:6px;width:${pct}%;background:${barColor};border-radius:3px;">&nbsp;</div>
                   </div>
                 </td>
                 <td style="padding:6px 0;vertical-align:middle;text-align:right;width:80px;font-family:${FONT_BODY};font-size:12.5px;color:${INK_MUTE};">
@@ -445,24 +491,30 @@ export function buildStubLogReportData(): LogReportData {
       label: `${fmtShortDate(weekStart.toISOString())} – ${fmtShortDate(now.toISOString())}`,
     },
     counts: {
-      total: 87,
+      total: 99,
+      outreach: 87,
+      dataWork: 12,
+      newContacts: 7,
+      fieldFills: 5,
       uniqueContacts: 41,
       uniqueReps: 5,
       totalDurationSec: 4.2 * 3600,
     },
     byMethod: [
-      { method: 'Phone',         count: 38, durationSec: 2.5 * 3600 },
-      { method: 'In Person',     count: 18, durationSec: 1.0 * 3600 },
-      { method: 'Text Message',  count: 14, durationSec: 0 },
-      { method: 'Left Message',  count: 11, durationSec: 0.5 * 3600 },
-      { method: 'Email',         count:  6, durationSec: 0.2 * 3600 },
+      { method: 'Phone',         count: 38, durationSec: 2.5 * 3600, isDataMethod: false },
+      { method: 'In Person',     count: 18, durationSec: 1.0 * 3600, isDataMethod: false },
+      { method: 'Text Message',  count: 14, durationSec: 0,           isDataMethod: false },
+      { method: 'Left Message',  count: 11, durationSec: 0.5 * 3600, isDataMethod: false },
+      { method: 'New Contact',   count:  7, durationSec: 0,           isDataMethod: true  },
+      { method: 'Email',         count:  6, durationSec: 0.2 * 3600, isDataMethod: false },
+      { method: 'Data Entry',    count:  5, durationSec: 0,           isDataMethod: true  },
     ],
     leaderboard: [
-      { userId: '1', name: 'Sakina Mayan',         avatarUrl: null, logs: 24, durationSec: 1.3 * 3600 },
-      { userId: '2', name: 'Brendan Kenney',       avatarUrl: null, logs: 21, durationSec: 1.1 * 3600 },
-      { userId: '3', name: 'Lindsay Rothschild',   avatarUrl: null, logs: 16, durationSec: 0.9 * 3600 },
-      { userId: '4', name: 'Pamela Calvo',         avatarUrl: null, logs: 14, durationSec: 0.5 * 3600 },
-      { userId: '5', name: 'Donald MacKillop',     avatarUrl: null, logs: 12, durationSec: 0.4 * 3600 },
+      { userId: '1', name: 'Sakina Mayan',         avatarUrl: null, logs: 24, outreachLogs: 22, dataLogs: 2, durationSec: 1.3 * 3600 },
+      { userId: '2', name: 'Brendan Kenney',       avatarUrl: null, logs: 24, outreachLogs: 21, dataLogs: 3, durationSec: 1.1 * 3600 },
+      { userId: '3', name: 'Lindsay Rothschild',   avatarUrl: null, logs: 18, outreachLogs: 16, dataLogs: 2, durationSec: 0.9 * 3600 },
+      { userId: '4', name: 'Pamela Calvo',         avatarUrl: null, logs: 17, outreachLogs: 14, dataLogs: 3, durationSec: 0.5 * 3600 },
+      { userId: '5', name: 'Donald MacKillop',     avatarUrl: null, logs: 14, outreachLogs: 12, dataLogs: 2, durationSec: 0.4 * 3600 },
     ],
     topAreas: [
       { area: 'Tucson, AZ',     count: 22 },
