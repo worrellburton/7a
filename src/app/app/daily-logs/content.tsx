@@ -341,10 +341,8 @@ export default function DailyLogsContent() {
         ))}
       </div>
 
-      {/* Page header — eyebrow + headline + counter + back-to-home.
-          The chart and the pill row sit BELOW this block; the chart
-          (week-by-week trend) lands above the time selector so the
-          reader sees the trajectory before they pick a window. */}
+      {/* Page header — eyebrow + headline + description. Counter +
+          back-link land BELOW the chart so the trend reads first. */}
       <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pt-7 sm:pt-12 text-center" style={{ fontFamily: 'var(--font-body)' }}>
         <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-foreground/45">
           Marketing &amp; Admissions
@@ -357,7 +355,26 @@ export default function DailyLogsContent() {
           in-person, text, email, new contact, or field fill.
         </p>
 
-        <div className="mt-5 flex flex-col items-center">
+        {error && (
+          <p className="mt-3 text-[11px] text-rose-700">Couldn&apos;t load logs · {error}</p>
+        )}
+      </div>
+
+      {/* Week-by-week line chart — sits ABOVE the "Logs so far" counter
+          and the time selector so the 12-week trajectory is the first
+          thing the eye lands on. Hydrates from the same payload as
+          the rest of the page (weeklySeries). */}
+      {data && (
+        <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8">
+          <WeeklyLineChart series={data.weeklySeries} />
+        </div>
+      )}
+
+      {/* Counter + back-link — sits below the chart so the headline
+          number reads as the punchline to the trend the chart sets
+          up. Range pills sit just under this. */}
+      <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pt-5 sm:pt-6 text-center" style={{ fontFamily: 'var(--font-body)' }}>
+        <div className="flex flex-col items-center">
           <span
             className="text-[44px] sm:text-6xl font-bold text-emerald-700 tabular-nums leading-none"
             style={{ fontFamily: 'var(--font-display)' }}
@@ -376,29 +393,11 @@ export default function DailyLogsContent() {
         >
           ← Back to home
         </Link>
-
-        {error && (
-          <p className="mt-3 text-[11px] text-rose-700">Couldn&apos;t load logs · {error}</p>
-        )}
       </div>
 
-      {/* Week-by-week line chart — last 12 weeks of log totals, drawn
-          as an SVG line with a copper-to-amber gradient fill, an
-          animated path-draw on mount, and a hover/tap reticle that
-          surfaces the week label + count for each point. Hydrates
-          from the same /api/contacts/logs-today payload as the rest
-          of the page (weeklySeries). Sits above the time selector
-          so the trajectory leads the eye into the window picker. */}
-      {data && (
-        <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8">
-          <WeeklyLineChart series={data.weeklySeries} />
-        </div>
-      )}
-
-      {/* Range pills — sits BELOW the chart now so the reader scans
-          the weekly trajectory first, then picks the window for the
-          leaderboard / feed / records cards below. overflow-x scrolls
-          horizontally on phones so 6 pills don't crush onto 3 lines. */}
+      {/* Range pills — sits BELOW the chart + counter. overflow-x
+          scrolls horizontally on phones so 6 pills don't crush onto
+          3 lines. */}
       <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pt-5 sm:pt-6 text-center" style={{ fontFamily: 'var(--font-body)' }}>
         <div className="-mx-4 sm:mx-0 overflow-x-auto no-scrollbar">
           <div
@@ -888,11 +887,22 @@ function WeeklyLineChart({ series }: { series: WeeklyPoint[] }) {
           {total} total
         </span>
       </header>
-      <div className="px-2 sm:px-4 pt-2 pb-1">
+      {/* min-w-0 on the wrapper is the critical bit — without it a flex/
+          grid context further up the tree would let the SVG's intrinsic
+          viewBox width (720) leak out and force the layout viewport
+          wider than the device, which iOS Safari then renders as a
+          page-wide "zoom in". The explicit width="100%" attribute on
+          the <svg> below is a belt-and-braces guard for the same case
+          (iOS sometimes uses the viewBox aspect for intrinsic width
+          before the `w-full` CSS class is resolved). */}
+      <div className="px-2 sm:px-4 pt-2 pb-1 min-w-0">
         <svg
           viewBox={`0 0 ${VB_W} ${VB_H}`}
           preserveAspectRatio="none"
+          width="100%"
+          height="100%"
           className="w-full h-44 sm:h-56 wlc-svg"
+          style={{ display: 'block', maxWidth: '100%' }}
           role="img"
           aria-label={`Weekly log totals over the last ${n} weeks`}
         >

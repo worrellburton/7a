@@ -32,6 +32,24 @@ body {
   line-height: 1.6;
 }
 
+/* Mobile horizontal-overflow guard. iOS Safari computes its layout
+   viewport from the widest element on the page — if any single
+   element (SVG with intrinsic viewBox width, a flex row with long
+   inline children, a pre overflowing its parent, etc.) exceeds the
+   device width, Safari widens the layout viewport to match and
+   renders the whole page at the resulting zoom-in scale. Capping
+   <html> and <body> at 100vw + clipping horizontal overflow makes
+   that mathematically impossible regardless of what an inner
+   component does wrong. Scoped to ≤768px so the desktop sidebar
+   overlay + hover transforms aren't affected. */
+@media (max-width: 768px) {
+  html,
+  body {
+    max-width: 100vw;
+    overflow-x: clip;
+  }
+}
+
 /* Tailwind v4 dropped the legacy `cursor: pointer` on buttons (and
    role="button") and never set one on interactive anchors. Restore the
    classic "if it does something on click, the cursor changes" UX
