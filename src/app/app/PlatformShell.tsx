@@ -151,6 +151,15 @@ const pageIcons: Record<string, React.ReactNode> = {
       <circle cx="17" cy="18" r="2" fill="currentColor" />
     </svg>
   ),
+  // Kaizen — multi-sparkle reads as "AI-driven daily insight" and
+  // pairs visually with the Claude-backed scan that powers the page.
+  '/app/kaizen': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l1.6 4.8L18 9.4l-4.4 1.6L12 15.8l-1.6-4.8L6 9.4l4.4-1.6z" />
+      <path d="M19 14l.7 2.1 2.1.7-2.1.7L19 19.6l-.7-2.1-2.1-.7 2.1-.7z" />
+      <path d="M5 16l.6 1.8L7.4 18.4l-1.8.6L5 20.8l-.6-1.8L2.6 18.4l1.8-.6z" />
+    </svg>
+  ),
   '/app/website-requests': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 4h16v12H5.17L4 17.17V4z" />

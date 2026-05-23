@@ -46,26 +46,16 @@ a[href] {
   cursor: pointer;
 }
 
-/* Admin portal: zoom everything ~20% smaller across the board on larger
-   viewports. Using `zoom` scales Tailwind rem utilities, px values,
-   spacing, and images together so pages feel 2-3 type-scale steps tighter
-   without touching every component. Public marketing pages are
-   unaffected.
-
-   Skip the zoom on mobile — phones already have limited real estate and
-   scaling down 18% more pushes text below comfortable reading size.
-
-   The min-height compensates for zoom so the shell still fills the full
-   viewport after scaling — otherwise zoom: 0.82 on a 100vh element would
-   render at only 82vh, leaving an empty white band at the bottom. */
+/* Admin portal scaling — previously this rule applied `zoom: 0.82` on
+   viewports ≥ 1024px to fit a tighter type scale without per-component
+   work. The side-effect was that big monitors + iPad-class viewports
+   rendered the whole shell visibly shrunken, and any pre-zoom mental
+   model from a previous session felt jarring on re-open. Removing the
+   transform so the platform renders at 100% on every breakpoint. The
+   `.app-shell { min-height: 100vh }` declaration stays so the shell
+   still fills the viewport. */
 .app-shell {
   min-height: 100vh;
-}
-@media (min-width: 1024px) {
-  .app-shell {
-    zoom: 0.82;
-    min-height: calc(100vh / 0.82);
-  }
 }
 
 @layer base {

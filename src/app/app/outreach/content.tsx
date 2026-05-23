@@ -6879,8 +6879,16 @@ function NewLogModal({
               required
               autoFocus
               list="new-log-name-suggestions"
+              // Suppress browser autofill so Chrome / Safari don't
+              // pre-populate the field with the signed-in user's own
+              // name from saved profile data — the input is for
+              // entering a CONTACT's name, not the marketer's. We
+              // still want our own <datalist> hints, which are
+              // independent of the browser's autocomplete behaviour.
+              autoComplete="off"
+              name="new-log-contact-name"
               className="modal-input"
-              placeholder="Lindsay Rothschild"
+              placeholder="Type the contact's name…"
             />
             <datalist id="new-log-name-suggestions">
               {existingNames.slice(0, 200).map((n) => (
