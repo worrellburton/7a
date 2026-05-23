@@ -339,25 +339,24 @@ export async function GET(req: NextRequest) {
     if (k >= lastMonthStartKey && k < thisMonthStartKey) counts.last_month += 1;
   }
 
-  // Weekly time series — last WEEKS_BACK weeks ending with the
-  // current (in-progress) week, oldest → newest. Buckets keyed by
-  // the Monday-anchored Phoenix week start so the labels stay
-  // stable across DST and across viewer time zones. We pre-fill
-  // every slot with 0 so a quiet week still draws a point on the
-  // line (rather than a gap that misleads the reader).
-  const WEEKS_BACK = 12;
+  // All-time weekly time series — every Phoenix-Monday-anchored
+  // week from the first historical log through the current week,
+  // oldest → newest. Zeros fill the gaps so the line reads as a
+  // continuous trend instead of dropping out on quiet weeks. Capped
+  // at MAX_WEEKS so a multi-year history still hydrates fast and
+  // renders without dropping below ~3px per data point on phones.
+  const MAX_WEEKS = 104; // ~2 years
+  const sortedWeekKeys = Array.from(weekCount.keys()).sort();
+  const firstWeekKey = sortedWeekKeys[0] ?? thisWeekStartKey;
   const weekSlots: Array<{ weekStart: string; count: number }> = [];
-  let cursor = thisWeekStartKey;
-  for (let i = 0; i < WEEKS_BACK; i++) {
-    weekSlots.push({ weekStart: cursor, count: 0 });
-    cursor = addDaysKey(cursor, -7);
+  let cursor = firstWeekKey;
+  while (cursor <= thisWeekStartKey) {
+    weekSlots.push({ weekStart: cursor, count: weekCount.get(cursor) ?? 0 });
+    cursor = addDaysKey(cursor, 7);
   }
-  weekSlots.reverse(); // oldest → newest
-  const weekIdx = new Map<string, number>(weekSlots.map((s, i) => [s.weekStart, i]));
-  for (const [wk, n] of weekCount) {
-    const i = weekIdx.get(wk);
-    if (i !== undefined) weekSlots[i].count = n;
-  }
+  // If history is older than MAX_WEEKS, trim from the front so the
+  // visible window is always the most recent ~2 years.
+  const trimmed = weekSlots.length > MAX_WEEKS ? weekSlots.slice(-MAX_WEEKS) : weekSlots;
 
   return NextResponse.json({
     range,
@@ -373,6 +372,6 @@ export async function GET(req: NextRequest) {
       dayBestByUser,
     },
     windowCounts: counts,
-    weeklySeries: weekSlots,
+    weeklySeries: trimmed,
   });
 }
