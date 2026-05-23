@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 
 // Dedicated "Daily logs" surface. The viewer picks a date range
@@ -165,11 +166,46 @@ function methodTone(method: string | null): { bg: string; text: string; ring: st
   }
 }
 
+function parseRange(raw: string | null | undefined): RangeKey {
+  switch (raw) {
+    case 'this_week':
+    case 'last_week':
+    case 'this_month':
+    case 'last_month':
+    case 'all_time':
+    case 'today':
+      return raw;
+    default:
+      return 'today';
+  }
+}
+
 export default function DailyLogsContent() {
   const { session } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [data, setData] = useState<DailyLogsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [range, setRange] = useState<RangeKey>('today');
+  // Range lives in the URL (?range=this_week, ?range=last_month,
+  // etc.) so each window is a distinct link teammates can share +
+  // bookmark. Default = today. The pill row writes to the URL via
+  // router.replace which keeps the back button history clean
+  // (range hops aren't separate history entries — same surface).
+  const range = useMemo<RangeKey>(
+    () => parseRange(searchParams?.get('range') ?? null),
+    [searchParams],
+  );
+  const setRange = useCallback(
+    (next: RangeKey) => {
+      const params = new URLSearchParams(searchParams?.toString() ?? '');
+      if (next === 'today') params.delete('range');
+      else params.set('range', next);
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    },
+    [pathname, router, searchParams],
+  );
   const [counter, setCounter] = useState(0);
 
   const refresh = useCallback(async () => {
