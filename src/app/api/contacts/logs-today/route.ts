@@ -318,6 +318,27 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Window-count rollup — one log-count per date range so the
+  // glowing chart on /app/daily-logs renders all six bars in a
+  // single round-trip. Computed in-memory from the same `history`
+  // sweep we already pulled for the records section, so this is
+  // free; no extra DB query.
+  const todayKey0 = phoenixDateKey(new Date().toISOString());
+  const thisWeekStartKey = phoenixWeekStartKey(new Date().toISOString());
+  const lastWeekStartKey = addDaysKey(thisWeekStartKey, -7);
+  const thisMonthStartKey = phoenixMonthStartKey(new Date().toISOString());
+  const lastMonthStartKey = addMonthsKey(thisMonthStartKey, -1);
+  const counts = { today: 0, this_week: 0, last_week: 0, this_month: 0, last_month: 0, all_time: 0 };
+  for (const r of history) {
+    const k = phoenixDateKey(r.contacted_at);
+    counts.all_time += 1;
+    if (k === todayKey0) counts.today += 1;
+    if (k >= thisWeekStartKey) counts.this_week += 1;
+    if (k >= lastWeekStartKey && k < thisWeekStartKey) counts.last_week += 1;
+    if (k >= thisMonthStartKey) counts.this_month += 1;
+    if (k >= lastMonthStartKey && k < thisMonthStartKey) counts.last_month += 1;
+  }
+
   return NextResponse.json({
     range,
     rangeLabel: win.label,
@@ -331,5 +352,6 @@ export async function GET(req: NextRequest) {
       weekBest,
       dayBestByUser,
     },
+    windowCounts: counts,
   });
 }

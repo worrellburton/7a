@@ -56,6 +56,15 @@ interface RecordsBlock {
   dayBestByUser: { count: number; date: string; userId: string; name: string; avatarUrl: string | null } | null;
 }
 
+interface WindowCounts {
+  today: number;
+  this_week: number;
+  last_week: number;
+  this_month: number;
+  last_month: number;
+  all_time: number;
+}
+
 interface DailyLogsPayload {
   range: RangeKey;
   rangeLabel: string;
@@ -64,6 +73,7 @@ interface DailyLogsPayload {
   total: number;
   record: { count: number; date: string } | null;
   records: RecordsBlock;
+  windowCounts: WindowCounts;
 }
 
 // Deterministic pseudo-random from a string seed. Used to pin each
@@ -384,6 +394,20 @@ export default function DailyLogsContent() {
           <p className="mt-3 text-[11px] text-rose-700">Couldn&apos;t load logs · {error}</p>
         )}
       </div>
+
+      {/* Window-chart — six glowing copper bars, one per date range.
+          Click any bar to swap the active window (mirrors the pill
+          row above). The active bar breathes; the others rise on
+          mount + fade their halo. See WindowGlowChart below. */}
+      {data && (
+        <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8">
+          <WindowGlowChart
+            counts={data.windowCounts}
+            active={range}
+            onSelect={setRange}
+          />
+        </div>
+      )}
 
       {/* Two-column body — leaderboard left, logs right. Stacks on
           mobile. Sits above the rain via relative + z-10. */}
@@ -714,5 +738,235 @@ function RecordCell({
         <p className="mt-1 text-[11px] text-foreground/55 truncate">{caption}</p>
       </div>
     </div>
+  );
+}
+
+// ─── WindowGlowChart ────────────────────────────────────────────
+//
+// Six glowing copper bars, one per date range. Built in ten visible
+// phases inside one component so the diff reads as a single shipment
+// rather than ten micro-PRs:
+//
+//   PHASE 1 · Data binding — counts come pre-rolled-up from the
+//             /api/contacts/logs-today endpoint's `windowCounts`
+//             object so the chart hydrates in one round-trip,
+//             no extra fetch.
+//   PHASE 2 · Layout — six equal-width columns, label + value
+//             stacked above each bar, responsive flex so it
+//             collapses gracefully on narrow phones.
+//   PHASE 3 · Bar geometry — each bar's height normalises to the
+//             tallest of the six so a quiet day still reads as a
+//             real bar instead of a 1px sliver.
+//   PHASE 4 · Brand palette — copper-to-amber gradient on every
+//             bar, with the active bar swapping to a primary-to-
+//             emerald gradient so the eye lands on "this is the
+//             window you're viewing".
+//   PHASE 5 · Glow — radial halo behind the active bar plus a
+//             box-shadow that breathes on a 2.4s ease-in-out loop.
+//             Inactive bars get a quiet drop-shadow.
+//   PHASE 6 · Rise animation — bars scale-y from 0 → full height
+//             on first paint with a per-bar 80ms stagger, easing
+//             out so the row settles in waves.
+//   PHASE 7 · Number ticker — the count above each bar counts up
+//             from 0 → its value over 700ms using
+//             requestAnimationFrame, one rAF per chart, all six
+//             tickers driven off the same `t` so they finish
+//             together and the row reads as a single beat.
+//   PHASE 8 · Interactive — every bar is a real <button>; tapping
+//             swaps the active range (same handler the pill row
+//             uses, so URL stays in sync via setRange's
+//             router.replace).
+//   PHASE 9 · Reduced motion — prefers-reduced-motion: reduce
+//             collapses the rise + the breathe loop so the chart
+//             paints instantly without losing the active glow.
+//   PHASE 10 · Mobile pass — column padding tightens, label font
+//              steps down, bar width responds via flex-1 so 6
+//              bars still read on a 360px viewport without
+//              overflowing.
+
+interface WindowGlowChartProps {
+  counts: WindowCounts;
+  active: RangeKey;
+  onSelect: (range: RangeKey) => void;
+}
+
+const CHART_WINDOWS: Array<{ key: RangeKey; short: string; long: string }> = [
+  { key: 'today',      short: 'Today',     long: 'Today' },
+  { key: 'this_week',  short: 'Wk',        long: 'This week' },
+  { key: 'last_week',  short: 'Last wk',   long: 'Last week' },
+  { key: 'this_month', short: 'Mo',        long: 'This month' },
+  { key: 'last_month', short: 'Last mo',   long: 'Last month' },
+  { key: 'all_time',   short: 'All',       long: 'All time' },
+];
+
+function WindowGlowChart({ counts, active, onSelect }: WindowGlowChartProps) {
+  const values = CHART_WINDOWS.map((w) => counts[w.key] ?? 0);
+  const max = Math.max(1, ...values);
+  // Number ticker — one rAF driving all six bars together so the
+  // row finishes in a single coordinated beat. Resets whenever
+  // `counts` changes (e.g. a fresh fetch after a teammate logs).
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    setT(0);
+    const reduceMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduceMotion) { setT(1); return; }
+    const start = performance.now();
+    const duration = 700;
+    let raf = 0;
+    const tick = (now: number) => {
+      const u = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - u, 3);
+      setT(eased);
+      if (u < 1) raf = window.requestAnimationFrame(tick);
+    };
+    raf = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(raf);
+  }, [counts]);
+
+  return (
+    <section
+      className="relative rounded-2xl border border-black/10 bg-white/85 backdrop-blur-sm shadow-[0_18px_40px_-24px_rgba(60,48,42,0.35)] overflow-hidden"
+      style={{ fontFamily: 'var(--font-body)' }}
+      aria-label="Logs by date range"
+    >
+      <header className="px-4 sm:px-5 py-3 sm:py-4 border-b border-black/5">
+        <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/55">
+          By window
+        </p>
+        <h2 className="mt-0.5 text-base sm:text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+          Logs across every range
+        </h2>
+      </header>
+      <div className="px-3 sm:px-5 pt-4 pb-2 flex items-end gap-1.5 sm:gap-3">
+        {CHART_WINDOWS.map((w, i) => {
+          const value = counts[w.key] ?? 0;
+          // Floor the bar at 6% even for zero so the row doesn't read
+          // as five-and-a-half empty slots when one window dominates.
+          const heightPct = Math.max(6, Math.round((value / max) * 100));
+          const ticked = Math.round(value * t);
+          const isActive = w.key === active;
+          return (
+            <button
+              key={w.key}
+              type="button"
+              onClick={() => onSelect(w.key)}
+              aria-label={`${w.long} — ${value} ${value === 1 ? 'log' : 'logs'}`}
+              aria-pressed={isActive}
+              className={`wgc-col group flex-1 min-w-0 inline-flex flex-col items-center gap-1 px-1 pt-1 pb-2 rounded-xl transition-colors ${
+                isActive ? 'bg-primary/[0.04]' : 'hover:bg-warm-bg/40'
+              }`}
+            >
+              <span
+                className={`tabular-nums font-bold leading-none transition-colors ${
+                  isActive ? 'text-emerald-700' : 'text-foreground/80 group-hover:text-foreground'
+                } text-[15px] sm:text-[18px]`}
+                style={{ fontFamily: 'var(--font-display)' }}
+              >
+                {ticked}
+              </span>
+              <span className="relative w-full h-32 sm:h-40 flex items-end justify-center">
+                {/* Halo — sits behind the bar, animates only on the
+                    active one. Inactive bars get a static low-opacity
+                    halo so the row doesn't read as flat. */}
+                <span
+                  aria-hidden
+                  className={`wgc-halo pointer-events-none absolute inset-x-1 bottom-0 rounded-full ${
+                    isActive ? 'wgc-halo--active' : 'wgc-halo--idle'
+                  }`}
+                />
+                <span
+                  aria-hidden
+                  className={`wgc-bar relative w-full max-w-[40px] sm:max-w-[56px] rounded-t-lg rounded-b-md ${
+                    isActive ? 'wgc-bar--active' : 'wgc-bar--idle'
+                  }`}
+                  style={{
+                    height: `${heightPct}%`,
+                    ['--wgc-delay' as string]: `${i * 80}ms`,
+                  }}
+                />
+              </span>
+              <span
+                className={`text-[9.5px] sm:text-[10.5px] font-bold uppercase tracking-[0.14em] transition-colors ${
+                  isActive ? 'text-primary' : 'text-foreground/55 group-hover:text-foreground/80'
+                }`}
+              >
+                <span className="hidden sm:inline">{w.long}</span>
+                <span className="inline sm:hidden">{w.short}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      <style jsx>{`
+        @keyframes wgc-rise {
+          from { transform: scaleY(0); }
+          to   { transform: scaleY(1); }
+        }
+        @keyframes wgc-breathe {
+          0%, 100% { opacity: 0.55; transform: scale(0.92); }
+          50%      { opacity: 0.95; transform: scale(1.06); }
+        }
+        :global(.wgc-bar) {
+          transform-origin: bottom center;
+          animation: wgc-rise 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
+          animation-delay: var(--wgc-delay);
+          will-change: transform;
+        }
+        :global(.wgc-bar--idle) {
+          background: linear-gradient(180deg,
+            rgba(184, 115, 51, 0.85) 0%,
+            rgba(184, 115, 51, 0.55) 60%,
+            rgba(184, 115, 51, 0.35) 100%);
+          box-shadow:
+            0 0 0 1px rgba(184, 115, 51, 0.15),
+            0 6px 16px -8px rgba(184, 115, 51, 0.35);
+        }
+        :global(.wgc-bar--active) {
+          background: linear-gradient(180deg,
+            #10b981 0%,
+            #b87333 55%,
+            #f59e0b 100%);
+          box-shadow:
+            0 0 0 1px rgba(184, 115, 51, 0.35),
+            0 0 22px rgba(245, 158, 11, 0.55),
+            0 0 44px rgba(16, 185, 129, 0.35),
+            0 10px 26px -8px rgba(184, 115, 51, 0.55);
+        }
+        :global(.wgc-halo) {
+          height: 72%;
+          filter: blur(18px);
+          opacity: 0;
+          background: radial-gradient(closest-side,
+            rgba(245, 158, 11, 0.75),
+            rgba(184, 115, 51, 0.35) 55%,
+            transparent 80%);
+        }
+        :global(.wgc-halo--idle) {
+          opacity: 0.18;
+          background: radial-gradient(closest-side,
+            rgba(184, 115, 51, 0.45),
+            transparent 70%);
+        }
+        :global(.wgc-halo--active) {
+          animation: wgc-breathe 2.4s ease-in-out infinite;
+          background: radial-gradient(closest-side,
+            rgba(16, 185, 129, 0.55),
+            rgba(245, 158, 11, 0.45) 45%,
+            transparent 80%);
+        }
+        :global(.wgc-col:focus-visible) {
+          outline: 2px solid var(--color-primary, #b87333);
+          outline-offset: 2px;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          :global(.wgc-bar),
+          :global(.wgc-halo--active) {
+            animation: none !important;
+            transform: scaleY(1) !important;
+            opacity: 0.6 !important;
+          }
+        }
+      `}</style>
+    </section>
   );
 }
