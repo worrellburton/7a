@@ -648,8 +648,17 @@ export default function HomeContent() {
             screen. sm+: returns to normal flex flow. */}
         {recentUsers.length > 0 && (
           <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:relative sm:top-auto sm:left-auto sm:translate-x-0 sm:translate-y-0 pointer-events-none sm:pointer-events-auto">
-            <div className="pointer-events-auto">
+            <div className="pointer-events-auto flex flex-col items-center gap-3">
               <HomeOnlineOrbit users={recentUsers} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
+              {/* Mobile-only chip — the desktop chip sits between the
+                  centerpiece and the Seven Arrows tagline (further
+                  down), but on mobile the orbit is fixed-positioned
+                  over that spot, so we render the chip directly under
+                  the ring to keep it reachable. Hidden on sm+ so the
+                  desktop placement isn't duplicated. */}
+              <div className="sm:hidden">
+                <HomeDailyLogsChip />
+              </div>
             </div>
           </section>
         )}
