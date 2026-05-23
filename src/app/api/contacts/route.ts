@@ -184,6 +184,19 @@ export async function POST(req: NextRequest) {
       last_contact_method: 'New Contact',
       last_contact_comments: 'Contact added.',
     }).eq('id', data.id);
+
+    // Also surface the new contact on the platform-wide /app/activity
+    // feed (separate from the contact_logs row above, which only
+    // drives the outreach log-rain + leaderboards).
+    await admin.from('activity_log').insert({
+      user_id: user.id,
+      type: 'contact.created',
+      target_kind: 'contact',
+      target_id: data.id,
+      target_label: data.name,
+      target_path: '/app/outreach',
+      metadata: { company: data.company ?? null },
+    });
   }
 
   return NextResponse.json(data, { status: 201 });
