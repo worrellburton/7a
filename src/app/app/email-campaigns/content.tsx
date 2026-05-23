@@ -256,6 +256,11 @@ export default function EmailCampaignsContent() {
                 c={c}
                 expanded={expanded === c.id}
                 onToggle={() => setExpanded((prev) => (prev === c.id ? null : c.id))}
+                canManage={canManage}
+                onDeleted={(id) => {
+                  setRows((prev) => prev.filter((r) => r.id !== id));
+                  setExpanded((prev) => (prev === id ? null : prev));
+                }}
               />
             ))}
           </ul>
@@ -266,12 +271,19 @@ export default function EmailCampaignsContent() {
 }
 
 function CampaignRowItem({
-  c, expanded, onToggle,
+  c, expanded, onToggle, canManage, onDeleted,
 }: {
   c: CampaignRow;
   expanded: boolean;
   onToggle: () => void;
+  /** Admins see the delete button — non-admins don't. */
+  canManage: boolean;
+  /** Parent updater so the row + its expanded analytics disappear
+   *  immediately when the DELETE succeeds, no extra refetch. */
+  onDeleted: (id: string) => void;
 }) {
+  const { session } = useAuth();
+  const [deleting, setDeleting] = useState(false);
   const subject = c.generated_subject?.trim() || c.prompt?.trim().slice(0, 80) || 'Untitled campaign';
   const tone = STATUS_TONE[c.status] ?? STATUS_TONE.draft;
   const resumeHref =
@@ -286,6 +298,34 @@ function CampaignRowItem({
   // Only campaigns that actually went out (sent or failed) get the
   // analytics expansion. A draft has no Resend data to show.
   const expandable = c.status === 'sent' || c.status === 'failed' || c.status === 'sending';
+
+  // Delete handler. Confirms with a hard warning since the DB-level
+  // cascade wipes the recipient list, send log, and per-event
+  // analytics in one shot — there's no undo from the UI side.
+  const onDelete = async () => {
+    if (deleting) return;
+    const confirmMsg = c.status === 'sent' || c.status === 'failed' || c.status === 'sending'
+      ? `Delete "${subject}"?\n\nThis permanently removes the campaign AND every analytic that goes with it (recipient list, send log, opens, clicks, bounces). The contact_logs entries that were already written to each recipient stay in place. This cannot be undone.`
+      : `Delete "${subject}"?\n\nThis permanently removes the draft and any recipients you've picked. Cannot be undone.`;
+    if (!window.confirm(confirmMsg)) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/email-campaigns/${c.id}`, {
+        method: 'DELETE',
+        headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+      });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || json.ok === false) {
+        window.alert(`Couldn't delete: ${json.error ?? `HTTP ${res.status}`}`);
+        return;
+      }
+      onDeleted(c.id);
+    } catch (err) {
+      window.alert(`Couldn't delete: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <li>
@@ -347,6 +387,27 @@ function CampaignRowItem({
         >
           Open
         </Link>
+        {canManage && (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={deleting}
+            aria-label={`Delete campaign "${subject}"`}
+            title="Delete campaign + every analytic that goes with it. Cannot be undone."
+            className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-md border border-black/10 bg-white text-foreground/55 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {deleting ? (
+              <span aria-hidden className="inline-block w-3 h-3 border-2 border-foreground/30 border-t-foreground/70 rounded-full animate-spin" />
+            ) : (
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6M14 11v6" />
+                <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+              </svg>
+            )}
+          </button>
+        )}
       </div>
       {expanded && expandable && <CampaignAnalyticsDropdown campaignId={c.id} />}
     </li>
