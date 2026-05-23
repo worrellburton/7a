@@ -1363,42 +1363,51 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   disables the inner overflow-y-auto. min-h-0 lets it
                   shrink below content height so the inner scroll
                   engages. */}
-              <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-0.5">
+              {/* Each link is wrapped in <li>. The Phase-1 mobile
+                  tap-target rule in globals.css turns every <a> into
+                  display:inline-flex (so icon-only buttons hit 44px),
+                  but explicitly exempts anchors descended from <li>
+                  (`:not(li a)`). Wrapping here is the cleanest way to
+                  opt the drawer rows out without fighting specificity
+                  on every callsite — they go back to natural display
+                  and stack vertically inside the parent <ul>. */}
+              <ul className="flex-1 min-h-0 overflow-y-auto p-3 space-y-0.5">
                 {(() => {
                   const renderMobileLink = (item: PageConfig) => {
                     const isActive = pathname === item.path;
                     return (
-                      <Link
-                        key={item.path}
-                        href={item.path}
-                        onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
-                        className={`sa-tap-block w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
-                          isActive
-                            ? 'bg-primary/10 text-primary'
-                            : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
-                        }`}
-                        style={{ fontFamily: 'var(--font-body)' }}
-                      >
-                        <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
-                          {getPageIcon(item.path)}
-                        </span>
-                        <span className="flex-1">{item.label}</span>
-                        {(navBadges[item.path] ?? 0) > 0 && (
-                          <span
-                            aria-label={`${navBadges[item.path]} new`}
-                            className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-bold tabular-nums"
-                          >
-                            {navBadges[item.path]! > 99 ? '99+' : navBadges[item.path]}
+                      <li key={item.path}>
+                        <Link
+                          href={item.path}
+                          onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
+                          className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
+                            isActive
+                              ? 'bg-primary/10 text-primary'
+                              : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
+                          }`}
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        >
+                          <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
+                            {getPageIcon(item.path)}
                           </span>
-                        )}
-                      </Link>
+                          <span className="flex-1">{item.label}</span>
+                          {(navBadges[item.path] ?? 0) > 0 && (
+                            <span
+                              aria-label={`${navBadges[item.path]} new`}
+                              className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-bold tabular-nums"
+                            >
+                              {navBadges[item.path]! > 99 ? '99+' : navBadges[item.path]}
+                            </span>
+                          )}
+                        </Link>
+                      </li>
                     );
                   };
                   return (
                     <>
                       {recencyTopPages.map(renderMobileLink)}
                       {recencyOtherPages.length > 0 && (
-                        <div className="mt-2 pt-2 border-t border-foreground/10">
+                        <li className="mt-2 pt-2 border-t border-foreground/10 list-none">
                           <button
                             type="button"
                             onClick={() => setOtherPagesOpen((v) => !v)}
@@ -1409,13 +1418,13 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                             <span>Other pages</span>
                             <span aria-hidden className={`transition-transform duration-200 ${otherPagesOpen ? 'rotate-180' : ''}`}>▾</span>
                           </button>
-                          {otherPagesOpen && <div className="mt-0.5">{recencyOtherPages.map(renderMobileLink)}</div>}
-                        </div>
+                          {otherPagesOpen && <ul className="mt-0.5 space-y-0.5">{recencyOtherPages.map(renderMobileLink)}</ul>}
+                        </li>
                       )}
                     </>
                   );
                 })()}
-              </nav>
+              </ul>
 
               {/* Account section — collapsed by default. Tapping the
                   user card at the bottom toggles it. Keeps the drawer
@@ -1424,35 +1433,37 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               {mobileAccountOpen && (
                 <>
                   {popupPages.filter(canSeePage).filter((p) => p.path !== '/app/profile').length > 0 && (
-                    <div className="p-3 border-t border-gray-100 space-y-0.5 max-h-[30vh] overflow-y-auto shrink-0">
+                    <ul className="p-3 border-t border-gray-100 space-y-0.5 max-h-[30vh] overflow-y-auto shrink-0">
                       {popupPages.filter(canSeePage).filter((p) => p.path !== '/app/profile').map((item) => {
                         const isActive = pathname === item.path;
                         return (
-                          <Link
-                            key={item.path}
-                            href={item.path}
-                            onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
-                            className={`sa-tap-block w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                              isActive
-                                ? 'bg-primary/10 text-primary'
-                                : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
-                            }`}
-                            style={{ fontFamily: 'var(--font-body)' }}
-                          >
-                            <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
-                              {getPageIcon(item.path)}
-                            </span>
-                            {item.label}
-                          </Link>
+                          <li key={item.path}>
+                            <Link
+                              href={item.path}
+                              onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
+                              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                                isActive
+                                  ? 'bg-primary/10 text-primary'
+                                  : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
+                              }`}
+                              style={{ fontFamily: 'var(--font-body)' }}
+                            >
+                              <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
+                                {getPageIcon(item.path)}
+                              </span>
+                              {item.label}
+                            </Link>
+                          </li>
                         );
                       })}
-                    </div>
+                    </ul>
                   )}
-                  <div className="p-3 border-t border-gray-100 space-y-0.5 shrink-0">
+                  <ul className="p-3 border-t border-gray-100 space-y-0.5 shrink-0">
+                    <li>
                     <Link
                       href="/app/profile"
                       onClick={() => setMobileMenuOpen(false)}
-                      className={`sa-tap-block w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                         pathname === '/app/profile'
                           ? 'bg-primary/10 text-primary'
                           : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
@@ -1466,6 +1477,8 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       </span>
                       My Profile
                     </Link>
+                    </li>
+                    <li>
                     <button
                       onClick={() => { setMobileMenuOpen(false); signOut(); }}
                       className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
@@ -1476,7 +1489,8 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       </svg>
                       Sign Out
                     </button>
-                  </div>
+                    </li>
+                  </ul>
                 </>
               )}
 
