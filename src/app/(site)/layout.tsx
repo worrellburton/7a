@@ -34,7 +34,15 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
     <>
       <TopBar />
       <Header />
-      <main className="flex-1">{children}</main>
+      {/* Bottom padding on mobile reserves the height of the
+          StickyMobileCTA + GoogleReviewsBadge stack so the last
+          row of page content isn't tucked behind the floating
+          call pill. lg:pb-0 drops the reservation on desktop
+          (the pill is lg:hidden there). The padding stays even
+          when the user dismisses the bar — losing a small empty
+          band at the bottom is cheaper than reflowing the page
+          every time the bar comes / goes. */}
+      <main className="flex-1 pb-[calc(env(safe-area-inset-bottom)+96px)] lg:pb-0">{children}</main>
       <BeforeFooterCTA />
       <InsuranceVerification />
       <Footer />
