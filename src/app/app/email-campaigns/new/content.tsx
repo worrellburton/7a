@@ -24,6 +24,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
 import { BuildProgress } from '../BuildProgress';
 import { SITE_PAGES, SITE_PAGE_GROUPS, findSitePage, type SitePage } from '@/lib/site-pages';
+import { Toggle, ModalShell } from '@/components/ui';
 
 interface LibraryImage {
   id: string;
@@ -1071,34 +1072,6 @@ export function CancelButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function Toggle({
-  label, description, on, onChange,
-}: {
-  label: string;
-  description: string;
-  on: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!on)}
-      className={`flex items-start gap-3 rounded-xl border p-3 text-left transition-colors ${on ? 'border-primary bg-primary/5' : 'border-black/10 bg-white hover:bg-warm-bg/40'}`}
-    >
-      <span
-        className={`mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${on ? 'bg-primary' : 'bg-foreground/20'}`}
-        aria-hidden
-      >
-        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${on ? 'translate-x-4' : 'translate-x-0.5'}`} />
-      </span>
-      <span className="flex-1 min-w-0">
-        <span className="block text-[12.5px] font-semibold text-foreground" style={{ fontFamily: 'var(--font-body)' }}>{label}</span>
-        <span className="block text-[11px] text-foreground/55 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>{description}</span>
-      </span>
-    </button>
-  );
-}
-
 function FeaturedBlogCard({ blog, onClear }: { blog: BlogOption; onClear: () => void }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
@@ -1269,38 +1242,6 @@ function PagePicker({ selectedPath, onSelect, onClose }: {
         </div>
       )}
     </ModalShell>
-  );
-}
-
-function ModalShell({ title, subtitle, onClose, children }: {
-  title: string;
-  subtitle?: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-      role="dialog"
-      aria-modal="true"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-3xl max-h-[80vh] rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header className="px-5 py-3 border-b border-black/5 flex items-baseline justify-between">
-          <div>
-            <h3 className="text-sm font-bold text-foreground">{title}</h3>
-            {subtitle && (
-              <p className="text-[11.5px] text-foreground/55 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>{subtitle}</p>
-            )}
-          </div>
-          <button type="button" onClick={onClose} className="text-[11px] text-foreground/55 hover:text-foreground">✕</button>
-        </header>
-        <div className="flex-1 overflow-y-auto p-4">{children}</div>
-      </div>
-    </div>
   );
 }
 

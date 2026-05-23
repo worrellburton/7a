@@ -13,6 +13,7 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { KpiTile } from '@/components/ui';
 
 interface Row {
   contact_id: string;
@@ -270,14 +271,6 @@ export default function RecipientsAnalyticsContent() {
   );
 }
 
-function KpiTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-black/10 bg-white px-3 py-2.5">
-      <p className="text-[9.5px] font-bold uppercase tracking-[0.18em] text-foreground/55">{label}</p>
-      <p className="mt-0.5 text-xl font-semibold tabular-nums text-foreground" style={{ fontFamily: 'var(--font-display)' }}>{value}</p>
-    </div>
-  );
-}
 
 function Th({
   label,
