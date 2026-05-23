@@ -38,6 +38,8 @@ interface BuildBody {
   linkToWebsite?: unknown;
   includePhone?: unknown;
   includeQuote?: unknown;
+  includeInsuranceStrip?: unknown;
+  includeSocialFooter?: unknown;
   darkMode?: unknown;
   featuredBlogId?: unknown;
   featuredEpisodeSlug?: unknown;
@@ -82,6 +84,8 @@ export async function POST(req: NextRequest) {
   const linkToWebsite = !!body.linkToWebsite;
   const includePhone = !!body.includePhone;
   const includeQuote = !!body.includeQuote;
+  const includeInsuranceStrip = !!body.includeInsuranceStrip;
+  const includeSocialFooter = !!body.includeSocialFooter;
   const darkMode = !!body.darkMode;
   const featuredBlogId = typeof body.featuredBlogId === 'string' ? body.featuredBlogId : null;
   const featuredEpisodeSlug = typeof body.featuredEpisodeSlug === 'string' ? body.featuredEpisodeSlug : null;
@@ -305,6 +309,42 @@ DESIGN SEED for this build: ${designSeed}. Use it as a tiebreaker when picking b
   ctxLines.push(`INCLUDE PHONE NUMBER: ${includePhone ? 'yes' : 'no'}`);
   if (includePhone) {
     ctxLines.push(`PHONE NUMBER: ${ADMISSIONS_PHONE}. Surface it inside the email as either: (a) a small uppercase eyebrow strip directly under the logo ("ADMISSIONS · (866) 718-1665"), or (b) a quiet line directly under the CTA button ("Or call (866) 718-1665"), tel: link with href="tel:+18667181665". Pick ONE placement, not both. Format as styled text, not a button. Always use the exact format "(866) 718-1665" in the visible copy.`);
+  }
+  // Insurance accepted strip — short logo row near the top of the
+  // email so coverage is visible at a glance. Brandfetch CDN serves
+  // these PNGs reliably; we pin width to 80px so the row stays
+  // restrained even on a 600px-wide email. If a logo doesn't load,
+  // Claude's <img alt="..."> falls back to the alt text.
+  if (includeInsuranceStrip) {
+    ctxLines.push(
+      `INCLUDE INSURANCE STRIP: yes. Render a quiet "Insurance accepted" module BELOW the header / hero and ABOVE the body copy. Treatment:
+  - A small uppercase eyebrow that reads "IN-NETWORK WITH" (10.5px, letter-spacing 0.22em, color Copper #b87333), centered, 56px above + 28px below.
+  - A single <table> row containing five logo cells, each cell padding 0 12px, vertical-align middle, text-align center. Logos render as <img width="80" height="32" style="display:inline-block;max-width:80px;max-height:32px;width:auto;height:auto;border:0;" /> so the row reads as five evenly spaced marks across the inner 600px container. Drop opacity to roughly 0.78 so the row reads as a quiet credibility cue, not a sales pitch.
+  - Underneath the row, one single 11px Ink line (italic optional), centered: "Most major plans accepted. Curious about yours? Reply to this email or call (866) 718-1665."
+  Carriers (use these exact image URLs; never invent or substitute):
+    1. Aetna · https://cdn.brandfetch.io/aetna.com/fallback/404/w/240/h/80/logo?c=1id3n10pdBTarCHI0db
+    2. Blue Cross Blue Shield · https://cdn.brandfetch.io/bcbs.com/fallback/404/w/240/h/80/logo?c=1id3n10pdBTarCHI0db
+    3. Cigna · https://cdn.brandfetch.io/cigna.com/fallback/404/w/240/h/80/logo?c=1id3n10pdBTarCHI0db
+    4. Humana · https://cdn.brandfetch.io/humana.com/fallback/404/w/240/h/80/logo?c=1id3n10pdBTarCHI0db
+    5. TRICARE · https://cdn.brandfetch.io/tricare.mil/fallback/404/w/240/h/80/logo?c=1id3n10pdBTarCHI0db
+  Each <img> alt attribute is the carrier name verbatim. Each cell wraps the <img> in an <a href="${SITE_URL.replace(/\/$/, '')}/insurance"> so a tap on any logo opens the insurance landing page.`,
+    );
+  }
+  // Social footer row — IG/FB/LinkedIn icons in the closing block.
+  // Same Brandfetch CDN pattern as the insurance strip; sized to a
+  // compact 24px round mark each, three across, centered with 16px
+  // gaps. Links use the real 7A handles.
+  if (includeSocialFooter) {
+    ctxLines.push(
+      `INCLUDE SOCIAL FOOTER: yes. Add a small social row INSIDE the footer block (PILLAR 10), directly above the closing phone-number line, with a single hairline rule above it for separation. Treatment:
+  - A small uppercase eyebrow centered above the icons: "FOLLOW ALONG" (10.5px, letter-spacing 0.22em, Copper #b87333).
+  - One centered <table> row with three icon cells, each cell padding 0 8px. Each icon renders as <img width="24" height="24" style="display:inline-block;width:24px;height:24px;border:0;border-radius:6px;" /> wrapped in an <a href="..." target="_blank" rel="noopener">. Drop opacity to ~0.85.
+  Handles (use these exact image URLs + hrefs verbatim):
+    1. Instagram · img: https://cdn.brandfetch.io/instagram.com/fallback/404/w/120/h/120/logo?c=1id3n10pdBTarCHI0db · href: https://www.instagram.com/sevenarrowsrecovery/
+    2. Facebook  · img: https://cdn.brandfetch.io/facebook.com/fallback/404/w/120/h/120/logo?c=1id3n10pdBTarCHI0db  · href: https://www.facebook.com/sevenarrowsrecovery
+    3. LinkedIn  · img: https://cdn.brandfetch.io/linkedin.com/fallback/404/w/120/h/120/logo?c=1id3n10pdBTarCHI0db  · href: https://www.linkedin.com/company/sevenarrowsrecovery/
+  Each <img> alt attribute is the platform name verbatim ("Instagram", "Facebook", "LinkedIn"). Place the row between the hairline rule and the friendly closing phone-number sentence so the eye reads: rule → "FOLLOW ALONG" → three marks → closing line.`,
+    );
   }
   ctxLines.push(`IMAGES (${imageUrls.length}):\n${imageUrls.length === 0 ? '(none)' : imageUrls.map((u, i) => `  ${i + 1}. ${u}`).join('\n')}`);
   if (blog) {

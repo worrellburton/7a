@@ -78,6 +78,13 @@ interface CampaignDraft {
   // Picks a top Google review and renders it as a block-quote
   // section. Persisted on email_campaigns.include_quote.
   includeQuote: boolean;
+  // Renders a small Aetna / BCBS / Cigna / Humana / TRICARE logo
+  // strip near the top of the email so coverage is visible at a
+  // glance. Persisted on email_campaigns.include_insurance_strip.
+  includeInsuranceStrip: boolean;
+  // Adds an Instagram / Facebook / LinkedIn icon row to the
+  // closing footer. Persisted on email_campaigns.include_social_footer.
+  includeSocialFooter: boolean;
   // Flips the email body's palette: light (Sand background, Ink
   // text) ↔ dark (Desert Dusk background, Bone text). Read by
   // Claude at build time as a top-of-prompt directive. Persisted
@@ -118,6 +125,8 @@ export default function NewEmailCampaignContent() {
     linkToWebsite: true,
     includePhone: false,
     includeQuote: false,
+    includeInsuranceStrip: false,
+    includeSocialFooter: false,
     darkMode: false,
     featuredBlogId: null,
     featuredEpisodeSlug: null,
@@ -177,7 +186,7 @@ export default function NewEmailCampaignContent() {
     void (async () => {
       const { data } = await supabase
         .from('email_campaigns')
-        .select('id, prompt, image_urls, use_logos, link_to_website, include_phone, include_quote, dark_mode, featured_blog_id, featured_episode_slug, featured_page_path, featured_employee_id, featured_equine_id, generated_html, generated_subject')
+        .select('id, prompt, image_urls, use_logos, link_to_website, include_phone, include_quote, include_insurance_strip, include_social_footer, dark_mode, featured_blog_id, featured_episode_slug, featured_page_path, featured_employee_id, featured_equine_id, generated_html, generated_subject')
         .eq('id', editingId)
         .maybeSingle();
       if (cancelled || !data) return;
@@ -189,6 +198,8 @@ export default function NewEmailCampaignContent() {
         linkToWebsite: !!data.link_to_website,
         includePhone: !!data.include_phone,
         includeQuote: !!data.include_quote,
+        includeInsuranceStrip: !!data.include_insurance_strip,
+        includeSocialFooter: !!data.include_social_footer,
         darkMode: !!data.dark_mode,
         featuredBlogId: data.featured_blog_id ?? null,
         featuredEpisodeSlug: data.featured_episode_slug ?? null,
@@ -343,6 +354,8 @@ export default function NewEmailCampaignContent() {
           linkToWebsite: draft.linkToWebsite,
           includePhone: draft.includePhone,
           includeQuote: draft.includeQuote,
+          includeInsuranceStrip: draft.includeInsuranceStrip,
+          includeSocialFooter: draft.includeSocialFooter,
           darkMode: draft.darkMode,
           featuredBlogId: draft.featuredBlogId,
           featuredEpisodeSlug: draft.featuredEpisodeSlug,
@@ -401,6 +414,8 @@ export default function NewEmailCampaignContent() {
           linkToWebsite: draft.linkToWebsite,
           includePhone: draft.includePhone,
           includeQuote: draft.includeQuote,
+          includeInsuranceStrip: draft.includeInsuranceStrip,
+          includeSocialFooter: draft.includeSocialFooter,
           darkMode: draft.darkMode,
           featuredBlogId: draft.featuredBlogId,
           featuredEpisodeSlug: draft.featuredEpisodeSlug,
@@ -450,6 +465,8 @@ export default function NewEmailCampaignContent() {
         link_to_website: draft.linkToWebsite,
         include_phone: draft.includePhone,
         include_quote: draft.includeQuote,
+        include_insurance_strip: draft.includeInsuranceStrip,
+        include_social_footer: draft.includeSocialFooter,
         dark_mode: draft.darkMode,
         featured_blog_id: draft.featuredBlogId,
         featured_episode_slug: draft.featuredEpisodeSlug,
@@ -687,6 +704,18 @@ export default function NewEmailCampaignContent() {
           description="Pull a top Google review into the email as a block quote."
           on={draft.includeQuote}
           onChange={(v) => setDraft((p) => ({ ...p, includeQuote: v }))}
+        />
+        <Toggle
+          label="Insurance strip"
+          description="Aetna, BCBS, Cigna, Humana, TRICARE logo row near the top so coverage reads at a glance."
+          on={draft.includeInsuranceStrip}
+          onChange={(v) => setDraft((p) => ({ ...p, includeInsuranceStrip: v }))}
+        />
+        <Toggle
+          label="Social row"
+          description="Instagram, Facebook, LinkedIn icons in the footer, linking to the 7A handles."
+          on={draft.includeSocialFooter}
+          onChange={(v) => setDraft((p) => ({ ...p, includeSocialFooter: v }))}
         />
         <Toggle
           label={draft.darkMode ? 'Dark mode' : 'Light mode'}
