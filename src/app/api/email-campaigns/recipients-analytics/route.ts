@@ -47,7 +47,7 @@ export async function GET() {
   //    long history is included.
   const { data: recipients, error: recErr } = await admin
     .from('email_campaign_recipients')
-    .select('id, contact_id, email, send_status, sent_at, campaign_id, contacts(name, role, company, location)')
+    .select('id, contact_id, email, send_status, sent_at, campaign_id, contacts(name, role, company, location, unsubscribed_at)')
     .in('send_status', DELIVERED_STATES as unknown as string[])
     .order('sent_at', { ascending: false })
     .limit(20000);
@@ -62,16 +62,20 @@ export async function GET() {
     .limit(50000);
   if (evtErr) return NextResponse.json({ error: evtErr.message }, { status: 500 });
 
+  type ContactLite = {
+    name: string | null;
+    role: string | null;
+    company: string | null;
+    location: string | null;
+    unsubscribed_at: string | null;
+  };
   type RecipientRow = {
     id: string;
     contact_id: string | null;
     email: string | null;
     sent_at: string | null;
     campaign_id: string;
-    contacts:
-      | { name: string | null; role: string | null; company: string | null; location: string | null }
-      | Array<{ name: string | null; role: string | null; company: string | null; location: string | null }>
-      | null;
+    contacts: ContactLite | Array<ContactLite> | null;
   };
   type EventRow = {
     recipient_id: string;
@@ -93,6 +97,7 @@ export async function GET() {
     role: string | null;
     company: string | null;
     location: string | null;
+    unsubscribed_at: string | null;
     sent_count: number;
     last_sent_at: string | null;
     // distinct-campaign sets so a campaign that fires both
@@ -112,6 +117,7 @@ export async function GET() {
       role: c?.role ?? null,
       company: c?.company ?? null,
       location: c?.location ?? null,
+      unsubscribed_at: c?.unsubscribed_at ?? null,
       sent_count: 0,
       last_sent_at: null,
       openedCampaigns: new Set<string>(),
@@ -151,6 +157,7 @@ export async function GET() {
       role: a.role,
       company: a.company,
       location: a.location,
+      unsubscribed_at: a.unsubscribed_at,
       sent_count: a.sent_count,
       opened_count: opened,
       clicked_count: clicked,

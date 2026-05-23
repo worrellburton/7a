@@ -21,6 +21,7 @@ interface Row {
   role: string | null;
   company: string | null;
   location: string | null;
+  unsubscribed_at: string | null;
   sent_count: number;
   opened_count: number;
   clicked_count: number;
@@ -217,23 +218,49 @@ export default function RecipientsAnalyticsContent() {
                 </tr>
               </thead>
               <tbody>
-                {visible.map((r) => (
-                  <tr key={r.contact_id} className="border-t border-black/5 hover:bg-warm-bg/30">
-                    <td className="px-3 py-2 align-top">
-                      <p className="font-semibold text-foreground truncate max-w-[240px]">{r.name}</p>
-                      <p className="text-[11px] text-foreground/55 truncate max-w-[240px]">{r.email}</p>
-                    </td>
-                    <td className="px-3 py-2 align-top text-foreground/75 truncate max-w-[200px]">{r.company ?? '—'}</td>
-                    <td className="px-3 py-2 text-right tabular-nums align-top">{r.sent_count}</td>
-                    <td className="px-3 py-2 text-right tabular-nums align-top">{r.opened_count}</td>
-                    <td className="px-3 py-2 text-right tabular-nums align-top">{r.clicked_count}</td>
-                    <td className="px-3 py-2 text-right tabular-nums align-top">{fmtPct(r.open_rate)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums align-top">{fmtPct(r.click_rate)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums align-top">{fmtPct(r.click_through)}</td>
-                    <td className="px-3 py-2 text-right tabular-nums align-top text-foreground/55">{r.bounced_count > 0 ? r.bounced_count : '—'}</td>
-                    <td className="px-3 py-2 align-top tabular-nums text-foreground/65">{fmtDate(r.last_sent_at)}</td>
-                  </tr>
-                ))}
+                {visible.map((r) => {
+                  // Unsubscribed contacts get a strikethrough on the
+                  // name + email plus a small red UNSUBSCRIBED pill so
+                  // the marketer sees at a glance that future sends
+                  // will skip this row. The line-through is applied
+                  // via `text-decoration` so the strikethrough color
+                  // matches the foreground text color (Tailwind's
+                  // line-through utility on parent + child).
+                  const unsubscribed = !!r.unsubscribed_at;
+                  return (
+                    <tr key={r.contact_id} className={`border-t border-black/5 hover:bg-warm-bg/30 ${unsubscribed ? 'bg-rose-50/30' : ''}`}>
+                      <td className="px-3 py-2 align-top">
+                        <div className="flex items-start gap-2">
+                          <div className="min-w-0">
+                            <p className={`font-semibold truncate max-w-[240px] ${unsubscribed ? 'text-foreground/45 line-through' : 'text-foreground'}`}>
+                              {r.name}
+                            </p>
+                            <p className={`text-[11px] truncate max-w-[240px] ${unsubscribed ? 'text-foreground/40 line-through' : 'text-foreground/55'}`}>
+                              {r.email}
+                            </p>
+                          </div>
+                          {unsubscribed && (
+                            <span
+                              className="shrink-0 mt-0.5 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.12em] bg-rose-100 text-rose-700 ring-1 ring-rose-200 whitespace-nowrap"
+                              title={`Unsubscribed ${fmtDate(r.unsubscribed_at)}`}
+                            >
+                              Unsubscribed
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className={`px-3 py-2 align-top truncate max-w-[200px] ${unsubscribed ? 'text-foreground/40 line-through' : 'text-foreground/75'}`}>{r.company ?? '—'}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums align-top ${unsubscribed ? 'text-foreground/40' : ''}`}>{r.sent_count}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums align-top ${unsubscribed ? 'text-foreground/40' : ''}`}>{r.opened_count}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums align-top ${unsubscribed ? 'text-foreground/40' : ''}`}>{r.clicked_count}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums align-top ${unsubscribed ? 'text-foreground/40' : ''}`}>{fmtPct(r.open_rate)}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums align-top ${unsubscribed ? 'text-foreground/40' : ''}`}>{fmtPct(r.click_rate)}</td>
+                      <td className={`px-3 py-2 text-right tabular-nums align-top ${unsubscribed ? 'text-foreground/40' : ''}`}>{fmtPct(r.click_through)}</td>
+                      <td className="px-3 py-2 text-right tabular-nums align-top text-foreground/55">{r.bounced_count > 0 ? r.bounced_count : '—'}</td>
+                      <td className={`px-3 py-2 align-top tabular-nums ${unsubscribed ? 'text-foreground/40 line-through' : 'text-foreground/65'}`}>{fmtDate(r.last_sent_at)}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

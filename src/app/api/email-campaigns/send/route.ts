@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
+import { buildUnsubscribeUrl } from '@/lib/unsubscribe';
 
 // POST /api/email-campaigns/send
 //
@@ -83,9 +84,34 @@ export async function POST(req: NextRequest) {
     .eq('campaign_id', campaignId)
     .eq('send_status', 'pending');
   if (recErr) return NextResponse.json({ error: recErr.message }, { status: 500 });
-  const recipients = (recipientRows ?? []) as Array<{ id: string; email: string; send_status: string; contact_id: string }>;
+  const allPending = (recipientRows ?? []) as Array<{ id: string; email: string; send_status: string; contact_id: string }>;
+
+  // Drop unsubscribed contacts before we hit Resend. Mark each one
+  // 'skipped' so the per-row UI shows "unsubscribed" instead of an
+  // ambiguous failed/pending. One round-trip pulls every flagged
+  // contact in this batch.
+  let recipients = allPending;
+  let skipped = 0;
+  if (allPending.length > 0) {
+    const contactIds = Array.from(new Set(allPending.map((r) => r.contact_id).filter((v): v is string => !!v)));
+    const { data: unsubRows } = await supabase
+      .from('contacts')
+      .select('id, unsubscribed_at')
+      .in('id', contactIds.length > 0 ? contactIds : ['00000000-0000-0000-0000-000000000000'])
+      .not('unsubscribed_at', 'is', null);
+    const unsubSet = new Set<string>((unsubRows ?? []).map((r) => r.id as string));
+    const toSkip = allPending.filter((r) => unsubSet.has(r.contact_id));
+    if (toSkip.length > 0) {
+      await supabase
+        .from('email_campaign_recipients')
+        .update({ send_status: 'skipped', send_error: 'Contact has unsubscribed.', sent_at: null })
+        .in('id', toSkip.map((r) => r.id));
+      skipped = toSkip.length;
+    }
+    recipients = allPending.filter((r) => !unsubSet.has(r.contact_id));
+  }
   if (recipients.length === 0) {
-    return NextResponse.json({ ok: true, sent: 0, failed: 0, simulated: false, note: 'No pending recipients.' });
+    return NextResponse.json({ ok: true, sent: 0, failed: 0, skipped, simulated: false, note: 'No pending recipients.' });
   }
 
   await supabase.from('email_campaigns').update({ status: 'sending' }).eq('id', campaignId);
@@ -142,8 +168,28 @@ export async function POST(req: NextRequest) {
     }
   };
 
-  const sendViaResend = async (toEmail: string): Promise<Response> => {
+  const sendViaResend = async (toEmail: string, contactId: string): Promise<Response> => {
     await acquireResendSlot();
+    const unsubUrl = buildUnsubscribeUrl(contactId);
+    // Per-recipient HTML — append a small unsubscribe footer just
+    // before </body> if it's there, otherwise tack it onto the end.
+    // We always do this so older campaign HTML (built before the
+    // template's own footer was updated) still ships with an
+    // unsubscribe link. The eyebrow + link uses the email template's
+    // Copper accent so it blends with the existing footer.
+    const footerHtml = `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#faf6f1;">
+  <tr>
+    <td align="center" style="padding:24px 16px 32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;color:#8a7a6c;letter-spacing:0.04em;line-height:1.6;">
+      You're receiving this because you've worked with Seven Arrows Recovery.<br />
+      <a href="${unsubUrl}" style="color:#b87333;text-decoration:underline;font-weight:600;">Unsubscribe from these emails</a>
+    </td>
+  </tr>
+</table>`;
+    const baseHtml = campaign.generated_html ?? '';
+    const html = baseHtml.includes('</body>')
+      ? baseHtml.replace('</body>', `${footerHtml}\n</body>`)
+      : `${baseHtml}\n${footerHtml}`;
     return fetch(RESEND_URL, {
       method: 'POST',
       headers: {
@@ -154,8 +200,16 @@ export async function POST(req: NextRequest) {
         from,
         to: [toEmail],
         subject: campaign.generated_subject,
-        html: campaign.generated_html,
+        html,
         reply_to: replyTo,
+        // RFC 8058 one-click unsubscribe + RFC 2369 inline link.
+        // Gmail / Apple Mail surface a dedicated Unsubscribe button
+        // in the header when these are present, which improves
+        // deliverability + keeps us out of spam folders.
+        headers: {
+          'List-Unsubscribe': `<${unsubUrl}>`,
+          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        },
       }),
     });
   };
@@ -179,7 +233,7 @@ export async function POST(req: NextRequest) {
       const MAX_ATTEMPTS = 4;
       for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
         try {
-          const res = await sendViaResend(r.email);
+          const res = await sendViaResend(r.email, r.contact_id);
           statusCode = res.status;
           const txt = await res.text();
           responseText = txt.slice(0, 2000);
@@ -282,7 +336,7 @@ export async function POST(req: NextRequest) {
     })
     .eq('id', campaignId);
 
-  return NextResponse.json({ ok: true, sent, failed, simulated });
+  return NextResponse.json({ ok: true, sent, failed, skipped, simulated });
 }
 
 // Vercel's "Sensitive" env-var editor sometimes stores spaces as
