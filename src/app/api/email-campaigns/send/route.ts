@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 import { buildUnsubscribeUrl } from '@/lib/unsubscribe';
 import { requireAdmin } from '@/lib/api-gates';
+import { addUtmsToCampaignHtml } from '@/lib/utm';
 
 // POST /api/email-campaigns/send
 //
@@ -182,10 +183,19 @@ export async function POST(req: NextRequest) {
     </td>
   </tr>
 </table>`;
-    const baseHtml = campaign.generated_html ?? '';
-    const html = baseHtml.includes('</body>')
-      ? baseHtml.replace('</body>', `${footerHtml}\n</body>`)
-      : `${baseHtml}\n${footerHtml}`;
+    // Rewrite every link pointing at the marketing site to carry
+    // GA4 UTM parameters so Google Analytics attributes the click
+    // back to this specific campaign. Done at send time (not at
+    // build time) so the stored generated_html stays UTM-free —
+    // preview / iterate cycles read clean and the rewrite reflects
+    // the campaign's current subject even after a rename.
+    const taggedHtml = addUtmsToCampaignHtml(campaign.generated_html ?? '', {
+      campaignId,
+      subject: campaign.generated_subject,
+    });
+    const html = taggedHtml.includes('</body>')
+      ? taggedHtml.replace('</body>', `${footerHtml}\n</body>`)
+      : `${taggedHtml}\n${footerHtml}`;
     return fetch(RESEND_URL, {
       method: 'POST',
       headers: {
