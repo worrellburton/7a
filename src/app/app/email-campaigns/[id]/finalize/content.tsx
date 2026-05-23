@@ -28,6 +28,7 @@ interface CampaignRow {
   link_to_website: boolean;
   include_phone: boolean;
   include_quote: boolean;
+  dark_mode: boolean;
   featured_blog_id: string | null;
   featured_equine_id: string | null;
   featured_employee_id: string | null;
@@ -79,7 +80,7 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
   const refresh = async () => {
     const [campaignRes, recipientsRes] = await Promise.all([
       supabase.from('email_campaigns')
-        .select('id, generated_html, generated_subject, status, sent_at, prompt, image_urls, use_logos, link_to_website, include_phone, include_quote, featured_blog_id, featured_employee_id, featured_equine_id')
+        .select('id, generated_html, generated_subject, status, sent_at, prompt, image_urls, use_logos, link_to_website, include_phone, include_quote, dark_mode, featured_blog_id, featured_employee_id, featured_equine_id')
         .eq('id', campaignId)
         .maybeSingle(),
       supabase.from('email_campaign_recipients')
@@ -132,6 +133,7 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
           linkToWebsite: campaign.link_to_website,
           includePhone: campaign.include_phone,
           includeQuote: campaign.include_quote,
+          darkMode: campaign.dark_mode,
           featuredBlogId: campaign.featured_blog_id,
           featuredEquineId: campaign.featured_equine_id,
           featuredEmployeeId: campaign.featured_employee_id,

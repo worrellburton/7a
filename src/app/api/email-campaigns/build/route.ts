@@ -36,6 +36,7 @@ interface BuildBody {
   linkToWebsite?: unknown;
   includePhone?: unknown;
   includeQuote?: unknown;
+  darkMode?: unknown;
   featuredBlogId?: unknown;
   featuredEmployeeId?: unknown;
   featuredEquineId?: unknown;
@@ -77,6 +78,7 @@ export async function POST(req: NextRequest) {
   const linkToWebsite = !!body.linkToWebsite;
   const includePhone = !!body.includePhone;
   const includeQuote = !!body.includeQuote;
+  const darkMode = !!body.darkMode;
   const featuredBlogId = typeof body.featuredBlogId === 'string' ? body.featuredBlogId : null;
   const featuredEmployeeId = typeof body.featuredEmployeeId === 'string' ? body.featuredEmployeeId : null;
   const featuredEquineId = typeof body.featuredEquineId === 'string' ? body.featuredEquineId : null;
@@ -223,7 +225,7 @@ GLOBAL CONSTRAINTS — these are absolute:
 - HTML5 doctype. Single document, complete, valid. Open with <!doctype html>, close with </html>.
 - INLINE STYLES ONLY. No <style> blocks. No <script>. No <link>. No external CSS. No web fonts loaded from CDN; rely on the font stack fallbacks.
 - Email-safe layout: outer 100% table, inner centered 600px table, all real layout via <table>, not divs (divs are fine for inline-block badges).
-- Background color of the outer <body> and the outer wrapper table is the Sand color #faf6f1.
+- Background color of the outer <body> and the outer wrapper table is the Sand color #faf6f1. EXCEPTION: when the context block specifies COLOR MODE: DARK, use Desert Dusk #2e2418 instead, and follow the DARK overrides described in the context.
 - Mobile-friendly without media queries: column widths use percentages where possible; minimum tap target 44px for the CTA.
 - Every <a> uses an absolute https:// URL; never use relative paths.
 - Every <img> has src, alt, width, height (in HTML attributes), display:block, border:0, max-width:100%, height:auto in style.
@@ -248,6 +250,15 @@ DESIGN SEED for this build: ${designSeed}. Use it as a tiebreaker when picking b
 
   const ctxLines: string[] = [];
   ctxLines.push(`AUTHOR PROMPT:\n${prompt || '(none, write a tasteful general update)'}`);
+  // Dark/light mode directive — promoted to the top of the context
+  // block so Claude reads it before any palette decisions. Overrides
+  // PILLAR 3's default Sand background when set.
+  ctxLines.push(
+    `COLOR MODE: ${darkMode ? 'DARK' : 'LIGHT'}.\n` +
+      (darkMode
+        ? 'Render the entire email in DARK MODE. The outer <body> background, the wrapper <table>, and any outer card background must be Desert Dusk (#2e2418), with body copy in Bone (#fbf8f3) and eyebrows / accents in Copper (#b87333). Replace any usage of Sand (#faf6f1) with Desert Dusk. Replace any usage of Ink (#2c1810) with Bone for text. The CTA button stays Copper background with Bone text. Hairline rules become rgba(251,248,243,0.18) instead of rgba(44,24,16,0.12). Hero photos and inline images can keep their natural colors — they sit ON the dark background like prints on a dark gallery wall. Quote text inside the pull-quote block becomes Bone, the eyebrow stays Copper. The footer text stays Bone with Copper accents. Do not render any white card surfaces; if a contained card is helpful, use a slightly lighter Desert Dusk (#372b1f) instead of Bone (#fbf8f3).'
+        : 'Render the email in the default LIGHT palette per PILLAR 3 (Sand background, Bone or Sand-tinted cards, Ink body text, Copper accents).'),
+  );
   ctxLines.push(`USE LOGOS: ${useLogos ? 'yes' : 'no'}`);
   if (useLogos) {
     ctxLines.push(`LOGO URL (primary, vertical, transparent): ${LOGO_URL}`);
