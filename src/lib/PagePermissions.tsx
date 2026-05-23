@@ -101,6 +101,12 @@ const defaultPages: PageConfig[] = [
   // see it surface but bounce to the app root if they navigate in.
   { path: '/app/levers', label: 'Levers', adminOnly: true, section: 'popup', sort_order: 7, allowedDepartments: [], departmentId: null },
   { path: '/app/team', label: 'Team', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
+  // Kaizen — super-admin-only daily codebase scan. Same gating
+  // pattern as Levers / Social Media / Content: adminOnly here for
+  // the popup-menu entry, runtime is_super_admin check inside the
+  // page that bounces non-super admins to /app. The /api/kaizen/*
+  // routes enforce super-admin server-side via requireSuperAdmin.
+  { path: '/app/kaizen', label: 'Kaizen', adminOnly: true, section: 'popup', sort_order: 8, allowedDepartments: [], departmentId: null },
   // Chat — open to all staff + alumni. PageGuard's per-user override
   // for guests still applies (a guest sees Chat only when a super
   // admin grants /app/chat in their allow-list).
