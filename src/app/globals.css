@@ -411,11 +411,15 @@ html:has(:target) {
      min-height stays honoured without breaking their column
      layout — override the inline-flex above for them. Same
      escape hatch applies to anchor links (mobile drawer nav rows,
-     full-width list cards) that need to stack vertically. */
+     full-width list cards) that need to stack vertically.
+     !important is required on the anchor override because the
+     a[href]:not(...):not(...):not(...) selector above wins the
+     specificity battle otherwise (3 classes/attrs + 3 elements
+     vs. our 2 classes/attrs + 1 element). */
   [data-platform-main] button.sa-tap-block,
   [data-platform-main] [role="button"].sa-tap-block,
   [data-platform-main] a.sa-tap-block {
-    display: flex;
+    display: flex !important;
   }
   /* Native form controls should also clear 16px so iOS Safari
      doesn't zoom into the input on focus. */

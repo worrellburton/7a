@@ -1329,11 +1329,16 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             />
             {/* Panel */}
             <aside className="absolute inset-y-0 left-0 w-[82%] max-w-[320px] bg-white border-r border-gray-100 shadow-2xl flex flex-col overflow-hidden animate-drawer-slide">
-              {/* Header: brand + close */}
+              {/* Header: brand (taps through to today's log surface) + close */}
               <div className="flex items-center justify-between p-5 border-b border-gray-100 shrink-0">
-                <Link href="/app" className="flex items-center gap-2.5">
+                <Link
+                  href="/app/daily-logs"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2.5"
+                  aria-label="Daily logs"
+                  title="Daily logs"
+                >
                   <SevenArrowsLogo />
-
                 </Link>
                 <button
                   onClick={() => setMobileMenuOpen(false)}
