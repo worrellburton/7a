@@ -23,6 +23,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
 import { BuildProgress } from '../BuildProgress';
+import { SITE_PAGES, SITE_PAGE_GROUPS, findSitePage, type SitePage } from '@/lib/site-pages';
 
 interface LibraryImage {
   id: string;
@@ -31,9 +32,18 @@ interface LibraryImage {
 }
 
 interface BlogOption {
+  // For DB-backed AI-pipeline posts the id is the blogs.id UUID we
+  // store on email_campaigns.featured_blog_id. For static Recovery
+  // Roadmap episodes (no row in public.blogs) the id is the slug
+  // itself, prefixed with "episode:" so the lookup paths can't
+  // collide; the picker writes featured_episode_slug instead.
   id: string;
   title: string;
   slug: string | null;
+  /** Recovery Roadmap episode number. Shown as the leading badge. */
+  number: number | null;
+  /** True for static EPISODES rows, false for AI-pipeline posts. */
+  isStaticEpisode: boolean;
   // First blog_images row (lowest position). Used as the cover
   // image on the picker + the inline FeaturedBlogCard so the
   // marketer can recognise the post visually before reading the
@@ -74,6 +84,12 @@ interface CampaignDraft {
   // on email_campaigns.dark_mode.
   darkMode: boolean;
   featuredBlogId: string | null;
+  // Slug of a static Recovery Roadmap episode when one is featured.
+  // Mutually exclusive with featuredBlogId — picking either of them
+  // clears the other in setFeaturedBlogChoice() below.
+  featuredEpisodeSlug: string | null;
+  /** Site-relative path of the featured inner page, e.g. /admissions. */
+  featuredPagePath: string | null;
   featuredEmployeeId: string | null;
   featuredEquineId: string | null;
   generatedHtml: string | null;
@@ -104,6 +120,8 @@ export default function NewEmailCampaignContent() {
     includeQuote: false,
     darkMode: false,
     featuredBlogId: null,
+    featuredEpisodeSlug: null,
+    featuredPagePath: null,
     featuredEmployeeId: null,
     featuredEquineId: null,
     generatedHtml: null,
@@ -116,6 +134,7 @@ export default function NewEmailCampaignContent() {
   const [blogPickerOpen, setBlogPickerOpen] = useState(false);
   const [employeePickerOpen, setEmployeePickerOpen] = useState(false);
   const [horsePickerOpen, setHorsePickerOpen] = useState(false);
+  const [pagePickerOpen, setPagePickerOpen] = useState(false);
   // The Preview pane shows a "Replace images" button that opens
   // this picker; on confirm the selection swap is committed AND a
   // fresh rebuild is kicked off so the marketer never has to
@@ -158,7 +177,7 @@ export default function NewEmailCampaignContent() {
     void (async () => {
       const { data } = await supabase
         .from('email_campaigns')
-        .select('id, prompt, image_urls, use_logos, link_to_website, include_phone, include_quote, dark_mode, featured_blog_id, featured_employee_id, featured_equine_id, generated_html, generated_subject')
+        .select('id, prompt, image_urls, use_logos, link_to_website, include_phone, include_quote, dark_mode, featured_blog_id, featured_episode_slug, featured_page_path, featured_employee_id, featured_equine_id, generated_html, generated_subject')
         .eq('id', editingId)
         .maybeSingle();
       if (cancelled || !data) return;
@@ -172,6 +191,8 @@ export default function NewEmailCampaignContent() {
         includeQuote: !!data.include_quote,
         darkMode: !!data.dark_mode,
         featuredBlogId: data.featured_blog_id ?? null,
+        featuredEpisodeSlug: data.featured_episode_slug ?? null,
+        featuredPagePath: data.featured_page_path ?? null,
         featuredEmployeeId: data.featured_employee_id ?? null,
         featuredEquineId: data.featured_equine_id ?? null,
         generatedHtml: data.generated_html ?? null,
@@ -189,18 +210,16 @@ export default function NewEmailCampaignContent() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [imagesRes, blogsRes, blogImagesRes, usersRes, horsesRes] = await Promise.all([
+      // Episodes come from the merged endpoint (static EPISODES +
+      // published AI blogs, newest first, hidden-slug filtered) so
+      // the blog picker can show the full Recovery Roadmap catalogue
+      // with episode numbers, not just the AI-pipeline subset.
+      const [imagesRes, episodesRes, usersRes, horsesRes] = await Promise.all([
         supabase.from('site_images')
           .select('id, public_url, filename')
           .order('created_at', { ascending: false })
           .limit(200),
-        supabase.from('blogs')
-          .select('id, title, slug')
-          .order('created_at', { ascending: false })
-          .limit(50),
-        supabase.from('blog_images')
-          .select('blog_id, url, alt, position')
-          .order('position', { ascending: true }),
+        fetch('/api/episodes/list', { credentials: 'include', cache: 'no-store' }),
         supabase.from('users')
           .select('id, full_name, job_title, avatar_url, status')
           .eq('status', 'active')
@@ -215,34 +234,54 @@ export default function NewEmailCampaignContent() {
       const imageRows = (imagesRes.data ?? []) as Array<{ id: string; public_url: string; filename: string | null }>;
       setLibraryAssets(imageRows.map((r) => ({ id: r.id, url: r.public_url, filename: r.filename })));
 
-      // Build a blog_id → first image map. blog_images is already
-      // sorted by position ascending so the first row we see for a
-      // given blog is its cover.
-      const blogImageRows = (blogImagesRes.data ?? []) as Array<{ blog_id: string; url: string; alt: string | null; position: number }>;
-      const coverByBlogId = new Map<string, { url: string; alt: string | null }>();
-      for (const r of blogImageRows) {
-        if (!coverByBlogId.has(r.blog_id)) coverByBlogId.set(r.blog_id, { url: r.url, alt: r.alt });
+      let episodeRows: Array<{
+        number: number;
+        slug: string;
+        title: string;
+        href: string;
+        blog_id: string | null;
+        coverImageUrl: string | null;
+        coverImageAlt: string | null;
+      }> = [];
+      try {
+        if (episodesRes.ok) {
+          const json = (await episodesRes.json()) as { rows: typeof episodeRows };
+          if (Array.isArray(json.rows)) episodeRows = json.rows;
+        }
+      } catch {
+        /* fallthrough — empty list, picker just shows nothing */
       }
-      const blogRows = (blogsRes.data ?? []) as Array<{ id: string; title: string; slug: string | null }>;
-      setBlogs(blogRows.map((b): BlogOption => {
-        const cover = coverByBlogId.get(b.id);
-        return {
-          id: b.id,
-          title: b.title,
-          slug: b.slug,
-          coverImageUrl: cover?.url ?? null,
-          coverImageAlt: cover?.alt ?? null,
-        };
-      }));
+      setBlogs(episodeRows.map((ep): BlogOption => ({
+        // DB-backed episodes use the blogs.id UUID so the existing
+        // featured_blog_id column keeps working. Static episodes use
+        // an "episode:" prefix so the lookup paths can't collide.
+        id: ep.blog_id ?? `episode:${ep.slug}`,
+        title: ep.title,
+        slug: ep.slug,
+        number: ep.number,
+        isStaticEpisode: ep.blog_id == null,
+        coverImageUrl: ep.coverImageUrl,
+        coverImageAlt: ep.coverImageAlt,
+      })));
       setEmployees((usersRes.data ?? []) as EmployeeOption[]);
       setHorses((horsesRes.data ?? []) as HorseOption[]);
     })();
     return () => { cancelled = true; };
   }, []);
 
-  const featuredBlog = useMemo(
-    () => blogs.find((b) => b.id === draft.featuredBlogId) ?? null,
-    [blogs, draft.featuredBlogId],
+  // featuredBlog resolves whichever of the two storage slots is
+  // populated — featured_blog_id (UUID) for AI-pipeline posts, or
+  // featured_episode_slug for static Recovery Roadmap episodes. The
+  // picker writes one and clears the other so they can't both be
+  // set at once.
+  const featuredBlog = useMemo(() => {
+    if (draft.featuredBlogId) return blogs.find((b) => b.id === draft.featuredBlogId) ?? null;
+    if (draft.featuredEpisodeSlug) return blogs.find((b) => b.isStaticEpisode && b.slug === draft.featuredEpisodeSlug) ?? null;
+    return null;
+  }, [blogs, draft.featuredBlogId, draft.featuredEpisodeSlug]);
+  const featuredPage = useMemo(
+    () => findSitePage(draft.featuredPagePath),
+    [draft.featuredPagePath],
   );
   const featuredEmployee = useMemo(
     () => employees.find((e) => e.id === draft.featuredEmployeeId) ?? null,
@@ -252,6 +291,21 @@ export default function NewEmailCampaignContent() {
     () => horses.find((h) => h.id === draft.featuredEquineId) ?? null,
     [horses, draft.featuredEquineId],
   );
+
+  // Picker selection helpers — clear the sibling slot so featured
+  // blog ID + episode slug can never both be set, and the saved
+  // payload mirrors that constraint.
+  const setFeaturedBlogChoice = (chosen: BlogOption | null) => {
+    if (!chosen) {
+      setDraft((p) => ({ ...p, featuredBlogId: null, featuredEpisodeSlug: null }));
+      return;
+    }
+    if (chosen.isStaticEpisode) {
+      setDraft((p) => ({ ...p, featuredBlogId: null, featuredEpisodeSlug: chosen.slug ?? null }));
+    } else {
+      setDraft((p) => ({ ...p, featuredBlogId: chosen.id, featuredEpisodeSlug: null }));
+    }
+  };
 
   const toggleImage = (url: string) => {
     setDraft((prev) => {
@@ -291,6 +345,8 @@ export default function NewEmailCampaignContent() {
           includeQuote: draft.includeQuote,
           darkMode: draft.darkMode,
           featuredBlogId: draft.featuredBlogId,
+          featuredEpisodeSlug: draft.featuredEpisodeSlug,
+          featuredPagePath: draft.featuredPagePath,
           featuredEmployeeId: draft.featuredEmployeeId,
           featuredEquineId: draft.featuredEquineId,
         }),
@@ -347,6 +403,8 @@ export default function NewEmailCampaignContent() {
           includeQuote: draft.includeQuote,
           darkMode: draft.darkMode,
           featuredBlogId: draft.featuredBlogId,
+          featuredEpisodeSlug: draft.featuredEpisodeSlug,
+          featuredPagePath: draft.featuredPagePath,
           featuredEmployeeId: draft.featuredEmployeeId,
           featuredEquineId: draft.featuredEquineId,
           previousHtml: mode === 'iterate' ? draft.generatedHtml : null,
@@ -394,6 +452,8 @@ export default function NewEmailCampaignContent() {
         include_quote: draft.includeQuote,
         dark_mode: draft.darkMode,
         featured_blog_id: draft.featuredBlogId,
+        featured_episode_slug: draft.featuredEpisodeSlug,
+        featured_page_path: draft.featuredPagePath,
         featured_employee_id: draft.featuredEmployeeId,
         featured_equine_id: draft.featuredEquineId,
         generated_html: draft.generatedHtml,
@@ -657,7 +717,7 @@ export default function NewEmailCampaignContent() {
           </button>
         </div>
         {featuredBlog ? (
-          <FeaturedBlogCard blog={featuredBlog} onClear={() => setDraft((p) => ({ ...p, featuredBlogId: null }))} />
+          <FeaturedBlogCard blog={featuredBlog} onClear={() => setFeaturedBlogChoice(null)} />
         ) : (
           <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
             Optional. Surface a blog post inside the email so readers have somewhere to land after the CTA.
@@ -717,6 +777,37 @@ export default function NewEmailCampaignContent() {
         ) : (
           <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
             Optional. Spotlight a member of the herd. Claude works the horse's name into the copy and uses the herd photo.
+          </p>
+        )}
+      </section>
+      )}
+
+      {/* Featured page — pick any inner marketing page (admissions,
+          /our-program/equine-assisted, /what-we-treat/alcohol-
+          addiction, etc.) and Claude weaves a tasteful card under
+          the body that links to it. */}
+      {step === 'info' && (
+      <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
+        <div className="flex items-baseline justify-between gap-2 flex-wrap mb-2">
+          <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
+            Featured page
+          </p>
+          <button
+            type="button"
+            onClick={() => setPagePickerOpen(true)}
+            className="px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+          >
+            {featuredPage ? 'Change page' : '+ Feature a page'}
+          </button>
+        </div>
+        {featuredPage ? (
+          <FeaturedPageCard
+            page={featuredPage}
+            onClear={() => setDraft((p) => ({ ...p, featuredPagePath: null }))}
+          />
+        ) : (
+          <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
+            Optional. Surface an inner page of the site (admissions, our-program, what-we-treat, etc.) as a secondary destination under the body.
           </p>
         )}
       </section>
@@ -874,9 +965,9 @@ export default function NewEmailCampaignContent() {
       {blogPickerOpen && (
         <BlogPicker
           blogs={blogs}
-          selectedId={draft.featuredBlogId}
-          onSelect={(id) => {
-            setDraft((p) => ({ ...p, featuredBlogId: id }));
+          selectedId={featuredBlog?.id ?? null}
+          onSelect={(chosen) => {
+            setFeaturedBlogChoice(chosen);
             setBlogPickerOpen(false);
           }}
           onClose={() => setBlogPickerOpen(false)}
@@ -902,6 +993,16 @@ export default function NewEmailCampaignContent() {
             setHorsePickerOpen(false);
           }}
           onClose={() => setHorsePickerOpen(false)}
+        />
+      )}
+      {pagePickerOpen && (
+        <PagePicker
+          selectedPath={draft.featuredPagePath}
+          onSelect={(path) => {
+            setDraft((p) => ({ ...p, featuredPagePath: path }));
+            setPagePickerOpen(false);
+          }}
+          onClose={() => setPagePickerOpen(false)}
         />
       )}
       {replaceImagesOpen && (
@@ -985,9 +1086,16 @@ function FeaturedBlogCard({ blog, onClear }: { blog: BlogOption; onClear: () => 
         </div>
       )}
       <div className="flex-1 min-w-0">
-        <p className="text-[12.5px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{blog.title}</p>
+        <div className="flex items-center gap-2">
+          {blog.number != null && (
+            <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.14em] bg-primary/15 text-primary ring-1 ring-primary/25">
+              Ep {blog.number}
+            </span>
+          )}
+          <p className="text-[12.5px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{blog.title}</p>
+        </div>
         {blog.slug && (
-          <p className="text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>/{blog.slug}</p>
+          <p className="mt-0.5 text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>/{blog.slug}</p>
         )}
       </div>
       <button
@@ -1027,6 +1135,114 @@ function FeaturedEmployeeCard({ employee, onClear }: { employee: EmployeeOption;
   );
 }
 
+function FeaturedPageCard({ page, onClear }: { page: SitePage; onClear: () => void }) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+      <span
+        className="shrink-0 w-14 h-14 rounded-md bg-warm-bg border border-black/10 flex flex-col items-center justify-center text-foreground/55"
+        aria-hidden="true"
+      >
+        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">Page</span>
+        <span className="mt-0.5 text-[9px] tracking-wider text-foreground/45">→</span>
+      </span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.14em] bg-primary/15 text-primary ring-1 ring-primary/25">
+            {page.group}
+          </span>
+          <p className="text-[12.5px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{page.title}</p>
+        </div>
+        <p className="mt-0.5 text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>{page.path}</p>
+      </div>
+      <button
+        type="button"
+        onClick={onClear}
+        className="text-[11px] text-foreground/55 hover:text-foreground"
+      >
+        Remove
+      </button>
+    </div>
+  );
+}
+
+function PagePicker({ selectedPath, onSelect, onClose }: {
+  selectedPath: string | null;
+  onSelect: (path: string | null) => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return SITE_PAGES;
+    return SITE_PAGES.filter((p) =>
+      p.title.toLowerCase().includes(q)
+      || p.path.toLowerCase().includes(q)
+      || p.blurb.toLowerCase().includes(q)
+      || p.group.toLowerCase().includes(q),
+    );
+  }, [query]);
+  // Group rows by their `group` for the sectioned list view.
+  const grouped = useMemo(() => {
+    const map = new Map<SitePage['group'], SitePage[]>();
+    for (const p of filtered) {
+      const slot = map.get(p.group) ?? [];
+      slot.push(p);
+      map.set(p.group, slot);
+    }
+    return SITE_PAGE_GROUPS.map((g) => ({ group: g, rows: map.get(g) ?? [] })).filter((s) => s.rows.length > 0);
+  }, [filtered]);
+  return (
+    <ModalShell title="Feature a page" subtitle={`${SITE_PAGES.length} marketing pages, grouped.`} onClose={onClose}>
+      <input
+        type="text"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search by title, path, or group…"
+        className="w-full mb-3 px-3 py-1.5 rounded-md border border-black/10 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+        style={{ fontFamily: 'var(--font-body)' }}
+      />
+      {filtered.length === 0 ? (
+        <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
+          No pages match that search.
+        </p>
+      ) : (
+        <div className="max-h-[60vh] overflow-y-auto pr-1 flex flex-col gap-3">
+          {grouped.map(({ group, rows }) => (
+            <div key={group}>
+              <p className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-foreground/45 mb-1.5 px-0.5">
+                {group}
+              </p>
+              <ul className="flex flex-col gap-1.5">
+                {rows.map((p) => {
+                  const isSelected = p.path === selectedPath;
+                  return (
+                    <li key={p.path}>
+                      <button
+                        type="button"
+                        onClick={() => onSelect(p.path)}
+                        className={`w-full flex items-center gap-3 rounded-xl border p-2.5 text-left transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-black/10 bg-white hover:bg-warm-bg/40'}`}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[13px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{p.title}</p>
+                          <p className="text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>{p.path}</p>
+                          <p className="text-[10.5px] text-foreground/45 truncate" style={{ fontFamily: 'var(--font-body)' }}>{p.blurb}</p>
+                        </div>
+                        {isSelected && (
+                          <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold" aria-label="Selected">✓</span>
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
+    </ModalShell>
+  );
+}
+
 function ModalShell({ title, subtitle, onClose, children }: {
   title: string;
   subtitle?: string;
@@ -1062,14 +1278,14 @@ function ModalShell({ title, subtitle, onClose, children }: {
 function BlogPicker({ blogs, selectedId, onSelect, onClose }: {
   blogs: BlogOption[];
   selectedId: string | null;
-  onSelect: (id: string | null) => void;
+  onSelect: (option: BlogOption | null) => void;
   onClose: () => void;
 }) {
   return (
-    <ModalShell title="Feature a blog post" subtitle={`${blogs.length} post${blogs.length === 1 ? '' : 's'}.`} onClose={onClose}>
+    <ModalShell title="Feature a blog post" subtitle={`${blogs.length} episode${blogs.length === 1 ? '' : 's'}, newest first.`} onClose={onClose}>
       {blogs.length === 0 ? (
         <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
-          No blog posts yet. Publish one from /app/seo first.
+          No published episodes yet.
         </p>
       ) : (
         <ul className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-1">
@@ -1079,7 +1295,7 @@ function BlogPicker({ blogs, selectedId, onSelect, onClose }: {
               <li key={b.id}>
                 <button
                   type="button"
-                  onClick={() => onSelect(b.id)}
+                  onClick={() => onSelect(b)}
                   className={`w-full flex items-center gap-3 rounded-xl border p-2.5 text-left transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-black/10 bg-white hover:bg-warm-bg/40'}`}
                 >
                   {b.coverImageUrl ? (
@@ -1095,9 +1311,16 @@ function BlogPicker({ blogs, selectedId, onSelect, onClose }: {
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{b.title}</p>
+                    <div className="flex items-center gap-2">
+                      {b.number != null && (
+                        <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.14em] bg-primary/15 text-primary ring-1 ring-primary/25">
+                          Ep {b.number}
+                        </span>
+                      )}
+                      <p className="text-[13px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{b.title}</p>
+                    </div>
                     {b.slug && (
-                      <p className="text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>/{b.slug}</p>
+                      <p className="mt-0.5 text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>/{b.slug}</p>
                     )}
                   </div>
                   {isSelected && (

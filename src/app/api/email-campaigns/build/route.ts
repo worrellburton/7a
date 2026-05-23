@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
+import { EPISODES, episodeHref } from '@/lib/episodes';
+import { findSitePage } from '@/lib/site-pages';
 
 // POST /api/email-campaigns/build
 //
@@ -38,6 +40,8 @@ interface BuildBody {
   includeQuote?: unknown;
   darkMode?: unknown;
   featuredBlogId?: unknown;
+  featuredEpisodeSlug?: unknown;
+  featuredPagePath?: unknown;
   featuredEmployeeId?: unknown;
   featuredEquineId?: unknown;
   previousHtml?: unknown;
@@ -80,6 +84,8 @@ export async function POST(req: NextRequest) {
   const includeQuote = !!body.includeQuote;
   const darkMode = !!body.darkMode;
   const featuredBlogId = typeof body.featuredBlogId === 'string' ? body.featuredBlogId : null;
+  const featuredEpisodeSlug = typeof body.featuredEpisodeSlug === 'string' ? body.featuredEpisodeSlug : null;
+  const featuredPagePath = typeof body.featuredPagePath === 'string' ? body.featuredPagePath : null;
   const featuredEmployeeId = typeof body.featuredEmployeeId === 'string' ? body.featuredEmployeeId : null;
   const featuredEquineId = typeof body.featuredEquineId === 'string' ? body.featuredEquineId : null;
   const previousHtml = typeof body.previousHtml === 'string' ? body.previousHtml : null;
@@ -136,6 +142,35 @@ export async function POST(req: NextRequest) {
     : '';
   const blogSummary = blog?.body_markdown ? blog.body_markdown.replace(/[#*_>`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 400) : '';
   const horseNotes = horse?.notes ? horse.notes.replace(/\s+/g, ' ').trim().slice(0, 400) : '';
+
+  // Static-episode fallback: when the picker chose a Recovery
+  // Roadmap entry that doesn't live in public.blogs, resolve from
+  // the EPISODES table so Claude still receives a title + URL +
+  // blurb instead of treating it as "no blog featured".
+  let staticEpisode: { number: number; title: string; slug: string; blurb: string; url: string } | null = null;
+  if (!blog && featuredEpisodeSlug) {
+    const ep = EPISODES.find((e) => e.slug === featuredEpisodeSlug);
+    if (ep) {
+      // episodeHref() honors per-episode legacy URL overrides — so
+      // Episode 7 (Suboxone → Sublocade) lands at /transition-from-
+      // suboxone-to-sublocade rather than /who-we-are/blog/<slug>.
+      const href = episodeHref(ep.slug);
+      const url = href.startsWith('http') ? href : `${SITE_URL.replace(/\/$/, '')}${href}`;
+      staticEpisode = {
+        number: ep.number,
+        title: ep.title,
+        slug: ep.slug,
+        blurb: ep.blurb,
+        url,
+      };
+    }
+  }
+
+  // Featured marketing page (admissions, our-program, etc).
+  const featuredPage = findSitePage(featuredPagePath);
+  const featuredPageUrl = featuredPage
+    ? `${SITE_URL.replace(/\/$/, '')}${featuredPage.path}`
+    : null;
 
   const blogUrl = blog?.slug ? `${SITE_URL}who-we-are/blog/${blog.slug}` : null;
   const empUrl = emp?.public_slug ? `${SITE_URL}who-we-are/meet-our-team/${emp.public_slug}` : null;
@@ -281,6 +316,23 @@ DESIGN SEED for this build: ${designSeed}. Use it as a tiebreaker when picking b
         `FEATURED BLOG IMAGES (use one of these for the blog card, never a marketer-supplied IMAGE):\n${blogImages.map((bi, i) => `  ${i + 1}. ${bi.url} | alt: ${bi.alt ?? ''}`).join('\n')}`,
       );
     }
+  } else if (staticEpisode) {
+    // Treat a static Recovery Roadmap episode identically to a
+    // DB-backed FEATURED BLOG so PILLAR 8's "Continue Reading"
+    // module still renders. No blog_images list — the static
+    // episode uses no image and the card is text-only with a small
+    // serif "Episode N" eyebrow above the title.
+    ctxLines.push(
+      `FEATURED BLOG (Recovery Roadmap, Episode ${staticEpisode.number}):\n  title: ${staticEpisode.title}\n  url: ${staticEpisode.url}\n  summary: ${staticEpisode.blurb}\n  episodeNumber: ${staticEpisode.number}`,
+    );
+    ctxLines.push(
+      `FEATURED BLOG IMAGES: (none — render the blog card text-only with a small "Episode ${staticEpisode.number}" eyebrow above the title)`,
+    );
+  }
+  if (featuredPage && featuredPageUrl) {
+    ctxLines.push(
+      `FEATURED PAGE (render a quiet "Continue exploring" module BELOW the body copy and ABOVE the CTA, separate from any FEATURED BLOG card). Treat it like a section sign-post: a small uppercase eyebrow that reads "ON ${featuredPage.group.toUpperCase()}" or "DIVE DEEPER", a 22px display-serif headline with the page title, a single 1-sentence blurb (you can use the description below), and a Copper-text "Read more →" link to the URL. No card border, no button styling. Skip if it would duplicate the primary CTA URL.\n  title: ${featuredPage.title}\n  url: ${featuredPageUrl}\n  group: ${featuredPage.group}\n  description: ${featuredPage.blurb}`,
+    );
   }
   if (emp) {
     ctxLines.push(
