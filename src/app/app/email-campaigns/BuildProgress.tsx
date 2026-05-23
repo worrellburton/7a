@@ -2,13 +2,26 @@
 
 // Animated progress bar that surfaces while Claude is building or
 // iterating on an email. The build is a single non-streaming API
-// call so we don't have real progress data — instead we run a
-// smooth ease-out ramp from 0 → 95% over ~24s, and cycle a label
-// through the build phases so the wait feels narrated. When the
-// caller unmounts (build finished), the bar disappears, which is
-// the visual equivalent of "snap to 100%".
+// call so we don't have real progress data — instead we model
+// expected wall-time from history and animate against that:
+//
+//   1. On mount we read recent completion times from localStorage
+//      (per mode), median-of-last-N, clamped to a sensible range.
+//   2. The bar ramps 0 → 90% over the estimate with ease-out, so
+//      the bulk of the visible progress lands inside the typical
+//      build window.
+//   3. After the estimate window, the bar continues to creep
+//      90% → 99% over a long tail so the marketer doesn't see it
+//      pinned at "95%" indefinitely — it keeps moving even when
+//      Claude is taking longer than usual.
+//   4. On unmount (parent flipped 'building' to false) we record the
+//      elapsed time so the next build's estimate is more accurate.
+//
+// The eta label under the spinner is rounded to whole seconds and
+// counts down so the wait reads honestly even when the underlying
+// model is slow.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 const FRESH_STEPS = [
   'Reading the brief…',
@@ -27,31 +40,131 @@ const ITERATE_STEPS = [
   'Polishing…',
 ];
 
-const TARGET_PCT = 95;
-const RAMP_MS = 24_000;
+const STORAGE_KEY = 'sa.email-build-durations';
+const MAX_HISTORY = 12;
+// First-time defaults (no history yet). Tuned from observed Claude
+// Opus latencies: a fresh build runs ~30s, an iteration ~15s.
+const DEFAULT_FRESH_MS = 30_000;
+const DEFAULT_ITERATE_MS = 15_000;
+// Floor + ceiling on the estimate so a single weird measurement
+// (5s spike, 4-minute Anthropic incident) doesn't move the bar
+// into territory that mis-represents the next build.
+const MIN_ESTIMATE_MS = 8_000;
+const MAX_ESTIMATE_MS = 90_000;
+
+type Mode = 'fresh' | 'iterate';
+
+interface History {
+  fresh: number[];
+  iterate: number[];
+}
+
+function readHistory(): History {
+  if (typeof window === 'undefined') return { fresh: [], iterate: [] };
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { fresh: [], iterate: [] };
+    const parsed = JSON.parse(raw) as Partial<History>;
+    return {
+      fresh: Array.isArray(parsed.fresh) ? parsed.fresh.filter((n) => typeof n === 'number' && isFinite(n) && n > 0).slice(-MAX_HISTORY) : [],
+      iterate: Array.isArray(parsed.iterate) ? parsed.iterate.filter((n) => typeof n === 'number' && isFinite(n) && n > 0).slice(-MAX_HISTORY) : [],
+    };
+  } catch {
+    return { fresh: [], iterate: [] };
+  }
+}
+
+function recordDuration(mode: Mode, ms: number) {
+  if (typeof window === 'undefined') return;
+  // Drop obvious outliers — the marketer hitting "Wait, stop!" at
+  // 2s is not a real build, and a 10-minute reading is a tab that
+  // was backgrounded. Either side would poison the median.
+  if (ms < 2_500 || ms > 5 * 60_000) return;
+  const history = readHistory();
+  const next = { ...history };
+  next[mode] = [...next[mode], Math.round(ms)].slice(-MAX_HISTORY);
+  try {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    /* quota / private-mode — silently ignore */
+  }
+}
+
+function median(values: number[]): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) return (sorted[mid - 1] + sorted[mid]) / 2;
+  return sorted[mid];
+}
+
+function estimateMs(mode: Mode): number {
+  const history = readHistory();
+  const med = median(history[mode]);
+  const fallback = mode === 'iterate' ? DEFAULT_ITERATE_MS : DEFAULT_FRESH_MS;
+  const base = med ?? fallback;
+  return Math.max(MIN_ESTIMATE_MS, Math.min(MAX_ESTIMATE_MS, base));
+}
 
 export function BuildProgress({ mode }: { mode: 'fresh' | 'iterate' }) {
   const steps = mode === 'iterate' ? ITERATE_STEPS : FRESH_STEPS;
   const [pct, setPct] = useState(0);
   const [stepIdx, setStepIdx] = useState(0);
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
+  // Compute the estimate exactly once per mount — re-reading
+  // localStorage every frame is wasted work, and the estimate
+  // shouldn't shift mid-build.
+  const estimateRef = useRef<number>(estimateMs(mode));
+  const startedAtRef = useRef<number>(Date.now());
 
   useEffect(() => {
-    const start = Date.now();
+    const start = startedAtRef.current;
+    const estimate = estimateRef.current;
     let raf = 0;
     const tick = () => {
       const elapsed = Date.now() - start;
-      // Ease-out: fast at first, asymptotic to TARGET_PCT.
-      const t = Math.min(1, elapsed / RAMP_MS);
-      const eased = 1 - Math.pow(1 - t, 2.2);
-      const nextPct = Math.min(TARGET_PCT, eased * TARGET_PCT);
+      // Phase A — 0 → 90% over `estimate` with an ease-out curve so
+      // momentum is front-loaded (matches how Claude actually feels:
+      // chugs through layout / copy quickly, slows for the polish).
+      // Phase B — 90% → 99% over the next 2× the estimate, so the
+      // bar keeps creeping if Claude takes longer than usual rather
+      // than pinning at a single number.
+      let nextPct: number;
+      if (elapsed <= estimate) {
+        const t = elapsed / estimate;
+        const eased = 1 - Math.pow(1 - t, 2.2);
+        nextPct = eased * 90;
+      } else {
+        const tailT = Math.min(1, (elapsed - estimate) / (estimate * 2));
+        const tailEased = 1 - Math.pow(1 - tailT, 2.5);
+        nextPct = 90 + tailEased * 9; // 90 → 99
+      }
       setPct(nextPct);
-      const idx = Math.min(steps.length - 1, Math.floor((nextPct / TARGET_PCT) * steps.length));
+      const idx = Math.min(steps.length - 1, Math.floor((nextPct / 100) * steps.length));
       setStepIdx(idx);
+      // ETA rounds the remaining seconds, clamped at 0 so we never
+      // show a negative countdown when Claude runs long. After the
+      // estimate elapses we show "almost done" instead of a stale
+      // remaining count.
+      const remainingMs = estimate - elapsed;
+      setSecondsLeft(remainingMs > 1_000 ? Math.round(remainingMs / 1000) : 0);
       raf = window.requestAnimationFrame(tick);
     };
     raf = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(raf);
-  }, [steps.length]);
+    return () => {
+      window.cancelAnimationFrame(raf);
+      // Record the actual elapsed time so the next build estimates
+      // off real data. Outliers (aborts, tab-throttled) are filtered
+      // inside recordDuration.
+      recordDuration(mode, Date.now() - start);
+    };
+  }, [mode, steps.length]);
+
+  const etaLabel = secondsLeft == null
+    ? null
+    : secondsLeft > 0
+    ? `~${secondsLeft}s left`
+    : 'almost done…';
 
   return (
     <div
@@ -73,6 +186,14 @@ export function BuildProgress({ mode }: { mode: 'fresh' | 'iterate' }) {
           style={{ width: `${pct}%` }}
         />
       </div>
+      {etaLabel && (
+        <p
+          className="mt-1.5 text-[10.5px] text-foreground/55 tabular-nums"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          {etaLabel}
+        </p>
+      )}
     </div>
   );
 }
