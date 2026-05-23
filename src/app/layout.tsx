@@ -56,7 +56,11 @@ export const metadata: Metadata = {
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  // No maximumScale — iOS Safari was trapping pinch-out attempts
+  // and re-interpreting the touch as a swipe-back gesture, which
+  // closed the page entirely when users tried to zoom out of a
+  // momentarily over-wide layout. Letting the user pinch is the
+  // right escape hatch even when the underlying layout is fixed.
 };
 
 // Schemas now live in src/lib/seo/schema.ts so the NAP, social URLs,

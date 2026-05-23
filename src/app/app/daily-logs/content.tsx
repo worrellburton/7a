@@ -255,9 +255,20 @@ export default function DailyLogsContent() {
 
   return (
     <div
-      className="w-full max-w-full overflow-x-clip bg-warm-bg/40"
-      // touch-action: manipulation stops iOS Safari's double-tap-to-zoom.
-      style={{ touchAction: 'manipulation', fontFamily: 'var(--font-body)' }}
+      className="w-full bg-warm-bg/40"
+      // width: 100vw is a HARD pin (max-width can be overridden by
+      // intrinsic min-content sizing of children in some flex/grid
+      // contexts; width: 100vw can't be exceeded by anything but
+      // explicit > 100vw children). overflow-x: hidden traps any
+      // residual horizontal scroll. touchAction: manipulation kills
+      // iOS Safari's double-tap-to-zoom on the rain/cards/pills.
+      style={{
+        width: '100vw',
+        maxWidth: '100vw',
+        overflowX: 'hidden',
+        touchAction: 'manipulation',
+        fontFamily: 'var(--font-body)',
+      }}
     >
       {/* Page wrapper — single column on every viewport, capped at
           max-w-3xl so the page reads as a column rather than a
@@ -318,38 +329,39 @@ export default function DailyLogsContent() {
           </Link>
         </div>
 
-        {/* Range pills — horizontal-scroll on phones via overflow-x-auto.
-            The PARENT (.range-pill-scroller) has a hard width cap of
-            100% via min-w-0 + max-w-full, so even though the inner
-            inline-flex is wider than the viewport, the scroller alone
-            grows horizontally, never the page. */}
-        <div className="mt-5 min-w-0 max-w-full">
-          <div className="overflow-x-auto no-scrollbar -mx-4 px-4">
-            <div
-              className="inline-flex items-center gap-1 rounded-full border border-black/10 bg-white/85 backdrop-blur-sm p-1 shadow-[0_8px_22px_-16px_rgba(60,48,42,0.35)]"
-              role="tablist"
-              aria-label="Date range"
-            >
-              {RANGES.map((r) => {
-                const active = range === r.key;
-                return (
-                  <button
-                    key={r.key}
-                    type="button"
-                    role="tab"
-                    aria-selected={active}
-                    onClick={() => setRange(r.key)}
-                    className={`px-3 py-1.5 text-[11.5px] font-semibold rounded-full whitespace-nowrap transition-colors ${
-                      active
-                        ? 'bg-foreground text-white shadow-sm'
-                        : 'text-foreground/60 hover:text-foreground hover:bg-warm-bg/70'
-                    }`}
-                  >
-                    {r.label}
-                  </button>
-                );
-              })}
-            </div>
+        {/* Range pills — wraps onto multiple rows on mobile so the
+            row's intrinsic width never exceeds the device width.
+            Previously this was an inline-flex with overflow-x-auto,
+            but iOS Safari uses the WIDEST element's intrinsic width
+            (not the visible content width) to compute the layout
+            viewport, so even a contained-scroll inline-flex of
+            ~400px was forcing the whole page to render at ~400px
+            zoom. flex-wrap fixes that at the source. */}
+        <div className="mt-4">
+          <div
+            className="flex flex-wrap justify-center gap-1.5 rounded-2xl border border-black/10 bg-white/85 backdrop-blur-sm p-1.5 shadow-[0_8px_22px_-16px_rgba(60,48,42,0.35)]"
+            role="tablist"
+            aria-label="Date range"
+          >
+            {RANGES.map((r) => {
+              const active = range === r.key;
+              return (
+                <button
+                  key={r.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setRange(r.key)}
+                  className={`px-3 py-1.5 text-[11.5px] font-semibold rounded-full whitespace-nowrap transition-colors ${
+                    active
+                      ? 'bg-foreground text-white shadow-sm'
+                      : 'text-foreground/60 hover:text-foreground hover:bg-warm-bg/70'
+                  }`}
+                >
+                  {r.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
