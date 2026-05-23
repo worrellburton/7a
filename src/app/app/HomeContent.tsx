@@ -481,14 +481,16 @@ export default function HomeContent() {
         <div className="absolute bottom-0 left-1/3 w-[480px] h-[480px] rounded-full bg-amber-200/35 blur-[130px]" />
       </div>
 
-      {/* On lg+ the global `app-shell` applies zoom: 0.82, so a plain
-          h-[100vh] CSS height renders at only 82% of the actual
-          viewport — which would sit the orbit ~85px above true centre
-          on a 1080p display. Mirror the sidebar's compensation pattern
-          (`h-[calc(100vh/0.82)]`) so the wrapper fills the real screen
-          and `justify-center` on the centerpiece below lands the
-          orbit at the visual middle of the viewport. */}
-      <div className="relative flex-1 flex flex-col h-[calc(100svh-1px)] max-h-[calc(100svh-1px)] lg:h-[calc((100vh-1px)/0.82)] lg:max-h-[calc((100vh-1px)/0.82)] overflow-hidden px-4 sm:px-6 lg:px-10 py-3 lg:py-6">
+      {/* Wrapper height = viewport height (1px subtracted to defeat
+          a Chrome subpixel rounding quirk that otherwise produces a
+          1px stray scrollbar). The old lg: divisor of `/0.82` was
+          compensating for an `app-shell { zoom: 0.82 }` rule that
+          got dropped in 41bfd939 — without that zoom, dividing the
+          viewport by 0.82 produced a ~122vh container, and the
+          overflow-hidden then clipped the daily-logs chip + mission
+          tagline out of frame. Uniform 100svh across breakpoints
+          restores the one-viewport home page. */}
+      <div className="relative flex-1 flex flex-col h-[calc(100svh-1px)] max-h-[calc(100svh-1px)] overflow-hidden px-4 sm:px-6 lg:px-10 py-3 lg:py-6">
 
         {/* Phase 4: hero — no glass card; the avatar/greeting and the
             create-menu button float on the page background. The hero
