@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase } from '@/lib/supabase-server';
 import { autoAddOneContact, pickProviderFromHour } from '@/lib/contact-auto-add';
+import { withCronLogging } from '@/lib/cron-observability';
 
 // GET /api/cron/contacts/auto-add
 //
@@ -28,6 +29,7 @@ export const maxDuration = 180;
 const ATTRIBUTION_EMAIL = 'bobby@sevenarrowsrecovery.com';
 
 export async function GET(req: NextRequest) {
+  return withCronLogging('/api/cron/contacts/auto-add', async () => {
   const expectedSecret = process.env.CRON_SECRET;
   if (expectedSecret) {
     const auth = req.headers.get('authorization') || '';
@@ -65,4 +67,5 @@ export async function GET(req: NextRequest) {
   );
 
   return NextResponse.json(result);
+  });
 }

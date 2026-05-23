@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase } from '@/lib/supabase-server';
+import { withCronLogging } from '@/lib/cron-observability';
 
 // GET /api/cron/email-campaigns/scheduled-send
 //
@@ -12,6 +13,7 @@ import { getAdminSupabase } from '@/lib/supabase-server';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
+  return withCronLogging('/api/cron/email-campaigns/scheduled-send', async () => {
   // Vercel-signed crons set x-vercel-cron=1. We also accept a
   // manual trigger with the CRON_SECRET so admins can fire the
   // route from curl when debugging without auth.
@@ -80,4 +82,5 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.json({ ok: true, fired, failed, claimed: claimed.length });
+  });
 }

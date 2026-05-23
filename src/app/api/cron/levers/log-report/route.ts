@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase } from '@/lib/supabase-server';
 import { renderLogReportEmail, subjectFor } from '@/lib/log-report-email';
 import { buildLogReportData } from '@/lib/log-report-data';
+import { withCronLogging } from '@/lib/cron-observability';
 
 // GET /api/cron/levers/log-report
 //
@@ -39,6 +40,7 @@ function stripDisplayName(raw: string): string {
 }
 
 export async function GET(req: NextRequest) {
+  return withCronLogging('/api/cron/levers/log-report', async () => {
   // Vercel passes the cron secret as `Authorization: Bearer <secret>`.
   // Bail with 401 on anything else so a random bot scraping
   // /api/cron/* can't trigger the broadcast.
@@ -154,4 +156,5 @@ export async function GET(req: NextRequest) {
   await Promise.all(workers);
 
   return NextResponse.json({ ok: true, sent, failed, simulated, recipients: recipients.length });
+  });
 }
