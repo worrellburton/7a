@@ -20,7 +20,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 
 type Area = 'website' | 'feather';
-type Category = 'features' | 'codebase' | 'growth' | 'ux' | 'performance';
+type Category = 'features' | 'codebase' | 'growth' | 'ux' | 'performance' | 'design';
 type SeoGeo = 'none' | 'seo' | 'geo' | 'both';
 
 interface ScanRow {
@@ -42,6 +42,10 @@ interface Recommendation {
   description: string;
   copy_prompt: string;
   priority: number;
+  /** 1 = safe → 5 = critical. Independent of priority. */
+  risk_score: number;
+  /** Sandboxed-iframe preview snippet for design-category rows. */
+  design_preview_html: string | null;
   dismissed_at: string | null;
   created_at: string;
 }
@@ -52,6 +56,7 @@ const CATEGORY_LABEL: Record<Category, string> = {
   growth: 'Growth',
   ux: 'UX',
   performance: 'Performance',
+  design: 'Design',
 };
 
 const CATEGORY_TONE: Record<Category, string> = {
@@ -60,6 +65,7 @@ const CATEGORY_TONE: Record<Category, string> = {
   growth: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
   ux: 'bg-sky-50 text-sky-700 ring-sky-200',
   performance: 'bg-amber-50 text-amber-800 ring-amber-200',
+  design: 'bg-pink-50 text-pink-700 ring-pink-200',
 };
 
 const PRIORITY_LABEL: Record<number, string> = {
@@ -68,6 +74,26 @@ const PRIORITY_LABEL: Record<number, string> = {
   3: 'P3 · Medium',
   4: 'P4 · Low',
   5: 'P5 · Wishlist',
+};
+
+// Risk score is independent of priority — a P1 conversion lever
+// can still be risk=1 if it's a copy tweak; a P5 refactor can be
+// risk=5 if it touches every API route. Tone scales rose→amber→
+// emerald in the opposite direction of priority so green = safe.
+const RISK_LABEL: Record<number, string> = {
+  1: 'Safe',
+  2: 'Low risk',
+  3: 'Moderate',
+  4: 'High risk',
+  5: 'Critical',
+};
+
+const RISK_TONE: Record<number, string> = {
+  1: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+  2: 'bg-emerald-50/60 text-emerald-700/80 ring-emerald-200/70',
+  3: 'bg-amber-50 text-amber-800 ring-amber-200',
+  4: 'bg-orange-50 text-orange-800 ring-orange-200',
+  5: 'bg-rose-50 text-rose-700 ring-rose-200',
 };
 
 function fmtScanTime(iso: string): string {
@@ -266,7 +292,12 @@ export default function KaizenContent() {
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        // Single vertical stack — Website section then Feather
+        // section, each occupying the full width so each
+        // recommendation card has room for its description, the
+        // copy/dismiss row, and (for design rows) a sandboxed
+        // preview iframe at full reading width.
+        <div className="flex flex-col gap-4">
           <AreaColumn title="Website" subtitle="sevenarrowsrecoveryarizona.com" recs={byArea.website} onDismiss={dismissRecommendation} />
           <AreaColumn title="Feather" subtitle="/app — internal CMS / CRM / ops" recs={byArea.feather} onDismiss={dismissRecommendation} />
         </div>
@@ -342,6 +373,15 @@ function RecommendationCard({
               : 'SEO + GEO'}
           </span>
         )}
+        {/* Risk badge — independent of priority. Title carries
+            both the human label and the numeric R1-R5 so admins
+            can sort low-risk wins from high-risk rewrites. */}
+        <span
+          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9.5px] font-bold uppercase tracking-[0.14em] ring-1 ${RISK_TONE[rec.risk_score] ?? RISK_TONE[2]}`}
+          title={`Stability risk R${rec.risk_score} · ${RISK_LABEL[rec.risk_score] ?? 'Unknown'}. Independent of priority — measures the chance this change destabilises the site if shipped.`}
+        >
+          R{rec.risk_score} · {RISK_LABEL[rec.risk_score] ?? 'Unknown'}
+        </span>
         <span className="ml-auto text-[10px] tabular-nums text-foreground/45 whitespace-nowrap">
           {PRIORITY_LABEL[rec.priority] ?? `P${rec.priority}`}
         </span>
@@ -350,6 +390,17 @@ function RecommendationCard({
         {rec.title}
       </h3>
       <p className="mt-1.5 text-[12.5px] text-foreground/70 leading-relaxed">{rec.description}</p>
+      {/* Design-category preview — Claude's HTML snippet rendered
+          inside a sandboxed iframe so its styles can't leak into
+          the dashboard. The sandbox= attribute is intentionally
+          empty, which disables every capability except basic
+          rendering: no scripts, no forms, no top navigation, no
+          plugins. 320px wide reads as a mobile-ish preview pane;
+          height is auto-sized to the snippet via the iframe's
+          contentHeight hook below. */}
+      {rec.category === 'design' && rec.design_preview_html && (
+        <DesignPreview html={rec.design_preview_html} />
+      )}
       <div className="mt-3 flex items-center gap-2 flex-wrap">
         <button
           type="button"
@@ -386,5 +437,37 @@ function RecommendationCard({
         </button>
       </div>
     </li>
+  );
+}
+
+// Sandboxed preview for design-category recommendations. Renders
+// Claude's HTML snippet inside an iframe with sandbox="" — that
+// disables every browser capability except basic rendering (no
+// scripts, no forms, no top-frame navigation, no plugins) so an
+// untrusted snippet can't escape the box. Auto-sizes height on
+// load by reading the document's scrollHeight via the same-origin
+// blank iframe trick (srcdoc keeps the iframe in our origin).
+function DesignPreview({ html }: { html: string }) {
+  const [height, setHeight] = useState(220);
+  return (
+    <figure className="mt-3 rounded-xl border border-black/10 bg-warm-bg/40 overflow-hidden">
+      <figcaption className="px-3 py-1.5 text-[9.5px] font-bold uppercase tracking-[0.18em] text-foreground/55 border-b border-black/5 bg-white/60">
+        Preview
+      </figcaption>
+      <iframe
+        sandbox=""
+        title="Design preview"
+        srcDoc={`<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=320, initial-scale=1"></head><body style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',Roboto,sans-serif;">${html}</body></html>`}
+        onLoad={(e) => {
+          const doc = (e.currentTarget as HTMLIFrameElement).contentDocument;
+          if (doc?.body) {
+            const next = Math.min(640, Math.max(160, doc.body.scrollHeight + 4));
+            setHeight(next);
+          }
+        }}
+        className="w-full bg-white block"
+        style={{ height: `${height}px` }}
+      />
+    </figure>
   );
 }

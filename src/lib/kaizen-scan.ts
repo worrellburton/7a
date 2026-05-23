@@ -15,7 +15,7 @@ const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
 
 export type KaizenArea = 'website' | 'feather';
-export type KaizenCategory = 'features' | 'codebase' | 'growth' | 'ux' | 'performance';
+export type KaizenCategory = 'features' | 'codebase' | 'growth' | 'ux' | 'performance' | 'design';
 export type KaizenSeoGeo = 'none' | 'seo' | 'geo' | 'both';
 
 export interface KaizenRecommendation {
@@ -25,7 +25,12 @@ export interface KaizenRecommendation {
   title: string;
   description: string;
   copy_prompt: string;
-  priority: number; // 1-5
+  /** 1 = critical → 5 = wishlist. Independent of risk_score. */
+  priority: number;
+  /** 1 = safe → 5 = touches auth/billing/send pipeline. */
+  risk_score: number;
+  /** Self-contained HTML preview for design-category rows. */
+  design_preview_html?: string | null;
 }
 
 const SYSTEM_PROMPT = `You are the senior product engineer for Seven Arrows Recovery, an addiction-treatment ranch in Arizona. You audit two codebases:
@@ -55,6 +60,9 @@ CATEGORIES (use these exact slugs in the JSON):
   growth      — marketing tactics, conversion levers, copy, calls to action
   ux          — visual / interaction / accessibility / mobile polish
   performance — speed, bundle size, caching, Core Web Vitals
+  design      — a SPECIFIC visual / layout / component design change.
+                When you pick this category you MUST also fill the
+                "design_preview_html" field (see below).
 
 SEO_GEO TAG (use these exact slugs):
   none — not SEO-relevant and not geo-relevant
@@ -76,12 +84,32 @@ For each recommendation, write:
                     end with a single sentence telling Claude Code to ship
                     on the live deploy branch (master) once typecheck passes.
 
-PRIORITY:
+PRIORITY (impact / value):
   1 = critical (security, user-blocking bug, conversion-killer)
   2 = high (meaningful business / engineering win this quarter)
   3 = medium (a good day's work, worth doing soon)
   4 = nice to have
   5 = wishlist
+
+RISK_SCORE (likelihood of destabilising the site if shipped):
+  1 = safe — pure UI tweak, no data path touched
+  2 = low — additive feature, no migrations, no auth touched
+  3 = moderate — touches an API route or adds a non-destructive migration
+  4 = high — schema change with backfill, RLS rewrite, mutates existing rows
+  5 = critical — auth flow, billing, send pipeline, payment, data destruction
+You score risk separately from priority. A P1 critical conversion lever
+can still be risk=1 if it's a copy tweak. A P5 wishlist refactor can be
+risk=5 if it touches every API route.
+
+DESIGN_PREVIEW_HTML (required ONLY when category='design', absent otherwise):
+  A self-contained HTML snippet, 200 to 600 characters total. Renders
+  inside a sandboxed iframe at 320px wide so the super admin can see
+  a preview of the proposed change. Use inline styles only. Use the
+  brand palette (sand #faf6f1, ink #2c1810, copper #b87333, sage
+  #7a8b6f, desert dusk #2e2418). Body should be padding:16px and
+  background:#faf6f1. No <html>/<head>/<body> wrappers — just the
+  content. No <script>. No external assets. The preview should make
+  the proposed visual choice obvious in two seconds.
 
 OUTPUT FORMAT — return ONE JSON array of exactly 10 objects, no preamble,
 no markdown fences, no extra text. Each object has the keys:
@@ -92,7 +120,10 @@ no markdown fences, no extra text. Each object has the keys:
     "title": "...",
     "description": "...",
     "copy_prompt": "...",
-    "priority": 1-5 }
+    "priority": 1-5,
+    "risk_score": 1-5,
+    "design_preview_html": "..."  // only when category=design
+  }
 
 The first 5 elements are area=website, the next 5 are area=feather, in
 that order. Within each area, vary the categories.
@@ -136,7 +167,7 @@ function parseClaudeJson(raw: string): KaizenRecommendation[] | null {
     if (!r || typeof r !== 'object') continue;
     const rec = r as Record<string, unknown>;
     const area = rec.area === 'website' || rec.area === 'feather' ? (rec.area as KaizenArea) : null;
-    const category = ['features', 'codebase', 'growth', 'ux', 'performance'].includes(rec.category as string)
+    const category = ['features', 'codebase', 'growth', 'ux', 'performance', 'design'].includes(rec.category as string)
       ? (rec.category as KaizenCategory)
       : null;
     const seo_geo = ['none', 'seo', 'geo', 'both'].includes(rec.seo_geo as string)
@@ -147,8 +178,14 @@ function parseClaudeJson(raw: string): KaizenRecommendation[] | null {
     const copy_prompt = typeof rec.copy_prompt === 'string' ? rec.copy_prompt.trim() : '';
     const priorityRaw = typeof rec.priority === 'number' ? rec.priority : Number(rec.priority);
     const priority = Number.isFinite(priorityRaw) && priorityRaw >= 1 && priorityRaw <= 5 ? Math.round(priorityRaw) : 3;
+    const riskRaw = typeof rec.risk_score === 'number' ? rec.risk_score : Number(rec.risk_score);
+    const risk_score = Number.isFinite(riskRaw) && riskRaw >= 1 && riskRaw <= 5 ? Math.round(riskRaw) : 2;
+    const previewRaw = typeof rec.design_preview_html === 'string' ? rec.design_preview_html.trim() : '';
+    // Only persist the preview for design rows. Cap length to keep
+    // the dashboard payload sane.
+    const design_preview_html = category === 'design' && previewRaw ? previewRaw.slice(0, 4000) : null;
     if (!area || !category || !title || !description || !copy_prompt) continue;
-    out.push({ area, category, seo_geo, title, description, copy_prompt, priority });
+    out.push({ area, category, seo_geo, title, description, copy_prompt, priority, risk_score, design_preview_html });
   }
   return out;
 }
@@ -244,6 +281,8 @@ export async function runKaizenScan(
       description: r.description,
       copy_prompt: r.copy_prompt,
       priority: r.priority,
+      risk_score: r.risk_score,
+      design_preview_html: r.design_preview_html,
     }));
     const { error: insErr } = await admin.from('kaizen_recommendations').insert(insertRows);
     if (insErr) {
