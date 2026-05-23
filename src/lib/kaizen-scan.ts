@@ -17,6 +17,7 @@ const API_VERSION = '2023-06-01';
 export type KaizenArea = 'website' | 'feather';
 export type KaizenCategory = 'features' | 'codebase' | 'growth' | 'ux' | 'performance' | 'design';
 export type KaizenSeoGeo = 'none' | 'seo' | 'geo' | 'both';
+export type KaizenTargetKind = 'existing' | 'new' | 'global';
 
 export interface KaizenRecommendation {
   area: KaizenArea;
@@ -25,10 +26,18 @@ export interface KaizenRecommendation {
   title: string;
   description: string;
   copy_prompt: string;
-  /** 1 = critical → 5 = wishlist. Independent of risk_score. */
+  /** 1 = critical → 5 = wishlist. */
   priority: number;
   /** 1 = safe → 5 = touches auth/billing/send pipeline. */
   risk_score: number;
+  /** 1 = mostly cosmetic → 5 = step-change business value. */
+  value_score: number;
+  /** Where the change lands. */
+  target_kind: KaizenTargetKind;
+  /** Route path of the target page (empty when target_kind=global). */
+  target_path: string | null;
+  /** Optional human-friendly label for the target. */
+  target_label: string | null;
   /** Self-contained HTML preview for design-category rows. */
   design_preview_html?: string | null;
 }
@@ -91,6 +100,31 @@ PRIORITY (impact / value):
   4 = nice to have
   5 = wishlist
 
+VALUE_SCORE (business value if shipped, independent of priority):
+  1 = mostly cosmetic — barely moves anything
+  2 = nice to have
+  3 = solid roll-of-the-dice
+  4 = high — meaningful quarter-impacting win
+  5 = step-change — new revenue lever, conversion unblock, or
+      eliminates a recurring ops cost
+A high VALUE_SCORE means shipping it produces a big return. The
+dashboard will use VALUE_SCORE / RISK_SCORE to sort "biggest bang
+for the buck" wins from "risky rewrites".
+
+TARGET_KIND + TARGET_PATH + TARGET_LABEL (where the change lands):
+  target_kind = "existing" — modifies a page or surface that
+                exists today. Set target_path to the route
+                (e.g. "/admissions", "/app/admissions/leads/[id]")
+                and target_label to a 1-3 word friendly name
+                (e.g. "Admissions hero", "Lead detail header").
+  target_kind = "new" — introduces a brand-new page or surface.
+                Set target_path to the route you propose
+                (e.g. "/insurance/cost-calculator"). Label is
+                still useful ("Insurance cost calculator").
+  target_kind = "global" — cross-cutting change with no single
+                target page (shared header, build config, lib
+                refactor). Leave target_path null; label optional.
+
 RISK_SCORE (likelihood of destabilising the site if shipped):
   1 = safe — pure UI tweak, no data path touched
   2 = low — additive feature, no migrations, no auth touched
@@ -122,6 +156,10 @@ no markdown fences, no extra text. Each object has the keys:
     "copy_prompt": "...",
     "priority": 1-5,
     "risk_score": 1-5,
+    "value_score": 1-5,
+    "target_kind": "existing"|"new"|"global",
+    "target_path": "/admissions"|"/app/.../leads/[id]"|null,
+    "target_label": "Admissions hero"|null,
     "design_preview_html": "..."  // only when category=design
   }
 
@@ -180,12 +218,22 @@ function parseClaudeJson(raw: string): KaizenRecommendation[] | null {
     const priority = Number.isFinite(priorityRaw) && priorityRaw >= 1 && priorityRaw <= 5 ? Math.round(priorityRaw) : 3;
     const riskRaw = typeof rec.risk_score === 'number' ? rec.risk_score : Number(rec.risk_score);
     const risk_score = Number.isFinite(riskRaw) && riskRaw >= 1 && riskRaw <= 5 ? Math.round(riskRaw) : 2;
+    const valueRaw = typeof rec.value_score === 'number' ? rec.value_score : Number(rec.value_score);
+    const value_score = Number.isFinite(valueRaw) && valueRaw >= 1 && valueRaw <= 5 ? Math.round(valueRaw) : 3;
+    const target_kind: KaizenTargetKind = (['existing', 'new', 'global'].includes(rec.target_kind as string)
+      ? (rec.target_kind as KaizenTargetKind)
+      : 'global');
+    const target_path = typeof rec.target_path === 'string' && rec.target_path.trim() ? rec.target_path.trim().slice(0, 200) : null;
+    const target_label = typeof rec.target_label === 'string' && rec.target_label.trim() ? rec.target_label.trim().slice(0, 80) : null;
     const previewRaw = typeof rec.design_preview_html === 'string' ? rec.design_preview_html.trim() : '';
-    // Only persist the preview for design rows. Cap length to keep
-    // the dashboard payload sane.
     const design_preview_html = category === 'design' && previewRaw ? previewRaw.slice(0, 4000) : null;
     if (!area || !category || !title || !description || !copy_prompt) continue;
-    out.push({ area, category, seo_geo, title, description, copy_prompt, priority, risk_score, design_preview_html });
+    out.push({
+      area, category, seo_geo, title, description, copy_prompt,
+      priority, risk_score, value_score,
+      target_kind, target_path, target_label,
+      design_preview_html,
+    });
   }
   return out;
 }
@@ -282,6 +330,10 @@ export async function runKaizenScan(
       copy_prompt: r.copy_prompt,
       priority: r.priority,
       risk_score: r.risk_score,
+      value_score: r.value_score,
+      target_kind: r.target_kind,
+      target_path: r.target_path,
+      target_label: r.target_label,
       design_preview_html: r.design_preview_html,
     }));
     const { error: insErr } = await admin.from('kaizen_recommendations').insert(insertRows);

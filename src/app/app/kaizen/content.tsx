@@ -33,6 +33,8 @@ interface ScanRow {
   created_at: string;
 }
 
+type TargetKind = 'existing' | 'new' | 'global';
+
 interface Recommendation {
   id: string;
   area: Area;
@@ -44,6 +46,14 @@ interface Recommendation {
   priority: number;
   /** 1 = safe → 5 = critical. Independent of priority. */
   risk_score: number;
+  /** 1 = mostly cosmetic → 5 = step-change business value. */
+  value_score: number;
+  /** Where the change lands. */
+  target_kind: TargetKind | null;
+  /** Route path of the target page (null when target_kind=global). */
+  target_path: string | null;
+  /** Friendly label for the target. */
+  target_label: string | null;
   /** Sandboxed-iframe preview snippet for design-category rows. */
   design_preview_html: string | null;
   dismissed_at: string | null;
@@ -94,6 +104,38 @@ const RISK_TONE: Record<number, string> = {
   3: 'bg-amber-50 text-amber-800 ring-amber-200',
   4: 'bg-orange-50 text-orange-800 ring-orange-200',
   5: 'bg-rose-50 text-rose-700 ring-rose-200',
+};
+
+// Value score is Claude's gut-check on business impact. 1 is a
+// nice-to-have polish; 5 is a step-change conversion / retention /
+// SEO win. Tone scales the opposite direction of risk — green is
+// "go do this one" rather than "this one is safe".
+const VALUE_LABEL: Record<number, string> = {
+  1: 'Polish',
+  2: 'Modest',
+  3: 'Solid',
+  4: 'High value',
+  5: 'Step-change',
+};
+
+const VALUE_TONE: Record<number, string> = {
+  1: 'bg-foreground/5 text-foreground/55 ring-foreground/15',
+  2: 'bg-sky-50/70 text-sky-700/80 ring-sky-200/70',
+  3: 'bg-sky-50 text-sky-700 ring-sky-200',
+  4: 'bg-primary/10 text-primary ring-primary/25',
+  5: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
+};
+
+const TARGET_KIND_LABEL: Record<TargetKind, string> = {
+  existing: 'On existing page',
+  new: 'New page',
+  global: 'Global / cross-cutting',
+};
+
+const TARGET_KIND_TONE: Record<TargetKind, string> = {
+  existing: 'bg-sky-50 text-sky-700 ring-sky-200',
+  new: 'bg-violet-50 text-violet-700 ring-violet-200',
+  global: 'bg-foreground/5 text-foreground/70 ring-foreground/15',
 };
 
 function fmtScanTime(iso: string): string {
@@ -382,6 +424,16 @@ function RecommendationCard({
         >
           R{rec.risk_score} · {RISK_LABEL[rec.risk_score] ?? 'Unknown'}
         </span>
+        {/* Value badge — Claude's estimate of business impact.
+            Sits next to risk so a quick scan reads as "how risky"
+            paired with "how valuable". Tone is green-leaning at
+            high values to invert the risk scale's red ramp. */}
+        <span
+          className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9.5px] font-bold uppercase tracking-[0.14em] ring-1 ${VALUE_TONE[rec.value_score] ?? VALUE_TONE[3]}`}
+          title={`Business value V${rec.value_score} · ${VALUE_LABEL[rec.value_score] ?? 'Unknown'}. Claude's estimate of how much lift this delivers (admissions, retention, SEO, internal speed).`}
+        >
+          V{rec.value_score} · {VALUE_LABEL[rec.value_score] ?? 'Unknown'}
+        </span>
         <span className="ml-auto text-[10px] tabular-nums text-foreground/45 whitespace-nowrap">
           {PRIORITY_LABEL[rec.priority] ?? `P${rec.priority}`}
         </span>
@@ -389,6 +441,29 @@ function RecommendationCard({
       <h3 className="text-[14px] font-semibold text-foreground leading-snug" style={{ fontFamily: 'var(--font-display)' }}>
         {rec.title}
       </h3>
+      {/* Target-page chip — answers "is this an existing page or
+          a new one, and which page?" at a glance. For existing /
+          new rows we show the route path as a monospaced code
+          element so the admin can recognise where the change
+          lands; for global cross-cutting changes we just label it
+          as global and skip the path. */}
+      {rec.target_kind && (
+        <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[11px] text-foreground/65">
+          <span
+            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9.5px] font-bold uppercase tracking-[0.14em] ring-1 ${TARGET_KIND_TONE[rec.target_kind]}`}
+          >
+            {TARGET_KIND_LABEL[rec.target_kind]}
+          </span>
+          {rec.target_kind !== 'global' && rec.target_path && (
+            <code className="px-1.5 py-0.5 rounded bg-foreground/[0.04] text-[10.5px] font-mono text-foreground/70 ring-1 ring-foreground/10">
+              {rec.target_path}
+            </code>
+          )}
+          {rec.target_label && (
+            <span className="text-foreground/55 italic">{rec.target_label}</span>
+          )}
+        </div>
+      )}
       <p className="mt-1.5 text-[12.5px] text-foreground/70 leading-relaxed">{rec.description}</p>
       {/* Design-category preview — Claude's HTML snippet rendered
           inside a sandboxed iframe so its styles can't leak into
