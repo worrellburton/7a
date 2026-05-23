@@ -62,6 +62,13 @@ function describe(row: ActivityRow): { verb: string; accent: string } {
       return { verb: 'reported facilities issue', accent: 'text-primary' };
     case 'facilities.chat_message':
       return { verb: 'commented on facilities issue', accent: 'text-foreground' };
+    case 'contact.created':
+      return { verb: 'added new contact', accent: 'text-emerald-600' };
+    case 'contact.logged': {
+      const method = typeof row.metadata?.method === 'string' ? row.metadata.method as string : null;
+      const verb = method ? `logged ${method.toLowerCase()} with` : 'logged a touchpoint with';
+      return { verb, accent: 'text-primary' };
+    }
     case 'user.signed_in':
       return { verb: 'signed in', accent: 'text-emerald-600' };
     default:

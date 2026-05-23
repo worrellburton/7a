@@ -135,30 +135,33 @@ export default function SeoSubNav() {
           Wrapper is in `ref` so outside-clicks still close the
           menu. */}
       <div className="flex items-center gap-1" ref={wrapperRef}>
-        {/* py-1.5 + px-1 inside the scroller gives the fire-glow
-            box-shadow room to render in full. Without it the glow
-            clips against the scroller's overflow box on every side. */}
-        <div className="flex-1 overflow-x-auto no-scrollbar -mx-1">
-          <div className="inline-flex gap-1 items-center px-1 py-1.5">
-            {PRIMARY_TABS.map((t) => {
+        {/* Fire-flair Activities tab lives OUTSIDE the overflow-x
+            scroller so its ember glow can render past the scroller's
+            6px vertical padding (the box-shadow extends ~28px). Pinning
+            it on the left keeps it as the first tab visually while
+            letting the rest of the row scroll on narrow screens. */}
+        {(() => {
+          const fire = PRIMARY_TABS.find((t) => t.flair === 'fire');
+          if (!fire) return null;
+          const isActive = isTabActive(pathname, fire.href);
+          return (
+            <Link
+              key={fire.href}
+              href={fire.href}
+              title={fire.hint}
+              className={`seo-fire-tab shrink-0 inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[12px] font-semibold whitespace-nowrap text-white transition-[filter] ${
+                isActive ? 'ring-2 ring-white/70 brightness-110' : 'hover:brightness-110'
+              }`}
+            >
+              <FlameGlyph />
+              {fire.label}
+            </Link>
+          );
+        })()}
+        <div className="flex-1 overflow-x-auto no-scrollbar">
+          <div className="inline-flex gap-1 items-center">
+            {PRIMARY_TABS.filter((t) => t.flair !== 'fire').map((t) => {
               const isActive = isTabActive(pathname, t.href);
-
-              if (t.flair === 'fire') {
-                return (
-                  <Link
-                    key={t.href}
-                    href={t.href}
-                    title={t.hint}
-                    className={`seo-fire-tab inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-[12px] font-semibold whitespace-nowrap text-white transition-[filter] ${
-                      isActive ? 'ring-2 ring-white/70 brightness-110' : 'hover:brightness-110'
-                    }`}
-                  >
-                    <FlameGlyph />
-                    {t.label}
-                  </Link>
-                );
-              }
-
               return (
                 <Link
                   key={t.href}

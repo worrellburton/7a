@@ -160,5 +160,18 @@ export async function POST(req: NextRequest) {
     .select('*')
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (data) {
+    await admin.from('activity_log').insert({
+      user_id: user.id,
+      type: 'contact.created',
+      target_kind: 'contact',
+      target_id: data.id,
+      target_label: data.name,
+      target_path: '/app/outreach',
+      metadata: { company: data.company ?? null },
+    });
+  }
+
   return NextResponse.json(data, { status: 201 });
 }
