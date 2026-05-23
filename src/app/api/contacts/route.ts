@@ -161,7 +161,33 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  if (data) {
+  // Credit the adder with a 'New Contact' touchpoint so the add
+  // surfaces in the outreach activity feed (and the home log-rain).
+  // Distinct from 'Data Entry' (PATCH path / filling fields on an
+  // existing contact). Failure is logged but doesn't roll back the
+  // contact — losing the log row is less bad than refusing to
+  // create the contact.
+  if (data?.id) {
+    const nowIso = new Date().toISOString();
+    const { error: logErr } = await admin.from('contact_logs').insert({
+      contact_id: data.id,
+      method: 'New Contact',
+      comments: 'Contact added.',
+      contacted_by: user.id,
+      contacted_at: nowIso,
+      duration_seconds: 0,
+    });
+    if (logErr) console.warn('[contacts] new-contact log insert failed:', logErr.message);
+    await admin.from('contacts').update({
+      last_contact_at: nowIso,
+      last_contact_by: user.id,
+      last_contact_method: 'New Contact',
+      last_contact_comments: 'Contact added.',
+    }).eq('id', data.id);
+
+    // Also surface the new contact on the platform-wide /app/activity
+    // feed (separate from the contact_logs row above, which only
+    // drives the outreach log-rain + leaderboards).
     await admin.from('activity_log').insert({
       user_id: user.id,
       type: 'contact.created',

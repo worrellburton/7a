@@ -2,10 +2,12 @@ import type { SubstanceContent } from './types';
 
 export const ketamineContent: SubstanceContent = {
   hero: {
-    label: 'Ketamine Addiction Treatment',
+    label: 'Ketamine Addiction Treatment in Arizona',
     title: 'Ketamine is having a moment. The dependence side of it is not a myth.',
     description:
-      'At Seven Arrows Recovery, ketamine use disorder is treated as the emerging, under-recognized condition it is. Our residential program in Arizona combines medical oversight, dissociation-aware trauma therapy, and nervous-system work for a drug whose recreational and prescribed uses are blurring faster than most clinical systems can keep up with.',
+      'At Seven Arrows Recovery, ketamine use disorder is treated as the emerging, under-recognized condition it is. Our ketamine rehab in Arizona combines medical oversight, dissociation-aware trauma therapy, and nervous-system work for a drug whose recreational and prescribed uses are blurring faster than most clinical systems can keep up with.',
+    labelAs: 'h1',
+    titleAs: 'h2',
     breadcrumbs: [
       { label: 'Home', href: '/' },
       { label: 'What We Treat', href: '/what-we-treat' },
@@ -14,16 +16,11 @@ export const ketamineContent: SubstanceContent = {
   },
   reward: {
     eyebrow: 'The Neurochemistry',
-    title: (
-      <>
-        Ketamine blocks NMDA glutamate —{' '}
-        <em className="not-italic text-primary">and opens a dissociative doorway.</em>
-      </>
-    ),
+    title: 'How Ketamine Affects the Brain: NMDA Blockade and the Dissociative Doorway',
     paragraphs: [
       'Ketamine is an NMDA receptor antagonist, which produces both the rapid antidepressant effect researchers are excited about and the dissociative experience users are drawn to. Low, supervised doses can be therapeutic. Chronic recreational use is an entirely different story.',
       'Repeated high-frequency use damages the bladder (ketamine cystitis), produces cognitive effects that persist between uses, and builds psychological dependence on dissociation as a coping tool. The detachment becomes the reward.',
-      'Recovery means reconnecting to the body rather than escaping it. For clients who have leaned on ketamine to get distance from trauma, the therapeutic work is to build actual safety inside the body, not just chemical absence.',
+      'Recovery means reconnecting to the body rather than escaping it. For clients who have leaned on ketamine to get distance from trauma, the therapeutic work is to build actual safety inside the body, not just chemical absence. That is the work our ketamine addiction rehab in Arizona is specifically built to hold.',
     ],
     chart: {
       natural: { label: 'natural presence', color: '#2f6f5e' },
@@ -39,8 +36,8 @@ export const ketamineContent: SubstanceContent = {
       </>
     ),
     paragraphs: [
-      "Ketamine's short half-life and gentle comedown make it uniquely easy to redose — and uniquely hard to notice the pattern climbing. Weekly use becomes nightly use quietly.",
-      'Residential care gives the body time to reconnect. Bladder symptoms improve, cognition clears, and the underlying reason for wanting distance from the body gets direct attention.',
+      "Ketamine's short half-life and gentle comedown make it uniquely easy to redose, and uniquely hard to notice the pattern climbing. Weekly use becomes nightly use quietly.",
+      'Residential ketamine treatment gives the body time to reconnect. At our Arizona ketamine rehab, bladder symptoms improve, cognition clears, and the underlying reason for wanting distance from the body gets direct attention.',
     ],
     stages: [
       { label: 'Dose', hint: 'Distance from body' },
@@ -56,7 +53,7 @@ export const ketamineContent: SubstanceContent = {
         Ketamine has <em className="not-italic text-accent">specific physical costs</em> most recreational users are not told about.
       </>
     ),
-    body: 'The "safer drug" reputation masks real harm at recreational-use frequencies. Bladder, kidney, cognitive, and mood symptoms all stack with chronic use, and most do not reverse without extended abstinence.',
+    body: 'The "safer drug" reputation masks real harm at recreational-use frequencies. Bladder, kidney, cognitive, and mood symptoms all stack with chronic use, and most do not reverse without extended abstinence and structured support at a ketamine rehab center.',
     stats: [
       {
         value: 25,
@@ -82,12 +79,8 @@ export const ketamineContent: SubstanceContent = {
   },
   withdrawal: {
     eyebrow: 'The First Thirty Days',
-    title: (
-      <>
-        Ketamine withdrawal is <em className="not-italic text-primary">psychological more than physical</em> — and the arc has its own shape.
-      </>
-    ),
-    body: "Unlike opioids or benzos, ketamine withdrawal is not medically dramatic. The challenge is almost entirely psychological: the return of whatever was being dissociated from. That return requires a containing environment and skilled trauma work.",
+    title: 'Ketamine Withdrawal and Detox: Psychological, Slow, and Not Meant to Be Navigated Alone',
+    body: "Unlike opioids or benzos, ketamine withdrawal is not medically dramatic. The challenge is almost entirely psychological: the return of whatever was being dissociated from. That return requires a containing environment and skilled trauma work, which is exactly what a structured ketamine rehab program in Arizona provides from day one.",
     phases: [
       {
         label: 'Acute withdrawal',
@@ -113,13 +106,8 @@ export const ketamineContent: SubstanceContent = {
   },
   personas: {
     eyebrow: 'Who We Actually See',
-    title: (
-      <>
-        Five patterns through our door —{' '}
-        <em className="not-italic text-primary">and the landscape is blurring fast</em>.
-      </>
-    ),
-    body: 'The boom in therapeutic and recreational ketamine is producing presentation patterns that did not exist five years ago. We meet them as they are.',
+    title: 'Who Comes to Our Arizona Ketamine Rehab: The Landscape is Blurring Fast',
+    body: 'The boom in therapeutic and recreational ketamine is producing presentation patterns that did not exist five years ago. At our ketamine treatment center in Arizona, we meet them as they are.',
     personas: [
       {
         label: 'The therapeutic-to-recreational shift',
@@ -150,13 +138,8 @@ export const ketamineContent: SubstanceContent = {
   },
   approach: {
     eyebrow: 'Our Approach',
-    title: (
-      <>
-        Reconnect to the body.{' '}
-        <em className="not-italic text-primary">Treat the dissociation-driver directly.</em> Rebuild safety inside.
-      </>
-    ),
-    body: 'Ketamine recovery has a specific shape: reduce the dissociation, restore the body, treat the reason the body felt unsafe. Somatic and trauma-informed work are the main modalities here.',
+    title: 'Our Ketamine Addiction Rehab in Arizona: Reconnect, Treat, Rebuild',
+    body: 'Ketamine addiction recovery has a specific shape: reduce the dissociation, restore the body, treat the reason the body felt unsafe. Somatic and trauma-informed work are the core of every ketamine drug rehab program we run here.',
     flagship: {
       title: 'Somatic-first trauma therapy for chronic dissociation',
       body: 'Forward-Facing® Accelerated Recovery combined with body-based interventions designed to rebuild felt-sense safety. The nervous system learns that the body is a place it can live in again, without needing chemical distance.',
@@ -204,7 +187,7 @@ export const ketamineContent: SubstanceContent = {
     ),
     paragraphs: [
       'Most ketamine alumni describe the shift as a felt-sense thing: sitting in a chair and being present in it, a meal they actually taste, the weight of their own hands. Small embodied moments stacking into a baseline.',
-      'Sleep, movement, connection, and meaning do the long work. The target is a life where the body can be inhabited rather than escaped.',
+      'Sleep, movement, connection, and meaning do the long work of ketamine addiction rehab. The target is a life where the body can be inhabited rather than escaped.',
     ],
     anchors: [
       { x: 0.12, label: 'Sleep', hint: 'Natural rhythm returns' },
@@ -249,6 +232,6 @@ export const ketamineContent: SubstanceContent = {
         The body is <em className="not-italic text-accent">still yours to live in.</em>
       </>
     ),
-    body: 'Our admissions team can verify your insurance, coordinate urological assessment, and begin intake within 24 to 48 hours. The reconnection work is specific. We know how to hold it.',
+    body: 'Our admissions team can verify your insurance, coordinate urological assessment, and begin ketamine rehab intake within 24 to 48 hours. The reconnection work is specific. We know how to hold it.',
   },
 };

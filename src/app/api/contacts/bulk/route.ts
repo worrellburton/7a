@@ -93,5 +93,33 @@ export async function POST(req: NextRequest) {
     .insert(rows)
     .select('*');
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Credit the adder with one 'New Contact' log per inserted
+  // contact so the outreach activity feed + home log-rain shows
+  // the add as a touchpoint. Failures are logged but never roll
+  // back the contacts that landed — losing a log row is less bad
+  // than orphaning the records.
+  const insertedRows = (data ?? []) as Array<{ id: string }>;
+  if (insertedRows.length > 0) {
+    const nowIso = new Date().toISOString();
+    const logRows = insertedRows.map((r) => ({
+      contact_id: r.id,
+      method: 'New Contact',
+      comments: 'Contact added.',
+      contacted_by: user.id,
+      contacted_at: nowIso,
+      duration_seconds: 0,
+    }));
+    const { error: logErr } = await admin.from('contact_logs').insert(logRows);
+    if (logErr) console.warn('[contacts/bulk] new-contact log insert failed:', logErr.message);
+    const ids = insertedRows.map((r) => r.id);
+    await admin.from('contacts').update({
+      last_contact_at: nowIso,
+      last_contact_by: user.id,
+      last_contact_method: 'New Contact',
+      last_contact_comments: 'Contact added.',
+    }).in('id', ids);
+  }
+
   return NextResponse.json({ inserted: data ?? [], count: (data ?? []).length }, { status: 201 });
 }

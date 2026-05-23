@@ -181,6 +181,40 @@ const nextConfig = {
       { source: '/thank-you', destination: '/contact', statusCode: 301 },
     ];
   },
+
+  // ── Response headers for Next.js build assets ──────────────────
+  // Two goals:
+  //   1. Tell Google not to index JS chunks as standalone URLs
+  //      (they appear in GSC under "Crawled - currently not indexed"
+  //      because Google discovers them in rendered HTML and crawls
+  //      them, then correctly decides they aren't pages). The
+  //      X-Robots-Tag: noindex moves them out of that bucket into
+  //      "Excluded by 'noindex' tag", which is the correct state.
+  //      Per Google docs, noindex on resources does NOT block the
+  //      WRS from fetching them for page rendering — it only
+  //      affects indexing.
+  //   2. Mark all /_next/static/ assets as immutable so Google (and
+  //      browsers) don't re-crawl them across deploys. Next.js
+  //      content-hashes these filenames, so immutable is safe.
+  // Scope is intentionally narrow: noindex applies only to the
+  // chunks subdir, not to /_next/static/css/ or /_next/static/media/,
+  // to minimise blast radius.
+  async headers() {
+    return [
+      {
+        source: '/_next/static/chunks/:path*',
+        headers: [
+          { key: 'X-Robots-Tag', value: 'noindex' },
+        ],
+      },
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

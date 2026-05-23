@@ -174,6 +174,14 @@ export default function EmailCampaignsContent() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <Link
+            href="/app/email-campaigns/recipients"
+            className="px-3 py-2 rounded-md border border-black/15 bg-white text-foreground/75 text-[11px] font-semibold uppercase tracking-wider hover:bg-warm-bg/60"
+            style={{ fontFamily: 'var(--font-body)' }}
+            title="One row per contact ever emailed — open / click / response rates, sortable like a spreadsheet."
+          >
+            View by recipient
+          </Link>
           {canManage && (
             <button
               type="button"

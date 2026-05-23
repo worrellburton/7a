@@ -14,6 +14,7 @@ import JdSignatureNagModal from './JdSignatureNagModal';
 // import in source so the re-enable diff is one line.
 // import HomeClientsRow from './HomeClientsRow';
 import HomeOnlineOrbit, { type OrbitHorse } from './HomeOnlineOrbit';
+import HomeDailyLogsChip from './HomeDailyLogsChip';
 import HomeConnect4Nudge from './HomeConnect4Nudge';
 
 interface RecentUser {
@@ -466,7 +467,11 @@ export default function HomeContent() {
   }
 
   return (
-    <div data-home-no-scroll className="relative flex flex-col min-h-full overflow-x-clip">
+    // `isolation: isolate` scopes the negative z-index used by the
+    // ambient backdrop + the mobile log-rain layer to this stacking
+    // context so they stay BEHIND home-content elements rather than
+    // disappearing behind the body's background.
+    <div data-home-no-scroll className="relative flex flex-col min-h-full overflow-x-clip isolation-auto" style={{ isolation: 'isolate' }}>
       {/* Phase 3: ambient backdrop. Three soft warm orbs sit behind
           everything so the glass surfaces have something colorful to
           refract. Pointer-events off so they never trap clicks. */}
@@ -559,12 +564,12 @@ export default function HomeContent() {
               </div>
             </div>
 
-            {/* RIGHT (top row): single "+" button that opens a small
-                dropdown with the two creation entry points. Hidden
-                for alumni — Feature Request + New Facilities are
-                staff-only flows and don't apply to the alumni home
-                experience. */}
-            <div ref={addMenuRef} className={`relative shrink-0 ${userKind === 'alumni' ? 'hidden' : ''}`}>
+            {/* Right cluster — just the create (+) button now. The
+                old log-rain toggle moved to a chip under the orbit
+                (HomeDailyLogsChip below) so the header reads
+                cleaner. */}
+            <div className={`shrink-0 ${userKind === 'alumni' ? 'hidden' : ''}`}>
+            <div ref={addMenuRef} className="relative">
               <button
                 type="button"
                 onClick={() => setAddMenuOpen((v) => !v)}
@@ -620,6 +625,7 @@ export default function HomeContent() {
                 </div>
               )}
             </div>
+            </div> {/* end toggle + create cluster */}
 
             </div> {/* end TOP ROW */}
 
@@ -647,6 +653,7 @@ export default function HomeContent() {
             </div>
           </section>
         )}
+
         <HomeConnect4Nudge onOpponentChange={setC4OpponentId} />
 
         {/* Phase 6: action stack — pending signatures + signed JD,
@@ -738,6 +745,20 @@ export default function HomeContent() {
         )}
 
         </div> {/* end centerpiece */}
+
+        {/* Live count of touchpoints logged today + the historical
+            daily record below it. Clicks through to /app/daily-logs,
+            the dedicated surface with leaderboard + records. Sits
+            between the centerpiece and the Seven Arrows tagline so
+            the chip floats in clear space without crowding the
+            orbit's outer ring. Hidden on mobile because the orbit
+            there is fixed-positioned over the chip's spot. */}
+        <section
+          className="hidden sm:flex w-full max-w-4xl mx-auto justify-center px-4 pt-2"
+          aria-label="Daily logs shortcut"
+        >
+          <HomeDailyLogsChip />
+        </section>
 
         {/* Mission tagline — closes the home page with a quiet brand
             anchor below the team orbit. Bottom padding clears the

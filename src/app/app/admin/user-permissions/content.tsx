@@ -227,6 +227,45 @@ export default function UserPermissionsContent() {
     setBusyId(null);
   }
 
+  // The "Super Admin" column toggles is_super_admin (which gates
+  // Levers, Social Media, Content, User Permissions itself, and
+  // every super-admin-only API route). Promoting to super admin
+  // also implicitly sets is_admin = true since super admins are a
+  // superset of admins; demoting from super admin keeps is_admin
+  // intact so the user doesn't silently lose department-level
+  // admin access in the same click.
+  async function toggleSuperAdmin(u: AppUser, next: boolean) {
+    if (isRootAdmin(u.email) && next === false) return;
+    setBusyId(u.id);
+    const patch: { is_super_admin: boolean; is_admin?: boolean } = { is_super_admin: next };
+    if (next && !u.is_admin) patch.is_admin = true;
+    setUsers((prev) => prev.map((x) => (x.id === u.id ? {
+      ...x,
+      is_super_admin: next,
+      is_admin: patch.is_admin ?? x.is_admin,
+    } : x)));
+    const res = await db({ action: 'update', table: 'users', data: patch, match: { id: u.id } }).catch(() => null);
+    if (!res || (typeof res === 'object' && 'error' in res)) {
+      // Revert optimistic update on failure.
+      setUsers((prev) => prev.map((x) => (x.id === u.id ? {
+        ...x,
+        is_super_admin: !next,
+        is_admin: u.is_admin,
+      } : x)));
+    } else if (user?.id) {
+      logActivity({
+        userId: user.id,
+        type: 'user.role_changed',
+        targetKind: 'user',
+        targetId: u.id,
+        targetLabel: u.full_name || u.email,
+        targetPath: '/app/user-permissions',
+        metadata: { is_super_admin: next, is_admin: patch.is_admin },
+      });
+    }
+    setBusyId(null);
+  }
+
   async function updateDepartment(userId: string, departmentId: string | null) {
     const res = await db({ action: 'update', table: 'users', data: { department_id: departmentId }, match: { id: userId } });
     if (res && typeof res === 'object' && 'error' in res) return;
@@ -364,8 +403,8 @@ export default function UserPermissionsContent() {
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
             {topTab === 'users'
               ? <>Grant super-admin access and per-user page overrides.{' '}
-                  <span className="font-medium text-foreground/70">{adminCount}</span>{' '}
-                  {adminCount === 1 ? 'super admin' : 'super admins'} total.</>
+                  <span className="font-medium text-foreground/70">{superAdminCount}</span>{' '}
+                  {superAdminCount === 1 ? 'super admin' : 'super admins'} total.</>
               : topTab === 'alumni'
               ? <>Alumni members + the pages only they can see.</>
               : <>Bundle pages + departments + members under a name, then assign in bulk.</>}
@@ -679,7 +718,10 @@ export default function UserPermissionsContent() {
                         })()}
                       </td>
 
-                      {/* Super Admin toggle */}
+                      {/* Super Admin toggle — controls is_super_admin
+                          on public.users (and implicitly is_admin
+                          when ON). Department-level admin status
+                          (is_admin alone) is managed elsewhere. */}
                       <td className="px-6 py-4">
                         {isRootAdmin(u.email) ? (
                           <span className="inline-flex items-center gap-2 text-xs font-semibold text-primary" title="Root super admin — locked">
@@ -695,15 +737,15 @@ export default function UserPermissionsContent() {
                               <input
                                 type="checkbox"
                                 className="sr-only peer"
-                                checked={u.is_admin}
+                                checked={u.is_super_admin}
                                 disabled={busyId === u.id || isSelf}
-                                onChange={(e) => toggleAdmin(u, e.target.checked)}
+                                onChange={(e) => toggleSuperAdmin(u, e.target.checked)}
                               />
                               <span className="absolute inset-0 rounded-full bg-gray-200 peer-checked:bg-primary transition-colors" />
                               <span className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
                             </span>
-                            <span className={`text-xs font-medium ${u.is_admin ? 'text-primary' : 'text-foreground/40'}`}>
-                              {u.is_admin ? 'Super Admin' : 'Off'}
+                            <span className={`text-xs font-medium ${u.is_super_admin ? 'text-primary' : 'text-foreground/40'}`}>
+                              {u.is_super_admin ? 'Super Admin' : u.is_admin ? 'Admin' : 'Off'}
                             </span>
                           </label>
                         )}

@@ -23,7 +23,7 @@ export default function PageContent() {
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
             <p className="text-lg text-foreground/80 leading-relaxed mb-6">
-              {"Starting the recovery journey is a brave and life-changing decision, and choosing the right detox center is a crucial first step. At Seven Arrows Recovery, we understand the challenges of addiction and the importance of a safe, supportive detox process. For those unsure of what to look for in local detox centers, this guide will help you choose the best local detox center for you or your loved one."}
+              {"Starting the recovery journey is a brave and life-changing decision, and choosing the right detox center is a crucial first step. At Seven Arrows Recovery, we understand the challenges of addiction and the importance of a safe, supportive detox process. For those unsure of what to look for in local detox centers, this guide will help you choose the best drug rehab in Arizona for you or your loved one."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
               {"The Importance of Detox in the Recovery Process"}
@@ -50,7 +50,7 @@ export default function PageContent() {
               {"Evidence-Based Approaches to Detox Medical Supervision"}
             </h3>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              {"The best detox centers use evidence-based practices grounded in scientific research to ensure the highest quality of care. These treatments, which include medical detox, counseling, and behavioral therapies, are proven to be effective in managing withdrawal symptoms and preventing relapse. Choosing a detox center that prioritizes these practices when looking for a local detox center ensures that your recovery process is safe and effective."}
+              {"The best detox centers use evidence-based practices grounded in scientific research to ensure the highest quality of care. These treatments, which include medical detox, counseling, and behavioral therapies, are proven to be effective in managing withdrawal symptoms and preventing relapse. Withdrawal presentations vary widely depending on the substance involved; for example, ketamine addiction produces psychological withdrawal patterns that require a clinically distinct approach from alcohol or opioid detox. Choosing a detox center that prioritizes these practices when looking for a local detox center ensures that your recovery process is safe and effective."}
             </p>
             <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
               {"Integrating Holistic Therapies for Comprehensive Healing"}
@@ -68,7 +68,7 @@ export default function PageContent() {
               {"Comprehensive Support Services"}
             </h3>
             <p className="text-foreground/80 leading-relaxed mb-4">
-              {"When considering what to look for in local detox centers, remember that Detox is just the beginning of the recovery journey. The best detox centers provide comprehensive support services that prepare individuals for the next phase of treatment. These services may include individual counseling, addiction education, and aftercare planning. They ensure that individuals are not only physically detoxified but also equipped with the tools and knowledge they need to stay sober long-term."}
+              {"When considering what to look for in local detox centers, remember that detox is just the beginning of the recovery journey. The best detox centers provide comprehensive support services that prepare individuals for the next phase of treatment. This is especially critical for individuals recovering from heroin addiction, where the risk of relapse after detox remains high without structured aftercare and continued clinical support. These services may include individual counseling, addiction education, and aftercare planning. They ensure that individuals are not only physically detoxified but also equipped with the tools and knowledge they need to stay sober long-term."}
             </p>
             <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
               {"Compassionate and Qualified Staff"}

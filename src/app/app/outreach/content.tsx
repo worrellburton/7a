@@ -21,6 +21,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { createPortal } from 'react-dom';
 import { DepartmentPageNav } from '../DepartmentPageNav';
 import { SearchSelectCell } from '@/components/SearchSelectCell';
+import { looksLikePersonName } from '@/lib/contact-suggest';
 import {
   CONTACT_METHODS,
   CONTACT_METHOD_BY_VALUE,
@@ -356,6 +357,23 @@ export default function ContactsContent() {
     }).catch(() => { /* silent — map will just show fewer pins */ });
   }, [viewMode, session?.access_token, rows]);
   const [showAdd, setShowAdd] = useState(false);
+  // Single + dropdown that consolidates Add-with-Claude / Upload CSV /
+  // Add contact. Replaces the three-button row that lived in the header.
+  const [showAddMenu, setShowAddMenu] = useState(false);
+  const addMenuRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!showAddMenu) return;
+    const onDown = (e: MouseEvent) => {
+      if (addMenuRef.current && !addMenuRef.current.contains(e.target as Node)) setShowAddMenu(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setShowAddMenu(false); };
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [showAddMenu]);
   // Mobile-only "New log" quick-action: open a slim modal that asks
   // for a person's name + the same fields as LogContactModal. If
   // the name matches an existing contact we log against it; if not
@@ -1043,62 +1061,60 @@ export default function ContactsContent() {
             )}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setViewMode((v) => (v === 'map' ? 'table' : 'map'))}
-            aria-pressed={viewMode === 'map'}
-            className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2 rounded-lg border text-xs font-semibold uppercase tracking-wider transition-colors ${
-              viewMode === 'map'
-                ? 'border-foreground bg-foreground text-white'
-                : 'border-black/10 bg-white text-foreground/70 hover:border-foreground/30 hover:text-foreground'
-            }`}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13 6-3m-6 3V7m6 10 5.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-1.447-.894L15 4m0 13V4m-6 3 6-3" />
-            </svg>
-            Map
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode((v) => (v === 'insights' ? 'table' : 'insights'))}
-            aria-pressed={viewMode === 'insights'}
-            className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2 rounded-lg border text-xs font-semibold uppercase tracking-wider transition-colors ${
-              viewMode === 'insights'
-                ? 'border-foreground bg-foreground text-white'
-                : 'border-black/10 bg-white text-foreground/70 hover:border-foreground/30 hover:text-foreground'
-            }`}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 3v18h18" />
-              <path d="M7 15l4-6 4 4 5-9" />
-            </svg>
-            Insights
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowSuggest(true)}
-            className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 sm:py-2 rounded-lg border border-primary/30 bg-primary/5 text-primary text-xs font-semibold uppercase tracking-wider hover:bg-primary/10 transition-colors"
-          >
-            <SparkleIcon />
-            Add with Claude
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowImport(true)}
-            className="inline-flex items-center justify-center gap-2 px-3.5 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-foreground text-xs font-semibold uppercase tracking-wider hover:bg-warm-bg/60 transition-colors"
-          >
-            <UploadIcon />
-            Upload CSV
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowAdd(true)}
-            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 rounded-lg bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors"
-          >
-            <PlusIcon />
-            Add contact
-          </button>
+        {/* Single "+" button collapses what used to be three separate
+            buttons in the header (Add with Claude, Upload CSV, Add
+            contact) into one dropdown. Map / Insights moved down to
+            the tier-filter row so the header is just title + add. */}
+        <div className="flex items-center gap-2" ref={addMenuRef}>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowAddMenu((v) => !v)}
+              aria-haspopup="menu"
+              aria-expanded={showAddMenu}
+              className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-lg bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors"
+            >
+              <PlusIcon />
+              Add
+              <svg className={`w-3 h-3 transition-transform ${showAddMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
+            {showAddMenu && (
+              <div
+                role="menu"
+                className="absolute right-0 mt-1.5 min-w-[14rem] rounded-lg border border-black/10 bg-white shadow-lg z-30 overflow-hidden"
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setShowAddMenu(false); setShowAdd(true); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-[12.5px] text-foreground hover:bg-warm-bg/60 text-left"
+                >
+                  <PlusIcon />
+                  Add contact
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setShowAddMenu(false); setShowSuggest(true); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-[12.5px] text-primary hover:bg-primary/5 text-left"
+                >
+                  <SparkleIcon />
+                  Add with AI
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => { setShowAddMenu(false); setShowImport(true); }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-[12.5px] text-foreground hover:bg-warm-bg/60 text-left border-t border-black/5"
+                >
+                  <UploadIcon />
+                  Upload CSV
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 
@@ -1150,6 +1166,41 @@ export default function ContactsContent() {
               </button>
             );
           })}
+          {/* Map + Insights view-mode toggles. Used to live in the
+              header; moved inline with the tier filters so the
+              header is just title + Add button. */}
+          <span className="w-px h-5 bg-black/10 mx-1" aria-hidden="true" />
+          <button
+            type="button"
+            onClick={() => setViewMode((v) => (v === 'map' ? 'table' : 'map'))}
+            aria-pressed={viewMode === 'map'}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11.5px] font-semibold border transition-colors ${
+              viewMode === 'map'
+                ? 'border-foreground bg-foreground text-white'
+                : 'bg-white text-foreground/55 border-black/10 hover:bg-warm-bg/60'
+            }`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13 6-3m-6 3V7m6 10 5.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-1.447-.894L15 4m0 13V4m-6 3 6-3" />
+            </svg>
+            Map
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode((v) => (v === 'insights' ? 'table' : 'insights'))}
+            aria-pressed={viewMode === 'insights'}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11.5px] font-semibold border transition-colors ${
+              viewMode === 'insights'
+                ? 'border-foreground bg-foreground text-white'
+                : 'bg-white text-foreground/55 border-black/10 hover:bg-warm-bg/60'
+            }`}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 3v18h18" />
+              <path d="M7 15l4-6 4 4 5-9" />
+            </svg>
+            Insights
+          </button>
         </div>
         {/* Manage Columns only matters for the desktop table; on
             mobile every field is visible inside each card. */}
@@ -3956,6 +4007,47 @@ function GovernanceBadge({
   );
 }
 
+// Sibling of GovernanceBadge: prominent contact-count display so
+// the "how big is the book?" answer reads at first glance. No
+// expansion — pure headline. Pairs with the two activity badges to
+// form a three-tile health row at the top of the insights card.
+function TotalContactsBadge({
+  total,
+  weekTouched,
+  monthTouched,
+}: {
+  total: number;
+  weekTouched: number;
+  monthTouched: number;
+}) {
+  const weekPct = total > 0 ? Math.round((weekTouched / total) * 100) : 0;
+  return (
+    <div
+      title={`${total.toLocaleString()} contacts on the books. ${weekTouched.toLocaleString()} touched this week (${weekPct}%); ${monthTouched.toLocaleString()} this month.`}
+      className="w-full inline-flex items-center gap-3 rounded-2xl px-3 py-2 bg-warm-bg/40"
+    >
+      <div className="relative w-[108px] h-[108px] shrink-0 rounded-2xl bg-warm-bg/70 border border-black/10 flex items-center justify-center">
+        <span aria-hidden="true" className="text-[44px] leading-none select-none">📇</span>
+      </div>
+      <div className="text-left min-w-0">
+        <p className="text-[9.5px] font-bold uppercase tracking-[0.22em] text-foreground/55">
+          Total contacts
+        </p>
+        <p className="mt-0.5 text-[12.5px] font-semibold text-foreground">
+          <span className="text-2xl tabular-nums mr-1" style={{ fontFamily: 'var(--font-display)' }}>
+            {total.toLocaleString()}
+          </span>
+          {total === 1 ? 'contact' : 'contacts'}
+        </p>
+        <p className="mt-0.5 text-[10.5px] text-foreground/55">
+          {weekTouched.toLocaleString()} touched this week
+          {total > 0 && <span className="text-foreground/40"> · {weekPct}%</span>}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // Sibling of GovernanceBadge: same outer shape + dimensions, but
 // the left tile is a clipboard emoji and the headline is today's
 // log count. Pairs with GovernanceBadge in row 1 so the two
@@ -4004,8 +4096,28 @@ function LogsTodayBadge({
 }
 
 // Per-field breakdown + recent fill activity. Mounts inline under
-// the KPI strip when the GovernanceTile is clicked.
-function GovernancePanel({ governance }: { governance: { score: number; totalContacts: number; breakdown: GovernanceBreakdownRow[]; activity: GovernanceActivityRow[] } }) {
+// the KPI strip when the GovernanceTile is clicked. Now split into
+// two labelled subsections so the reader knows which question each
+// chunk answers:
+//   * Missing information — which fields are blank, weighted (email
+//     counts triple). Drives the data-governance score.
+//   * Health information — how many of the records have actually
+//     been touched (week / month / ever / never / no-email). Tells
+//     you whether the book is being worked, not just filled.
+function GovernancePanel({
+  governance,
+  health,
+}: {
+  governance: { score: number; totalContacts: number; breakdown: GovernanceBreakdownRow[]; activity: GovernanceActivityRow[] };
+  health: {
+    total: number;
+    week: number;
+    month: number;
+    everContacted: number;
+    never: number;
+    missingEmail: number;
+  };
+}) {
   const initials = (s: string) =>
     s.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
   const ago = (iso: string) => {
@@ -4018,74 +4130,122 @@ function GovernancePanel({ governance }: { governance: { score: number; totalCon
     const d = Math.floor(h / 24);
     return `${d}d`;
   };
+  const total = health.total || 1;
+  // Engagement-health rows. Order matches the funnel reading:
+  // touched lately → cooling → ever-contacted → never → unreachable.
+  // Each row's `pct` is "share of the book this number represents"
+  // so a 60%-of-book-touched-this-week reads visually.
+  const healthRows: Array<{ key: string; label: string; value: number; pct: number; tone: 'good' | 'warn' | 'bad' }> = [
+    { key: 'week',          label: 'Touched this week',  value: health.week,           pct: Math.round((health.week / total) * 100),           tone: 'good' },
+    { key: 'month',         label: 'Touched this month', value: health.month,          pct: Math.round((health.month / total) * 100),          tone: 'good' },
+    { key: 'ever',          label: 'Ever touched',       value: health.everContacted,  pct: Math.round((health.everContacted / total) * 100),  tone: 'good' },
+    { key: 'never',         label: 'Never touched',      value: health.never,          pct: Math.round((health.never / total) * 100),          tone: 'warn' },
+    { key: 'noEmail',       label: 'Unreachable by email', value: health.missingEmail, pct: Math.round((health.missingEmail / total) * 100),   tone: 'bad' },
+  ];
   return (
-    <div className="px-4 py-3 border-b border-black/5 bg-warm-bg/30">
-      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/55 mb-2">
-        Why {governance.score}% · what&apos;s missing
-      </p>
-      <p className="text-[11.5px] text-foreground/55 mb-3">
-        Email counts triple — every empty email holds back the campaign pipeline. Each row shows how many of {governance.totalContacts.toLocaleString()} contacts have that field filled in.
-      </p>
-      <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
-        {governance.breakdown.map((row) => {
-          const pct = Math.max(2, Math.min(100, row.pctFilled));
-          return (
-            <li key={row.key} className="rounded-lg border border-black/5 bg-white px-3 py-2">
-              <div className="flex items-baseline justify-between gap-2 mb-1">
-                <span className="text-[12px] font-semibold text-foreground">
-                  {row.label}
-                  {row.weight > 1 && (
-                    <span className="ml-1.5 text-[9.5px] font-bold uppercase tracking-wider text-rose-700 bg-rose-50 border border-rose-200 rounded px-1 py-[1px]">×{row.weight}</span>
+    <div className="px-4 py-3 border-b border-black/5 bg-warm-bg/30 space-y-5">
+      {/* ── Missing information ───────────────────────────────── */}
+      <section>
+        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/55 mb-2">
+          Missing information · {governance.score}% complete
+        </p>
+        <p className="text-[11.5px] text-foreground/55 mb-3">
+          Email counts triple — every empty email holds back the campaign pipeline. Each row shows how many of {governance.totalContacts.toLocaleString()} contacts have that field filled in.
+        </p>
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {governance.breakdown.map((row) => {
+            const pct = Math.max(2, Math.min(100, row.pctFilled));
+            return (
+              <li key={row.key} className="rounded-lg border border-black/5 bg-white px-3 py-2">
+                <div className="flex items-baseline justify-between gap-2 mb-1">
+                  <span className="text-[12px] font-semibold text-foreground">
+                    {row.label}
+                    {row.weight > 1 && (
+                      <span className="ml-1.5 text-[9.5px] font-bold uppercase tracking-wider text-rose-700 bg-rose-50 border border-rose-200 rounded px-1 py-[1px]">×{row.weight}</span>
+                    )}
+                  </span>
+                  <span className="text-[11px] tabular-nums text-foreground/55">{row.pctFilled}% · {row.missing} missing</span>
+                </div>
+                <div className="h-1.5 bg-warm-bg/60 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${row.pctFilled >= 90 ? 'bg-emerald-500' : row.pctFilled >= 70 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      {/* ── Health information ────────────────────────────────── */}
+      <section>
+        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/55 mb-2">
+          Health information · how the book is being worked
+        </p>
+        <p className="text-[11.5px] text-foreground/55 mb-3">
+          Counts of {health.total.toLocaleString()} contacts grouped by how recently they were touched. Untouched records are leads that haven&apos;t been worked yet; unreachable-by-email records can&apos;t receive a campaign at all until the gap is filled.
+        </p>
+        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {healthRows.map((row) => {
+            const pct = Math.max(2, Math.min(100, row.pct));
+            const barColor =
+              row.tone === 'good' ? 'bg-emerald-500'
+              : row.tone === 'warn' ? 'bg-amber-500'
+              : 'bg-rose-500';
+            return (
+              <li key={row.key} className="rounded-lg border border-black/5 bg-white px-3 py-2">
+                <div className="flex items-baseline justify-between gap-2 mb-1">
+                  <span className="text-[12px] font-semibold text-foreground">{row.label}</span>
+                  <span className="text-[11px] tabular-nums text-foreground/55">{row.value.toLocaleString()} · {row.pct}%</span>
+                </div>
+                <div className="h-1.5 bg-warm-bg/60 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
+
+      {/* ── Recent fill activity ──────────────────────────────── */}
+      <section>
+        <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/55 mb-2">
+          Recent fill activity
+        </p>
+        {governance.activity.length === 0 ? (
+          <p className="text-[11.5px] italic text-foreground/45">
+            Nothing logged yet — edits to a contact&apos;s email / phone / company / role / location / specialty / type will appear here as teammates fill them in.
+          </p>
+        ) : (
+          <ul className="space-y-1.5">
+            {governance.activity.map((a) => (
+              <li key={a.id} className="flex items-center gap-2 text-[12px]">
+                {a.userAvatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={a.userAvatarUrl} alt="" className="shrink-0 w-5 h-5 rounded-full object-cover bg-warm-bg" />
+                ) : (
+                  <span className="shrink-0 w-5 h-5 rounded-full bg-warm-bg flex items-center justify-center text-[9px] font-bold text-foreground/55">
+                    {initials(a.userName)}
+                  </span>
+                )}
+                <span className="flex-1 min-w-0 truncate">
+                  <span className="font-semibold text-foreground">{a.userName}</span>
+                  <span className="text-foreground/55"> added </span>
+                  <span className="font-semibold text-foreground">{a.fieldLabel}</span>
+                  {a.contactName && (
+                    <>
+                      <span className="text-foreground/55"> to </span>
+                      <span className="text-foreground">{a.contactName}</span>
+                    </>
                   )}
                 </span>
-                <span className="text-[11px] tabular-nums text-foreground/55">{row.pctFilled}% · {row.missing} missing</span>
-              </div>
-              <div className="h-1.5 bg-warm-bg/60 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full ${row.pctFilled >= 90 ? 'bg-emerald-500' : row.pctFilled >= 70 ? 'bg-amber-500' : 'bg-rose-500'}`}
-                  style={{ width: `${pct}%` }}
-                />
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-
-      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/55 mb-2">
-        Recent fill activity
-      </p>
-      {governance.activity.length === 0 ? (
-        <p className="text-[11.5px] italic text-foreground/45">
-          Nothing logged yet — edits to a contact&apos;s email / phone / company / role / location / specialty / type will appear here as teammates fill them in.
-        </p>
-      ) : (
-        <ul className="space-y-1.5">
-          {governance.activity.map((a) => (
-            <li key={a.id} className="flex items-center gap-2 text-[12px]">
-              {a.userAvatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={a.userAvatarUrl} alt="" className="shrink-0 w-5 h-5 rounded-full object-cover bg-warm-bg" />
-              ) : (
-                <span className="shrink-0 w-5 h-5 rounded-full bg-warm-bg flex items-center justify-center text-[9px] font-bold text-foreground/55">
-                  {initials(a.userName)}
-                </span>
-              )}
-              <span className="flex-1 min-w-0 truncate">
-                <span className="font-semibold text-foreground">{a.userName}</span>
-                <span className="text-foreground/55"> added </span>
-                <span className="font-semibold text-foreground">{a.fieldLabel}</span>
-                {a.contactName && (
-                  <>
-                    <span className="text-foreground/55"> to </span>
-                    <span className="text-foreground">{a.contactName}</span>
-                  </>
-                )}
-              </span>
-              <span className="shrink-0 text-[10.5px] text-foreground/40 tabular-nums">{ago(a.at)}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+                <span className="shrink-0 text-[10.5px] text-foreground/40 tabular-nums">{ago(a.at)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
@@ -4177,15 +4337,19 @@ function InsightsCard({ fallback }: { fallback: { week: number; month: number; t
 
   return (
     <div className="mb-4 rounded-xl border border-black/10 bg-white overflow-hidden">
-      {/* Row 1 — Data governance + Logs today, side-by-side. The
-          two badges read as paired pipeline-health signals: the
-          left answers "is the data complete?" and the right
-          answers "are we logging touches against it?". Each is
-          its own click-to-expand affordance; the expansion
-          panels mount inline below row 1 so the breakdown sits
-          right under the headline it explains. */}
+      {/* Row 1 — Total contacts (size of the book) + Data governance
+          (how complete each record is) + Logs today (how active the
+          pipeline is). Three pipeline-health signals side-by-side
+          so the answer to "is the book big, clean, and being
+          worked?" reads in one glance. Each click-to-expand badge
+          mounts its detail panel inline below row 1. */}
       <div className="px-4 py-4 border-b border-black/5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <TotalContactsBadge
+            total={data?.governance?.totalContacts ?? (counts.total + counts.never)}
+            weekTouched={counts.week}
+            monthTouched={counts.month}
+          />
           <GovernanceBadge
             score={data?.governance?.score ?? null}
             totalContacts={data?.governance?.totalContacts ?? 0}
@@ -4201,7 +4365,17 @@ function InsightsCard({ fallback }: { fallback: { week: number; month: number; t
         </div>
       </div>
       {showGovernance && data?.governance && (
-        <GovernancePanel governance={data.governance} />
+        <GovernancePanel
+          governance={data.governance}
+          health={{
+            total: data.governance.totalContacts,
+            week: counts.week,
+            month: counts.month,
+            everContacted: counts.total,
+            never: counts.never,
+            missingEmail: counts.missingEmail ?? 0,
+          }}
+        />
       )}
       {showLogs && (
         <div className="px-4 py-4 border-b border-black/5">
@@ -5908,8 +6082,11 @@ interface ClaudeSuggestion {
   type: string[] | null;
   specialty: string | null;
   role: string | null;
+  phone: string | null;
+  email: string | null;
   location: string | null;
   notes: string | null;
+  missing: Array<'phone' | 'email'>;
 }
 
 function SuggestWithClaudeModal({
@@ -5924,13 +6101,38 @@ function SuggestWithClaudeModal({
   type Phase = 'prompt' | 'loading' | 'review' | 'submitting' | 'error';
   const [phase, setPhase] = useState<Phase>('prompt');
   const [steer, setSteer] = useState('');
-  const [count, setCount] = useState(8);
+  // Locked to 5 for now — Claude + web_search is cost-bounded by
+  // request count, so we cap small until we've sized real-world
+  // usage. The 8/10/15/25/50 options stay in the dropdown but are
+  // disabled so the affordance still hints at where this goes.
+  const [count, setCount] = useState(5);
   const [suggestions, setSuggestions] = useState<ClaudeSuggestion[]>([]);
   // Phase 6: per-row checked state — a Set of indices into `suggestions`.
   // Pre-populated with every index when suggestions land so admissions
   // can opt-OUT rather than opt-in (the common case is "accept most
-  // of them").
+  // of them"). Rows that came back with missing phone/email are NOT
+  // pre-checked — admissions has to consciously opt them in.
   const [checked, setChecked] = useState<Set<number>>(new Set());
+  // When on (default), only candidates Claude returned with BOTH a
+  // phone and an email are listed. Toggling off reveals the partial
+  // candidates with "Phone unknown" / "Email unknown" badges so the
+  // admin can still pick them up if they want to fill the gap by
+  // hand.
+  const [strictContactInfo, setStrictContactInfo] = useState(true);
+  // When ON (default), candidates whose `name` looks like a team /
+  // org / job title (e.g. "Admissions Team", "Heather R. Hayes &
+  // Associates") are filtered out of the review list. The picker
+  // still posts to bulk with the user's selections — this is a
+  // visibility filter, not a hard server-side gate.
+  const [onlyNamedPeople, setOnlyNamedPeople] = useState(true);
+  // Surface what Claude omitted vs what it returned. Lets us say
+  // "Claude could not find phone+email for 12 of 25 candidates" and
+  // explain why the count is short.
+  const [missingCount, setMissingCount] = useState(0);
+  // Provider picker — same endpoint, different backend. Claude
+  // (Anthropic + hosted web_search) is the default; Gemini 2.5 Pro
+  // (Google + native google_search grounding) is the alt.
+  const [provider, setProvider] = useState<'claude' | 'gemini'>('claude');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   async function findCandidates() {
@@ -5941,7 +6143,7 @@ function SuggestWithClaudeModal({
       const res = await fetch('/api/contacts/suggest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ prompt: steer.trim(), count }),
+        body: JSON.stringify({ prompt: steer.trim(), count, provider }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -5950,10 +6152,27 @@ function SuggestWithClaudeModal({
         return;
       }
       const list = Array.isArray(json?.contacts) ? (json.contacts as ClaudeSuggestion[]) : [];
-      setSuggestions(list);
-      setChecked(new Set(list.map((_, i) => i)));
-      setPhase(list.length === 0 ? 'error' : 'review');
-      if (list.length === 0) setErrorMsg('Claude did not suggest any contacts. Try a different steer.');
+      // Defensive — older API responses don't carry `missing`; treat
+      // the absence as "complete" so the new client doesn't choke on
+      // legacy payloads.
+      const normalised = list.map((s) => ({ ...s, missing: Array.isArray(s.missing) ? s.missing : [] }));
+      setSuggestions(normalised);
+      setMissingCount(typeof json?.missingCount === 'number' ? json.missingCount : normalised.filter((s) => s.missing.length > 0).length);
+      // Pre-check only the complete rows. Partials are revealed when
+      // the admin toggles strict mode off; they have to opt them in.
+      setChecked(new Set(normalised.map((s, i) => (s.missing.length === 0 ? i : -1)).filter((i) => i >= 0)));
+      const completeCount = normalised.filter((s) => s.missing.length === 0).length;
+      if (normalised.length === 0) {
+        setErrorMsg(`Claude could not find any candidates with both a phone and an email. Try a different steer (specific cities, named referrer networks, or alumni-driven leads usually unstick this).`);
+        setPhase('error');
+      } else {
+        setPhase('review');
+        if (completeCount === 0) {
+          // Edge case: only partials came back. Show them but flip
+          // strict off so they're visible by default.
+          setStrictContactInfo(false);
+        }
+      }
     } catch (e) {
       setErrorMsg(String(e));
       setPhase('error');
@@ -5986,7 +6205,26 @@ function SuggestWithClaudeModal({
   }
 
   function toggleAll(all: boolean) {
-    setChecked(all ? new Set(suggestions.map((_, i) => i)) : new Set());
+    // Scope "Select all" / "Clear" to what the user can actually see.
+    // When strict mode is on, hidden partials should not silently
+    // join the selection — clicking Select-all on a 7-row list and
+    // ending up posting 20 contacts to the DB is the wrong shape.
+    const visibleIndices = suggestions
+      .map((s, i) => (strictContactInfo && s.missing.length > 0 ? -1 : i))
+      .filter((i) => i >= 0);
+    if (all) {
+      setChecked(new Set(visibleIndices));
+    } else {
+      // Clear only the visible indices; preserve any opt-in
+      // selections the user made on rows that are currently hidden
+      // (e.g. they toggled partials on, picked a few, then toggled
+      // strict back on — those picks shouldn't disappear).
+      setChecked((prev) => {
+        const next = new Set(prev);
+        for (const i of visibleIndices) next.delete(i);
+        return next;
+      });
+    }
   }
   function toggleOne(i: number) {
     setChecked((prev) => {
@@ -5997,29 +6235,51 @@ function SuggestWithClaudeModal({
   }
 
   return (
-    <ModalShell title="Add with Claude" eyebrow="AI-assisted outreach" onClose={onClose}>
+    <ModalShell title="Add with AI" eyebrow="AI-assisted outreach" onClose={onClose}>
       {phase === 'prompt' && (
         <div className="px-6 py-5 space-y-4">
           <p className="text-[12.5px] text-foreground/65 leading-relaxed">
-            Claude will research realistic candidate contacts the admissions team might want to track — referrers, clinical partners, alumni leads. You'll get a list with checkboxes; only the ones you keep get added.
+            An AI assistant will research realistic candidate contacts the admissions team might want to track — referrers, clinical partners, alumni leads. You&apos;ll get a list with checkboxes; only the ones you keep get added.
           </p>
+          {/* Provider picker — pick the model that runs the search.
+              Same endpoint + same dedup; just a different backend.
+              Useful for comparing outputs side-by-side. */}
+          <ModalField label="Model">
+            <div className="inline-flex items-center gap-1 rounded-md border border-black/10 bg-white p-1">
+              {([
+                ['claude', 'Claude'],
+                ['gemini', 'Gemini Pro'],
+              ] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setProvider(key)}
+                  className={`px-3 py-1 rounded text-[12px] font-semibold transition-colors ${
+                    provider === key ? 'bg-foreground text-white' : 'text-foreground/65 hover:text-foreground'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </ModalField>
           <ModalField label="Steer (optional)" full hint="e.g. 'Arizona detox owners', 'PHP programs we haven't reached yet'">
             <textarea
               value={steer}
               onChange={(e) => setSteer(e.target.value)}
               rows={3}
               className="modal-input resize-none"
-              placeholder="Tell Claude what kind of contacts to look for…"
+              placeholder={`Tell ${provider === 'gemini' ? 'Gemini' : 'Claude'} what kind of contacts to look for…`}
             />
           </ModalField>
           <ModalField label="How many to suggest">
             <select value={count} onChange={(e) => setCount(parseInt(e.target.value, 10))} className="modal-input">
               <option value={5}>5</option>
-              <option value={8}>8</option>
-              <option value={10}>10</option>
-              <option value={15}>15</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
+              <option value={8} disabled>8 — coming soon</option>
+              <option value={10} disabled>10 — coming soon</option>
+              <option value={15} disabled>15 — coming soon</option>
+              <option value={25} disabled>25 — coming soon</option>
+              <option value={50} disabled>50 — coming soon</option>
             </select>
           </ModalField>
           <div className="flex items-center justify-end gap-2 pt-2 border-t border-black/5">
@@ -6047,21 +6307,93 @@ function SuggestWithClaudeModal({
         </div>
       )}
 
-      {phase === 'review' && (
+      {phase === 'review' && (() => {
+        // Build the list to render based on the two toggles. The
+        // checkbox state is keyed by original index so toggling
+        // either filter doesn't lose the user's selections.
+        const visible = suggestions
+          .map((s, i) => ({ s, i }))
+          .filter(({ s }) => {
+            if (strictContactInfo && s.missing.length > 0) return false;
+            if (onlyNamedPeople && !looksLikePersonName(s.name)) return false;
+            return true;
+          });
+        const completeCount = suggestions.filter((s) => s.missing.length === 0).length;
+        const orgCount = suggestions.filter((s) => !looksLikePersonName(s.name)).length;
+        return (
         <div className="px-0 sm:px-0 py-0">
-          <div className="px-6 pt-5 pb-3 flex items-center justify-between border-b border-black/5">
-            <div>
-              <p className="text-[12.5px] font-semibold text-foreground">{checked.size} of {suggestions.length} selected</p>
-              <p className="text-[11px] text-foreground/55">Uncheck anyone you don't want to add. Click Continue when ready.</p>
+          <div className="px-6 pt-5 pb-3 border-b border-black/5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[12.5px] font-semibold text-foreground">{checked.size} of {visible.length} selected</p>
+                <p className="text-[11px] text-foreground/55">Uncheck anyone you don't want to add. Click Continue when ready.</p>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <button type="button" onClick={() => toggleAll(true)} className="px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60">Select all</button>
+                <button type="button" onClick={() => toggleAll(false)} className="px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60">Clear</button>
+              </div>
             </div>
-            <div className="flex items-center gap-1.5">
-              <button type="button" onClick={() => toggleAll(true)} className="px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60">Select all</button>
-              <button type="button" onClick={() => toggleAll(false)} className="px-2.5 py-1.5 rounded-md text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60">Clear</button>
+            {/* Contact-info gap banner. Claude was asked to surface
+                phone + email for every candidate; this row tells
+                admissions how many came back complete vs partial,
+                with a toggle to reveal the partials. */}
+            {missingCount > 0 && (
+              <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 text-[11.5px] text-amber-900">
+                <span>
+                  <span className="font-semibold">{missingCount}</span> of {suggestions.length} candidates came back without a verified phone and/or email.
+                  {completeCount === 0
+                    ? ' All candidates below are partial — fill the missing fields by hand before adding.'
+                    : ` ${completeCount} complete candidate${completeCount === 1 ? '' : 's'} ${completeCount === 1 ? 'is' : 'are'} shown by default.`}
+                </span>
+                <label className="inline-flex items-center gap-2 cursor-pointer select-none shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={!strictContactInfo}
+                    onChange={(e) => setStrictContactInfo(!e.target.checked)}
+                    className="accent-amber-600 w-3.5 h-3.5"
+                  />
+                  <span className="font-medium">Show partials</span>
+                </label>
+              </div>
+            )}
+            {missingCount === 0 && (
+              <p className="mt-2 text-[11px] text-emerald-700">✓ Every candidate came back with both a phone and an email.</p>
+            )}
+            {/* Org / team filter — defaults ON so the review list
+                doesn't surface things like 'Admissions Team' or
+                'Heather R. Hayes & Associates, Inc.' (org names
+                that slipped through the prompt). Toggling off
+                surfaces the org-y rows too. */}
+            <div className="mt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 px-3 py-2 rounded-lg border border-black/10 bg-warm-bg/40 text-[11.5px] text-foreground/75">
+              <span>
+                {orgCount > 0 && onlyNamedPeople ? (
+                  <>
+                    <span className="font-semibold">{orgCount}</span> candidate{orgCount === 1 ? '' : 's'} read as team / org names (e.g. &quot;Admissions Team&quot;) and {orgCount === 1 ? 'is' : 'are'} hidden by default — we only want named people in the CRM.
+                  </>
+                ) : orgCount > 0 ? (
+                  <>
+                    <span className="font-semibold">{orgCount}</span> candidate{orgCount === 1 ? '' : 's'} read as team / org names. Turn the toggle back on to hide them.
+                  </>
+                ) : (
+                  <>All candidates have an individual person&apos;s name. ✓</>
+                )}
+              </span>
+              <label className="inline-flex items-center gap-2 cursor-pointer select-none shrink-0">
+                <input
+                  type="checkbox"
+                  checked={onlyNamedPeople}
+                  onChange={(e) => setOnlyNamedPeople(e.target.checked)}
+                  className="accent-primary w-3.5 h-3.5"
+                />
+                <span className="font-medium">Only add people with names</span>
+              </label>
             </div>
           </div>
           <ul className="divide-y divide-black/5 max-h-[55vh] overflow-y-auto">
-            {suggestions.map((s, i) => {
+            {visible.map(({ s, i }) => {
               const isOn = checked.has(i);
+              const phoneMissing = s.missing.includes('phone');
+              const emailMissing = s.missing.includes('email');
               return (
                 <li key={i} className={`px-6 py-3 transition-colors ${isOn ? 'bg-white' : 'bg-warm-bg/30'}`}>
                   <label className="flex items-start gap-3 cursor-pointer">
@@ -6087,6 +6419,29 @@ function SuggestWithClaudeModal({
                         {s.location && <span>· {s.location}</span>}
                         {s.specialty && <span>· {s.specialty}</span>}
                       </div>
+                      <div className="mt-1 flex items-center flex-wrap gap-x-2 gap-y-0.5 text-[11px]">
+                        {/* Phone — value if Claude found one, badge
+                            if it didn't. Admissions needs this column
+                            to be obvious at a glance. */}
+                        {s.phone ? (
+                          <span className="font-mono text-foreground/80">{s.phone}</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9.5px] font-semibold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">
+                            Phone unknown
+                          </span>
+                        )}
+                        <span className="text-foreground/30">·</span>
+                        {s.email ? (
+                          <span className="font-mono text-foreground/80">{s.email}</span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9.5px] font-semibold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200">
+                            Email unknown
+                          </span>
+                        )}
+                        {(phoneMissing || emailMissing) && (
+                          <span className="text-[10px] text-foreground/40">· you'll need to fill the gap by hand</span>
+                        )}
+                      </div>
                       {s.notes && (
                         <p className="mt-1 text-[11.5px] text-foreground/70 leading-snug">{s.notes}</p>
                       )}
@@ -6108,7 +6463,8 @@ function SuggestWithClaudeModal({
             </button>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {phase === 'submitting' && (
         <div className="px-6 py-12 flex flex-col items-center justify-center gap-3 text-center">
@@ -7516,7 +7872,12 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
   const [normalising, setNormalising] = useState(false);
   const [aiNotes, setAiNotes] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
-  const [result, setResult] = useState<{ created: number; skipped: number; errors: { row: number; reason: string }[] } | null>(null);
+  const [result, setResult] = useState<{
+    created: number;
+    skipped: number;
+    errors: { row: number; reason: string }[];
+    duplicates: { row: number; name: string; matchedOn: 'name' | 'email' | 'company_website' }[];
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function onFileChange(f: File | null) {
@@ -7592,6 +7953,7 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
         created: json.created ?? 0,
         skipped: json.skipped ?? 0,
         errors: Array.isArray(json.errors) ? json.errors : [],
+        duplicates: Array.isArray(json.duplicates) ? json.duplicates : [],
       });
     } finally {
       setImporting(false);
@@ -7739,20 +8101,47 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
 
           {/* Done */}
           {result && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 px-4 py-3">
-              <p className="text-[13px] font-semibold text-emerald-900">
-                Created {result.created} {result.created === 1 ? 'contact' : 'contacts'}
-                {result.skipped > 0 && <span className="text-foreground/55"> · {result.skipped} skipped</span>}
-              </p>
-              {result.errors.length > 0 && (
-                <ul className="mt-2 space-y-0.5 text-[11px] text-foreground/70 max-h-32 overflow-y-auto">
-                  {result.errors.slice(0, 20).map((e, i) => (
-                    <li key={i}><span className="text-foreground/45">Row {e.row}:</span> {e.reason}</li>
-                  ))}
-                  {result.errors.length > 20 && (
-                    <li className="text-foreground/40 italic">+ {result.errors.length - 20} more</li>
-                  )}
-                </ul>
+            <div className="space-y-2">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 px-4 py-3">
+                <p className="text-[13px] font-semibold text-emerald-900">
+                  Created {result.created} {result.created === 1 ? 'contact' : 'contacts'}
+                  {result.skipped > 0 && <span className="text-foreground/55"> · {result.skipped} skipped</span>}
+                </p>
+                {result.errors.length > 0 && (
+                  <ul className="mt-2 space-y-0.5 text-[11px] text-foreground/70 max-h-32 overflow-y-auto">
+                    {result.errors.slice(0, 20).map((e, i) => (
+                      <li key={i}><span className="text-foreground/45">Row {e.row}:</span> {e.reason}</li>
+                    ))}
+                    {result.errors.length > 20 && (
+                      <li className="text-foreground/40 italic">+ {result.errors.length - 20} more</li>
+                    )}
+                  </ul>
+                )}
+              </div>
+              {/* Already-in-the-CRM rows. Shown distinctly from the
+                  validation errors above so the user can tell 'this
+                  contact already exists' from 'this row was broken'. */}
+              {result.duplicates.length > 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3">
+                  <p className="text-[13px] font-semibold text-amber-900">
+                    {result.duplicates.length} {result.duplicates.length === 1 ? 'row' : 'rows'} already in the CRM — not imported
+                  </p>
+                  <p className="text-[11.5px] text-amber-900/75 mt-0.5">
+                    We matched on the contact&apos;s name, email, or company website. Edit the existing record from the outreach grid instead of re-importing.
+                  </p>
+                  <ul className="mt-2 space-y-0.5 text-[11.5px] text-amber-900/85 max-h-40 overflow-y-auto">
+                    {result.duplicates.slice(0, 30).map((d, i) => (
+                      <li key={i}>
+                        <span className="text-amber-900/55">Row {d.row}:</span>{' '}
+                        <span className="font-medium">{d.name}</span>{' '}
+                        <span className="text-amber-900/55">· matched on {d.matchedOn.replace('_', ' ')}</span>
+                      </li>
+                    ))}
+                    {result.duplicates.length > 30 && (
+                      <li className="text-amber-900/55 italic">+ {result.duplicates.length - 30} more</li>
+                    )}
+                  </ul>
+                </div>
               )}
             </div>
           )}

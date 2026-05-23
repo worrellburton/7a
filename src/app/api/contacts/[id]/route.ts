@@ -136,12 +136,12 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       // per-rep leaderboard (and the methods mix) for fixing data.
       // One row per save, not per field — a single edit that fills
       // three fields counts as one touchpoint, with the comment
-      // listing what got filled.
+      // listing what got filled. Format ("added phone, added email")
+      // is what the home log-rain tooltip surfaces verbatim, so the
+      // user sees what was filled without opening the contact.
       const labels = fills.map((f) => f.label);
       const dedupLabels = Array.from(new Set(labels));
-      const summary = dedupLabels.length === 1
-        ? `Filled in ${dedupLabels[0]}.`
-        : `Filled in ${dedupLabels.slice(0, -1).join(', ')} and ${dedupLabels[dedupLabels.length - 1]}.`;
+      const summary = dedupLabels.map((l) => `added ${l}`).join(', ');
       const nowIso = new Date().toISOString();
       await admin.from('contact_logs').insert({
         contact_id: id,
