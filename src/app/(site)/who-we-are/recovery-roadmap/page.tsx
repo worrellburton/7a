@@ -8,12 +8,12 @@ export const metadata: Metadata = {
 
 import PageHero from '@/components/PageHero';
 import Link from 'next/link';
-import { getAllEpisodesByNumber, episodeHref, episodeImage } from '@/lib/episodes';
+import { getAllEpisodesNewestFirst, episodeHref, episodeImage } from '@/lib/episodes';
 
 export const revalidate = 60;
 
 export default async function RecoveryRoadmapPage() {
-  const episodes = await getAllEpisodesByNumber();
+  const episodes = await getAllEpisodesNewestFirst();
   return (
     <>
       <PageHero

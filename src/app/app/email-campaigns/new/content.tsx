@@ -1052,7 +1052,7 @@ function BlogPicker({ blogs, selectedId, onSelect, onClose }: {
           No blog posts yet. Publish one from /app/seo first.
         </p>
       ) : (
-        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <ul className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-1">
           {blogs.map((b) => {
             const isSelected = b.id === selectedId;
             return (
@@ -1067,19 +1067,22 @@ function BlogPicker({ blogs, selectedId, onSelect, onClose }: {
                     <img
                       src={b.coverImageUrl}
                       alt={b.coverImageAlt ?? ''}
-                      className="w-12 h-12 rounded-md object-cover border border-black/10 shrink-0"
+                      className="w-14 h-14 rounded-md object-cover border border-black/10 shrink-0"
                     />
                   ) : (
-                    <div className="w-12 h-12 rounded-md bg-warm-bg/60 border border-black/10 shrink-0 flex items-center justify-center text-foreground/35 text-[10px]">
+                    <div className="w-14 h-14 rounded-md bg-warm-bg/60 border border-black/10 shrink-0 flex items-center justify-center text-foreground/35 text-[10px]">
                       Blog
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-[12.5px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{b.title}</p>
+                    <p className="text-[13px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{b.title}</p>
                     {b.slug && (
                       <p className="text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>/{b.slug}</p>
                     )}
                   </div>
+                  {isSelected && (
+                    <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold" aria-label="Selected">✓</span>
+                  )}
                 </button>
               </li>
             );
