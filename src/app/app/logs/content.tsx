@@ -17,7 +17,15 @@ export default function LogsContent() {
   const [count, setCount] = useState(0);
 
   return (
-    <div className="relative min-h-[calc(100vh-3rem)] overflow-hidden" style={{ fontFamily: 'var(--font-body)' }}>
+    <div
+      className="relative min-h-[calc(100vh-3rem)] overflow-x-clip"
+      // touchAction: manipulation stops iOS Safari's double-tap-to-zoom
+      // on the rain pile + back link; pinch-zoom is already blocked by
+      // the root viewport meta. overflow-x-clip (replacing overflow-hidden)
+      // keeps the rain drops from pushing horizontal scroll without
+      // accidentally clipping vertical body scroll on tall content.
+      style={{ fontFamily: 'var(--font-body)', touchAction: 'manipulation' }}
+    >
       {/* The rain layer renders fixed inset-0 (mobile) / absolute
           inset-0 inside its parent (desktop). We give it a tall
           relative container so the desktop physics layer has room

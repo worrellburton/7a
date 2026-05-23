@@ -303,7 +303,16 @@ export default function DailyLogsContent() {
   }, [logs]);
 
   return (
-    <div className="relative min-h-[100svh] overflow-hidden bg-warm-bg/40">
+    <div
+      className="relative min-h-[100svh] overflow-x-clip bg-warm-bg/40"
+      // iOS Safari double-taps anywhere on the page zoom the viewport in,
+      // which on the daily-logs surface fires constantly because the
+      // copper bars, range pills, and falling 🪵 emojis all look tappable.
+      // `manipulation` keeps single-tap clicks but disables double-tap-zoom
+      // + the 300ms tap delay that comes with it. Pinch-to-zoom is already
+      // blocked by the root viewport meta (maximum-scale=1).
+      style={{ touchAction: 'manipulation' }}
+    >
       {/* Backdrop log rain. Pointer-events: none + aria-hidden so it
           never intercepts a click or muddies a screen reader. Sits at
           z-0 behind every data card (which mount at z-10+). */}
