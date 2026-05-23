@@ -1,18 +1,26 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 
-// Dedicated "Daily logs" surface — one 🪵 falls onto the screen for
-// every contact_logs row landed today. Each log lands at a random
-// position in the lower portion of the viewport (no piling, no
-// clumping) with a brief rotational tumble so the page reads as
-// "rain of logs" rather than "static grid of emojis". Hover any
-// log to see who made it + which contact it was. Below the rain
-// the scoreboard ranks every teammate who logged at least one
-// touchpoint today, and a quiet record-callout shows the best
-// single-day total in company history (any day before today).
+// Dedicated "Daily logs" surface — a leaderboard on the left + the
+// per-log feed on the right, scoped to a date range the viewer
+// picks (today / this week / last week / this month / last month /
+// all time). Below the two columns, an Apple-minimal "Records"
+// card surfaces the all-time bests so a quiet day still has
+// something for the eye to rest on.
+
+type RangeKey = 'today' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'all_time';
+
+const RANGES: Array<{ key: RangeKey; label: string }> = [
+  { key: 'today', label: 'Today' },
+  { key: 'this_week', label: 'This week' },
+  { key: 'last_week', label: 'Last week' },
+  { key: 'this_month', label: 'This month' },
+  { key: 'last_month', label: 'Last month' },
+  { key: 'all_time', label: 'All time' },
+];
 
 interface LogRow {
   id: string;
@@ -35,26 +43,20 @@ interface LeaderboardEntry {
   durationSeconds: number;
 }
 
+interface RecordsBlock {
+  dayBest: { count: number; date: string } | null;
+  weekBest: { count: number; weekStart: string } | null;
+  dayBestByUser: { count: number; date: string; userId: string; name: string; avatarUrl: string | null } | null;
+}
+
 interface DailyLogsPayload {
+  range: RangeKey;
+  rangeLabel: string;
   logs: LogRow[];
   leaderboard: LeaderboardEntry[];
   total: number;
   record: { count: number; date: string } | null;
-}
-
-// Deterministic pseudo-random from a string seed. Used to give each
-// log a stable random position / rotation / fall delay across
-// re-renders — so React reconciliation doesn't reshuffle the rain.
-function seeded(seed: string): () => number {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) {
-    h = (h << 5) - h + seed.charCodeAt(i);
-    h |= 0;
-  }
-  return () => {
-    h = (h * 9301 + 49297) % 233280;
-    return h / 233280;
-  };
+  records: RecordsBlock;
 }
 
 function fmtTimeOfDay(iso: string): string {
@@ -65,13 +67,39 @@ function fmtTimeOfDay(iso: string): string {
   });
 }
 
+function fmtDayMonth(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    timeZone: 'America/Phoenix',
+  });
+}
+
+// "YYYY-MM-DD" → "Fri, May 22, 2026"
 function fmtRecordDate(yyyyMmDd: string): string {
-  // Stored as "YYYY-MM-DD" in Phoenix time. Re-parse so we don't
-  // accidentally show "yesterday" because of a UTC offset.
   const [y, m, d] = yyyyMmDd.split('-').map(Number);
   if (!y || !m || !d) return yyyyMmDd;
-  const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+}
+
+// Week-start (Monday) "YYYY-MM-DD" → "May 18 – 24"
+function fmtWeekRange(weekStart: string): string {
+  const [y, m, d] = weekStart.split('-').map(Number);
+  if (!y || !m || !d) return weekStart;
+  const start = new Date(y, m - 1, d);
+  const end = new Date(start);
+  end.setDate(start.getDate() + 6);
+  const startLabel = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const sameMonth = start.getMonth() === end.getMonth();
+  const endLabel = sameMonth
+    ? end.toLocaleDateString('en-US', { day: 'numeric' })
+    : end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return `${startLabel} – ${endLabel}`;
 }
 
 function fmtDuration(seconds: number): string {
@@ -83,45 +111,71 @@ function fmtDuration(seconds: number): string {
   return `${h}h ${m}m`;
 }
 
+function initialsOf(name: string): string {
+  return (name || '?')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase() ?? '')
+    .join('') || '?';
+}
+
+// Soft per-method tint for the right-column log pills. Falls back to
+// the warm-bg neutral if the method isn't in the lookup.
+function methodTone(method: string | null): { bg: string; text: string; ring: string } {
+  switch (method) {
+    case 'Phone':
+      return { bg: 'bg-emerald-50', text: 'text-emerald-700', ring: 'ring-emerald-200/70' };
+    case 'In Person':
+      return { bg: 'bg-sky-50', text: 'text-sky-700', ring: 'ring-sky-200/70' };
+    case 'Email':
+    case 'Email Campaign':
+      return { bg: 'bg-violet-50', text: 'text-violet-700', ring: 'ring-violet-200/70' };
+    case 'Text Message':
+      return { bg: 'bg-amber-50', text: 'text-amber-700', ring: 'ring-amber-200/70' };
+    case 'Left Message':
+      return { bg: 'bg-rose-50', text: 'text-rose-700', ring: 'ring-rose-200/70' };
+    case 'New Contact':
+      return { bg: 'bg-primary/10', text: 'text-primary', ring: 'ring-primary/30' };
+    case 'Data Entry':
+      return { bg: 'bg-foreground/5', text: 'text-foreground/70', ring: 'ring-foreground/15' };
+    default:
+      return { bg: 'bg-warm-bg/70', text: 'text-foreground/70', ring: 'ring-foreground/15' };
+  }
+}
+
 export default function DailyLogsContent() {
   const { session } = useAuth();
   const [data, setData] = useState<DailyLogsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [range, setRange] = useState<RangeKey>('today');
   const [counter, setCounter] = useState(0);
 
-  // Pull payload. Re-runs on focus so a teammate logging from
-  // another tab updates the rain after a window-switch.
-  const refresh = useMemo(
-    () => async () => {
-      if (!session?.access_token) return;
-      try {
-        const r = await fetch('/api/contacts/logs-today', { credentials: 'include' });
-        if (!r.ok) {
-          setError(`HTTP ${r.status}`);
-          return;
-        }
-        const j = (await r.json()) as DailyLogsPayload;
-        setData(j);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : 'Unknown error');
+  const refresh = useCallback(async () => {
+    if (!session?.access_token) return;
+    try {
+      const r = await fetch(`/api/contacts/logs-today?range=${range}`, { credentials: 'include' });
+      if (!r.ok) {
+        setError(`HTTP ${r.status}`);
+        return;
       }
-    },
-    [session?.access_token],
-  );
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
-  useEffect(() => {
-    function onFocus() {
-      refresh();
+      const j = (await r.json()) as DailyLogsPayload;
+      setData(j);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Unknown error');
     }
+  }, [session?.access_token, range]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    function onFocus() { refresh(); }
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, [refresh]);
 
-  // Animate the counter from 0 → today's total once the payload
-  // lands. Faster sub-second cadence: ~30 frames over 900ms so
-  // the number races up rather than ticking lazily.
+  // Animate the counter from 0 → window total once the payload
+  // lands. ~30 frames over 900ms so the number races up.
   useEffect(() => {
     if (!data) return;
     setCounter(0);
@@ -131,7 +185,6 @@ export default function DailyLogsContent() {
     let rafId = 0;
     const tick = (now: number) => {
       const t = Math.min(1, (now - start) / duration);
-      // ease-out
       const eased = 1 - Math.pow(1 - t, 3);
       setCounter(Math.round(eased * data.total));
       if (t < 1) rafId = window.requestAnimationFrame(tick);
@@ -140,53 +193,61 @@ export default function DailyLogsContent() {
     return () => window.cancelAnimationFrame(rafId);
   }, [data]);
 
-  // Position every log on a deterministic random grid in the lower
-  // half of the viewport. Seeded by log id so React reconciliation
-  // can't reshuffle on rerender, and the fall delay is staggered so
-  // logs arrive in waves instead of all at once.
-  const positioned = useMemo(() => {
-    if (!data?.logs) return [];
-    return data.logs.map((log, idx) => {
-      const rng = seeded(log.id);
-      // Spread across the full width with a small margin so logs
-      // don't clip the edge.
-      const leftPct = 4 + rng() * 92;
-      // Lower 55% of viewport, but with a generous spread so even
-      // 200+ logs don't all stack on the floor.
-      const topPct = 32 + rng() * 58;
-      // Random tilt at rest (-12° to +12°) — looks like fallen logs.
-      const tilt = (rng() - 0.5) * 24;
-      // Stagger fall by index so logs land in waves — 35ms per log
-      // with a small jitter so no two land at the exact same instant.
-      const fallDelay = idx * 35 + Math.floor(rng() * 80);
-      // Scale slightly per log for depth — closer logs are larger.
-      const scale = 0.78 + rng() * 0.55;
-      // Z-index roughly tracks scale so "closer" logs render in
-      // front of "further" ones — gives a faux-3D depth cue.
-      const z = Math.round(scale * 100);
-      return { log, leftPct, topPct, tilt, fallDelay, scale, z };
-    });
-  }, [data]);
+  const records = data?.records;
+  const isToday = range === 'today';
+  // "Logs so far" only reads right while the window is still
+  // accruing (today / this week / this month). Closed windows
+  // (last week, last month, all time) read better as "Total logs".
+  const isLiveWindow = range === 'today' || range === 'this_week' || range === 'this_month';
+  const countLabel = isLiveWindow ? 'Logs so far' : 'Total logs';
+
+  const logs = useMemo(() => data?.logs ?? [], [data]);
 
   return (
-    <div className="relative min-h-[100svh] overflow-hidden bg-warm-bg/40">
-      {/* Page header — eyebrow + headline + sub. The headline mirrors
-          the home-page styling: serif display face with a copper
-          accent on "today" so the surface ties back to the rest of
-          the marketing console. */}
-      <div className="relative z-30 max-w-3xl mx-auto px-4 sm:px-6 pt-8 sm:pt-12 text-center" style={{ fontFamily: 'var(--font-body)' }}>
+    <div className="min-h-[100svh] bg-warm-bg/40">
+      {/* Page header — eyebrow + headline + counter + date filter +
+          back-to-home. Centered up top so the eye reads "what + when"
+          before diving into the two columns below. */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-8 sm:pt-12 text-center" style={{ fontFamily: 'var(--font-body)' }}>
         <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-foreground/45">
           Marketing &amp; Admissions
         </p>
         <h1 className="mt-1 text-3xl sm:text-4xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
-          Daily logs <em className="not-italic text-primary">today</em>
+          Daily logs <em className="not-italic text-primary">{isToday ? 'today' : data?.rangeLabel ?? 'today'}</em>
         </h1>
         <p className="mt-2 text-[12.5px] text-foreground/55 max-w-xl mx-auto">
-          One <span aria-hidden>🪵</span> for every touchpoint logged today — phone, in-person,
-          text, email, new contact, or field fill. Hover any log to see who made it and which contact it was.
+          One <span aria-hidden>🪵</span> for every touchpoint logged in the selected window — phone,
+          in-person, text, email, new contact, or field fill.
         </p>
 
-        <div className="mt-5 flex flex-col items-center">
+        {/* Range pills */}
+        <div
+          className="mt-5 inline-flex flex-wrap items-center justify-center gap-1.5 rounded-full border border-black/10 bg-white/80 backdrop-blur-sm p-1 shadow-[0_8px_22px_-16px_rgba(60,48,42,0.35)]"
+          role="tablist"
+          aria-label="Date range"
+        >
+          {RANGES.map((r) => {
+            const active = range === r.key;
+            return (
+              <button
+                key={r.key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setRange(r.key)}
+                className={`px-3 py-1.5 text-[11.5px] font-semibold rounded-full whitespace-nowrap transition-colors ${
+                  active
+                    ? 'bg-foreground text-white shadow-sm'
+                    : 'text-foreground/60 hover:text-foreground hover:bg-warm-bg/70'
+                }`}
+              >
+                {r.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-6 flex flex-col items-center">
           <span
             className="text-5xl sm:text-6xl font-bold text-emerald-700 tabular-nums leading-none"
             style={{ fontFamily: 'var(--font-display)' }}
@@ -195,24 +256,8 @@ export default function DailyLogsContent() {
             {counter}
           </span>
           <span className="mt-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-foreground/55">
-            Logs so far
+            {countLabel}
           </span>
-
-          {/* Daily record callout — quietly under the total so the
-              eye reads "today vs. the record". Hidden when we don't
-              have history yet. */}
-          {data?.record && (
-            <p className="mt-2 text-[11.5px] text-foreground/65">
-              <span className="font-semibold text-foreground">Daily record:</span>{' '}
-              <span className="tabular-nums">{data.record.count}</span> on{' '}
-              <span className="font-medium">{fmtRecordDate(data.record.date)}</span>
-              {data && data.total >= data.record.count && data.total > 0 && (
-                <span className="ml-2 text-[10px] font-bold uppercase tracking-wider text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-[1px]">
-                  Record day!
-                </span>
-              )}
-            </p>
-          )}
         </div>
 
         <Link
@@ -227,60 +272,15 @@ export default function DailyLogsContent() {
         )}
       </div>
 
-      {/* The rain. Pointer-events: none on the layer so hovering only
-          fires on each individual 🪵 (set to pointer-events: auto in
-          the .daily-log-pin class below). Fixed/absolute inset 0 so
-          logs can fall freely without inflating page layout — the
-          scoreboard below renders in normal flow underneath. */}
-      <div
-        aria-hidden={false}
-        className="pointer-events-none absolute inset-0 z-10"
-        role="list"
-        aria-label={`${data?.total ?? 0} daily logs`}
-      >
-        {positioned.map(({ log, leftPct, topPct, tilt, fallDelay, scale, z }) => (
-          <span
-            key={log.id}
-            role="listitem"
-            className="daily-log-pin group absolute select-none"
-            style={{
-              left: `${leftPct}%`,
-              top: `${topPct}%`,
-              transform: 'translate(-50%, -120vh)',
-              ['--rest-rotate' as string]: `${tilt}deg`,
-              ['--rest-scale' as string]: `${scale}`,
-              ['--fall-delay' as string]: `${fallDelay}ms`,
-              zIndex: z,
-              fontFamily: 'var(--font-body)',
-            }}
-          >
-            <span className="daily-log-emoji" aria-label="log emoji">
-              🪵
-            </span>
-            <span className="daily-log-tooltip pointer-events-none">
-              <span className="block font-semibold text-white truncate">{log.contactName}</span>
-              <span className="block text-white/80">
-                by <span className="font-medium text-white">{log.userName}</span>
-                {log.method ? ` · ${log.method}` : ''}
-              </span>
-              <span className="block text-white/60 text-[10px] tabular-nums">
-                {fmtTimeOfDay(log.contactedAt)}
-                {log.durationSeconds ? ` · ${fmtDuration(log.durationSeconds)}` : ''}
-              </span>
-            </span>
-          </span>
-        ))}
-      </div>
-
-      {/* Scoreboard — slides under the headline / rain. Sits in
-          normal flow so the page scrolls past the rain and into the
-          leaderboard. */}
-      <div className="relative z-30 max-w-3xl mx-auto px-4 sm:px-6 pt-72 sm:pt-80 pb-12" style={{ fontFamily: 'var(--font-body)' }}>
+      {/* Two-column body — leaderboard left, logs right. Stacks on
+          mobile (single column) so neither side feels squashed. */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-8 grid grid-cols-1 md:grid-cols-2 gap-4" style={{ fontFamily: 'var(--font-body)' }}>
+        {/* Leaderboard */}
         <section className="rounded-2xl border border-black/10 bg-white/85 backdrop-blur-sm shadow-[0_18px_40px_-24px_rgba(60,48,42,0.35)] overflow-hidden">
           <header className="px-5 py-4 border-b border-black/5 flex items-baseline justify-between gap-2">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/55">
-                Today&apos;s scoreboard
+                Scoreboard
               </p>
               <h2 className="mt-0.5 text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
                 Log leaders
@@ -295,18 +295,12 @@ export default function DailyLogsContent() {
             <p className="px-5 py-8 text-[12px] italic text-foreground/45 text-center">Loading…</p>
           ) : data.leaderboard.length === 0 ? (
             <p className="px-5 py-8 text-[12.5px] italic text-foreground/45 text-center">
-              No logs yet today — be the first to land a 🪵 on the board.
+              No logs in this window yet.
             </p>
           ) : (
             <ol className="divide-y divide-black/5">
               {data.leaderboard.map((row, idx) => {
                 const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : null;
-                const initials = (row.name || '?')
-                  .split(/\s+/)
-                  .filter(Boolean)
-                  .slice(0, 2)
-                  .map((p) => p[0]?.toUpperCase() ?? '')
-                  .join('') || '?';
                 const topShare = data.leaderboard[0]?.logs ?? 1;
                 const barPct = Math.max(6, Math.round((row.logs / topShare) * 100));
                 return (
@@ -329,7 +323,7 @@ export default function DailyLogsContent() {
                       />
                     ) : (
                       <span className="shrink-0 w-8 h-8 rounded-full bg-primary/15 text-primary text-[11px] font-bold flex items-center justify-center border border-white shadow-sm">
-                        {initials}
+                        {initialsOf(row.name)}
                       </span>
                     )}
                     <div className="min-w-0 flex-1">
@@ -358,94 +352,163 @@ export default function DailyLogsContent() {
             </ol>
           )}
         </section>
+
+        {/* Logs feed */}
+        <section className="rounded-2xl border border-black/10 bg-white/85 backdrop-blur-sm shadow-[0_18px_40px_-24px_rgba(60,48,42,0.35)] overflow-hidden">
+          <header className="px-5 py-4 border-b border-black/5 flex items-baseline justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/55">
+                Every touchpoint
+              </p>
+              <h2 className="mt-0.5 text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+                Logs
+              </h2>
+            </div>
+            <span className="text-[10.5px] tabular-nums text-foreground/45">
+              {logs.length} {logs.length === 1 ? 'log' : 'logs'}
+            </span>
+          </header>
+
+          {!data ? (
+            <p className="px-5 py-8 text-[12px] italic text-foreground/45 text-center">Loading…</p>
+          ) : logs.length === 0 ? (
+            <p className="px-5 py-8 text-[12.5px] italic text-foreground/45 text-center">
+              No 🪵 in this window — be the first to land one on the board.
+            </p>
+          ) : (
+            <ol className="divide-y divide-black/5 max-h-[640px] overflow-y-auto">
+              {logs
+                .slice()
+                .reverse()
+                .map((log) => {
+                  const tone = methodTone(log.method);
+                  return (
+                    <li key={log.id} className="flex items-start gap-3 px-5 py-3">
+                      {log.userAvatarUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={log.userAvatarUrl}
+                          alt=""
+                          className="shrink-0 w-7 h-7 rounded-full object-cover border border-white shadow-sm mt-0.5"
+                        />
+                      ) : (
+                        <span className="shrink-0 w-7 h-7 rounded-full bg-primary/15 text-primary text-[10px] font-bold flex items-center justify-center border border-white shadow-sm mt-0.5">
+                          {initialsOf(log.userName)}
+                        </span>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[12.5px] text-foreground truncate">
+                          <span className="font-semibold">{log.userName}</span>
+                          <span className="text-foreground/55"> · </span>
+                          <span className="font-medium text-foreground/80">{log.contactName}</span>
+                          {log.contactCompany ? (
+                            <span className="text-foreground/45 truncate"> · {log.contactCompany}</span>
+                          ) : null}
+                        </p>
+                        <p className="mt-0.5 text-[10.5px] text-foreground/45 tabular-nums">
+                          {isToday ? fmtTimeOfDay(log.contactedAt) : `${fmtDayMonth(log.contactedAt)} · ${fmtTimeOfDay(log.contactedAt)}`}
+                          {log.durationSeconds ? ` · ${fmtDuration(log.durationSeconds)}` : ''}
+                        </p>
+                      </div>
+                      {log.method && (
+                        <span
+                          className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold ring-1 ${tone.bg} ${tone.text} ${tone.ring}`}
+                        >
+                          {log.method}
+                        </span>
+                      )}
+                    </li>
+                  );
+                })}
+            </ol>
+          )}
+        </section>
       </div>
 
-      <style jsx>{`
-        @keyframes daily-log-fall {
-          0% {
-            transform: translate(-50%, -120vh) rotate(0deg) scale(var(--rest-scale));
-            opacity: 0;
-          }
-          12% {
-            opacity: 1;
-          }
-          70% {
-            transform: translate(-50%, 5%) rotate(calc(var(--rest-rotate) * 0.7)) scale(var(--rest-scale));
-            opacity: 1;
-          }
-          85% {
-            transform: translate(-50%, -8%) rotate(calc(var(--rest-rotate) * 0.85)) scale(var(--rest-scale));
-          }
-          100% {
-            transform: translate(-50%, 0) rotate(var(--rest-rotate)) scale(var(--rest-scale));
-            opacity: 1;
-          }
-        }
+      {/* Records — its own card directly under the two columns, with
+          the three all-time stats laid out in equal cells. Each cell
+          stands on its own so a missing record (e.g. before any
+          history exists) doesn't unbalance the row. */}
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 pt-4 pb-12" style={{ fontFamily: 'var(--font-body)' }}>
+        <section className="rounded-2xl border border-black/10 bg-white/85 backdrop-blur-sm shadow-[0_18px_40px_-24px_rgba(60,48,42,0.35)] overflow-hidden">
+          <header className="px-5 py-4 border-b border-black/5 flex items-baseline justify-between gap-2">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/55">
+                Hall of fame · all time
+              </p>
+              <h2 className="mt-0.5 text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+                Records
+              </h2>
+            </div>
+          </header>
+          <div className="grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-black/5">
+            <RecordCell
+              label="Most logs in one day"
+              value={records?.dayBest?.count ?? null}
+              caption={records?.dayBest ? fmtRecordDate(records.dayBest.date) : 'No history yet'}
+            />
+            <RecordCell
+              label="Most logs in one week"
+              value={records?.weekBest?.count ?? null}
+              caption={records?.weekBest ? `Week of ${fmtWeekRange(records.weekBest.weekStart)}` : 'No history yet'}
+            />
+            <RecordCell
+              label="Most logs in one day · by user"
+              value={records?.dayBestByUser?.count ?? null}
+              caption={records?.dayBestByUser ? `${records.dayBestByUser.name} · ${fmtRecordDate(records.dayBestByUser.date)}` : 'No history yet'}
+              avatar={records?.dayBestByUser?.avatarUrl ?? null}
+              avatarFallback={records?.dayBestByUser ? initialsOf(records.dayBestByUser.name) : null}
+            />
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
 
-        :global(.daily-log-pin) {
-          pointer-events: auto;
-          font-size: clamp(1.6rem, 3.2vw, 2.6rem);
-          line-height: 1;
-          animation: daily-log-fall 1400ms cubic-bezier(0.34, 1.18, 0.46, 1) both;
-          animation-delay: var(--fall-delay);
-          will-change: transform, opacity;
-          cursor: default;
-        }
-        :global(.daily-log-pin):hover {
-          z-index: 200 !important;
-        }
-        :global(.daily-log-emoji) {
-          display: inline-block;
-          transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
-          filter: drop-shadow(0 6px 10px rgba(60, 35, 22, 0.25));
-        }
-        :global(.daily-log-pin):hover :global(.daily-log-emoji),
-        :global(.daily-log-pin):focus-within :global(.daily-log-emoji) {
-          transform: scale(1.25) rotate(0deg);
-        }
-
-        :global(.daily-log-tooltip) {
-          position: absolute;
-          left: 50%;
-          bottom: calc(100% + 8px);
-          transform: translateX(-50%) translateY(4px);
-          background: rgb(28 16 11);
-          color: white;
-          padding: 6px 10px;
-          border-radius: 8px;
-          font-size: 11px;
-          line-height: 1.35;
-          white-space: nowrap;
-          opacity: 0;
-          transition: opacity 160ms ease-out, transform 160ms ease-out;
-          box-shadow: 0 14px 32px -16px rgba(0, 0, 0, 0.55);
-          max-width: 240px;
-          min-width: 140px;
-          text-align: center;
-        }
-        :global(.daily-log-tooltip)::after {
-          content: '';
-          position: absolute;
-          left: 50%;
-          top: 100%;
-          transform: translateX(-50%);
-          border: 5px solid transparent;
-          border-top-color: rgb(28 16 11);
-        }
-        :global(.daily-log-pin):hover :global(.daily-log-tooltip),
-        :global(.daily-log-pin):focus-within :global(.daily-log-tooltip) {
-          opacity: 1;
-          transform: translateX(-50%) translateY(0);
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          :global(.daily-log-pin) {
-            animation: none !important;
-            transform: translate(-50%, 0) rotate(var(--rest-rotate)) scale(var(--rest-scale)) !important;
-            opacity: 1 !important;
-          }
-        }
-      `}</style>
+function RecordCell({
+  label,
+  value,
+  caption,
+  avatar,
+  avatarFallback,
+}: {
+  label: string;
+  value: number | null;
+  caption: string;
+  avatar?: string | null;
+  avatarFallback?: string | null;
+}) {
+  return (
+    <div className="px-5 py-5 flex items-center gap-4">
+      {avatar || avatarFallback ? (
+        avatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={avatar}
+            alt=""
+            className="shrink-0 w-12 h-12 rounded-full object-cover border border-white shadow-sm"
+          />
+        ) : (
+          <span className="shrink-0 w-12 h-12 rounded-full bg-primary/15 text-primary text-sm font-bold flex items-center justify-center border border-white shadow-sm">
+            {avatarFallback}
+          </span>
+        )
+      ) : (
+        <span className="shrink-0 w-12 h-12 rounded-full bg-warm-bg/70 border border-black/10 flex items-center justify-center text-xl" aria-hidden>
+          🪵
+        </span>
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-foreground/55">{label}</p>
+        <p
+          className="mt-1 text-3xl font-bold text-foreground tabular-nums leading-none"
+          style={{ fontFamily: 'var(--font-display)' }}
+        >
+          {value ?? '—'}
+        </p>
+        <p className="mt-1 text-[11px] text-foreground/55 truncate">{caption}</p>
+      </div>
     </div>
   );
 }

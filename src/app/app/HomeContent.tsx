@@ -648,13 +648,8 @@ export default function HomeContent() {
             screen. sm+: returns to normal flex flow. */}
         {recentUsers.length > 0 && (
           <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:relative sm:top-auto sm:left-auto sm:translate-x-0 sm:translate-y-0 pointer-events-none sm:pointer-events-auto">
-            <div className="pointer-events-auto flex flex-col items-center gap-3">
+            <div className="pointer-events-auto">
               <HomeOnlineOrbit users={recentUsers} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
-              {/* Live count of touchpoints logged today + the historical
-                  daily record below it. Clicks through to /app/daily-logs,
-                  the dedicated rain-of-logs surface with the per-user
-                  scoreboard. */}
-              <HomeDailyLogsChip />
             </div>
           </section>
         )}
@@ -750,6 +745,20 @@ export default function HomeContent() {
         )}
 
         </div> {/* end centerpiece */}
+
+        {/* Live count of touchpoints logged today + the historical
+            daily record below it. Clicks through to /app/daily-logs,
+            the dedicated surface with leaderboard + records. Sits
+            between the centerpiece and the Seven Arrows tagline so
+            the chip floats in clear space without crowding the
+            orbit's outer ring. Hidden on mobile because the orbit
+            there is fixed-positioned over the chip's spot. */}
+        <section
+          className="hidden sm:flex w-full max-w-4xl mx-auto justify-center px-4 pt-2"
+          aria-label="Daily logs shortcut"
+        >
+          <HomeDailyLogsChip />
+        </section>
 
         {/* Mission tagline — closes the home page with a quiet brand
             anchor below the team orbit. Bottom padding clears the
