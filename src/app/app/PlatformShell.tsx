@@ -1575,11 +1575,11 @@ function ShowCursorsToggle() {
       className="flex items-center justify-between w-full gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
       style={{ fontFamily: 'var(--font-body)' }}
     >
-      <span className="inline-flex items-center gap-2.5">
+      <span className="inline-flex items-center gap-2.5 whitespace-nowrap">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l7.5 18 2.5-7 7-2.5L3 3z" />
         </svg>
-        Teammates&apos; cursors
+        Other cursors
       </span>
       <span
         className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${on ? 'bg-primary' : 'bg-foreground/20'}`}
