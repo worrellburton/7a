@@ -240,6 +240,55 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
     }
   };
 
+  // One-click resend of just the failed rows from a sent campaign.
+  // Resets `failed` → `pending` + brings the campaign row back to
+  // `finalizing` so /api/email-campaigns/send re-enters its loop,
+  // then immediately fires the send. Successful rows stay sent
+  // because the send route only picks up pending ones.
+  const onResendFailed = async () => {
+    if (!session?.access_token || sending) return;
+    const failedNow = recipients.filter((r) => r.send_status === 'failed').length;
+    if (failedNow === 0) return;
+    const ok = window.confirm(`Resend this email to the ${failedNow} failed recipient${failedNow === 1 ? '' : 's'}?`);
+    if (!ok) return;
+    setError(null);
+    setSending(true);
+    try {
+      const { error: updErr } = await supabase
+        .from('email_campaign_recipients')
+        .update({ send_status: 'pending', send_error: null, sent_at: null })
+        .eq('campaign_id', campaignId)
+        .eq('send_status', 'failed');
+      if (updErr) throw new Error(updErr.message);
+      if (campaign && (campaign.status === 'sent' || campaign.status === 'failed')) {
+        await supabase
+          .from('email_campaigns')
+          .update({ status: 'finalizing', sent_at: null })
+          .eq('id', campaignId);
+      }
+      const res = await fetch('/api/email-campaigns/send', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ campaignId }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: boolean; sent?: number; failed?: number; error?: string;
+      };
+      if (!res.ok || json.ok === false) {
+        setError(json.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSending(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-10 text-center text-[12.5px] text-foreground/55" style={{ fontFamily: 'var(--font-body)' }}>
@@ -306,12 +355,24 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
       </header>
 
       {isSent && (
-        <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+        <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 flex items-start justify-between gap-3 flex-wrap">
           <p className="text-[12.5px] text-emerald-900" style={{ fontFamily: 'var(--font-body)' }}>
             Sent to {sentCount} recipient{sentCount === 1 ? '' : 's'}
             {failedCount > 0 && ` · ${failedCount} failed`}.
             {campaign.sent_at && ` Sent at ${new Date(campaign.sent_at).toLocaleString()}.`}
           </p>
+          {failedCount > 0 && canSend && (
+            <button
+              type="button"
+              onClick={onResendFailed}
+              disabled={sending}
+              className="shrink-0 px-3.5 py-2 rounded-md bg-primary text-white text-[11.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{ fontFamily: 'var(--font-body)' }}
+              title={`Re-send this campaign to the ${failedCount} recipient${failedCount === 1 ? '' : 's'} whose first attempt failed. Successful rows are skipped.`}
+            >
+              {sending ? 'Resending…' : `↻ Resend to ${failedCount} failed`}
+            </button>
+          )}
         </div>
       )}
 
