@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 import { buildUnsubscribeUrl } from '@/lib/unsubscribe';
+import { requireAdmin } from '@/lib/api-gates';
 
 // POST /api/email-campaigns/send
 //
@@ -48,22 +49,9 @@ export async function POST(req: NextRequest) {
   let actingUserId: string | null = null;
 
   if (!isCron) {
-    const user = await getUserFromRequest(req);
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const admin = getAdminSupabase();
-    const { data: userRow } = await admin
-      .from('users')
-      .select('is_admin, is_super_admin')
-      .eq('id', user.id)
-      .maybeSingle();
-    const allowed = userRow?.is_super_admin === true || userRow?.is_admin === true;
-    if (!allowed) {
-      return NextResponse.json(
-        { error: 'Only admins can send email campaigns.' },
-        { status: 403 },
-      );
-    }
-    actingUserId = user.id;
+    const gate = await requireAdmin(req, 'Only admins can send email campaigns.');
+    if (gate instanceof NextResponse) return gate;
+    actingUserId = gate.userId;
   }
 
   const body = (await req.json().catch(() => ({}))) as SendBody & { actingUserId?: string };

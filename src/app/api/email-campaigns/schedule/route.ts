@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
+import { requireAdmin } from '@/lib/api-gates';
 
 // POST /api/email-campaigns/schedule
 // body: { campaignId: string; sendAt: string (ISO) | null }
@@ -16,19 +16,9 @@ interface Body {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const admin = getAdminSupabase();
-  const { data: userRow } = await admin
-    .from('users')
-    .select('is_admin, is_super_admin')
-    .eq('id', user.id)
-    .maybeSingle();
-  const allowed = userRow?.is_super_admin === true || userRow?.is_admin === true;
-  if (!allowed) {
-    return NextResponse.json({ error: 'Only admins can schedule email campaigns.' }, { status: 403 });
-  }
+  const gate = await requireAdmin(req, 'Only admins can schedule email campaigns.');
+  if (gate instanceof NextResponse) return gate;
+  const admin = gate.admin;
 
   const body = (await req.json().catch(() => ({}))) as Body;
   const campaignId = typeof body.campaignId === 'string' ? body.campaignId : null;

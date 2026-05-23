@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
+import { requireAdminOrDepartment, MARKETING_DEPT_ID } from '@/lib/api-gates';
 
 // GET /api/email-campaigns/recipients-analytics
 //
@@ -24,23 +24,12 @@ import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
-const MARKETING_DEPT = 'dfde0b96-c605-40dd-84e5-281af2f6d8e9';
 const DELIVERED_STATES = ['sent', 'delivered', 'opened', 'clicked'] as const;
 
 export async function GET() {
-  const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: meRow } = await supabase
-    .from('users')
-    .select('is_admin, department_id')
-    .eq('id', user.id)
-    .maybeSingle();
-  if (!meRow?.is_admin && meRow?.department_id !== MARKETING_DEPT) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  const admin = getAdminSupabase();
+  const gate = await requireAdminOrDepartment(MARKETING_DEPT_ID);
+  if (gate instanceof NextResponse) return gate;
+  const admin = gate.admin;
 
   // 1) Recipient rows that actually shipped — gives us sent_count
   //    per contact and the last_sent_at watermark. Cap large so a

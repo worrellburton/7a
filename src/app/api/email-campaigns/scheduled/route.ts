@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
+import { requireAdminOrDepartment, MARKETING_DEPT_ID } from '@/lib/api-gates';
 
 // GET /api/email-campaigns/scheduled
 //
@@ -9,22 +9,10 @@ import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
-const MARKETING_DEPT = 'dfde0b96-c605-40dd-84e5-281af2f6d8e9';
-
 export async function GET() {
-  const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: meRow } = await supabase
-    .from('users')
-    .select('is_admin, department_id')
-    .eq('id', user.id)
-    .maybeSingle();
-  if (!meRow?.is_admin && meRow?.department_id !== MARKETING_DEPT) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
-
-  const admin = getAdminSupabase();
+  const gate = await requireAdminOrDepartment(MARKETING_DEPT_ID);
+  if (gate instanceof NextResponse) return gate;
+  const admin = gate.admin;
   const { data: campaigns, error } = await admin
     .from('email_campaigns')
     .select('id, generated_subject, generated_html, scheduled_send_at, status, created_by, created_at, updated_at')
