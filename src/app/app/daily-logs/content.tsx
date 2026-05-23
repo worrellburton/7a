@@ -65,6 +65,11 @@ interface WindowCounts {
   all_time: number;
 }
 
+interface WeeklyPoint {
+  weekStart: string; // YYYY-MM-DD (Phoenix Monday anchor)
+  count: number;
+}
+
 interface DailyLogsPayload {
   range: RangeKey;
   rangeLabel: string;
@@ -74,6 +79,7 @@ interface DailyLogsPayload {
   record: { count: number; date: string } | null;
   records: RecordsBlock;
   windowCounts: WindowCounts;
+  weeklySeries: WeeklyPoint[];
 }
 
 // Deterministic pseudo-random from a string seed. Used to pin each
@@ -335,8 +341,10 @@ export default function DailyLogsContent() {
         ))}
       </div>
 
-      {/* Page header — eyebrow + headline + counter + date filter +
-          back-to-home. Sits at z-10 so the rain reads behind it. */}
+      {/* Page header — eyebrow + headline + counter + back-to-home.
+          The chart and the pill row sit BELOW this block; the chart
+          (week-by-week trend) lands above the time selector so the
+          reader sees the trajectory before they pick a window. */}
       <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pt-7 sm:pt-12 text-center" style={{ fontFamily: 'var(--font-body)' }}>
         <p className="text-[10px] font-semibold uppercase tracking-[0.28em] text-foreground/45">
           Marketing &amp; Admissions
@@ -348,36 +356,6 @@ export default function DailyLogsContent() {
           One <span aria-hidden>🪵</span> for every touchpoint in the selected window — phone,
           in-person, text, email, new contact, or field fill.
         </p>
-
-        {/* Range pills — overflow-x scrolls horizontally on phones so
-            6 pills don't crush into 3 lines of two-letter labels. */}
-        <div className="mt-4 sm:mt-5 -mx-4 sm:mx-0 overflow-x-auto no-scrollbar">
-          <div
-            className="inline-flex items-center gap-1 sm:gap-1.5 rounded-full border border-black/10 bg-white/80 backdrop-blur-sm p-1 shadow-[0_8px_22px_-16px_rgba(60,48,42,0.35)] mx-4 sm:mx-0"
-            role="tablist"
-            aria-label="Date range"
-          >
-            {RANGES.map((r) => {
-              const active = range === r.key;
-              return (
-                <button
-                  key={r.key}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setRange(r.key)}
-                  className={`px-3 py-1.5 text-[11.5px] font-semibold rounded-full whitespace-nowrap transition-colors ${
-                    active
-                      ? 'bg-foreground text-white shadow-sm'
-                      : 'text-foreground/60 hover:text-foreground hover:bg-warm-bg/70'
-                  }`}
-                >
-                  {r.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
 
         <div className="mt-5 flex flex-col items-center">
           <span
@@ -404,19 +382,52 @@ export default function DailyLogsContent() {
         )}
       </div>
 
-      {/* Window-chart — six glowing copper bars, one per date range.
-          Click any bar to swap the active window (mirrors the pill
-          row above). The active bar breathes; the others rise on
-          mount + fade their halo. See WindowGlowChart below. */}
+      {/* Week-by-week line chart — last 12 weeks of log totals, drawn
+          as an SVG line with a copper-to-amber gradient fill, an
+          animated path-draw on mount, and a hover/tap reticle that
+          surfaces the week label + count for each point. Hydrates
+          from the same /api/contacts/logs-today payload as the rest
+          of the page (weeklySeries). Sits above the time selector
+          so the trajectory leads the eye into the window picker. */}
       {data && (
         <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8">
-          <WindowGlowChart
-            counts={data.windowCounts}
-            active={range}
-            onSelect={setRange}
-          />
+          <WeeklyLineChart series={data.weeklySeries} />
         </div>
       )}
+
+      {/* Range pills — sits BELOW the chart now so the reader scans
+          the weekly trajectory first, then picks the window for the
+          leaderboard / feed / records cards below. overflow-x scrolls
+          horizontally on phones so 6 pills don't crush onto 3 lines. */}
+      <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 pt-5 sm:pt-6 text-center" style={{ fontFamily: 'var(--font-body)' }}>
+        <div className="-mx-4 sm:mx-0 overflow-x-auto no-scrollbar">
+          <div
+            className="inline-flex items-center gap-1 sm:gap-1.5 rounded-full border border-black/10 bg-white/80 backdrop-blur-sm p-1 shadow-[0_8px_22px_-16px_rgba(60,48,42,0.35)] mx-4 sm:mx-0"
+            role="tablist"
+            aria-label="Date range"
+          >
+            {RANGES.map((r) => {
+              const active = range === r.key;
+              return (
+                <button
+                  key={r.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setRange(r.key)}
+                  className={`px-3 py-1.5 text-[11.5px] font-semibold rounded-full whitespace-nowrap transition-colors ${
+                    active
+                      ? 'bg-foreground text-white shadow-sm'
+                      : 'text-foreground/60 hover:text-foreground hover:bg-warm-bg/70'
+                  }`}
+                >
+                  {r.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
 
       {/* Two-column body — leaderboard left, logs right. Stacks on
           mobile. Sits above the rain via relative + z-10. */}
@@ -750,229 +761,342 @@ function RecordCell({
   );
 }
 
-// ─── WindowGlowChart ────────────────────────────────────────────
+// ─── WeeklyLineChart ────────────────────────────────────────────
 //
-// Six glowing copper bars, one per date range. Built in ten visible
-// phases inside one component so the diff reads as a single shipment
-// rather than ten micro-PRs:
+// Last 12 weeks of log totals drawn as an SVG line chart. The line
+// is a copper→amber→emerald gradient stroke over a soft area fill
+// of the same gradient; the path animates in on mount via the
+// stroke-dasharray draw trick, and an invisible row of hit zones
+// surfaces a hover/tap tooltip with the week label + count.
 //
-//   PHASE 1 · Data binding — counts come pre-rolled-up from the
-//             /api/contacts/logs-today endpoint's `windowCounts`
-//             object so the chart hydrates in one round-trip,
-//             no extra fetch.
-//   PHASE 2 · Layout — six equal-width columns, label + value
-//             stacked above each bar, responsive flex so it
-//             collapses gracefully on narrow phones.
-//   PHASE 3 · Bar geometry — each bar's height normalises to the
-//             tallest of the six so a quiet day still reads as a
-//             real bar instead of a 1px sliver.
-//   PHASE 4 · Brand palette — copper-to-amber gradient on every
-//             bar, with the active bar swapping to a primary-to-
-//             emerald gradient so the eye lands on "this is the
-//             window you're viewing".
-//   PHASE 5 · Glow — radial halo behind the active bar plus a
-//             box-shadow that breathes on a 2.4s ease-in-out loop.
-//             Inactive bars get a quiet drop-shadow.
-//   PHASE 6 · Rise animation — bars scale-y from 0 → full height
-//             on first paint with a per-bar 80ms stagger, easing
-//             out so the row settles in waves.
-//   PHASE 7 · Number ticker — the count above each bar counts up
-//             from 0 → its value over 700ms using
-//             requestAnimationFrame, one rAF per chart, all six
-//             tickers driven off the same `t` so they finish
-//             together and the row reads as a single beat.
-//   PHASE 8 · Interactive — every bar is a real <button>; tapping
-//             swaps the active range (same handler the pill row
-//             uses, so URL stays in sync via setRange's
-//             router.replace).
-//   PHASE 9 · Reduced motion — prefers-reduced-motion: reduce
-//             collapses the rise + the breathe loop so the chart
-//             paints instantly without losing the active glow.
-//   PHASE 10 · Mobile pass — column padding tightens, label font
-//              steps down, bar width responds via flex-1 so 6
-//              bars still read on a 360px viewport without
-//              overflowing.
+// Why SVG (and not the previous bar chart): a line over time reads
+// the trajectory at a glance — is this week up or down vs the rest
+// of the quarter? — which the six categorical bars couldn't show.
+// 12 weeks ≈ a quarter, long enough to spot the trend, short enough
+// to keep the x-axis readable on mobile.
 
-interface WindowGlowChartProps {
-  counts: WindowCounts;
-  active: RangeKey;
-  onSelect: (range: RangeKey) => void;
+function fmtWeekTick(weekStart: string): string {
+  // Short label for the x-axis tick — "Apr 14". Locale-en-US,
+  // Phoenix-anchored so the label matches the bucket date the API
+  // computed.
+  const [y, m, d] = weekStart.split('-').map(Number);
+  if (!y || !m || !d) return weekStart;
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-const CHART_WINDOWS: Array<{ key: RangeKey; short: string; long: string }> = [
-  { key: 'today',      short: 'Today',     long: 'Today' },
-  { key: 'this_week',  short: 'Wk',        long: 'This week' },
-  { key: 'last_week',  short: 'Last wk',   long: 'Last week' },
-  { key: 'this_month', short: 'Mo',        long: 'This month' },
-  { key: 'last_month', short: 'Last mo',   long: 'Last month' },
-  { key: 'all_time',   short: 'All',       long: 'All time' },
-];
+function WeeklyLineChart({ series }: { series: WeeklyPoint[] }) {
+  // SVG viewBox — fixed coordinate space scaled responsively by the
+  // wrapper. Width tracks aspect; height stays consistent so the
+  // gradient + animation don't shift between viewports.
+  const VB_W = 720;
+  const VB_H = 220;
+  const PAD_L = 36;   // y-axis labels
+  const PAD_R = 16;
+  const PAD_T = 16;
+  const PAD_B = 28;   // x-axis labels
 
-function WindowGlowChart({ counts, active, onSelect }: WindowGlowChartProps) {
-  const values = CHART_WINDOWS.map((w) => counts[w.key] ?? 0);
-  const max = Math.max(1, ...values);
-  // Number ticker — one rAF driving all six bars together so the
-  // row finishes in a single coordinated beat. Resets whenever
-  // `counts` changes (e.g. a fresh fetch after a teammate logs).
-  const [t, setT] = useState(0);
-  useEffect(() => {
-    setT(0);
-    const reduceMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (reduceMotion) { setT(1); return; }
-    const start = performance.now();
-    const duration = 700;
-    let raf = 0;
-    const tick = (now: number) => {
-      const u = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - u, 3);
-      setT(eased);
-      if (u < 1) raf = window.requestAnimationFrame(tick);
-    };
-    raf = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(raf);
-  }, [counts]);
+  const max = Math.max(1, ...series.map((p) => p.count));
+  const innerW = VB_W - PAD_L - PAD_R;
+  const innerH = VB_H - PAD_T - PAD_B;
+
+  // x-step: divide the inner width across (n-1) gaps so first and
+  // last points sit flush with the axis edges. Edge-case: a single
+  // point pins to the middle.
+  const n = series.length;
+  const xAt = (i: number) => (n <= 1 ? PAD_L + innerW / 2 : PAD_L + (i * innerW) / (n - 1));
+  const yAt = (v: number) => PAD_T + innerH - (v / max) * innerH;
+
+  const points = series.map((p, i) => ({ x: xAt(i), y: yAt(p.count), v: p.count, w: p.weekStart }));
+
+  // Line path. We use a Catmull-Rom-to-Bezier smoothing pass so the
+  // line reads as an organic curve rather than a zig-zag, but stay
+  // anchored on every actual data point (no false midpoint values).
+  const linePath = useMemo(() => {
+    if (points.length === 0) return '';
+    if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+    const parts: string[] = [`M ${points[0].x} ${points[0].y}`];
+    for (let i = 0; i < points.length - 1; i++) {
+      const p0 = points[i - 1] ?? points[i];
+      const p1 = points[i];
+      const p2 = points[i + 1];
+      const p3 = points[i + 2] ?? p2;
+      // Catmull-Rom → cubic Bezier conversion with tension 0.5.
+      const cp1x = p1.x + (p2.x - p0.x) / 6;
+      const cp1y = p1.y + (p2.y - p0.y) / 6;
+      const cp2x = p2.x - (p3.x - p1.x) / 6;
+      const cp2y = p2.y - (p3.y - p1.y) / 6;
+      parts.push(`C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p2.x} ${p2.y}`);
+    }
+    return parts.join(' ');
+  }, [points]);
+
+  // Area path — same curve, closed down to the baseline + back, so
+  // the gradient fills under the line.
+  const areaPath = useMemo(() => {
+    if (!linePath) return '';
+    const last = points[points.length - 1];
+    const first = points[0];
+    return `${linePath} L ${last.x} ${PAD_T + innerH} L ${first.x} ${PAD_T + innerH} Z`;
+  }, [linePath, points]);
+
+  // Animated path-draw on mount — stroke-dasharray trick. Length
+  // approximation is the sum of segment distances (close enough for
+  // dasharray, no DOM measurement needed).
+  const pathLen = useMemo(() => {
+    let len = 0;
+    for (let i = 1; i < points.length; i++) {
+      const dx = points[i].x - points[i - 1].x;
+      const dy = points[i].y - points[i - 1].y;
+      len += Math.sqrt(dx * dx + dy * dy);
+    }
+    return Math.ceil(len) + 8;
+  }, [points]);
+
+  // Hover/tap reticle. Each <rect> overlay is a hit zone for a single
+  // point; pointer-events on the SVG line itself would feel finicky
+  // because the curve is thin. Mobile gets a tap path (touchstart),
+  // desktop gets pointer.
+  const [active, setActive] = useState<number | null>(null);
+
+  // Y-axis tick values (0, 25%, 50%, 75%, 100%) for the grid.
+  const yTicks = useMemo(() => [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round(max * f)), [max]);
+
+  // X-axis tick indices — show first, last, and a few interior ones.
+  // For 12 weeks we render every other tick on mobile, every one on
+  // wider viewports. Implemented as a `data-show-all` toggle via CSS
+  // media query so the SVG doesn't need to know the breakpoint.
+  const xTickIdxs = useMemo(() => points.map((_, i) => i), [points]);
+
+  const total = useMemo(() => series.reduce((acc, p) => acc + p.count, 0), [series]);
 
   return (
     <section
       className="relative rounded-2xl border border-black/10 bg-white/85 backdrop-blur-sm shadow-[0_18px_40px_-24px_rgba(60,48,42,0.35)] overflow-hidden"
       style={{ fontFamily: 'var(--font-body)' }}
-      aria-label="Logs by date range"
+      aria-label="Logs by week — last 12 weeks"
     >
-      <header className="px-4 sm:px-5 py-3 sm:py-4 border-b border-black/5">
-        <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/55">
-          By window
-        </p>
-        <h2 className="mt-0.5 text-base sm:text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
-          Logs across every range
-        </h2>
+      <header className="px-4 sm:px-5 py-3 sm:py-4 border-b border-black/5 flex items-baseline justify-between gap-2">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/55">
+            Weekly trend
+          </p>
+          <h2 className="mt-0.5 text-base sm:text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+            Logs by week · last {n} weeks
+          </h2>
+        </div>
+        <span className="text-[10.5px] tabular-nums text-foreground/45 whitespace-nowrap">
+          {total} total
+        </span>
       </header>
-      <div className="px-3 sm:px-5 pt-4 pb-2 flex items-end gap-1.5 sm:gap-3">
-        {CHART_WINDOWS.map((w, i) => {
-          const value = counts[w.key] ?? 0;
-          // Floor the bar at 6% even for zero so the row doesn't read
-          // as five-and-a-half empty slots when one window dominates.
-          const heightPct = Math.max(6, Math.round((value / max) * 100));
-          const ticked = Math.round(value * t);
-          const isActive = w.key === active;
-          return (
-            <button
-              key={w.key}
-              type="button"
-              onClick={() => onSelect(w.key)}
-              aria-label={`${w.long} — ${value} ${value === 1 ? 'log' : 'logs'}`}
-              aria-pressed={isActive}
-              className={`wgc-col group flex-1 min-w-0 inline-flex flex-col items-center gap-1 px-1 pt-1 pb-2 rounded-xl transition-colors ${
-                isActive ? 'bg-primary/[0.04]' : 'hover:bg-warm-bg/40'
-              }`}
-            >
-              <span
-                className={`tabular-nums font-bold leading-none transition-colors ${
-                  isActive ? 'text-emerald-700' : 'text-foreground/80 group-hover:text-foreground'
-                } text-[15px] sm:text-[18px]`}
-                style={{ fontFamily: 'var(--font-display)' }}
-              >
-                {ticked}
-              </span>
-              <span className="relative w-full h-32 sm:h-40 flex items-end justify-center">
-                {/* Halo — sits behind the bar, animates only on the
-                    active one. Inactive bars get a static low-opacity
-                    halo so the row doesn't read as flat. */}
-                <span
-                  aria-hidden
-                  className={`wgc-halo pointer-events-none absolute inset-x-1 bottom-0 rounded-full ${
-                    isActive ? 'wgc-halo--active' : 'wgc-halo--idle'
-                  }`}
+      <div className="px-2 sm:px-4 pt-2 pb-1">
+        <svg
+          viewBox={`0 0 ${VB_W} ${VB_H}`}
+          preserveAspectRatio="none"
+          className="w-full h-44 sm:h-56 wlc-svg"
+          role="img"
+          aria-label={`Weekly log totals over the last ${n} weeks`}
+        >
+          <defs>
+            <linearGradient id="wlc-stroke" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="#b87333" />
+              <stop offset="55%" stopColor="#f59e0b" />
+              <stop offset="100%" stopColor="#10b981" />
+            </linearGradient>
+            <linearGradient id="wlc-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(245, 158, 11, 0.32)" />
+              <stop offset="55%" stopColor="rgba(184, 115, 51, 0.14)" />
+              <stop offset="100%" stopColor="rgba(184, 115, 51, 0)" />
+            </linearGradient>
+          </defs>
+
+          {/* Horizontal grid + y-axis labels. Lines are quiet so the
+              gradient line/area dominates the eye. */}
+          {yTicks.map((v, i) => {
+            const y = yAt(v);
+            return (
+              <g key={i}>
+                <line
+                  x1={PAD_L}
+                  x2={VB_W - PAD_R}
+                  y1={y}
+                  y2={y}
+                  stroke="rgba(60, 48, 42, 0.08)"
+                  strokeWidth={1}
+                  strokeDasharray={i === 0 ? '0' : '2 4'}
                 />
-                <span
-                  aria-hidden
-                  className={`wgc-bar relative w-full max-w-[40px] sm:max-w-[56px] rounded-t-lg rounded-b-md ${
-                    isActive ? 'wgc-bar--active' : 'wgc-bar--idle'
-                  }`}
-                  style={{
-                    height: `${heightPct}%`,
-                    ['--wgc-delay' as string]: `${i * 80}ms`,
-                  }}
+                <text
+                  x={PAD_L - 6}
+                  y={y + 3}
+                  textAnchor="end"
+                  fontSize={10}
+                  fill="rgba(60, 48, 42, 0.45)"
+                >
+                  {v}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Filled area under the curve. */}
+          <path d={areaPath} fill="url(#wlc-fill)" />
+
+          {/* The line itself, with the path-draw animation applied via
+              the wlc-line class below. */}
+          <path
+            d={linePath}
+            fill="none"
+            stroke="url(#wlc-stroke)"
+            strokeWidth={2.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="wlc-line"
+            style={{
+              strokeDasharray: pathLen,
+              strokeDashoffset: pathLen,
+              ['--wlc-len' as string]: `${pathLen}`,
+            }}
+          />
+
+          {/* Data points + hit zones. We render the markers under the
+              hit rects so the reticle reads on top. */}
+          {points.map((p, i) => {
+            const isActive = active === i;
+            return (
+              <g key={i}>
+                {/* Marker dot — small and quiet by default, scales up
+                    + glows when active. */}
+                <circle
+                  cx={p.x}
+                  cy={p.y}
+                  r={isActive ? 5 : 3}
+                  fill="#fff"
+                  stroke="url(#wlc-stroke)"
+                  strokeWidth={isActive ? 2.5 : 1.8}
+                  className="wlc-dot"
+                  style={{ ['--wlc-dot-delay' as string]: `${600 + i * 60}ms` }}
                 />
-              </span>
-              <span
-                className={`text-[9.5px] sm:text-[10.5px] font-bold uppercase tracking-[0.14em] transition-colors ${
-                  isActive ? 'text-primary' : 'text-foreground/55 group-hover:text-foreground/80'
-                }`}
+                {/* Hover/tap hit zone — invisible, full chart-height
+                    column centred on the point so it's easy to land
+                    on with a fingertip. */}
+                <rect
+                  x={p.x - (innerW / Math.max(1, n - 1)) / 2}
+                  y={PAD_T}
+                  width={innerW / Math.max(1, n - 1)}
+                  height={innerH}
+                  fill="transparent"
+                  onPointerEnter={() => setActive(i)}
+                  onPointerLeave={() => setActive((cur) => (cur === i ? null : cur))}
+                  onTouchStart={() => setActive(i)}
+                />
+              </g>
+            );
+          })}
+
+          {/* Reticle for the active point — vertical guide + a label
+              chip with the week + count. */}
+          {active !== null && points[active] && (
+            <g pointerEvents="none">
+              <line
+                x1={points[active].x}
+                x2={points[active].x}
+                y1={PAD_T}
+                y2={PAD_T + innerH}
+                stroke="rgba(184, 115, 51, 0.45)"
+                strokeWidth={1}
+                strokeDasharray="3 3"
+              />
+              {(() => {
+                // Label chip — flips left of the cursor when the point
+                // is past the midline so it never gets clipped at the
+                // right edge of the SVG.
+                const labelW = 96;
+                const labelH = 36;
+                const flip = points[active].x > VB_W * 0.65;
+                const lx = flip ? points[active].x - labelW - 8 : points[active].x + 8;
+                const ly = Math.max(PAD_T, points[active].y - labelH - 8);
+                const v = points[active].v;
+                const wk = fmtWeekTick(points[active].w);
+                return (
+                  <g transform={`translate(${lx}, ${ly})`}>
+                    <rect
+                      x={0}
+                      y={0}
+                      rx={6}
+                      ry={6}
+                      width={labelW}
+                      height={labelH}
+                      fill="rgba(255, 255, 255, 0.96)"
+                      stroke="rgba(184, 115, 51, 0.25)"
+                      strokeWidth={1}
+                    />
+                    <text x={8} y={14} fontSize={9.5} fill="rgba(60, 48, 42, 0.5)" style={{ textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 700 }}>
+                      Week of {wk}
+                    </text>
+                    <text x={8} y={29} fontSize={13} fontWeight={700} fill="#10b981" style={{ fontFamily: 'var(--font-display)' }}>
+                      {v} {v === 1 ? 'log' : 'logs'}
+                    </text>
+                  </g>
+                );
+              })()}
+            </g>
+          )}
+
+          {/* X-axis tick labels — every other one on narrow screens,
+              all of them on wider screens (CSS toggle via .wlc-tick-alt). */}
+          {xTickIdxs.map((i) => {
+            const p = points[i];
+            const showAlways = i === 0 || i === n - 1;
+            return (
+              <text
+                key={i}
+                x={p.x}
+                y={VB_H - 8}
+                textAnchor="middle"
+                fontSize={10}
+                fill="rgba(60, 48, 42, 0.5)"
+                className={showAlways ? 'wlc-tick' : 'wlc-tick wlc-tick-alt'}
               >
-                <span className="hidden sm:inline">{w.long}</span>
-                <span className="inline sm:hidden">{w.short}</span>
-              </span>
-            </button>
-          );
-        })}
+                {fmtWeekTick(p.w)}
+              </text>
+            );
+          })}
+        </svg>
       </div>
+
       <style jsx>{`
-        @keyframes wgc-rise {
-          from { transform: scaleY(0); }
-          to   { transform: scaleY(1); }
+        @keyframes wlc-draw {
+          to { stroke-dashoffset: 0; }
         }
-        @keyframes wgc-breathe {
-          0%, 100% { opacity: 0.55; transform: scale(0.92); }
-          50%      { opacity: 0.95; transform: scale(1.06); }
+        @keyframes wlc-pop {
+          from { opacity: 0; transform: scale(0); }
+          to   { opacity: 1; transform: scale(1); }
         }
-        :global(.wgc-bar) {
-          transform-origin: bottom center;
-          animation: wgc-rise 800ms cubic-bezier(0.22, 1, 0.36, 1) both;
-          animation-delay: var(--wgc-delay);
-          will-change: transform;
+        :global(.wlc-line) {
+          animation: wlc-draw 1400ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
         }
-        :global(.wgc-bar--idle) {
-          background: linear-gradient(180deg,
-            rgba(184, 115, 51, 0.85) 0%,
-            rgba(184, 115, 51, 0.55) 60%,
-            rgba(184, 115, 51, 0.35) 100%);
-          box-shadow:
-            0 0 0 1px rgba(184, 115, 51, 0.15),
-            0 6px 16px -8px rgba(184, 115, 51, 0.35);
-        }
-        :global(.wgc-bar--active) {
-          background: linear-gradient(180deg,
-            #10b981 0%,
-            #b87333 55%,
-            #f59e0b 100%);
-          box-shadow:
-            0 0 0 1px rgba(184, 115, 51, 0.35),
-            0 0 22px rgba(245, 158, 11, 0.55),
-            0 0 44px rgba(16, 185, 129, 0.35),
-            0 10px 26px -8px rgba(184, 115, 51, 0.55);
-        }
-        :global(.wgc-halo) {
-          height: 72%;
-          filter: blur(18px);
+        :global(.wlc-dot) {
           opacity: 0;
-          background: radial-gradient(closest-side,
-            rgba(245, 158, 11, 0.75),
-            rgba(184, 115, 51, 0.35) 55%,
-            transparent 80%);
+          transform-box: fill-box;
+          transform-origin: center;
+          animation: wlc-pop 320ms cubic-bezier(0.34, 1.18, 0.46, 1) forwards;
+          animation-delay: var(--wlc-dot-delay);
         }
-        :global(.wgc-halo--idle) {
-          opacity: 0.18;
-          background: radial-gradient(closest-side,
-            rgba(184, 115, 51, 0.45),
-            transparent 70%);
-        }
-        :global(.wgc-halo--active) {
-          animation: wgc-breathe 2.4s ease-in-out infinite;
-          background: radial-gradient(closest-side,
-            rgba(16, 185, 129, 0.55),
-            rgba(245, 158, 11, 0.45) 45%,
-            transparent 80%);
-        }
-        :global(.wgc-col:focus-visible) {
-          outline: 2px solid var(--color-primary, #b87333);
-          outline-offset: 2px;
+        /* On narrow screens, hide every other interior tick label so the
+           x-axis doesn't overcrowd. First + last labels always show. */
+        @media (max-width: 640px) {
+          :global(.wlc-svg .wlc-tick-alt:nth-child(even)) {
+            display: none;
+          }
         }
         @media (prefers-reduced-motion: reduce) {
-          :global(.wgc-bar),
-          :global(.wgc-halo--active) {
+          :global(.wlc-line) {
             animation: none !important;
-            transform: scaleY(1) !important;
-            opacity: 0.6 !important;
+            stroke-dashoffset: 0 !important;
+          }
+          :global(.wlc-dot) {
+            animation: none !important;
+            opacity: 1 !important;
+            transform: scale(1) !important;
           }
         }
       `}</style>
