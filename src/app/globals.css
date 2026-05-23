@@ -409,9 +409,12 @@ html:has(:target) {
   /* Buttons that wrap multi-line content (e.g. the day-block
      buttons on /app/admissions) need block-level flex so the
      min-height stays honoured without breaking their column
-     layout — override the inline-flex above for them. */
+     layout — override the inline-flex above for them. Same
+     escape hatch applies to anchor links (mobile drawer nav rows,
+     full-width list cards) that need to stack vertically. */
   [data-platform-main] button.sa-tap-block,
-  [data-platform-main] [role="button"].sa-tap-block {
+  [data-platform-main] [role="button"].sa-tap-block,
+  [data-platform-main] a.sa-tap-block {
     display: flex;
   }
   /* Native form controls should also clear 16px so iOS Safari

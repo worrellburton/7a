@@ -1367,7 +1367,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                         key={item.path}
                         href={item.path}
                         onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
-                        className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
+                        className={`sa-tap-block w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
                           isActive
                             ? 'bg-primary/10 text-primary'
                             : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
@@ -1427,7 +1427,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                             key={item.path}
                             href={item.path}
                             onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
-                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                            className={`sa-tap-block w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                               isActive
                                 ? 'bg-primary/10 text-primary'
                                 : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
@@ -1447,7 +1447,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     <Link
                       href="/app/profile"
                       onClick={() => setMobileMenuOpen(false)}
-                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                      className={`sa-tap-block w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
                         pathname === '/app/profile'
                           ? 'bg-primary/10 text-primary'
                           : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
