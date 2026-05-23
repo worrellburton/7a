@@ -76,6 +76,12 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
   const [calculating, setCalculating] = useState(false);
   const [continuing, setContinuing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Schedule-send state. The picker is a small inline popover with
+  // a <input type=datetime-local>. `scheduleDateTime` holds the
+  // local-time picker value; we convert to a Date at submit time.
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleDateTime, setScheduleDateTime] = useState('');
+  const [scheduling, setScheduling] = useState(false);
   // Map of contact_id → 'sent within the last 7 days' metadata.
   // Drives a per-row warning chip and the pre-send confirmation
   // modal so a marketer doesn't accidentally double-email anyone.
@@ -254,6 +260,60 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
     void onFinalize();
   };
 
+  // Persist subject + recipient set, leaving status='finalizing' so
+  // the campaign is ready to either be sent now (finalize page) or
+  // claimed by the schedule API. Returns true on success so the
+  // caller can drive the next navigation.
+  const persistRecipientsAndSubject = async (): Promise<boolean> => {
+    const { error: updErr } = await supabase
+      .from('email_campaigns')
+      .update({
+        generated_subject: subject.trim(),
+        status: 'finalizing',
+      })
+      .eq('id', campaignId);
+    if (updErr) {
+      setError(updErr.message);
+      return false;
+    }
+
+    const wanted = Array.from(selected);
+    const wantedSet = new Set(wanted);
+
+    const { data: existingRows } = await supabase
+      .from('email_campaign_recipients')
+      .select('id, contact_id')
+      .eq('campaign_id', campaignId);
+    const toDelete = ((existingRows ?? []) as Array<{ id: string; contact_id: string }>)
+      .filter((r) => !wantedSet.has(r.contact_id))
+      .map((r) => r.id);
+    if (toDelete.length > 0) {
+      await supabase.from('email_campaign_recipients').delete().in('id', toDelete);
+    }
+
+    const contactById = new Map(contacts.map((c) => [c.id, c]));
+    const existingContactIds = new Set(((existingRows ?? []) as Array<{ contact_id: string }>).map((r) => r.contact_id));
+    const inserts = wanted
+      .filter((id) => !existingContactIds.has(id))
+      .map((id) => {
+        const c = contactById.get(id);
+        return {
+          campaign_id: campaignId,
+          contact_id: id,
+          email: c?.email ?? '',
+          send_status: 'pending',
+        };
+      });
+    if (inserts.length > 0) {
+      const { error: insErr } = await supabase.from('email_campaign_recipients').insert(inserts);
+      if (insErr) {
+        setError(insErr.message);
+        return false;
+      }
+    }
+    return true;
+  };
+
   const onFinalize = async () => {
     setShowRecentWarn(false);
     if (selected.size === 0) return;
@@ -261,53 +321,8 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
     setError(null);
     setContinuing(true);
     try {
-      // Save subject + status + recipient set. Recipients are
-      // upserted: anything in `selected` becomes a row, anything
-      // not in `selected` gets deleted so re-visits keep the row
-      // set in sync with the UI.
-      const { error: updErr } = await supabase
-        .from('email_campaigns')
-        .update({
-          generated_subject: subject.trim(),
-          status: 'finalizing',
-        })
-        .eq('id', campaignId);
-      if (updErr) throw new Error(updErr.message);
-
-      const wanted = Array.from(selected);
-      const wantedSet = new Set(wanted);
-
-      // Delete rows for contacts no longer selected.
-      const { data: existingRows } = await supabase
-        .from('email_campaign_recipients')
-        .select('id, contact_id')
-        .eq('campaign_id', campaignId);
-      const toDelete = ((existingRows ?? []) as Array<{ id: string; contact_id: string }>)
-        .filter((r) => !wantedSet.has(r.contact_id))
-        .map((r) => r.id);
-      if (toDelete.length > 0) {
-        await supabase.from('email_campaign_recipients').delete().in('id', toDelete);
-      }
-
-      // Insert new rows for newly-selected contacts.
-      const contactById = new Map(contacts.map((c) => [c.id, c]));
-      const existingContactIds = new Set(((existingRows ?? []) as Array<{ contact_id: string }>).map((r) => r.contact_id));
-      const inserts = wanted
-        .filter((id) => !existingContactIds.has(id))
-        .map((id) => {
-          const c = contactById.get(id);
-          return {
-            campaign_id: campaignId,
-            contact_id: id,
-            email: c?.email ?? '',
-            send_status: 'pending',
-          };
-        });
-      if (inserts.length > 0) {
-        const { error: insErr } = await supabase.from('email_campaign_recipients').insert(inserts);
-        if (insErr) throw new Error(insErr.message);
-      }
-
+      const ok = await persistRecipientsAndSubject();
+      if (!ok) return;
       router.push(`/app/email-campaigns/${campaignId}/finalize`);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -316,15 +331,89 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
     }
   };
 
+  // Open the schedule popover. Seeds with "now + 1 hour" so the
+  // marketer doesn't have to type from scratch — they can just nudge
+  // the value and hit Done. Reuses the same recipient-validation
+  // path as Send now.
+  const openSchedule = () => {
+    if (selected.size === 0) {
+      setError('Pick at least one recipient.');
+      return;
+    }
+    if (subject.trim().length === 0) {
+      setError('Subject line cannot be empty.');
+      return;
+    }
+    setError(null);
+    // Default = an hour from now, rounded to the next 5 minutes,
+    // formatted for <input type="datetime-local"> in the browser's
+    // local zone (yyyy-MM-ddThh:mm).
+    const dt = new Date(Date.now() + 60 * 60 * 1000);
+    const remainder = dt.getMinutes() % 5;
+    if (remainder !== 0) dt.setMinutes(dt.getMinutes() + (5 - remainder));
+    dt.setSeconds(0, 0);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    setScheduleDateTime(
+      `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`,
+    );
+    setScheduleOpen(true);
+  };
+
+  // Confirm schedule — persist recipients first (same as Send now)
+  // then call /api/email-campaigns/schedule with the picked time.
+  // On success navigate to the Sending schedule view with a query
+  // param the listing surfaces as a confirmation banner.
+  const onConfirmSchedule = async () => {
+    if (!session?.access_token || scheduling) return;
+    if (!scheduleDateTime) {
+      setError('Pick a date and time.');
+      return;
+    }
+    const sendAt = new Date(scheduleDateTime);
+    if (Number.isNaN(sendAt.getTime())) {
+      setError('That date is not valid.');
+      return;
+    }
+    if (sendAt.getTime() < Date.now()) {
+      setError('Schedule time must be in the future.');
+      return;
+    }
+    setError(null);
+    setScheduling(true);
+    try {
+      const ok = await persistRecipientsAndSubject();
+      if (!ok) return;
+      const res = await fetch('/api/email-campaigns/schedule', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ campaignId, sendAt: sendAt.toISOString() }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || json.ok === false) {
+        setError(json.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      setScheduleOpen(false);
+      router.push(`/app/email-campaigns/scheduled?scheduledFor=${encodeURIComponent(sendAt.toISOString())}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setScheduling(false);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-5xl mx-auto">
       <header className="mb-5 flex items-baseline justify-between flex-wrap gap-3">
         <div>
           <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">
-            Email Campaigns · Recipients
+            Email Campaigns · Finalize
           </p>
           <h1 className="mt-1 text-2xl font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
-            Who is this going to?
+            Finalize and sending options
           </h1>
         </div>
         <Link
@@ -518,7 +607,7 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
 
       {error && <p className="mb-3 text-[12px] text-red-700" role="alert">{error}</p>}
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-end gap-2 flex-wrap">
         <Link
           href="/app/email-campaigns"
           className="px-4 py-2 rounded-md border border-black/10 bg-white text-[12px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
@@ -527,14 +616,88 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
         </Link>
         <button
           type="button"
+          onClick={openSchedule}
+          disabled={continuing || scheduling || selected.size === 0}
+          className="px-4 py-2 rounded-md border border-primary/40 bg-white text-primary text-[12px] font-semibold uppercase tracking-wider hover:bg-primary/5 disabled:opacity-50"
+          style={{ fontFamily: 'var(--font-body)' }}
+          title="Pick a date and time to send this campaign automatically."
+        >
+          Schedule send →
+        </button>
+        <button
+          type="button"
           onClick={onFinalizeClick}
-          disabled={continuing || selected.size === 0}
+          disabled={continuing || scheduling || selected.size === 0}
           className="px-4 py-2 rounded-md bg-primary text-white text-[12px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50"
           style={{ fontFamily: 'var(--font-body)' }}
         >
-          {continuing ? 'Saving…' : `Finalize and send → (${selected.size})`}
+          {continuing ? 'Saving…' : `Send now → (${selected.size})`}
         </button>
       </div>
+
+      {/* Schedule-send time picker. Mounts as a centered modal so it
+          doesn't fight for space with the recipient list. The picker
+          uses native <input type="datetime-local"> so it inherits
+          the OS keyboard / wheel UI on phones + the calendar popup
+          on desktop. */}
+      {scheduleOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Schedule send">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-[0_30px_60px_-20px_rgba(0,0,0,0.4)] overflow-hidden" style={{ fontFamily: 'var(--font-body)' }}>
+            <header className="px-5 py-4 border-b border-black/5 flex items-baseline justify-between gap-2">
+              <div>
+                <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">When should this send?</p>
+                <h2 className="mt-0.5 text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+                  Schedule send
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => { if (!scheduling) setScheduleOpen(false); }}
+                className="text-foreground/50 hover:text-foreground text-xl leading-none"
+                aria-label="Cancel"
+                disabled={scheduling}
+              >
+                ×
+              </button>
+            </header>
+            <div className="px-5 py-4 space-y-3">
+              <label className="block">
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-foreground/55">Date &amp; time</span>
+                <input
+                  type="datetime-local"
+                  value={scheduleDateTime}
+                  onChange={(e) => setScheduleDateTime(e.target.value)}
+                  className="mt-1 w-full px-3 py-2 rounded-md border border-black/15 text-[14px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+                <span className="mt-1 block text-[11px] text-foreground/55">
+                  Your message will go out at this time. Times are in your local timezone.
+                </span>
+              </label>
+              {error && (
+                <p className="text-[12px] text-rose-700" role="alert">{error}</p>
+              )}
+            </div>
+            <footer className="px-5 py-3 border-t border-black/5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { if (!scheduling) setScheduleOpen(false); }}
+                disabled={scheduling}
+                className="px-3.5 py-2 rounded-md border border-black/10 bg-white text-[11.5px] font-semibold text-foreground/70 hover:bg-warm-bg/60 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={onConfirmSchedule}
+                disabled={scheduling || !scheduleDateTime}
+                className="px-4 py-2 rounded-md bg-primary text-white text-[11.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50"
+              >
+                {scheduling ? 'Scheduling…' : 'Done'}
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
 
       {/* Recent-send confirmation modal. Mounts only when the user
           clicks Finalize AND the picked set overlaps the recent

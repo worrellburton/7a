@@ -29,6 +29,10 @@
     {
       "path": "/api/cron/contacts/auto-add",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/email-campaigns/scheduled-send",
+      "schedule": "* * * * *"
     }
   ]
 }

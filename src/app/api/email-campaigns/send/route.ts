@@ -35,17 +35,21 @@ interface SendBody {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  // Two callers: an admin clicking Send in the UI, and the
+  // scheduled-send cron firing a queued campaign. The cron presents
+  // either Vercel's signed `x-vercel-cron` header or an internal
+  // `x-cron-secret` matching CRON_SECRET so it can bypass the
+  // user-bound auth check. Everything else needs an admin/super-admin
+  // user.
+  const cronHeader = req.headers.get('x-vercel-cron') === '1';
+  const cronSecret = process.env.CRON_SECRET;
+  const cronAuth = req.headers.get('x-cron-secret');
+  const isCron = cronHeader || (cronSecret != null && cronSecret.length > 0 && cronAuth === cronSecret);
+  let actingUserId: string | null = null;
 
-  // Sending fans out to live contact email addresses under the Seven
-  // Arrows brand, so the surface is gated to admins. The toggle in
-  // /app/admin/user-permissions is labelled "Super Admin" but actually
-  // flips users.is_admin (the real is_super_admin column is reserved
-  // for the root admin via migration), so we accept either column —
-  // otherwise people the UI claims are "Super Admin" still get 403s
-  // here. Non-admins are denied.
-  {
+  if (!isCron) {
+    const user = await getUserFromRequest(req);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const admin = getAdminSupabase();
     const { data: userRow } = await admin
       .from('users')
@@ -59,11 +63,15 @@ export async function POST(req: NextRequest) {
         { status: 403 },
       );
     }
+    actingUserId = user.id;
   }
 
-  const body = (await req.json().catch(() => ({}))) as SendBody;
+  const body = (await req.json().catch(() => ({}))) as SendBody & { actingUserId?: string };
   const campaignId = typeof body.campaignId === 'string' ? body.campaignId : null;
   if (!campaignId) return NextResponse.json({ error: 'Missing campaignId.' }, { status: 400 });
+  // For cron sends, fall back to the campaign's created_by so the
+  // contact_logs rows still get attributed to a real teammate.
+  if (!actingUserId && typeof body.actingUserId === 'string') actingUserId = body.actingUserId;
 
   const supabase = getAdminSupabase();
   const { data: campaign, error: campErr } = await supabase
@@ -301,13 +309,13 @@ export async function POST(req: NextRequest) {
         contact_id: r.contact_id,
         method: 'Email Campaign',
         comments: comment,
-        contacted_by: user.id,
+        contacted_by: actingUserId,
         contacted_at: nowIso,
       });
       await supabase.from('contacts')
         .update({
           last_contact_at: nowIso,
-          last_contact_by: user.id,
+          last_contact_by: actingUserId,
           last_contact_method: 'Email Campaign',
           last_contact_comments: comment,
         })

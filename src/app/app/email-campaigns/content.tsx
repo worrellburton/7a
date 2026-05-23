@@ -175,6 +175,14 @@ export default function EmailCampaignsContent() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Link
+            href="/app/email-campaigns/scheduled"
+            className="px-3 py-2 rounded-md border border-amber-300 bg-amber-50 text-amber-900 text-[11px] font-semibold uppercase tracking-wider hover:bg-amber-100"
+            style={{ fontFamily: 'var(--font-body)' }}
+            title="See every campaign queued to send automatically, with live countdowns and reschedule controls."
+          >
+            Sending schedule
+          </Link>
+          <Link
             href="/app/email-campaigns/recipients"
             className="px-3 py-2 rounded-md border border-black/15 bg-white text-foreground/75 text-[11px] font-semibold uppercase tracking-wider hover:bg-warm-bg/60"
             style={{ fontFamily: 'var(--font-body)' }}
