@@ -951,11 +951,13 @@ export default function Header() {
   // menu items stay legible — otherwise the drawer renders over dark hero
   // video and "text-white/90 over white drawer" becomes invisible.
   //
-  // Mega-menu dropdowns used to flip the nav to solid when open; we now
-  // keep the nav transparent so the dropdown panel itself can render in a
-  // matching translucent dark treatment — the "nav is on top" aesthetic
-  // stays consistent rather than snapping to a different color scheme.
-  const transparent = !scrolled && !mobileMenuOpen;
+  // Mega-menu dropdowns ALSO flip the nav to solid white while open: a
+  // transparent nav over a hero video while a panel of dark text is
+  // visible below it makes the bar disappear into the imagery. Flipping
+  // gives the panel a stable white frame so the dropdown reads as
+  // chrome instead of as floating content. Reverts the second the
+  // hover leaves and the panel closes.
+  const transparent = !scrolled && !mobileMenuOpen && openDropdowns === 0;
 
   return (
     <header
