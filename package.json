@@ -7,9 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "analyze": "ANALYZE=true next build"
+    "analyze": "ANALYZE=true next build",
+    "test:scrub": "node --experimental-strip-types --test src/lib/sentry/scrub.test.mjs"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.53.1",
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.102.1",
     "@vercel/analytics": "^2.0.1",

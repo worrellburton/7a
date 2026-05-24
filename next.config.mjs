@@ -1,4 +1,5 @@
 import withBundleAnalyzerFactory from '@next/bundle-analyzer';
+import { withSentryConfig } from '@sentry/nextjs';
 
 // Bundle analyzer — enabled when ANALYZE=true is set on a build,
 // otherwise a no-op wrapper. Run with `ANALYZE=true npm run build`
@@ -233,4 +234,23 @@ const nextConfig = {
   },
 };
 
-export default withBundleAnalyzer(nextConfig);
+// Sentry wrap. Tunnels client error reports through a same-origin
+// route so ad-blockers (which heavily target sentry.io domains)
+// don't drop them silently. Source map upload only happens when
+// SENTRY_AUTH_TOKEN is present; locally it's a no-op.
+const withSentry = (cfg) =>
+  withSentryConfig(cfg, {
+    // CLI flags
+    silent: true,
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    // SDK behavior
+    widenClientFileUpload: true,
+    tunnelRoute: '/monitoring/sentry',
+    hideSourceMaps: true,
+    disableLogger: true,
+    automaticVercelMonitors: false,
+  });
+
+export default withSentry(withBundleAnalyzer(nextConfig));
