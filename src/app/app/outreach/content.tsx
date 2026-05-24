@@ -5566,10 +5566,16 @@ function ContactMobileCard({
           onClick={onContact}
           aria-label="Log a contact"
           title="Log a contact"
-          className="sa-log-button flex-1 inline-flex items-center justify-center gap-1.5 px-3 h-9 rounded-md bg-primary/10 text-primary text-[14px] leading-none border border-primary/20 hover:bg-primary/15 active:bg-primary/20 transition-colors"
+          // Matches the mobile "New log" FAB at the bottom of the
+          // page (bg-foreground + white + uppercase + 🪵 emoji) so
+          // the per-card LOG button and the page-level NEW LOG read
+          // as the same affordance. The HISTORY button alongside
+          // stays in its neutral border-only style so we still get
+          // a primary/secondary hierarchy inside each card.
+          className="sa-log-button flex-1 inline-flex items-center justify-center gap-1.5 px-3 h-9 rounded-md bg-foreground text-white text-[11px] font-semibold uppercase tracking-wider shadow-[0_4px_12px_-4px_rgba(0,0,0,0.35)] hover:bg-foreground/90 active:bg-foreground/80 active:scale-[0.98] transition-all"
         >
-          <span aria-hidden>🪵</span>
-          <span className="text-[11px] font-semibold uppercase tracking-wider">Log</span>
+          <span aria-hidden className="text-base leading-none">🪵</span>
+          <span>Log</span>
         </button>
         <button
           type="button"
