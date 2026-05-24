@@ -92,6 +92,10 @@ const defaultPages: PageConfig[] = [
   // Lives in the Marketing department group like social-media; not
   // admin-only since the same marketing folks own the social channel.
   { path: '/app/email-campaigns', label: 'Email Campaigns', adminOnly: false, section: 'nav', sort_order: 27, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  // Touchpoint logs — the daily 🪵 board. Org-wide accountability
+  // surface, so dept-agnostic (matches Kaizen's pattern) and the
+  // auto-upsert on first-load won't wipe a department assignment.
+  { path: '/app/daily-logs', label: 'Logs', adminOnly: false, section: 'nav', sort_order: 27.5, allowedDepartments: [], departmentId: null },
   { path: '/app/document-manager', label: 'Document Manager', adminOnly: false, section: 'nav', sort_order: 17, allowedDepartments: [], departmentId: null },
   // Org Chart is now accessed from inside another page (no longer in the popup menu).
   { path: '/app/reviews', label: 'Reviews', adminOnly: true, section: 'popup', sort_order: 6, allowedDepartments: [], departmentId: null },

@@ -160,6 +160,26 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M5 16l.6 1.8L7.4 18.4l-1.8.6L5 20.8l-.6-1.8L2.6 18.4l1.8-.6z" />
     </svg>
   ),
+  // Daily touchpoint logs — a stack of horizontal logs (🪵), to
+  // echo the wood-stack metaphor the page itself uses for each
+  // recorded contact.
+  '/app/daily-logs': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <ellipse cx="6" cy="7" rx="2" ry="1.5" />
+      <path d="M6 7h12" />
+      <path d="M18 7v2" />
+      <ellipse cx="18" cy="9" rx="2" ry="1.5" />
+      <path d="M6 7v2" />
+      <path d="M6 11h12" />
+      <ellipse cx="6" cy="11" rx="2" ry="1.5" />
+      <ellipse cx="18" cy="13" rx="2" ry="1.5" />
+      <path d="M18 11v2" />
+      <path d="M6 15h12" />
+      <ellipse cx="6" cy="15" rx="2" ry="1.5" />
+      <ellipse cx="18" cy="17" rx="2" ry="1.5" />
+      <path d="M18 15v2" />
+    </svg>
+  ),
   '/app/website-requests': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 4h16v12H5.17L4 17.17V4z" />
