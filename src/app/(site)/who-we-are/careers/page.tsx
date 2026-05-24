@@ -11,6 +11,13 @@ import HiringProcess from '@/components/careers/HiringProcess';
 import TeamVoices from '@/components/careers/TeamVoices';
 import CareersCTA from '@/components/careers/CareersCTA';
 
+// 1-hour ISR — marketing pages are otherwise fully static; this lets the
+// edge cache hold the rendered HTML so TTFB drops from ~250ms (cold SSR)
+// to ~30ms (edge hit). Editorial copy + image swaps go live within an hour
+// of merging; if you need sub-hour freshness on a specific page, override
+// with a smaller value or remove this line.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'Careers · Arizona Rehab Jobs | Seven Arrows Recovery',
   description:
