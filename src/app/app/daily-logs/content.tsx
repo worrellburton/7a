@@ -239,6 +239,20 @@ export default function DailyLogsContent() {
   const countLabel = isLiveWindow ? 'Logs so far' : 'Total logs';
 
   const logs = useMemo(() => data?.logs ?? [], [data]);
+  // Scoreboard → feed cross-filter. Click a teammate on the
+  // Scoreboard to narrow Touchpoint logs to just that person; click
+  // them again (or the X chip) to clear. Reset on range change so a
+  // window switch always starts unfiltered.
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  useEffect(() => { setSelectedUserId(null); }, [range]);
+  const filteredLogs = useMemo(
+    () => (selectedUserId ? logs.filter((l) => l.userId === selectedUserId) : logs),
+    [logs, selectedUserId],
+  );
+  const selectedUser = useMemo(
+    () => data?.leaderboard.find((r) => r.userId === selectedUserId) ?? null,
+    [data, selectedUserId],
+  );
 
   const byMethod = useMemo(() => {
     if (logs.length === 0) return [];
@@ -368,8 +382,18 @@ export default function DailyLogsContent() {
         {/* Stacked cards: scoreboard, feed, breakdown, records. Single
             column so nothing forces a wider intrinsic width. */}
         <div className="mt-4 space-y-3">
-          <ScoreboardCard data={data} />
-          <FeedCard data={data} logs={logs} isToday={isToday} />
+          <ScoreboardCard
+            data={data}
+            selectedUserId={selectedUserId}
+            onPickUser={(id) => setSelectedUserId((prev) => (prev === id ? null : id))}
+          />
+          <FeedCard
+            data={data}
+            logs={filteredLogs}
+            isToday={isToday}
+            selectedUser={selectedUser}
+            onClearSelection={() => setSelectedUserId(null)}
+          />
           <BreakdownCard data={data} byMethod={byMethod} rangeLabel={data?.rangeLabel} />
           <RecordsCard records={records ?? null} />
         </div>
@@ -379,7 +403,15 @@ export default function DailyLogsContent() {
 }
 
 // ── ScoreboardCard ─────────────────────────────────────────────
-function ScoreboardCard({ data }: { data: DailyLogsPayload | null }) {
+function ScoreboardCard({
+  data,
+  selectedUserId,
+  onPickUser,
+}: {
+  data: DailyLogsPayload | null;
+  selectedUserId: string | null;
+  onPickUser: (id: string) => void;
+}) {
   return (
     <section className="rounded-2xl border border-black/10 bg-white/95 backdrop-blur-sm shadow-[0_18px_40px_-24px_rgba(60,48,42,0.35)] overflow-hidden">
       <header className="px-4 py-3 border-b border-black/5 flex items-baseline justify-between gap-2">
@@ -411,11 +443,22 @@ function ScoreboardCard({ data }: { data: DailyLogsPayload | null }) {
             const medal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : null;
             const topShare = data.leaderboard[0]?.logs ?? 1;
             const barPct = Math.max(6, Math.round((row.logs / topShare) * 100));
+            const isSelected = selectedUserId === row.userId;
             return (
-              <li
-                key={row.userId}
-                className="flex items-center gap-2 px-3 py-2.5"
-              >
+              <li key={row.userId}>
+                <button
+                  type="button"
+                  onClick={() => onPickUser(row.userId)}
+                  aria-pressed={isSelected}
+                  title={isSelected
+                    ? `Showing only ${row.name}'s touchpoints — click to clear`
+                    : `Filter touchpoints to ${row.name}`}
+                  className={`group/score w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors ${
+                    isSelected
+                      ? 'bg-primary/10 hover:bg-primary/15'
+                      : 'hover:bg-warm-bg/60'
+                  }`}
+                >
                 <span
                   className="shrink-0 w-5 text-center text-[11px] font-bold tabular-nums text-foreground/55"
                   aria-label={`Rank ${idx + 1}`}
@@ -456,6 +499,7 @@ function ScoreboardCard({ data }: { data: DailyLogsPayload | null }) {
                     {fmtDuration(row.durationSeconds)}
                   </p>
                 </div>
+                </button>
               </li>
             );
           })}
@@ -467,35 +511,52 @@ function ScoreboardCard({ data }: { data: DailyLogsPayload | null }) {
 
 // ── FeedCard ───────────────────────────────────────────────────
 function FeedCard({
-  data, logs, isToday,
+  data, logs, isToday, selectedUser, onClearSelection,
 }: {
   data: DailyLogsPayload | null;
   logs: LogRow[];
   isToday: boolean;
+  selectedUser: LeaderboardEntry | null;
+  onClearSelection: () => void;
 }) {
   return (
     <section className="rounded-2xl border border-black/10 bg-white/95 backdrop-blur-sm shadow-[0_18px_40px_-24px_rgba(60,48,42,0.35)] overflow-hidden">
       <header className="px-4 py-3 border-b border-black/5 flex items-baseline justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/55">
-            Every touchpoint
+            {selectedUser ? `Filtered · ${selectedUser.name}` : 'Every touchpoint'}
           </p>
           <h2
             className="mt-0.5 text-[15px] font-bold text-foreground"
             style={{ fontFamily: 'var(--font-display)' }}
           >
-            Logs
+            Touchpoint logs
           </h2>
         </div>
-        <span className="text-[10px] tabular-nums text-foreground/45 whitespace-nowrap shrink-0">
-          {logs.length} {logs.length === 1 ? 'log' : 'logs'}
-        </span>
+        <div className="shrink-0 flex items-center gap-2">
+          {selectedUser && (
+            <button
+              type="button"
+              onClick={onClearSelection}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/12 text-primary text-[10px] font-semibold hover:bg-primary/20 transition-colors"
+              title="Show every teammate's touchpoints again"
+            >
+              <span aria-hidden>×</span>
+              <span>Clear filter</span>
+            </button>
+          )}
+          <span className="text-[10px] tabular-nums text-foreground/45 whitespace-nowrap">
+            {logs.length} {logs.length === 1 ? 'log' : 'logs'}
+          </span>
+        </div>
       </header>
       {!data ? (
         <p className="px-4 py-6 text-[12px] italic text-foreground/45 text-center">Loading…</p>
       ) : logs.length === 0 ? (
         <p className="px-4 py-6 text-[12px] italic text-foreground/45 text-center">
-          No 🪵 in this window — be the first to land one on the board.
+          {selectedUser
+            ? `No 🪵 from ${selectedUser.name} in this window yet.`
+            : 'No 🪵 in this window — be the first to land one on the board.'}
         </p>
       ) : (
         <ol className="divide-y divide-black/5 max-h-[420px] overflow-y-auto">
