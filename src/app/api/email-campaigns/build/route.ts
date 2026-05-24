@@ -241,14 +241,26 @@ export async function POST(req: NextRequest) {
   // compact 24px round mark each, three across, centered with 16px
   // gaps. Links use the real 7A handles.
   if (includeSocialFooter) {
+    // Monochrome marks via simpleicons.org so the row reads as one
+    // consistent treatment instead of three mismatched brand logos
+    // (the previous brandfetch URLs returned the official full-color
+    // marks — the LinkedIn one in particular renders as fragmented
+    // bevelled "in" letters at small sizes on dark backgrounds).
+    // Color flips off the campaign's COLOR MODE: white on dark mode,
+    // near-black on light mode so the icons always read with high
+    // contrast against the email's background.
+    const iconHex = darkMode ? 'ffffff' : '1a1a1a';
+    const igIcon = `https://cdn.simpleicons.org/instagram/${iconHex}`;
+    const fbIcon = `https://cdn.simpleicons.org/facebook/${iconHex}`;
+    const liIcon = `https://cdn.simpleicons.org/linkedin/${iconHex}`;
     ctxLines.push(
       `INCLUDE SOCIAL FOOTER: yes. Add a small social row INSIDE the footer block (PILLAR 10), directly above the closing phone-number line, with a single hairline rule above it for separation. Treatment:
   - A small uppercase eyebrow centered above the icons: "FOLLOW ALONG" (10.5px, letter-spacing 0.22em, Copper #b87333).
-  - One centered <table> row with three icon cells, each cell padding 0 8px. Each icon renders as <img width="24" height="24" style="display:inline-block;width:24px;height:24px;border:0;border-radius:6px;" /> wrapped in an <a href="..." target="_blank" rel="noopener">. Drop opacity to ~0.85.
-  Handles (use these exact image URLs + hrefs verbatim):
-    1. Instagram · img: https://cdn.brandfetch.io/instagram.com/fallback/404/w/120/h/120/logo?c=1id3n10pdBTarCHI0db · href: https://www.instagram.com/sevenarrowsrecovery/
-    2. Facebook  · img: https://cdn.brandfetch.io/facebook.com/fallback/404/w/120/h/120/logo?c=1id3n10pdBTarCHI0db  · href: https://www.facebook.com/sevenarrowsrecovery
-    3. LinkedIn  · img: https://cdn.brandfetch.io/linkedin.com/fallback/404/w/120/h/120/logo?c=1id3n10pdBTarCHI0db  · href: https://www.linkedin.com/company/sevenarrowsrecovery/
+  - One centered <table> row with three icon cells, each cell padding 0 8px. Each icon renders as <img width="22" height="22" style="display:inline-block;width:22px;height:22px;border:0;" /> wrapped in an <a href="..." target="_blank" rel="noopener">. Do NOT round the corners — these are monochrome glyph marks, not full-color brand tiles. Drop opacity to ~0.85.
+  Handles (use these exact image URLs + hrefs verbatim — they are MONOCHROME ${darkMode ? 'WHITE' : 'INK'} marks tuned for the current color mode, so do not swap them for brand-colored logos):
+    1. Instagram · img: ${igIcon} · href: https://www.instagram.com/sevenarrowsrecovery/
+    2. Facebook  · img: ${fbIcon}  · href: https://www.facebook.com/sevenarrowsrecovery
+    3. LinkedIn  · img: ${liIcon}  · href: https://www.linkedin.com/company/sevenarrowsrecovery/
   Each <img> alt attribute is the platform name verbatim ("Instagram", "Facebook", "LinkedIn"). Place the row between the hairline rule and the friendly closing phone-number sentence so the eye reads: rule → "FOLLOW ALONG" → three marks → closing line.`,
     );
   }
