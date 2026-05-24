@@ -1,3 +1,14 @@
+import withBundleAnalyzerFactory from '@next/bundle-analyzer';
+
+// Bundle analyzer — enabled when ANALYZE=true is set on a build,
+// otherwise a no-op wrapper. Run with `ANALYZE=true npm run build`
+// to dump a treemap of every route's first-load JS into a browser
+// tab. Useful for catching regressions before they ship.
+const withBundleAnalyzer = withBundleAnalyzerFactory({
+  enabled: process.env.ANALYZE === 'true',
+  openAnalyzer: true,
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -213,4 +224,4 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+export default withBundleAnalyzer(nextConfig);
