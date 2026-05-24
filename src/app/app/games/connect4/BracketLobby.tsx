@@ -190,7 +190,6 @@ export default function BracketLobby() {
       .filter((m) => m.status === 'active' || m.status === 'open')
       .sort((a, b) => (a.updated_at < b.updated_at ? 1 : -1));
   }, [matches]);
-
   const yourTurn = useMemo(() => {
     if (!user || !matches) return [];
     return matches.filter((m) => {
@@ -319,6 +318,31 @@ export default function BracketLobby() {
     ]);
   }, [bracketRounds]);
 
+  // Only the round-1 PvP cells are "real" tournament matchups; bye
+  // cells and later-round cells don't have a concrete opponent
+  // assignment yet. LIVE NOW used to surface any in-flight game on
+  // the platform — including stale casual matches a teammate had
+  // open before the tournament started — which produced the
+  // multi-Bobby strip the user flagged. We now restrict LIVE NOW to
+  // matches whose (challenger, opponent) pair is in the round-1
+  // PvP set, so only tournament games show up. The set is rebuilt
+  // weekly when the bracket reshuffles, which naturally hides any
+  // stale matches from previous brackets.
+  const tournamentPairKeys = useMemo<Set<string>>(() => {
+    const out = new Set<string>();
+    for (const cell of bracketRounds[0] ?? []) {
+      if (cell.isBye) continue;
+      const a = cell.top?.kind === 'user' ? cell.top.user : null;
+      const b = cell.bottom?.kind === 'user' ? cell.bottom.user : null;
+      if (a && b) out.add(pairKey(a.id, b.id));
+    }
+    return out;
+  }, [bracketRounds]);
+  const tournamentLiveMatches = useMemo(
+    () => liveMatches.filter((m) => tournamentPairKeys.has(pairKey(m.challenger_id, m.opponent_id))),
+    [liveMatches, tournamentPairKeys],
+  );
+
   const challenge = useCallback(
     async (opponentId: string) => {
       if (!session?.access_token) return;
@@ -377,7 +401,7 @@ export default function BracketLobby() {
         bracketRounds={bracketRounds}
       />
 
-      <LiveNow matches={liveMatches} userById={userById} youId={user?.id ?? null} />
+      <LiveNow matches={tournamentLiveMatches} userById={userById} youId={user?.id ?? null} />
 
       {/* Phase 7 — Tournament progress meter. Stacked bar showing
           done / in-flight / not-started across round 1; bye count
