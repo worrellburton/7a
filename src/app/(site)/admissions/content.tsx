@@ -6,6 +6,7 @@
 import Link from 'next/link';
 
 import PageHero from '@/components/PageHero';
+import LocationStatStrip from '@/components/LocationStatStrip';
 import { siteVideos } from '@/lib/siteVideos';
 import AdmissionsForm from '@/components/AdmissionsForm';
 import { useState } from 'react';
@@ -113,6 +114,12 @@ export default function PageContent() {
         video={siteVideos.ranchLife}
         image="/images/embrace-connection.jpg"
       />
+
+      {/* Location stat strip — three-up: 300+ sunny days · 45 min
+          from PHX Sky Harbor · Sonoran Desert setting. Reusable
+          server component (LocationStatStrip.tsx) so /about and
+          /contact can drop the same row in with one import. */}
+      <LocationStatStrip />
 
       {/* Intro + Call */}
       <section className="py-16 lg:py-24 bg-white">
