@@ -12,7 +12,16 @@ const withBundleAnalyzer = withBundleAnalyzerFactory({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    unoptimized: true,
+    // Next-image optimizer ON. The two heroes we hand-rolled via
+    // <picture> still work (they don't go through next/image). Any
+    // future <Image> usage will automatically serve AVIF / WebP /
+    // responsive srcset variants from the same source file.
+    // Audited in phase 6: only `BlogPostMeta.tsx` currently imports
+    // next/image, and it uses no remote hosts — so flipping the
+    // flag is safe without an `remotePatterns` allowlist today.
+    // Add remote hosts here when a future <Image src=https://...>
+    // ships (Supabase storage, Brandfetch, etc.).
+    formats: ['image/avif', 'image/webp'],
   },
 
   // Tell Next.js NOT to auto-redirect trailing slashes (its default
