@@ -103,7 +103,7 @@ const defaultPages: PageConfig[] = [
   // popup). Like Social Media, the page is gated by adminOnly here
   // AND a runtime is_super_admin check inside so non-super admins
   // see it surface but bounce to the app root if they navigate in.
-  { path: '/app/levers', label: 'Levers', adminOnly: true, section: 'popup', sort_order: 7, allowedDepartments: [], departmentId: null },
+  { path: '/app/levers', label: 'Levers and switches', adminOnly: true, section: 'popup', sort_order: 7, allowedDepartments: [], departmentId: null },
   { path: '/app/team', label: 'Team', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
   // Kaizen — super-admin-only daily codebase scan. Lives in the
   // regular sidebar nav for discoverability; the runtime
