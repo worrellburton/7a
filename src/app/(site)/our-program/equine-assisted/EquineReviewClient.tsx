@@ -55,7 +55,7 @@ export default function EquineReviewClient({ review, rating, total, videoUrl }: 
         <video
           ref={videoRef}
           src={videoUrl}
-          poster="/images/equine-therapy-portrait.jpg"
+          poster="/hero/equine-therapy-portrait.jpg"
           autoPlay
           muted
           loop

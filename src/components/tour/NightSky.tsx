@@ -62,7 +62,7 @@ export default function NightSky() {
         aria-hidden="true"
         className="absolute inset-0"
         style={{
-          backgroundImage: "url('/images/sign-night-sky-milky-way.jpg')",
+          backgroundImage: "url('/hero/sign-night-sky-milky-way.jpg')",
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}

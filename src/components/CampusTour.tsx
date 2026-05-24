@@ -32,19 +32,19 @@ interface Tile {
 
 const tiles: Tile[] = [
   {
-    src: '/images/facility-exterior-mountains.jpg',
+    src: '/hero/facility-exterior-mountains.jpg',
     alt: 'Main residence at the base of the Swisshelm Mountains',
     caption: 'The ranch at first light',
     lgSpan: 'lg:col-span-4 lg:row-span-2',
   },
   {
-    src: '/images/horses-grazing.jpg',
+    src: '/hero/horses-grazing.jpg',
     alt: 'The resident herd grazing on the ranch',
     caption: 'The herd',
     lgSpan: 'lg:col-span-2 lg:row-span-2',
   },
   {
-    src: '/images/sound-healing-session.jpg',
+    src: '/hero/sound-healing-session.jpg',
     alt: 'Sound healing session',
     caption: 'Sound · breath · body',
     lgSpan: 'lg:col-span-2 lg:row-span-2',
@@ -56,7 +56,7 @@ const tiles: Tile[] = [
     lgSpan: 'lg:col-span-2 lg:row-span-2',
   },
   {
-    src: '/images/sign-night-sky-milky-way.jpg',
+    src: '/hero/sign-night-sky-milky-way.jpg',
     alt: 'Seven Arrows sign beneath the Milky Way',
     caption: 'Dark-sky preserve',
     lgSpan: 'lg:col-span-2 lg:row-span-2',
@@ -168,7 +168,7 @@ export default function CampusTour() {
               <video
                 ref={videoRef}
                 src={siteVideos.ranchLife}
-                poster="/images/facility-exterior-mountains.jpg"
+                poster="/hero/facility-exterior-mountains.jpg"
                 autoPlay
                 muted
                 loop
@@ -275,7 +275,7 @@ export default function CampusTour() {
             >
               <video
                 src={siteVideos.ranchLife}
-                poster="/images/facility-exterior-mountains.jpg"
+                poster="/hero/facility-exterior-mountains.jpg"
                 autoPlay
                 muted
                 loop

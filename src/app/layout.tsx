@@ -30,7 +30,7 @@ export const metadata: Metadata = {
       'Premier drug and alcohol rehab in Arizona — residential treatment on a 160-acre ranch at the base of the Swisshelm Mountains. Call (866) 718-1665.',
     images: [
       {
-        url: '/images/facility-exterior-mountains.jpg',
+        url: '/hero/facility-exterior-mountains.jpg',
         width: 2000,
         height: 1235,
         alt: 'Seven Arrows Recovery - A Place to Heal',
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     title: 'Seven Arrows Recovery | Drug Rehab in Arizona',
     description:
       'Premier drug and alcohol rehab in Arizona — residential treatment on a 160-acre ranch at the base of the Swisshelm Mountains. Call (866) 718-1665.',
-    images: ['/images/facility-exterior-mountains.jpg'],
+    images: ['/hero/facility-exterior-mountains.jpg'],
   },
   robots: 'index, follow',
   other: {

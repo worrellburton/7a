@@ -94,7 +94,7 @@ export default function InsuranceTRICAREPage() {
           { label: 'TRICARE' },
         ]}
         description="Seven Arrows Recovery accepts TRICARE insurance for active duty service members, veterans, retirees, and military dependents seeking drug and alcohol addiction treatment. We understand military culture and the unique challenges of service."
-        image="/images/embrace-connection.jpg"
+        image="/hero/embrace-connection.jpg"
       />
 
       {/* TRICARE Overview */}

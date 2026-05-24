@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Should I Travel for Addiction Treatment" },
         ]}
         description="Deciding to seek help for addiction is a significant step toward recovery and healthier life choices. One crucial aspect of this journey is determining the best treatment facility and approach for your needs. Among the many…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

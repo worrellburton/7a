@@ -94,7 +94,7 @@ export default function InsuranceUHCPage() {
           { label: 'UnitedHealthcare' },
         ]}
         description="Seven Arrows Recovery accepts most UnitedHealthcare plans for drug and alcohol addiction treatment. As the largest health insurer in the U.S., UHC provides coverage for tens of millions of Americans seeking recovery."
-        image="/images/embrace-connection.jpg"
+        image="/hero/embrace-connection.jpg"
       />
 
       {/* UHC Overview */}

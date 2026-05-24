@@ -36,7 +36,7 @@ export default function CareersHero() {
       <video
         ref={videoRef}
         src={siteVideos.ranchLife}
-        poster="/images/covered-porch-desert-view.jpg"
+        poster="/hero/covered-porch-desert-view.jpg"
         autoPlay
         muted
         loop

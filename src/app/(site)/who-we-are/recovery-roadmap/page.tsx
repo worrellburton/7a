@@ -29,7 +29,7 @@ export default async function RecoveryRoadmapPage() {
           { label: 'Recovery Roadmap' },
         ]}
         description="An in-depth investigative series exploring the reality of addiction, treatment, and recovery — told with honesty, science, and compassion by the clinical team at Seven Arrows Recovery."
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         ctas={[
           {
             kind: 'phone',

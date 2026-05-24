@@ -226,19 +226,19 @@ export const prescriptionContent: SubstanceContent = {
         quote:
           "Nobody had ever put all of my prescriptions on one table until I got here. We looked at it and the first sentence from the doctor was, 'No wonder you feel like this.' That was the start.",
         attribution: 'Alumna · 14 months · 4-script poly-prescription',
-        photo: '/images/covered-porch-desert-view.jpg',
+        photo: '/hero/covered-porch-desert-view.jpg',
       },
       {
         quote:
           "Eight years of prescribed opioids for a back injury. The taper was gentler than I expected. The pain management turned out to be more than half breathwork, body awareness, and finally sleeping.",
         attribution: 'Alumnus · 2 years · post-surgical opioid dependence',
-        photo: '/images/group-sunset-desert.jpg',
+        photo: '/hero/group-sunset-desert.jpg',
       },
       {
         quote:
           "They treated my ADHD, not my Adderall problem. That distinction is why this one stuck.",
         attribution: 'Alumna · 18 months · stimulant dependence',
-        photo: '/images/facility-exterior-mountains.jpg',
+        photo: '/hero/facility-exterior-mountains.jpg',
       },
     ],
   },

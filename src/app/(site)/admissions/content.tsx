@@ -341,7 +341,7 @@ export default function PageContent() {
             </div>
             <div className="rounded-2xl overflow-hidden aspect-[4/3]">
               <img
-                src="/images/group-gathering-pavilion.jpg"
+                src="/hero/group-gathering-pavilion.jpg"
                 alt="Clients gathering at Seven Arrows Recovery"
                 className="w-full h-full object-cover"
                 loading="lazy"

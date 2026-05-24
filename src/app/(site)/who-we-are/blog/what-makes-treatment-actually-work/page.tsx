@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     siteName: 'Seven Arrows Recovery',
     images: [
       {
-        url: '/images/individual-therapy-session.jpg',
+        url: '/hero/individual-therapy-session.jpg',
         width: 1200,
         height: 630,
         alt: 'A clinician and client in conversation during an individual therapy session at Seven Arrows Recovery.',

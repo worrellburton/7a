@@ -28,19 +28,19 @@ interface HeroSlide {
 
 const HERO_SLIDES: HeroSlide[] = [
   {
-    src: '/images/group-sunset-desert.jpg',
+    src: '/hero/group-sunset-desert.jpg',
     from: { s: 1.08, x: -2, y: -1 },
     to:   { s: 1.22, x:  3, y:  2 },
     caption: { title: 'A brotherhood forged at sunset.', subtitle: 'Seven Arrows Recovery' },
   },
   {
-    src: '/images/horses-grazing.jpg',
+    src: '/hero/horses-grazing.jpg',
     from: { s: 1.10, x:  2, y:  1 },
     to:   { s: 1.24, x: -3, y: -2 },
     caption: { title: 'The herd is waiting.', subtitle: 'Equine-assisted therapy' },
   },
   {
-    src: '/images/sign-night-sky-milky-way.jpg',
+    src: '/hero/sign-night-sky-milky-way.jpg',
     from: { s: 1.15, x:  0, y:  3 },
     to:   { s: 1.28, x:  0, y: -2 },
     caption: { title: 'Under a sky full of second chances.' },
@@ -52,25 +52,25 @@ const HERO_SLIDES: HeroSlide[] = [
     caption: { title: 'Ceremony. Circle. Come home.' },
   },
   {
-    src: '/images/facility-exterior-mountains.jpg',
+    src: '/hero/facility-exterior-mountains.jpg',
     from: { s: 1.06, x:  2, y: -2 },
     to:   { s: 1.20, x: -2, y:  2 },
     caption: { title: 'Where the mountains hold the work.' },
   },
   {
-    src: '/images/equine-therapy-portrait.jpg',
+    src: '/hero/equine-therapy-portrait.jpg',
     from: { s: 1.14, x:  0, y: -2 },
     to:   { s: 1.28, x:  0, y:  2 },
     caption: { title: 'Connection before conversation.' },
   },
   {
-    src: '/images/covered-porch-desert-view.jpg',
+    src: '/hero/covered-porch-desert-view.jpg',
     from: { s: 1.08, x:  3, y:  1 },
     to:   { s: 1.22, x: -3, y: -1 },
     caption: { title: 'Slow mornings. Long horizons.' },
   },
   {
-    src: '/images/embrace-connection.jpg',
+    src: '/hero/embrace-connection.jpg',
     from: { s: 1.10, x: -2, y:  2 },
     to:   { s: 1.24, x:  3, y: -2 },
     caption: { title: 'You are not doing this alone.' },
@@ -693,8 +693,8 @@ function upgradeGoogleAvatar(url: string | null): string | null {
 // Two horse photos ship in /public/images and stand in for the equine
 // table (which is auth-gated and can't be read pre-login).
 const HORSE_TILES: FaceTile[] = [
-  { key: 'horse-portrait', name: 'The herd', role: 'Equine therapy', src: '/images/equine-therapy-portrait.jpg', kind: 'horse' },
-  { key: 'horse-grazing',  name: 'Grazing',  role: 'Morning pasture', src: '/images/horses-grazing.jpg', kind: 'horse' },
+  { key: 'horse-portrait', name: 'The herd', role: 'Equine therapy', src: '/hero/equine-therapy-portrait.jpg', kind: 'horse' },
+  { key: 'horse-grazing',  name: 'Grazing',  role: 'Morning pasture', src: '/hero/horses-grazing.jpg', kind: 'horse' },
 ];
 
 /**

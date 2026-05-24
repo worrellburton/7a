@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Dealing with Stress in Recovery: 5 Tips to Building Healthy Stress-Management Skills" },
         ]}
         description="Since stress is an inevitable part of life, learning stress-management is essential to living a healthy life. If you’re recovering from addiction or substance abuse, building a stress-management strategy can help you maintain…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

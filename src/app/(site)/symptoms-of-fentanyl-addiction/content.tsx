@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Symptoms of Fentanyl Addiction" },
         ]}
         description="In recent years, the opioid crisis in the United States has escalated at an alarming rate, with fentanyl at its core. Fentanyl, a synthetic opioid, is up to 100 times more potent than morphine and about 50 times stronger than…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

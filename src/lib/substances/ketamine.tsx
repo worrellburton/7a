@@ -209,19 +209,19 @@ export const ketamineContent: SubstanceContent = {
         quote:
           "I had been chasing the dissociation for years thinking it was the point. Week three here, I realized the actual point was to build a body I wanted to be in. That was a different project entirely.",
         attribution: 'Alumna · 14 months sober · therapy-to-recreational drift',
-        photo: '/images/covered-porch-desert-view.jpg',
+        photo: '/hero/covered-porch-desert-view.jpg',
       },
       {
         quote:
           "The urologist I saw at admission changed my life independently of the addiction work. Nobody else had connected the dots.",
         attribution: 'Alumnus · 18 months sober · long-arc daily user',
-        photo: '/images/group-sunset-desert.jpg',
+        photo: '/hero/group-sunset-desert.jpg',
       },
       {
         quote:
           "Equine therapy was the unlock. A horse made me be in my body. I did not know I had missed being in my body until I was back in it.",
         attribution: 'Alumna · 2 years sober · trauma-driven use',
-        photo: '/images/facility-exterior-mountains.jpg',
+        photo: '/hero/facility-exterior-mountains.jpg',
       },
     ],
   },

@@ -29,7 +29,7 @@ export const metadata: Metadata = {
       'Residential addiction treatment in Arizona for adults 18+ struggling with alcohol, opioids, stimulants, benzodiazepines, and co-occurring mental health conditions. Serving Phoenix, Tucson, Scottsdale, Mesa, and clients nationwide.',
     images: [
       {
-        url: '/images/group-gathering-pavilion.jpg',
+        url: '/hero/group-gathering-pavilion.jpg',
         width: 1200,
         height: 630,
         alt: 'Group gathering at Seven Arrows Recovery in the Swisshelm Mountains of Arizona',

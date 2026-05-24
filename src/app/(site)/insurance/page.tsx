@@ -107,7 +107,7 @@ export default function InsurancePage() {
         ]}
         breadcrumbs={BREADCRUMBS.map((c) => ({ label: c.name, href: c.url }))}
         description="How insurance works here, what your plan typically covers, how long verification takes, and what to expect if you're self-paying. The honest version — not the salesy one."
-        image="/images/facility-exterior-mountains.jpg"
+        image="/hero/facility-exterior-mountains.jpg"
         ctas={[
           { kind: 'phone', display: '(866) 718-1665', eyebrow: 'Verify benefits · 24/7' },
           { kind: 'link', href: '/admissions', label: 'Begin admissions' },

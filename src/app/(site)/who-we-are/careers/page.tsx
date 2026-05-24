@@ -28,7 +28,7 @@ export const metadata: Metadata = {
       'Hiring clinicians, counselors, nurses, BHTs, and holistic practitioners at our 160-acre residential ranch in Cochise County, Arizona.',
     images: [
       {
-        url: '/images/covered-porch-desert-view.jpg',
+        url: '/hero/covered-porch-desert-view.jpg',
         width: 1200,
         height: 630,
         alt: 'Covered porch at Seven Arrows Recovery in the Swisshelm Mountains',

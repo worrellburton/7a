@@ -49,7 +49,7 @@ export default function PostTraumaticAdaptation() {
         className="absolute inset-0"
         aria-hidden="true"
         style={{
-          backgroundImage: "url('/images/resident-reading-window.jpg')",
+          backgroundImage: "url('/hero/resident-reading-window.jpg')",
           backgroundSize: 'cover',
           backgroundPosition: 'center 35%',
         }}

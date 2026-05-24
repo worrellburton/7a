@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "The Role of Support Groups in Addiction Recovery" },
         ]}
         description="Addiction recovery can be filled with many ups and downs. This is because becoming sober is just the beginning of your sobriety journey. While you’ll be leading a healthier, happier life, throughout your recovery journey you’ll…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

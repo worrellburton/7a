@@ -226,19 +226,19 @@ export const marijuanaContent: SubstanceContent = {
         quote:
           "I did not think it was a real problem until I tried to stop for a week on my own. Treatment took it seriously when nobody in my life would. That mattered.",
         attribution: 'Alumna · 16 months sober · daily dabs user',
-        photo: '/images/covered-porch-desert-view.jpg',
+        photo: '/hero/covered-porch-desert-view.jpg',
       },
       {
         quote:
           "Week four, I woke up without anxiety for the first time in fifteen years. Turned out it had been cannabis holding the volume, not cannabis fixing it.",
         attribution: 'Alumnus · 2 years sober · anxiety self-medication',
-        photo: '/images/group-sunset-desert.jpg',
+        photo: '/hero/group-sunset-desert.jpg',
       },
       {
         quote:
           "The sleep work was the unlock. I had forgotten what REM felt like. The dreams were intense, then they were normal, then I was rested. Took about a month.",
         attribution: 'Alumnus · 14 months sober · long-arc daily user',
-        photo: '/images/facility-exterior-mountains.jpg',
+        photo: '/hero/facility-exterior-mountains.jpg',
       },
     ],
   },

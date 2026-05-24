@@ -68,7 +68,7 @@ export default function PostTraumaticGrowth() {
         aria-hidden="true"
         className="absolute inset-0 will-change-transform"
         style={{
-          backgroundImage: "url('/images/group-sunset-desert.jpg')",
+          backgroundImage: "url('/hero/group-sunset-desert.jpg')",
           backgroundSize: 'cover',
           backgroundPosition: `center calc(50% + ${parY}px)`,
           transition: 'background-position 0.1s linear',

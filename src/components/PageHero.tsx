@@ -77,6 +77,18 @@ const DEFAULT_IMAGE = '/hero/facility-exterior-mountains.jpg';
 const HERO_AVIF_BASES = new Set([
   '/hero/facility-exterior-mountains',
   '/hero/embrace-connection',
+  '/hero/sign-night-sky-milky-way',
+  '/hero/sound-healing-session',
+  '/hero/group-therapy-room',
+  '/hero/covered-porch-desert-view',
+  '/hero/common-area-living-room',
+  '/hero/equine-therapy-portrait',
+  '/hero/group-gathering-pavilion',
+  '/hero/horses-grazing',
+  '/hero/group-sunset-desert',
+  '/hero/individual-therapy-session',
+  '/hero/horse-sketch-artwork',
+  '/hero/resident-reading-window',
 ]);
 
 function heroPaths(image: string): { jpg: string; avif: string | null } {

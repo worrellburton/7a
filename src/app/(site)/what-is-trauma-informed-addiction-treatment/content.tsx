@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "What is Trauma Informed Addiction Treatment" },
         ]}
         description="Addiction is a deeply complex and multifaceted challenge, and it is often intertwined with a history of trauma. In the contemporary landscape of addiction treatment, a new approach has emerged, gaining recognition for its…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

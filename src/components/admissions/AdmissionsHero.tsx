@@ -38,7 +38,7 @@ export default function AdmissionsHero() {
       <video
         ref={videoRef}
         src={siteVideos.ranchLife}
-        poster="/images/embrace-connection.jpg"
+        poster="/hero/embrace-connection.jpg"
         autoPlay
         muted
         loop

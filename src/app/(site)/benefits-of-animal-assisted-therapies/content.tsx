@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "The Benefits of Animal-Assisted Therapies in Addiction Treatment" },
         ]}
         description="At Seven Arrows Recovery, we understand that the journey to recovery is deeply personal and challenging. Our mission is to support you every step of the way, offering a holistic blend of evidence-based and innovative therapies…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

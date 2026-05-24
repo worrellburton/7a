@@ -70,7 +70,7 @@ export default function OurProgramPage() {
           { label: 'Our Program' },
         ]}
         description="At Seven Arrows Recovery, we blend clinical excellence with the healing power of the land, indigenous wisdom, and trauma-focused care. Our intimate, boutique setting ensures every client receives deeply personalized treatment."
-        image="/images/sound-healing-session.jpg"
+        image="/hero/sound-healing-session.jpg"
         ctas={[
           {
             kind: 'phone',

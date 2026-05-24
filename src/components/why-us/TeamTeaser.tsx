@@ -14,9 +14,9 @@ import { useEffect, useRef, useState } from 'react';
  */
 
 const crossfades = [
-  { image: '/images/individual-therapy-session.jpg', name: 'Clinical team', role: 'Trauma-informed therapists & counselors' },
-  { image: '/images/equine-therapy-portrait.jpg', name: 'Equine program', role: 'Dedicated 1:1 equine partnership' },
-  { image: '/images/group-therapy-room.jpg', name: 'Group therapy', role: 'Intimate peer-connection sessions' },
+  { image: '/hero/individual-therapy-session.jpg', name: 'Clinical team', role: 'Trauma-informed therapists & counselors' },
+  { image: '/hero/equine-therapy-portrait.jpg', name: 'Equine program', role: 'Dedicated 1:1 equine partnership' },
+  { image: '/hero/group-therapy-room.jpg', name: 'Group therapy', role: 'Intimate peer-connection sessions' },
 ];
 
 export default function TeamTeaser() {

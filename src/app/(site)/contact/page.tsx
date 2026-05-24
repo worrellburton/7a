@@ -23,7 +23,7 @@ export const metadata: Metadata = {
       'Call, email, or send a note. Admissions answers 24/7 — a real person, confidential, zero pressure.',
     images: [
       {
-        url: '/images/covered-porch-desert-view.jpg',
+        url: '/hero/covered-porch-desert-view.jpg',
         width: 1200,
         height: 630,
         alt: 'Covered porch at Seven Arrows Recovery',

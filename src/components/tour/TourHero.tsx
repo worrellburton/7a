@@ -35,7 +35,7 @@ export default function TourHero() {
       <video
         ref={videoRef}
         src={siteVideos.ranchLife}
-        poster="/images/facility-exterior-mountains.jpg"
+        poster="/hero/facility-exterior-mountains.jpg"
         autoPlay
         muted
         loop

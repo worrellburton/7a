@@ -58,7 +58,7 @@ export default function AreasWeServePage() {
           { label: 'Areas We Serve' },
         ]}
         description="Seven Arrows Recovery is located in southeastern Arizona at the base of the Swisshelm Mountains. We serve individuals and families across Arizona and beyond."
-        image="/images/sign-night-sky-milky-way.jpg"
+        image="/hero/sign-night-sky-milky-way.jpg"
         ctas={[
           {
             kind: 'phone',

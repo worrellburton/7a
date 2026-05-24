@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Sober Summer Activities" },
         ]}
         description="If you’re in recovery, the idea of warm weather, late nights, and seasonal events can feel complicated. But sober summer activities don’t have to be boring or isolating. Summer can become one of the most fulfilling times in your…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

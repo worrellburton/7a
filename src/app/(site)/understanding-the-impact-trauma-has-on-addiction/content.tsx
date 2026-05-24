@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Understanding the Impact Trauma Has on Addiction" },
         ]}
         description="Addiction is powerful, and its impact can overwhelm an individual, altering their mental and physical health, relationships, and overall quality of life. Dependent behaviors, including substance use disorders, are complex and…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

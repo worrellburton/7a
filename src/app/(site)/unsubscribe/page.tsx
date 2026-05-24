@@ -64,7 +64,7 @@ export default async function UnsubscribePage({ searchParams }: PageProps) {
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-0 bottom-0 h-1/2 bg-cover bg-center opacity-15"
-        style={{ backgroundImage: 'url(/images/facility-exterior-mountains.jpg)' }}
+        style={{ backgroundImage: 'url(/hero/facility-exterior-mountains.jpg)' }}
       />
       <div
         aria-hidden="true"

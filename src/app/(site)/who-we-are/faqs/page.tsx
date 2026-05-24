@@ -23,7 +23,7 @@ export const metadata: Metadata = {
       'Direct answers to common rehab questions — admissions, insurance, detox, treatment length, family, dual diagnosis, aftercare, and privacy.',
     images: [
       {
-        url: '/images/common-area-living-room.jpg',
+        url: '/hero/common-area-living-room.jpg',
         width: 1200,
         height: 630,
         alt: 'Common area at Seven Arrows Recovery in Cochise County, Arizona',

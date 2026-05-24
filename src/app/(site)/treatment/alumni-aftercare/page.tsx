@@ -28,7 +28,7 @@ export const metadata: Metadata = {
       'Continuing care for alumni: aftercare plans, step-down referrals, sober-living placement, alumni community, and 24/7 crisis support.',
     images: [
       {
-        url: '/images/group-gathering-pavilion.jpg',
+        url: '/hero/group-gathering-pavilion.jpg',
         width: 1200,
         height: 630,
         alt: 'Seven Arrows alumni gathering at the ranch pavilion',

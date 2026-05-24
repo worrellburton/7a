@@ -290,7 +290,7 @@ export default function PageContent() {
           { label: 'When Drinking Stops Working' },
         ]}
         description="A compassionate guide to understanding when substance use has crossed from choice to compulsion — and why reaching out is an act of courage, not weakness."
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

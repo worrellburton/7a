@@ -102,7 +102,7 @@ export default function LocationPhoenixPage() {
           { label: 'Phoenix' },
         ]}
         description="Phoenix is Arizona's largest city—and one of the most impacted by the substance abuse crisis. Seven Arrows Recovery gives Phoenix residents a private, evidence-based path to lasting recovery at our boutique campus in the Swisshelm Mountains."
-        image="/images/sign-night-sky-milky-way.jpg"
+        image="/hero/sign-night-sky-milky-way.jpg"
         ctas={[
           {
             kind: 'phone',

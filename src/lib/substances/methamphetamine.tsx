@@ -225,19 +225,19 @@ export const methContent: SubstanceContent = {
         quote:
           "I slept for four days straight when I arrived. I did not know a body was allowed to do that. By day ten, I was crying at sunsets because my nervous system was finally getting anything at all.",
         attribution: 'Alumna · 18 months sober · long-arc daily use',
-        photo: '/images/covered-porch-desert-view.jpg',
+        photo: '/hero/covered-porch-desert-view.jpg',
       },
       {
         quote:
           'Week seven was when music started to sound like music again. Before that, everything had been flat. I did not realize how much I had lost until it came back.',
         attribution: 'Alumnus · 22 months sober · polysubstance incl. meth',
-        photo: '/images/group-sunset-desert.jpg',
+        photo: '/hero/group-sunset-desert.jpg',
       },
       {
         quote:
           "The horses broke me. One of them laid down in the dirt next to me on a bad afternoon. That was the first afternoon I believed I was not going back.",
         attribution: 'Alumnus · 2 years sober · meth + alcohol',
-        photo: '/images/facility-exterior-mountains.jpg',
+        photo: '/hero/facility-exterior-mountains.jpg',
       },
     ],
   },

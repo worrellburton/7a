@@ -225,19 +225,19 @@ export const inhalantsContent: SubstanceContent = {
         quote:
           'Month three, I read a book again. A whole book. I had not been able to hold a paragraph in my head for five years. That was when I believed the damage was not permanent.',
         attribution: 'Alumnus · 18 months sober · long-arc toluene use',
-        photo: '/images/covered-porch-desert-view.jpg',
+        photo: '/hero/covered-porch-desert-view.jpg',
       },
       {
         quote:
           'The B12 injections and the neuropsych team did as much work as any therapy. The medical side of this is not optional, and this was the first place that acted like it knew that.',
         attribution: 'Alumna · 2 years sober · nitrous dependence',
-        photo: '/images/group-sunset-desert.jpg',
+        photo: '/hero/group-sunset-desert.jpg',
       },
       {
         quote:
           'Treatment met me where I was. I had cognitive damage. That was named, supported, and then worked around. I have never felt less ashamed of anything than I did here.',
         attribution: 'Alumna · 14 months sober · adolescent-onset pattern',
-        photo: '/images/facility-exterior-mountains.jpg',
+        photo: '/hero/facility-exterior-mountains.jpg',
       },
     ],
   },

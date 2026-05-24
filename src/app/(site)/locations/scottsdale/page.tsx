@@ -102,7 +102,7 @@ export default function LocationScottsdalePage() {
           { label: 'Scottsdale' },
         ]}
         description="Scottsdale's reputation for wellness and luxury extends to how its residents approach recovery. Seven Arrows Recovery offers discreet, clinically rigorous treatment in a serene mountain setting where privacy and personal attention come standard."
-        image="/images/sign-night-sky-milky-way.jpg"
+        image="/hero/sign-night-sky-milky-way.jpg"
         ctas={[
           {
             kind: 'phone',

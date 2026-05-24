@@ -28,7 +28,7 @@ export const metadata: Metadata = {
       'The whole system heals, or nothing does. Weekly family support sessions, education groups, and boundary coaching.',
     images: [
       {
-        url: '/images/embrace-connection.jpg',
+        url: '/hero/embrace-connection.jpg',
         width: 1200,
         height: 630,
         alt: 'Family reconnecting at Seven Arrows Recovery',

@@ -69,7 +69,7 @@ export default function WhoWeArePage() {
           { label: 'Who We Are' },
         ]}
         description="Seven Arrows Recovery is a boutique addiction treatment center nestled at the base of the Swisshelm Mountains in southeastern Arizona. We provide personalized, evidence-based care in an intimate setting designed for deep healing."
-        image="/images/group-sunset-desert.jpg"
+        image="/hero/group-sunset-desert.jpg"
         ctas={[
           {
             kind: 'phone',

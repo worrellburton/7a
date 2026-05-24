@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Farm to Table to Healing a Conversation About Food and the Recovery Process with Chef Sandra Bradley" },
         ]}
         description="The relationship between food and healing is a significant one. For those in substance abuse or addiction recovery, nutrition becomes all the more essential to this process of restoration. Recently, studies have shown the…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

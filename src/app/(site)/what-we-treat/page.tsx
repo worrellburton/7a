@@ -94,7 +94,7 @@ export default function WhatWeTreatPage() {
           { label: 'What We Treat' },
         ]}
         description="At Seven Arrows Recovery, we provide individualized, evidence-based treatment for a wide range of substance use disorders and co-occurring mental health conditions. Our clinical team creates personalized plans to guide you toward lasting recovery."
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         ctas={[
           {
             kind: 'phone',

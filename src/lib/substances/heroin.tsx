@@ -210,19 +210,19 @@ export const heroinContent: SubstanceContent = {
         quote:
           "Sub got me out of the hourly math problem. The trauma work got me out of the reason for the math problem. Those are two different pieces of medicine.",
         attribution: 'Alumnus · 2 years sober · fentanyl era',
-        photo: '/images/group-sunset-desert.jpg',
+        photo: '/hero/group-sunset-desert.jpg',
       },
       {
         quote:
           "I did not know my body could relax on its own. Week six, walking the perimeter of the ranch at sunset, I realized my shoulders were not up by my ears. That was new.",
         attribution: 'Alumna · 16 months sober · pill-to-heroin',
-        photo: '/images/covered-porch-desert-view.jpg',
+        photo: '/hero/covered-porch-desert-view.jpg',
       },
       {
         quote:
           "They sent me home with naloxone like it was a toothbrush. No drama. That matter-of-fact approach is what made the plan feel survivable.",
         attribution: 'Alumnus · 14 months sober · prior three treatment stays',
-        photo: '/images/facility-exterior-mountains.jpg',
+        photo: '/hero/facility-exterior-mountains.jpg',
       },
     ],
   },

@@ -46,7 +46,7 @@ export default function TreatmentPage() {
           { label: 'Treatment' },
         ]}
         description="Seven Arrows Recovery offers a full continuum of care designed to meet you wherever you are on your recovery journey. From coordinated detox through alumni aftercare, every program is built around clinical excellence and personal attention."
-        image="/images/group-therapy-room.jpg"
+        image="/hero/group-therapy-room.jpg"
         ctas={[
           {
             kind: 'phone',

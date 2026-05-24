@@ -50,7 +50,7 @@ export default function TourCTA() {
       <video
         ref={videoRef}
         src={siteVideos.sonoranRanch}
-        poster="/images/group-sunset-desert.jpg"
+        poster="/hero/group-sunset-desert.jpg"
         autoPlay
         muted
         loop

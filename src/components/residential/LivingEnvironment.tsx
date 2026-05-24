@@ -19,13 +19,13 @@ const tiles = [
     body: 'Comfortable, considered, and designed to feel nothing like a clinic. Small-census ranch living with real linens, real windows, real rest.',
   },
   {
-    image: '/images/common-area-living-room.jpg',
+    image: '/hero/common-area-living-room.jpg',
     eyebrow: 'Common Spaces',
     title: 'Rooms to be together in',
     body: 'Warm gathering rooms for community meals, groups, movies, and the quieter conversations that happen on the couch at 9pm.',
   },
   {
-    image: '/images/covered-porch-desert-view.jpg',
+    image: '/hero/covered-porch-desert-view.jpg',
     eyebrow: 'Outdoors',
     title: 'The porch, the sky, the land',
     body: 'Covered porches, desert views, and 160 acres beyond. The Sonoran landscape itself is therapeutic infrastructure.',

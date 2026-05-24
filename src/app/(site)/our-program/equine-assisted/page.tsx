@@ -31,7 +31,7 @@ export const metadata: Metadata = {
       'Licensed trauma-informed equine-assisted psychotherapy on a 160-acre Arizona ranch. Built for PTSD, addiction, attachment injury, and clients who need more than talk-therapy alone.',
     images: [
       {
-        url: '/images/equine-therapy-portrait.jpg',
+        url: '/hero/equine-therapy-portrait.jpg',
         width: 1200,
         height: 630,
         alt: 'Equine-assisted psychotherapy session at Seven Arrows Recovery in Cochise County, Arizona',

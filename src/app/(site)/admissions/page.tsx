@@ -31,7 +31,7 @@ export const metadata: Metadata = {
       'Start with a phone call. Free insurance verification, phone assessment, and travel coordination — most clients arrive within 24 to 48 hours.',
     images: [
       {
-        url: '/images/embrace-connection.jpg',
+        url: '/hero/embrace-connection.jpg',
         width: 1200,
         height: 630,
         alt: 'Arriving at Seven Arrows Recovery in Cochise County, Arizona',

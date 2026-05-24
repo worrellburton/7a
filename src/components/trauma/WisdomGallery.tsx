@@ -28,21 +28,21 @@ const tiles: Tile[] = [
     attribution: 'On community as medicine',
   },
   {
-    image: '/images/horses-grazing.jpg',
+    image: '/hero/horses-grazing.jpg',
     alt: 'Horses grazing under open desert sky at Seven Arrows.',
     quote:
       'Horses mirror what words cannot — they feel the body’s truth before the mind catches up to it.',
     attribution: 'On equine-assisted work',
   },
   {
-    image: '/images/sound-healing-session.jpg',
+    image: '/hero/sound-healing-session.jpg',
     alt: 'Sound healing session with singing bowls and soft light.',
     quote:
       'The nervous system listens to rhythm long before it listens to reason.',
     attribution: 'On somatic practice',
   },
   {
-    image: '/images/sign-night-sky-milky-way.jpg',
+    image: '/hero/sign-night-sky-milky-way.jpg',
     alt: 'Seven Arrows sign under a clear Milky Way desert sky.',
     quote:
       'The opposite of addiction is not sobriety. It is connection.',

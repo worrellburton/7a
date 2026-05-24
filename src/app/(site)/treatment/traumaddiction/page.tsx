@@ -59,7 +59,7 @@ export default function TraumAddictionPage() {
           { label: 'Forward-Facing Accelerated Recovery' },
         ]}
         description="Forward-Facing® Accelerated Recovery is our integrated model for treating trauma and substance use together — not as separate conditions, but as deeply interconnected challenges that require a unified, salutogenic approach."
-        image="/images/embrace-connection.jpg"
+        image="/hero/embrace-connection.jpg"
         ctas={[
           {
             kind: 'phone',

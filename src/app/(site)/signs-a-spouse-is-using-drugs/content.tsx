@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Signs a Spouse is Using Drugs" },
         ]}
         description="Substance abuse doesn’t just affect individuals—it creates ripple effects that touch everyone close to them, especially spouses. If you’ve noticed your partner acting differently and you’re starting to worry about signs a spouse…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

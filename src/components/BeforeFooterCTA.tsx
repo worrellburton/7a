@@ -66,7 +66,7 @@ export default function BeforeFooterCTA() {
               videoRefs.current[i] = el;
             }}
             src={src}
-            poster={i === 0 ? '/images/facility-exterior-mountains.jpg' : undefined}
+            poster={i === 0 ? '/hero/facility-exterior-mountains.jpg' : undefined}
             autoPlay
             muted
             loop

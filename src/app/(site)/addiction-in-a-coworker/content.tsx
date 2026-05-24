@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Addiction in a Coworker" },
         ]}
         description="Navigating workplace relationships can be challenging under any circumstances, but when you suspect that a coworker might be struggling with drug addiction, it can feel overwhelming and deeply worrisome. Addiction in a coworker…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

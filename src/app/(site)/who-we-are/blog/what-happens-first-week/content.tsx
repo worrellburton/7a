@@ -411,7 +411,7 @@ export default function PageContent() {
           {/* Image break */}
           <div className="my-12 rounded-2xl overflow-hidden aspect-[16/7]">
             <img
-              src="/images/group-gathering-pavilion.jpg"
+              src="/hero/group-gathering-pavilion.jpg"
               alt="Residents and clinicians gathered at the Seven Arrows pavilion."
               className="w-full h-full object-cover"
               loading="lazy"
@@ -445,7 +445,7 @@ export default function PageContent() {
           {/* Image break - community */}
           <div className="my-12 rounded-2xl overflow-hidden aspect-[16/7]">
             <img
-              src="/images/group-gathering-pavilion.jpg"
+              src="/hero/group-gathering-pavilion.jpg"
               alt="Group gathering at Seven Arrows Recovery"
               className="w-full h-full object-cover"
               loading="lazy"

@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Can I Force Someone to Go to Rehab?" },
         ]}
         description="Watching someone you love struggle with addiction is one of the most painful experiences you can go through. You see the damage it’s doing, to their health, their relationships, and their future, and you just want to help. But…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

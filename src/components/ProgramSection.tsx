@@ -39,7 +39,7 @@ const pillars: Pillar[] = [
     statement: 'Healing happens in relationship.',
     gloss:
       'Between client and clinician. Between peer and peer. Between a person and a horse that has no stake in their story.',
-    poster: '/images/equine-therapy-portrait.jpg',
+    poster: '/hero/equine-therapy-portrait.jpg',
   },
   {
     video: siteVideos.ranchLife,
@@ -47,7 +47,7 @@ const pillars: Pillar[] = [
     statement: 'Real recovery means treating both the symptoms and underlying issues with equal care.',
     gloss:
       'Small census. Primary therapist from day one. A cohort of peers who know your name before the second group.',
-    poster: '/images/group-gathering-pavilion.jpg',
+    poster: '/hero/group-gathering-pavilion.jpg',
   },
   {
     video: siteVideos.sonoranRanch,
@@ -55,7 +55,7 @@ const pillars: Pillar[] = [
     statement: 'Freedom happens when the nervous system learns it is safe to live.',
     gloss:
       'Our clinicians know how to successfully manage symptoms while the deeper work unfolds. Regulated presence. Polyvagal-informed care. A 160-acre ranch where the land itself teaches the body how to settle.',
-    poster: '/images/sign-night-sky-milky-way.jpg',
+    poster: '/hero/sign-night-sky-milky-way.jpg',
   },
 ];
 

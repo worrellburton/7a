@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Nature Versus Nurture: Explaining the Link Between Epigenetics and Addiction" },
         ]}
         description="Nature and nurture are often set as opposing forces. Does our innate nature or genes make us do what we do? Or are our actions determined by our environment and how we are nurtured?"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

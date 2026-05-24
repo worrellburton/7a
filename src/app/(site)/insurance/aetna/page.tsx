@@ -132,7 +132,7 @@ export default function InsuranceAetnaPage() {
           },
           { kind: 'link', href: '/admissions#verify', label: 'Verify online' },
         ]}
-        image="/images/embrace-connection.jpg"
+        image="/hero/embrace-connection.jpg"
       />
 
       <GeoAnswer
