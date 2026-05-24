@@ -1305,7 +1305,13 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           rail is hidden, so letting the body scroll naturally avoids
           the double-scrollbar (page + main panel) iOS shows when this
           element is taller than the viewport. */}
-      <div data-platform-main className="flex-1 lg:overflow-auto relative">
+      <div data-platform-main className="flex-1 min-w-0 lg:overflow-auto relative">
+        {/* min-w-0 — flex items default to min-width:auto, which lets
+            an inner element with a wide intrinsic content width
+            (long paragraph, button row, table) push this panel past
+            the viewport on mobile. The page then renders horizontally
+            scrollable and iOS Safari hijacks pinch-to-zoom-out as a
+            swipe-back, leaving the user "zoomed in" with no escape. */}
         {/* Mobile top bar */}
         <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-14 bg-white/90 backdrop-blur border-b border-gray-100">
           <button

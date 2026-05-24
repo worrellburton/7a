@@ -162,7 +162,7 @@ export default function EmailCampaignsContent() {
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-6xl mx-auto">
       <header className="mb-5 flex items-baseline justify-between flex-wrap gap-3">
-        <div>
+        <div className="min-w-0 basis-full sm:basis-auto sm:flex-1">
           <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">
             Marketing · Email Campaigns
           </p>
