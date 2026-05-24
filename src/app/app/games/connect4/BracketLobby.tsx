@@ -48,6 +48,29 @@ function nextPow2(n: number): number {
   return 2 ** Math.ceil(Math.log2(n));
 }
 
+// Deterministic shuffle (Fisher-Yates + linear-congruential RNG) so
+// the bracket is stable across re-renders within a tournament cycle
+// but rotates each cycle. We seed off the calendar week (UTC) so
+// every Monday the byes redraw onto different teammates — nobody
+// gets stuck as the perma-bye holder and nobody gets stuck always
+// drawing into a first-round game.
+function deterministicShuffle<T>(arr: T[], seed: number): T[] {
+  const out = [...arr];
+  let s = ((seed | 0) >>> 0) || 1;
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    s = (s * 1103515245 + 12345) >>> 0;
+    const j = s % (i + 1);
+    [out[i], out[j]] = [out[j] as T, out[i] as T];
+  }
+  return out;
+}
+
+function currentWeekSeed(): number {
+  // 7 days in ms; Jan 1 1970 UTC was a Thursday — offset doesn't
+  // matter, we just need a stable integer that ticks once per week.
+  return Math.floor(Date.now() / (7 * 24 * 60 * 60 * 1000));
+}
+
 // Map a first-round seed count to the conventional name of the
 // round it represents. Falls back to "Round of N" when the size
 // doesn't map onto a standard label.
@@ -56,6 +79,26 @@ function roundNameForSize(size: number): string {
   if (size === 4) return 'Semifinals';
   if (size === 8) return 'Quarterfinals';
   return `Round of ${size}`;
+}
+
+// A bracket cell carries either a known UserLite (a real player,
+// either seeded directly or a known bye-advancer in a later round)
+// or a 'pending' marker for "waiting on a lower-round match to
+// resolve". Round 1 cells are either PvP (two users) or BYE (one
+// user + the cell is marked isBye so the visual + status can flag
+// the auto-advance).
+type CellSlot =
+  | { kind: 'user'; user: UserLite }
+  | { kind: 'pending' };
+
+interface BracketCell {
+  top: CellSlot | null;
+  bottom: CellSlot | null;
+  // True only for first-round cells where one player gets a bye.
+  // The bracket builder propagates the bye player into round 2 (and
+  // beyond, if that player's round-2 opponent is also a bye-advancer)
+  // so later rounds never look empty when the tournament starts.
+  isBye: boolean;
 }
 
 interface MatchRow {
@@ -168,26 +211,113 @@ export default function BracketLobby() {
 
   // Bracket size grows with the team. Floor at MIN_BRACKET_SIZE so a
   // small team still sees a real round-of-16 layout; otherwise round
-  // up to the next power of two so every teammate gets a seat
-  // (with any leftover slots rendering as empty seeds).
+  // up to the next power of two so every teammate gets a seat.
   const bracketSize = useMemo(
     () => Math.max(MIN_BRACKET_SIZE, nextPow2(Math.max(users.length, 2))),
     [users.length],
   );
   const rounds = Math.log2(bracketSize);
-  const seeded = useMemo(() => users.slice(0, bracketSize), [users, bracketSize]);
 
-  // Sequential pairing — alphabetical user 0 vs user 1, 2 vs 3, etc.
-  // Keeps the bracket reading as a 1:1 mapping of the staff list
-  // without making teammates memorise tournament seeds. Empty slots
-  // get a null entry so the matchup cell can render "Empty seed".
-  const bracketPairs = useMemo(() => {
-    const out: [UserLite | null, UserLite | null][] = [];
-    for (let i = 0; i < bracketSize; i += 2) {
-      out.push([seeded[i] ?? null, seeded[i + 1] ?? null]);
+  // Full bracket layout — round 1 through the final, with byes
+  // SCATTERED across the bracket (not piled at the end of the
+  // alphabet) and bye-advancers propagated forward so later rounds
+  // never look empty when the tournament starts.
+  //
+  // Strategy (rotates weekly so the same teammate doesn't get
+  // perma-byed):
+  //   1. Shuffle the user list deterministically off the week
+  //      number; reload-stable within the week.
+  //   2. Compute byeCount = bracketSize - users.length. With 37
+  //      teammates and a 64 bracket, that's 27 byes and 5 real
+  //      first-round games.
+  //   3. Build a template of 32 first-round match slots — 5 PvP
+  //      tokens + 27 BYE tokens — and shuffle that template too so
+  //      the byes interleave among the first-round positions.
+  //   4. Fill PvP slots with two players each; fill BYE slots with
+  //      one player + null.
+  //   5. Walk forward through each subsequent round: cell N at
+  //      round R takes its top/bottom from cells 2N and 2N+1 at
+  //      round R-1. If a feeder cell is a bye, its known player
+  //      flows up. Otherwise the slot is 'pending'.
+  // The result: every first-round cell has at least one real
+  // player, and any second-round cell whose two feeders are both
+  // byes already shows both players (the tournament can start
+  // immediately on those games).
+  const bracketRounds = useMemo<BracketCell[][]>(() => {
+    if (users.length === 0) return [];
+    const round1Count = bracketSize / 2;
+    const placed = users.slice(0, bracketSize);
+    const byeCount = Math.max(0, bracketSize - placed.length);
+    const pvpMatchCount = Math.max(0, round1Count - byeCount);
+
+    const weekSeed = currentWeekSeed();
+    const shuffledUsers = deterministicShuffle(placed, weekSeed);
+    const templates: ('PvP' | 'BYE')[] = [
+      ...Array(pvpMatchCount).fill('PvP') as 'PvP'[],
+      ...Array(byeCount).fill('BYE') as 'BYE'[],
+    ];
+    const shuffledTemplates = deterministicShuffle(templates, (weekSeed ^ 0x5a5a5a5a) >>> 0);
+
+    const round1: BracketCell[] = [];
+    let userIdx = 0;
+    for (const t of shuffledTemplates) {
+      if (t === 'PvP') {
+        const a = shuffledUsers[userIdx];
+        const b = shuffledUsers[userIdx + 1];
+        round1.push({
+          top: a ? { kind: 'user', user: a } : null,
+          bottom: b ? { kind: 'user', user: b } : null,
+          isBye: false,
+        });
+        userIdx += 2;
+      } else {
+        const a = shuffledUsers[userIdx];
+        round1.push({
+          top: a ? { kind: 'user', user: a } : null,
+          bottom: null,
+          isBye: true,
+        });
+        userIdx += 1;
+      }
+    }
+
+    const out: BracketCell[][] = [round1];
+    for (let r = 1; r < rounds; r += 1) {
+      const prev = out[r - 1] ?? [];
+      const next: BracketCell[] = [];
+      for (let i = 0; i < prev.length; i += 2) {
+        const fa = prev[i];
+        const fb = prev[i + 1];
+        // A bye cell forwards its sole known player; any other
+        // round-1 cell or any higher-round cell whose feeders
+        // haven't been pre-resolved is 'pending'.
+        const advancerFrom = (cell: BracketCell | undefined): CellSlot | null => {
+          if (!cell) return null;
+          if (cell.isBye && cell.top && cell.top.kind === 'user') return cell.top;
+          return { kind: 'pending' };
+        };
+        next.push({
+          top: advancerFrom(fa),
+          bottom: advancerFrom(fb),
+          isBye: false,
+        });
+      }
+      out.push(next);
     }
     return out;
-  }, [seeded, bracketSize]);
+  }, [users, bracketSize, rounds]);
+
+  // Round-1-only view kept for the click-to-challenge path: each
+  // first-round PvP / BYE cell still maps to a (UserLite|null,
+  // UserLite|null) pair so the existing onCellClick + match-creation
+  // flow keeps working without changes.
+  const bracketPairs = useMemo<[UserLite | null, UserLite | null][]>(() => {
+    const round1 = bracketRounds[0] ?? [];
+    return round1.map((c): [UserLite | null, UserLite | null] => [
+      c.top && c.top.kind === 'user' ? c.top.user : null,
+      c.bottom && c.bottom.kind === 'user' ? c.bottom.user : null,
+    ]);
+  }, [bracketRounds]);
 
   const challenge = useCallback(
     async (opponentId: string) => {
@@ -256,6 +386,7 @@ export default function BracketLobby() {
 
         <Bracket
           pairs={bracketPairs}
+          bracketRounds={bracketRounds}
           rounds={rounds}
           matchByPair={matchByPair}
           userById={userById}
@@ -356,6 +487,7 @@ function LiveNow({
 
 function Bracket({
   pairs,
+  bracketRounds,
   rounds,
   matchByPair,
   userById,
@@ -364,6 +496,7 @@ function Bracket({
   creating,
 }: {
   pairs: [UserLite | null, UserLite | null][];
+  bracketRounds: BracketCell[][];
   rounds: number;
   matchByPair: Map<string, MatchRow>;
   userById: Map<string, UserLite>;
@@ -379,18 +512,16 @@ function Bracket({
   const right = pairs.slice(pairs.length / 2);
   const firstRoundLabel = roundNameForSize(pairs.length * 2);
 
-  // One label per round, ordered round 1 → semifinal. Round 1 is
-  // the actual seeded list; rounds 2..(rounds-1) render as TBD
-  // placeholder columns with the matching name; round `rounds`
-  // (the Final) gets the trophy column in the centre.
+  // Per-round labels (round 1 → semifinal). round[0] === first-
+  // round. round[rounds-1] is the Final (rendered separately in the
+  // centre column). For later rounds we use the bracketRounds data
+  // to render advancers where known (bye holders) and 'TBD' where
+  // their feeder match hasn't resolved yet.
   const sideRoundLabels: string[] = [];
   for (let r = 1; r < rounds; r += 1) {
     const sizeAtRound = 2 ** (rounds - r + 1);
     sideRoundLabels.push(roundNameForSize(sizeAtRound));
   }
-  // sideRoundLabels[0] === firstRoundLabel (matches the seeded
-  // column); subsequent entries are the placeholder rounds heading
-  // toward the final.
 
   // Inline grid template: one fr per side round, plus a flex
   // central column for the Final. We avoid Tailwind class names
@@ -399,13 +530,20 @@ function Bracket({
   const sideCols = sideRoundLabels.length;
   const gridTemplateColumns = `repeat(${sideCols}, minmax(0, 1fr)) minmax(140px, 180px) repeat(${sideCols}, minmax(0, 1fr))`;
 
+  // Pre-split each non-first round into its left + right halves so
+  // we can hand the right halves to the right-side placeholder
+  // columns. Round 0 is rendered separately by BracketColumn (it's
+  // interactive); rounds 1..(rounds-1) are passive display cells
+  // that surface bye-advancers as soon as they're known.
+  const laterRounds = bracketRounds.slice(1);
+
   return (
     <div
       className="grid gap-3 lg:gap-4 items-stretch"
       style={{ gridTemplateColumns }}
     >
-      {/* Left half — round 1 column is the real matchups; subsequent
-          columns are placeholders heading toward the final. */}
+      {/* Left half — round 1 column is interactive; subsequent
+          columns render advancers / TBD heading toward the final. */}
       <BracketColumn
         label={firstRoundLabel}
         pairs={left}
@@ -415,23 +553,41 @@ function Bracket({
         youId={youId}
         onCellClick={onCellClick}
         creating={creating}
+        round1Cells={bracketRounds[0]?.slice(0, left.length) ?? []}
       />
       {sideRoundLabels.slice(1).map((label, idx) => {
-        const placeholderCount = left.length / 2 ** (idx + 1);
+        const roundCells = laterRounds[idx] ?? [];
+        const halfCount = roundCells.length / 2;
+        const leftCells = roundCells.slice(0, halfCount);
         return (
-          <BracketPlaceholderColumn key={`left-${label}-${idx}`} label={label} count={placeholderCount} side="left" />
+          <BracketAdvancerColumn
+            key={`left-${label}-${idx}`}
+            label={label}
+            cells={leftCells}
+            side="left"
+            youId={youId}
+          />
         );
       })}
 
-      <FinalSlot />
+      <FinalSlot finalCell={bracketRounds[rounds - 1]?.[0]} youId={youId} />
 
-      {/* Right half — mirrored. Render the placeholders in reverse
-          so the visual order reads outward → inward → final →
-          inward → outward. */}
+      {/* Right half — mirrored. Render later rounds in reverse so
+          the visual order reads outward → inward → final → inward
+          → outward. */}
       {sideRoundLabels.slice(1).reverse().map((label, idx) => {
-        const placeholderCount = right.length / 2 ** (sideRoundLabels.length - 1 - idx);
+        const actualIdx = sideRoundLabels.length - 2 - idx;
+        const roundCells = laterRounds[actualIdx] ?? [];
+        const halfCount = roundCells.length / 2;
+        const rightCells = roundCells.slice(halfCount);
         return (
-          <BracketPlaceholderColumn key={`right-${label}-${idx}`} label={label} count={placeholderCount} side="right" />
+          <BracketAdvancerColumn
+            key={`right-${label}-${idx}`}
+            label={label}
+            cells={rightCells}
+            side="right"
+            youId={youId}
+          />
         );
       })}
       <BracketColumn
@@ -443,6 +599,7 @@ function Bracket({
         youId={youId}
         onCellClick={onCellClick}
         creating={creating}
+        round1Cells={bracketRounds[0]?.slice(left.length) ?? []}
       />
     </div>
   );
@@ -457,6 +614,7 @@ function BracketColumn({
   youId,
   onCellClick,
   creating,
+  round1Cells,
 }: {
   label: string;
   pairs: [UserLite | null, UserLite | null][];
@@ -466,6 +624,10 @@ function BracketColumn({
   youId: string | null;
   onCellClick: (a: UserLite | null, b: UserLite | null) => void;
   creating: string | null;
+  // Parallel array to `pairs`; carries the `isBye` flag so the
+  // matchup cell can render "BYE · advances" instead of "Waiting
+  // for seed" for the now-deliberate one-player cells.
+  round1Cells: BracketCell[];
 }) {
   return (
     <div className="flex flex-col">
@@ -480,6 +642,7 @@ function BracketColumn({
           <MatchupCell
             key={`${side}-${i}`}
             pair={pair}
+            isBye={round1Cells[i]?.isBye === true}
             side={side}
             matchByPair={matchByPair}
             userById={userById}
@@ -493,20 +656,27 @@ function BracketColumn({
   );
 }
 
-function BracketPlaceholderColumn({
+function BracketAdvancerColumn({
   label,
-  count,
+  cells,
   side,
+  youId,
 }: {
   label: string;
-  count: number;
+  cells: BracketCell[];
   side: 'left' | 'right';
+  youId: string | null;
 }) {
-  // Round 2+ placeholder column. count is the integer number of
-  // matchups that round will host once round-1 winners advance;
-  // Math.max(1, ...) guards against any rounding glitch with very
-  // small brackets.
-  const safeCount = Math.max(1, Math.floor(count));
+  // Round 2+ display column. Each cell either:
+  //   - already shows BOTH players (both feeders were byes, so the
+  //     tournament can start this game immediately),
+  //   - shows ONE player + "Waiting for round X" (one feeder was a
+  //     bye, the other is a PvP whose winner hasn't resolved yet), or
+  //   - shows "TBD" on both rows (both feeders are PvP).
+  // No round ever renders as a blank cell — the bye-advancers
+  // propagated by the bracket builder make sure every later round
+  // shows real player names wherever the math allows.
+  const safeCells = cells.length > 0 ? cells : Array.from({ length: 1 }, () => ({ top: null, bottom: null, isBye: false } as BracketCell));
   return (
     <div className="hidden lg:flex flex-col">
       <p
@@ -516,21 +686,102 @@ function BracketPlaceholderColumn({
         {label}
       </p>
       <div className="flex flex-col gap-3 flex-1 justify-around">
-        {Array.from({ length: safeCount }).map((_, i) => (
-          <div
-            key={i}
-            className="rounded-lg border border-dashed border-black/10 bg-white/30 px-3 py-3 text-[10px] text-foreground/30 text-center"
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            TBD
-          </div>
+        {safeCells.map((cell, i) => (
+          <AdvancerCell key={i} cell={cell} side={side} youId={youId} />
         ))}
       </div>
     </div>
   );
 }
 
-function FinalSlot() {
+function AdvancerCell({
+  cell,
+  side,
+  youId,
+}: {
+  cell: BracketCell;
+  side: 'left' | 'right';
+  youId: string | null;
+}) {
+  const topKnown = cell.top?.kind === 'user' ? cell.top.user : null;
+  const bottomKnown = cell.bottom?.kind === 'user' ? cell.bottom.user : null;
+  const bothKnown = !!(topKnown && bottomKnown);
+  const noneKnown = !cell.top && !cell.bottom
+    ? true
+    : (!topKnown && !bottomKnown);
+
+  // Status line conveys whether this cell can play yet.
+  let statusText: string;
+  let statusTone: 'ready' | 'half' | 'tbd';
+  if (bothKnown) {
+    statusText = 'Ready to play';
+    statusTone = 'ready';
+  } else if (topKnown || bottomKnown) {
+    statusText = 'Waiting for round 1';
+    statusTone = 'half';
+  } else {
+    statusText = 'TBD';
+    statusTone = 'tbd';
+  }
+  const statusClasses = statusTone === 'ready'
+    ? 'text-emerald-700 bg-emerald-100/70'
+    : statusTone === 'half'
+      ? 'text-sky-700 bg-sky-100/60'
+      : 'text-foreground/40 bg-white/40';
+
+  return (
+    <div
+      className={`rounded-lg border ${bothKnown ? 'border-black/10 bg-white' : 'border-dashed border-black/10 bg-white/40'} ${side === 'right' ? 'pr-2' : 'pl-2'}`}
+      style={{ fontFamily: 'var(--font-body)' }}
+    >
+      <AdvancerRow slot={cell.top} you={topKnown?.id === youId} />
+      <div className="h-px bg-black/5" />
+      <AdvancerRow slot={cell.bottom} you={bottomKnown?.id === youId} />
+      <div
+        className={`flex items-center justify-between gap-1 px-2 py-1 rounded-b-md text-[9.5px] font-semibold uppercase tracking-wider ${statusClasses}`}
+      >
+        <span className="truncate">{statusText}</span>
+        {noneKnown && <span className="text-[8.5px] font-normal opacity-60">·</span>}
+      </div>
+    </div>
+  );
+}
+
+function AdvancerRow({ slot, you }: { slot: CellSlot | null; you: boolean }) {
+  if (!slot) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 text-[11.5px] text-foreground/30 italic">
+        TBD
+      </div>
+    );
+  }
+  if (slot.kind === 'pending') {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 text-[11.5px] text-foreground/40 italic">
+        Winner of round 1
+      </div>
+    );
+  }
+  const u = slot.user;
+  const name = u.full_name || u.email || '—';
+  return (
+    <div className="flex items-center gap-2 px-3 py-1.5 text-[12px] text-foreground/75">
+      <Avatar user={u} size="xs" />
+      <span className="truncate flex-1">
+        {name}
+        {you && <span className="ml-1 text-[9px] text-primary uppercase tracking-wider font-bold">you</span>}
+      </span>
+    </div>
+  );
+}
+
+function FinalSlot({ finalCell, youId }: { finalCell?: BracketCell; youId: string | null }) {
+  // The Final's top + bottom are derived from the two semifinal
+  // winners. A bye-heavy bracket can sometimes resolve one or both
+  // sides of the Final early (very rare, but mathematically possible
+  // on tiny brackets), so we still surface whichever side is known.
+  const topKnown = finalCell?.top?.kind === 'user' ? finalCell.top.user : null;
+  const bottomKnown = finalCell?.bottom?.kind === 'user' ? finalCell.bottom.user : null;
   return (
     <div className="hidden lg:flex flex-col items-center justify-center">
       <p
@@ -544,9 +795,21 @@ function FinalSlot() {
         style={{ fontFamily: 'var(--font-body)' }}
       >
         <span className="text-2xl" aria-hidden>🏆</span>
-        <p className="text-[11px] text-foreground/55 leading-snug">
-          The champion of the open bracket lands here.
-        </p>
+        {topKnown || bottomKnown ? (
+          <div className="w-full text-[11px] text-foreground/70 leading-snug space-y-0.5">
+            <p className={topKnown?.id === youId ? 'font-bold text-primary' : 'font-semibold'}>
+              {topKnown ? (topKnown.full_name || topKnown.email || '—').split(' ').slice(0, 2).join(' ') : 'TBD'}
+            </p>
+            <p className="text-[10px] text-foreground/45 uppercase tracking-wider">vs</p>
+            <p className={bottomKnown?.id === youId ? 'font-bold text-primary' : 'font-semibold'}>
+              {bottomKnown ? (bottomKnown.full_name || bottomKnown.email || '—').split(' ').slice(0, 2).join(' ') : 'TBD'}
+            </p>
+          </div>
+        ) : (
+          <p className="text-[11px] text-foreground/55 leading-snug">
+            The champion of the open bracket lands here.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -554,6 +817,7 @@ function FinalSlot() {
 
 function MatchupCell({
   pair,
+  isBye,
   side,
   matchByPair,
   userById,
@@ -562,6 +826,7 @@ function MatchupCell({
   creating,
 }: {
   pair: [UserLite | null, UserLite | null];
+  isBye: boolean;
   side: 'left' | 'right';
   matchByPair: Map<string, MatchRow>;
   userById: Map<string, UserLite>;
@@ -574,14 +839,19 @@ function MatchupCell({
   const youAreIn = !!(youId && (a?.id === youId || b?.id === youId));
   const isLive = !!match && (match.status === 'active' || match.status === 'open');
   const isDone = !!match && (match.status === 'complete' || match.status === 'forfeit');
-  const canAct = (youAreIn && !creating) || !!match;
+  // Bye cells aren't clickable — there's no opponent to challenge,
+  // and the auto-advance fills the round-2 slot automatically.
+  const canAct = !isBye && ((youAreIn && !creating) || !!match);
 
   // Status footer copy — one short line that reads on its own so
   // the bracket doubles as a status board. Each branch is short on
   // purpose; the cell only has ~12rem of horizontal space.
   let statusText: string;
-  let statusTone: 'live' | 'open' | 'done' | 'idle' | 'wait';
-  if (!a || !b) {
+  let statusTone: 'live' | 'open' | 'done' | 'idle' | 'wait' | 'bye';
+  if (isBye) {
+    statusText = 'Bye · advances';
+    statusTone = 'bye';
+  } else if (!a || !b) {
     statusText = 'Waiting for seed';
     statusTone = 'wait';
   } else if (match && match.status === 'active') {
@@ -619,6 +889,7 @@ function MatchupCell({
       case 'open': return 'text-sky-700 bg-sky-100/70';
       case 'done': return 'text-foreground/60 bg-warm-bg/70';
       case 'wait': return 'text-foreground/40 bg-white/40';
+      case 'bye': return 'text-violet-700 bg-violet-100/70';
       case 'idle':
       default: return youAreIn ? 'text-primary bg-primary/10' : 'text-foreground/40 bg-white/40';
     }
@@ -644,9 +915,9 @@ function MatchupCell({
           Live
         </span>
       )}
-      <Row user={a} winner={!!isDone && match?.winner_id === a?.id} you={a?.id === youId} />
+      <Row user={a} winner={!!isDone && match?.winner_id === a?.id} you={a?.id === youId} byePlaceholder={isBye && !a} />
       <div className="h-px bg-black/5" />
-      <Row user={b} winner={!!isDone && match?.winner_id === b?.id} you={b?.id === youId} />
+      <Row user={b} winner={!!isDone && match?.winner_id === b?.id} you={b?.id === youId} byePlaceholder={isBye && !b} />
 
       {/* Status footer — reads even when the cell isn't clickable
           (e.g. a finished round-1 match, or a "Waiting for seed"
@@ -666,11 +937,17 @@ function MatchupCell({
   );
 }
 
-function Row({ user, winner, you }: { user: UserLite | null; winner: boolean; you: boolean }) {
+function Row({ user, winner, you, byePlaceholder = false }: { user: UserLite | null; winner: boolean; you: boolean; byePlaceholder?: boolean }) {
   if (!user) {
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 text-[11.5px] text-foreground/35 italic" style={{ fontFamily: 'var(--font-body)' }}>
-        Empty seed
+      <div className="flex items-center gap-2 px-3 py-1.5 text-[11.5px] italic" style={{ fontFamily: 'var(--font-body)' }}>
+        {byePlaceholder ? (
+          <span className="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-md bg-violet-100/60 text-violet-700 text-[9.5px] font-bold uppercase tracking-[0.18em] not-italic">
+            Bye
+          </span>
+        ) : (
+          <span className="text-foreground/35">Empty seed</span>
+        )}
       </div>
     );
   }
