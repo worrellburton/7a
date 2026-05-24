@@ -2992,7 +2992,7 @@ function ContactsGrid({
         data-outreach-table
         className="overflow-x-auto rounded-xl border border-black/10 bg-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <table className="w-full text-[13px] table-fixed">
+        <table className="w-full text-[11.5px] table-fixed">
         {/* <colgroup> drives the actual column widths so resize is
             cheap (only one node per column needs its width set, not
             every cell). Default widths from `DEFAULT_COL_WIDTHS_PX`
