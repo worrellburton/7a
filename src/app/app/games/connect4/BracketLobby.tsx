@@ -2,26 +2,33 @@
 
 // March Madness — style Connect-4 lobby.
 //
-// Replaces the four-pane lobby with a tournament-bracket layout
-// that fills itself in from the staff list (alphabetical seed
-// order, split half-and-half across the two sides of the bracket).
-// Each round-1 cell is a clickable matchup: if you're one of the
-// two players, the click POSTs /api/games/connect4 and routes you
-// into the live board; if there's already an open / active /
-// complete match between those two, the cell links to that game
-// so anyone can spectate.
+// Tournament-bracket layout that fills itself in from the staff list
+// (alphabetical seed order, split half-and-half across the two
+// sides of the bracket). Every teammate gets a first-round seat —
+// the bracket size grows to the next power of two above the team
+// count (clamped to a 16-seed minimum so a brand-new install still
+// shows the familiar four-round layout). Empty seats render as
+// "Empty seed" placeholders so the visual stays symmetrical.
 //
-// A LIVE NOW strip across the top broadcasts every in-flight
-// match across the team — both players' avatars, current move
-// count, time since last move — and refreshes off the
-// connect4_matches realtime channel so admins / clinicians can
-// see who's mid-game without refreshing.
+// Each round-1 cell is a clickable matchup: if you're one of the
+// two players the click POSTs /api/games/connect4 and routes you
+// into the live board; if there's already an open / active /
+// complete match between those two, the cell links to that game so
+// anyone can spectate. The cell also surfaces a one-line status
+// pill — TBD, Open, Live · N moves, Winner · Name, or Forfeit —
+// so the bracket reads as a status board without a click.
+//
+// A LIVE NOW strip across the top broadcasts every in-flight match
+// across the team — both players' avatars, current move count,
+// time since last move — and refreshes off the connect4_matches
+// realtime channel so admins / clinicians can see who's mid-game
+// without refreshing.
 //
 // Below the bracket sit two compact rows the original lobby
 // carried (Your Turn — matches awaiting your move; Recent
-// Results — your last completed games) plus the full
-// alphabetical challenge list for anyone not in the top-16
-// bracket seeds.
+// Results — your last completed games). The old "challenge anyone"
+// overflow list has been removed: with the dynamic bracket size,
+// every teammate is already in the bracket.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -31,7 +38,25 @@ import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { currentPlayer } from '@/lib/connect4';
 
-const BRACKET_SIZE = 16;
+// Floor on the bracket size — keeps a small org from rendering a
+// lopsided 2- or 4-seat bracket. nextPow2 below grows the bracket
+// past this floor as the team grows.
+const MIN_BRACKET_SIZE = 16;
+
+function nextPow2(n: number): number {
+  if (n <= 1) return 2;
+  return 2 ** Math.ceil(Math.log2(n));
+}
+
+// Map a first-round seed count to the conventional name of the
+// round it represents. Falls back to "Round of N" when the size
+// doesn't map onto a standard label.
+function roundNameForSize(size: number): string {
+  if (size === 2) return 'Final';
+  if (size === 4) return 'Semifinals';
+  if (size === 8) return 'Quarterfinals';
+  return `Round of ${size}`;
+}
 
 interface MatchRow {
   id: string;
@@ -141,23 +166,28 @@ export default function BracketLobby() {
     ).slice(0, 5);
   }, [user, matches]);
 
-  // First 16 staff alphabetically seed the bracket; the rest fall
-  // into the challenge-list at the bottom.
-  const seeded = useMemo(() => users.slice(0, BRACKET_SIZE), [users]);
-  const overflow = useMemo(() => users.slice(BRACKET_SIZE).filter((u) => u.id !== user?.id), [users, user?.id]);
+  // Bracket size grows with the team. Floor at MIN_BRACKET_SIZE so a
+  // small team still sees a real round-of-16 layout; otherwise round
+  // up to the next power of two so every teammate gets a seat
+  // (with any leftover slots rendering as empty seeds).
+  const bracketSize = useMemo(
+    () => Math.max(MIN_BRACKET_SIZE, nextPow2(Math.max(users.length, 2))),
+    [users.length],
+  );
+  const rounds = Math.log2(bracketSize);
+  const seeded = useMemo(() => users.slice(0, bracketSize), [users, bracketSize]);
 
-  // Seeded order in standard 16-team-bracket pairings: 1 vs 16,
-  // 8 vs 9, 5 vs 12, 4 vs 13 on the top half; mirrored on the bottom.
-  // We use a simplified sequential pairing — alphabetical user 0 vs
-  // user 1, 2 vs 3, etc. — so the bracket reads as a 1:1 mapping of
-  // the staff list without requiring the team to memorise seeds.
+  // Sequential pairing — alphabetical user 0 vs user 1, 2 vs 3, etc.
+  // Keeps the bracket reading as a 1:1 mapping of the staff list
+  // without making teammates memorise tournament seeds. Empty slots
+  // get a null entry so the matchup cell can render "Empty seed".
   const bracketPairs = useMemo(() => {
     const out: [UserLite | null, UserLite | null][] = [];
-    for (let i = 0; i < BRACKET_SIZE; i += 2) {
+    for (let i = 0; i < bracketSize; i += 2) {
       out.push([seeded[i] ?? null, seeded[i + 1] ?? null]);
     }
     return out;
-  }, [seeded]);
+  }, [seeded, bracketSize]);
 
   const challenge = useCallback(
     async (opponentId: string) => {
@@ -213,19 +243,20 @@ export default function BracketLobby() {
         <header className="flex items-baseline justify-between mb-4">
           <div>
             <h2 className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">
-              Open bracket · {BRACKET_SIZE} seeds
+              Open bracket · {bracketSize} seeds
             </h2>
             <p className="text-[12px] text-foreground/55 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
               Click any first-round matchup to challenge — or spectate a game already in progress.
             </p>
           </div>
           <span className="hidden sm:inline-block text-[10px] tracking-[0.22em] uppercase text-foreground/35">
-            {BRACKET_SIZE / 2} matchups · {Math.log2(BRACKET_SIZE)} rounds
+            {bracketSize / 2} matchups · {rounds} rounds
           </span>
         </header>
 
         <Bracket
           pairs={bracketPairs}
+          rounds={rounds}
           matchByPair={matchByPair}
           userById={userById}
           youId={user?.id ?? null}
@@ -246,31 +277,6 @@ export default function BracketLobby() {
           ))}
         </CompactPane>
       </div>
-
-      {overflow.length > 0 && (
-        <section className="rounded-2xl border border-black/10 bg-white/60 px-4 py-3">
-          <h2 className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45 mb-2">
-            Challenge anyone · {overflow.length} more teammates
-          </h2>
-          <ul className="grid gap-1 sm:grid-cols-2">
-            {overflow.map((u) => (
-              <li key={u.id} className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-warm-bg/60">
-                <Avatar user={u} size="sm" />
-                <span className="text-[12.5px] font-semibold text-foreground truncate flex-1">{u.full_name || u.email}</span>
-                <button
-                  type="button"
-                  onClick={() => void challenge(u.id)}
-                  disabled={creating === u.id}
-                  className="px-2.5 py-1 rounded-md bg-primary text-white text-[10px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  {creating === u.id ? '…' : 'Challenge'}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
 
       {error && (
         <p className="text-[11.5px] text-red-700" role="alert" style={{ fontFamily: 'var(--font-body)' }}>
@@ -350,6 +356,7 @@ function LiveNow({
 
 function Bracket({
   pairs,
+  rounds,
   matchByPair,
   userById,
   youId,
@@ -357,25 +364,86 @@ function Bracket({
   creating,
 }: {
   pairs: [UserLite | null, UserLite | null][];
+  rounds: number;
   matchByPair: Map<string, MatchRow>;
   userById: Map<string, UserLite>;
   youId: string | null;
   onCellClick: (a: UserLite | null, b: UserLite | null) => void;
   creating: string | null;
 }) {
-  // Split the 8 first-round matchups across two halves. Left side
-  // gets the first four pairings; right side gets the last four,
-  // rendered in reverse so the connectors visually converge inward.
+  // Split the first-round matchups across two halves. Left side
+  // gets the first half; right side gets the second half. The
+  // bracket mirrors around the Final so future rounds converge
+  // inward toward the trophy slot.
   const left = pairs.slice(0, pairs.length / 2);
   const right = pairs.slice(pairs.length / 2);
+  const firstRoundLabel = roundNameForSize(pairs.length * 2);
+
+  // One label per round, ordered round 1 → semifinal. Round 1 is
+  // the actual seeded list; rounds 2..(rounds-1) render as TBD
+  // placeholder columns with the matching name; round `rounds`
+  // (the Final) gets the trophy column in the centre.
+  const sideRoundLabels: string[] = [];
+  for (let r = 1; r < rounds; r += 1) {
+    const sizeAtRound = 2 ** (rounds - r + 1);
+    sideRoundLabels.push(roundNameForSize(sizeAtRound));
+  }
+  // sideRoundLabels[0] === firstRoundLabel (matches the seeded
+  // column); subsequent entries are the placeholder rounds heading
+  // toward the final.
+
+  // Inline grid template: one fr per side round, plus a flex
+  // central column for the Final. We avoid Tailwind class names
+  // here because the column count grows with the team and Tailwind
+  // can't enumerate every possible class at build time.
+  const sideCols = sideRoundLabels.length;
+  const gridTemplateColumns = `repeat(${sideCols}, minmax(0, 1fr)) minmax(140px, 180px) repeat(${sideCols}, minmax(0, 1fr))`;
 
   return (
-    <div className="grid gap-3 lg:grid-cols-[1fr_1fr_minmax(140px,180px)_1fr_1fr] lg:gap-4 items-stretch">
-      <BracketColumn label="Round of 16" pairs={left} side="left" matchByPair={matchByPair} userById={userById} youId={youId} onCellClick={onCellClick} creating={creating} />
-      <BracketPlaceholderColumn label="Quarterfinals" count={left.length / 2} side="left" />
+    <div
+      className="grid gap-3 lg:gap-4 items-stretch"
+      style={{ gridTemplateColumns }}
+    >
+      {/* Left half — round 1 column is the real matchups; subsequent
+          columns are placeholders heading toward the final. */}
+      <BracketColumn
+        label={firstRoundLabel}
+        pairs={left}
+        side="left"
+        matchByPair={matchByPair}
+        userById={userById}
+        youId={youId}
+        onCellClick={onCellClick}
+        creating={creating}
+      />
+      {sideRoundLabels.slice(1).map((label, idx) => {
+        const placeholderCount = left.length / 2 ** (idx + 1);
+        return (
+          <BracketPlaceholderColumn key={`left-${label}-${idx}`} label={label} count={placeholderCount} side="left" />
+        );
+      })}
+
       <FinalSlot />
-      <BracketPlaceholderColumn label="Quarterfinals" count={right.length / 2} side="right" />
-      <BracketColumn label="Round of 16" pairs={right} side="right" matchByPair={matchByPair} userById={userById} youId={youId} onCellClick={onCellClick} creating={creating} />
+
+      {/* Right half — mirrored. Render the placeholders in reverse
+          so the visual order reads outward → inward → final →
+          inward → outward. */}
+      {sideRoundLabels.slice(1).reverse().map((label, idx) => {
+        const placeholderCount = right.length / 2 ** (sideRoundLabels.length - 1 - idx);
+        return (
+          <BracketPlaceholderColumn key={`right-${label}-${idx}`} label={label} count={placeholderCount} side="right" />
+        );
+      })}
+      <BracketColumn
+        label={firstRoundLabel}
+        pairs={right}
+        side="right"
+        matchByPair={matchByPair}
+        userById={userById}
+        youId={youId}
+        onCellClick={onCellClick}
+        creating={creating}
+      />
     </div>
   );
 }
@@ -434,6 +502,11 @@ function BracketPlaceholderColumn({
   count: number;
   side: 'left' | 'right';
 }) {
+  // Round 2+ placeholder column. count is the integer number of
+  // matchups that round will host once round-1 winners advance;
+  // Math.max(1, ...) guards against any rounding glitch with very
+  // small brackets.
+  const safeCount = Math.max(1, Math.floor(count));
   return (
     <div className="hidden lg:flex flex-col">
       <p
@@ -443,7 +516,7 @@ function BracketPlaceholderColumn({
         {label}
       </p>
       <div className="flex flex-col gap-3 flex-1 justify-around">
-        {Array.from({ length: count }).map((_, i) => (
+        {Array.from({ length: safeCount }).map((_, i) => (
           <div
             key={i}
             className="rounded-lg border border-dashed border-black/10 bg-white/30 px-3 py-3 text-[10px] text-foreground/30 text-center"
@@ -499,9 +572,57 @@ function MatchupCell({
   const [a, b] = pair;
   const match = a && b ? matchByPair.get(pairKey(a.id, b.id)) : undefined;
   const youAreIn = !!(youId && (a?.id === youId || b?.id === youId));
-  const isLive = match && (match.status === 'active' || match.status === 'open');
-  const isDone = match && (match.status === 'complete' || match.status === 'forfeit');
+  const isLive = !!match && (match.status === 'active' || match.status === 'open');
+  const isDone = !!match && (match.status === 'complete' || match.status === 'forfeit');
   const canAct = (youAreIn && !creating) || !!match;
+
+  // Status footer copy — one short line that reads on its own so
+  // the bracket doubles as a status board. Each branch is short on
+  // purpose; the cell only has ~12rem of horizontal space.
+  let statusText: string;
+  let statusTone: 'live' | 'open' | 'done' | 'idle' | 'wait';
+  if (!a || !b) {
+    statusText = 'Waiting for seed';
+    statusTone = 'wait';
+  } else if (match && match.status === 'active') {
+    const moves = match.moves.length;
+    statusText = `Live · ${moves} ${moves === 1 ? 'move' : 'moves'}`;
+    statusTone = 'live';
+  } else if (match && match.status === 'open') {
+    statusText = match.moves.length === 0 ? 'Open · awaiting first move' : `Open · ${match.moves.length} moves`;
+    statusTone = 'open';
+  } else if (match && match.status === 'complete') {
+    if (match.winner_id) {
+      const winnerName = (() => {
+        if (match.winner_id === a.id) return (a.full_name || a.email || '').split(' ')[0] || 'Winner';
+        if (match.winner_id === b.id) return (b.full_name || b.email || '').split(' ')[0] || 'Winner';
+        return userById.get(match.winner_id)?.full_name?.split(' ')[0] ?? 'Winner';
+      })();
+      statusText = `Winner · ${winnerName}`;
+    } else {
+      statusText = 'Draw';
+    }
+    statusTone = 'done';
+  } else if (match && match.status === 'forfeit') {
+    statusText = 'Forfeit';
+    statusTone = 'done';
+  } else if (youAreIn) {
+    statusText = creating ? 'Starting…' : 'Click to challenge';
+    statusTone = 'idle';
+  } else {
+    statusText = 'TBD';
+    statusTone = 'idle';
+  }
+  const statusClasses = (() => {
+    switch (statusTone) {
+      case 'live': return 'text-emerald-700 bg-emerald-100/70';
+      case 'open': return 'text-sky-700 bg-sky-100/70';
+      case 'done': return 'text-foreground/60 bg-warm-bg/70';
+      case 'wait': return 'text-foreground/40 bg-white/40';
+      case 'idle':
+      default: return youAreIn ? 'text-primary bg-primary/10' : 'text-foreground/40 bg-white/40';
+    }
+  })();
 
   return (
     <button
@@ -526,11 +647,21 @@ function MatchupCell({
       <Row user={a} winner={!!isDone && match?.winner_id === a?.id} you={a?.id === youId} />
       <div className="h-px bg-black/5" />
       <Row user={b} winner={!!isDone && match?.winner_id === b?.id} you={b?.id === youId} />
-      {youAreIn && !match && (
-        <span className="absolute bottom-1 right-2 text-[9px] uppercase tracking-widest font-bold text-primary">
-          {creating ? '…' : 'Challenge →'}
-        </span>
-      )}
+
+      {/* Status footer — reads even when the cell isn't clickable
+          (e.g. a finished round-1 match, or a "Waiting for seed"
+          slot in a sparse bracket). Picks tone from the resolved
+          match state so an admin scanning the page can see the
+          state of every game without opening each one. */}
+      <div
+        className={`flex items-center justify-between gap-1 px-2 py-1 rounded-b-md text-[9.5px] font-semibold uppercase tracking-wider ${statusClasses}`}
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        <span className="truncate">{statusText}</span>
+        {match && (
+          <span className="text-[8.5px] font-normal opacity-60 tabular-nums shrink-0">{match.moves.length}m</span>
+        )}
+      </div>
     </button>
   );
 }
