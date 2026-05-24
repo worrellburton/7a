@@ -799,7 +799,7 @@ function WeeklyLineChart({ series }: { series: WeeklyPoint[] }) {
       <header className="px-4 py-3 border-b border-black/5 flex items-baseline justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/55">
-            Weekly trend · all time
+            Weekly trend · last 6 weeks
           </p>
           <h2
             className="mt-0.5 text-[15px] font-bold text-foreground"

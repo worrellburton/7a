@@ -339,24 +339,19 @@ export async function GET(req: NextRequest) {
     if (k >= lastMonthStartKey && k < thisMonthStartKey) counts.last_month += 1;
   }
 
-  // All-time weekly time series — every Phoenix-Monday-anchored
-  // week from the first historical log through the current week,
-  // oldest → newest. Zeros fill the gaps so the line reads as a
-  // continuous trend instead of dropping out on quiet weeks. Capped
-  // at MAX_WEEKS so a multi-year history still hydrates fast and
-  // renders without dropping below ~3px per data point on phones.
-  const MAX_WEEKS = 104; // ~2 years
-  const sortedWeekKeys = Array.from(weekCount.keys()).sort();
-  const firstWeekKey = sortedWeekKeys[0] ?? thisWeekStartKey;
+  // Weekly time series — last WEEKS_BACK Phoenix-Monday-anchored
+  // weeks ending with the current (in-progress) week, oldest →
+  // newest. Pre-filled with zeros so a quiet week still draws a
+  // point on the line instead of a gap that misleads the reader.
+  const WEEKS_BACK = 6;
   const weekSlots: Array<{ weekStart: string; count: number }> = [];
-  let cursor = firstWeekKey;
-  while (cursor <= thisWeekStartKey) {
+  let cursor = thisWeekStartKey;
+  for (let i = 0; i < WEEKS_BACK; i++) {
     weekSlots.push({ weekStart: cursor, count: weekCount.get(cursor) ?? 0 });
-    cursor = addDaysKey(cursor, 7);
+    cursor = addDaysKey(cursor, -7);
   }
-  // If history is older than MAX_WEEKS, trim from the front so the
-  // visible window is always the most recent ~2 years.
-  const trimmed = weekSlots.length > MAX_WEEKS ? weekSlots.slice(-MAX_WEEKS) : weekSlots;
+  weekSlots.reverse();
+  const trimmed = weekSlots;
 
   return NextResponse.json({
     range,
