@@ -112,7 +112,7 @@ export default function PageContent() {
         ]}
         description="At Seven Arrows we have streamlined your admissions process. You will always have access to a live person to answer any concerns that you or your loved one might have — both prior to admission and throughout your stay."
         video={siteVideos.ranchLife}
-        image="/images/embrace-connection.jpg"
+        image="/hero/embrace-connection.jpg"
       />
 
       {/* Location stat strip — three-up: 300+ sunny days · 45 min

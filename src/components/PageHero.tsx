@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef } from 'react';
 
@@ -66,7 +65,30 @@ interface PageHeroProps {
 // and preloaded so all inner pages share the same ambient motion.
 const DEFAULT_VIDEO =
   'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-videos/9c83abff-3c23-47a6-a407-467dd6d4dec4.mp4';
-const DEFAULT_IMAGE = '/images/facility-exterior-mountains.jpg';
+const DEFAULT_IMAGE = '/hero/facility-exterior-mountains.jpg';
+
+// Hero base paths that have a pre-encoded AVIF sitting next to the
+// JPEG fallback in /public/hero/. When `image` resolves to one of
+// these, we render a native <picture> with AVIF source + JPEG <img>
+// fallback (next/image's auto-format negotiation is disabled site-
+// wide via next.config `unoptimized: true`, so the picture element
+// is the only way to actually ship AVIF here). Anything else falls
+// back to the legacy single-source <Image> path below.
+const HERO_AVIF_BASES = new Set([
+  '/hero/facility-exterior-mountains',
+  '/hero/embrace-connection',
+]);
+
+function heroPaths(image: string): { jpg: string; avif: string | null } {
+  // Strip extension to derive the base path; only emit an AVIF
+  // source when the base is in our pre-encoded allow-list. This
+  // guards against pointing at an /hero/ path that has no AVIF
+  // counterpart and getting a broken-image render (browsers commit
+  // to the matched <source type> even when the URL 404s).
+  const base = image.replace(/\.(jpe?g|png|webp|avif)$/i, '');
+  const avif = HERO_AVIF_BASES.has(base) ? `${base}.avif` : null;
+  return { jpg: image, avif };
+}
 
 function MetaIcon({ kind }: { kind: MetaItem['icon'] }) {
   const common = 'w-3.5 h-3.5';
@@ -243,22 +265,46 @@ export default function PageHero({
           aria-hidden="true"
         />
       ) : (
-        // Next.js Image with priority emits AVIF + WebP variants, a
-        // responsive srcset, and a `<link rel=preload fetchpriority=high>`
-        // automatically. That fixes the desktop + mobile LCP issues
-        // flagged in Search Console for every inner page that used to
-        // render this background as a plain <img loading="eager"> at the
-        // raw 400–500 KB JPEG size. Behaviour is otherwise identical —
-        // absolutely positioned, fills the section, decorative.
-        <Image
-          src={posterImage}
-          alt=""
-          aria-hidden="true"
-          priority
-          fill
-          sizes="100vw"
-          className="object-cover"
-        />
+        // Hero poster. next.config has `images: { unoptimized: true }`
+        // site-wide so next/image never re-encodes anything; the only
+        // way to actually deliver AVIF here is a hand-rolled <picture>
+        // with the AVIF source + a JPEG <img> fallback. Both files are
+        // pre-encoded at build time by scripts/_encode-heroes.mjs and
+        // committed to /public/hero/ alongside the JPEG. AVIF is ~75%
+        // smaller than the source JPEG at hero scale (519 KB → 119 KB
+        // for facility-exterior-mountains, 370 KB → 93 KB for embrace-
+        // connection) which is the bulk of the LCP win.
+        //
+        // fetchPriority='high' + loading='eager' + decoding='async'
+        // mirror what next/image's `priority` would have done if the
+        // optimizer were enabled; on this site we set them explicitly.
+        // sizes='100vw' communicates the intrinsic width back to the
+        // browser preload scanner so the right variant is requested.
+        // Width + height are set so the browser can reserve the right
+        // aspect-ratio box before the bytes arrive, avoiding CLS even
+        // though the element is absolutely positioned with object-cover.
+        (() => {
+          const { jpg, avif } = heroPaths(posterImage);
+          return (
+            <picture className="absolute inset-0 block w-full h-full" aria-hidden="true">
+              {avif && <source srcSet={avif} type="image/avif" sizes="100vw" />}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={jpg}
+                alt=""
+                width={1920}
+                height={1080}
+                sizes="100vw"
+                // @ts-expect-error fetchPriority is valid HTML on img
+                // but React's TS types lag the spec on older versions.
+                fetchpriority="high"
+                loading="eager"
+                decoding="async"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            </picture>
+          );
+        })()
       )}
 
       {/* Scrim — darker at the bottom so breadcrumb + title read cleanly
