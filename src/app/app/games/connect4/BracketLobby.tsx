@@ -366,8 +366,23 @@ export default function BracketLobby() {
   );
 
   return (
-    <div className="flex flex-col gap-5">
+    <div className="flex flex-col gap-4 sm:gap-5">
+      {/* Phase 5 — Your-match spotlight at the very top of the page,
+          so the player never has to scan a 64-seed bracket to find
+          their own game. */}
+      <YourMatchSpotlight
+        user={user ? { id: user.id } : null}
+        matches={matches}
+        userById={userById}
+        bracketRounds={bracketRounds}
+      />
+
       <LiveNow matches={liveMatches} userById={userById} youId={user?.id ?? null} />
+
+      {/* Phase 7 — Tournament progress meter. Stacked bar showing
+          done / in-flight / not-started across round 1; bye count
+          surfaced so the room can see why round 1 is light. */}
+      <TournamentProgressMeter bracketRounds={bracketRounds} matches={matches} />
 
       <section className="rounded-2xl border border-black/10 bg-white/65 px-4 py-4 lg:px-6 lg:py-5">
         <header className="flex items-baseline justify-between mb-4">
@@ -376,7 +391,7 @@ export default function BracketLobby() {
               Open bracket · {bracketSize} seeds
             </h2>
             <p className="text-[12px] text-foreground/55 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-              Click any first-round matchup to challenge — or spectate a game already in progress.
+              Click any first-round matchup to challenge — or spectate a game already in progress. Byes scatter and rotate weekly so nobody&rsquo;s ever stuck on the bench.
             </p>
           </div>
           <span className="hidden sm:inline-block text-[10px] tracking-[0.22em] uppercase text-foreground/35">
@@ -418,7 +433,189 @@ export default function BracketLobby() {
   );
 }
 
-/* ── LIVE NOW strip ──────────────────────────────────────────────── */
+/* ── Your-match spotlight (Phase 5) ─────────────────────────────── */
+
+function YourMatchSpotlight({
+  user,
+  matches,
+  userById,
+  bracketRounds,
+}: {
+  user: { id: string } | null;
+  matches: MatchRow[] | null;
+  userById: Map<string, UserLite>;
+  bracketRounds: BracketCell[][];
+}) {
+  if (!user) return null;
+
+  // Priority 1: your live/open game (your turn or opponent's turn,
+  // doesn't matter — the spotlight just gets you back to the board).
+  const liveOrOpen = (matches ?? []).find(
+    (m) => (m.status === 'active' || m.status === 'open')
+      && (m.challenger_id === user.id || m.opponent_id === user.id),
+  );
+
+  if (liveOrOpen) {
+    const opponentId = liveOrOpen.challenger_id === user.id ? liveOrOpen.opponent_id : liveOrOpen.challenger_id;
+    const opp = userById.get(opponentId);
+    const oppName = opp?.full_name || opp?.email || 'opponent';
+    const moves = liveOrOpen.moves.length;
+    return (
+      <Link
+        href={`/app/games/connect4?match=${liveOrOpen.id}`}
+        className="block rounded-2xl border-2 border-emerald-300/60 bg-gradient-to-r from-emerald-50 to-white px-4 py-3 shadow-[0_8px_24px_-12px_rgba(16,185,129,0.35)] hover:border-emerald-400 hover:shadow-[0_10px_28px_-12px_rgba(16,185,129,0.45)] transition-all"
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        <div className="flex items-center gap-3">
+          <span className="relative inline-flex w-2.5 h-2.5">
+            <span className="absolute inset-0 rounded-full bg-emerald-500 animate-ping opacity-75" />
+            <span className="relative inline-block w-2.5 h-2.5 rounded-full bg-emerald-500" />
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[9.5px] font-bold uppercase tracking-[0.22em] text-emerald-700">Your match — in progress</p>
+            <p className="text-[14px] font-semibold text-foreground mt-0.5 truncate">
+              vs. <span className="text-emerald-700">{oppName}</span>
+              <span className="ml-2 text-[11px] font-normal text-foreground/55 tabular-nums">· {moves} {moves === 1 ? 'move' : 'moves'}</span>
+            </p>
+          </div>
+          <span className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500 text-white text-[11px] font-bold uppercase tracking-wider hover:bg-emerald-600 transition-colors">
+            Resume →
+          </span>
+        </div>
+      </Link>
+    );
+  }
+
+  // Priority 2: your bracket seat (if you're in round 1). Surface
+  // the opponent and a "Click to start" prompt so finding your game
+  // is a single glance instead of a bracket-wide scan.
+  const round1 = bracketRounds[0] ?? [];
+  const yourCell = round1.find((c) =>
+    (c.top?.kind === 'user' && c.top.user.id === user.id)
+    || (c.bottom?.kind === 'user' && c.bottom.user.id === user.id),
+  );
+  if (!yourCell) return null;
+
+  if (yourCell.isBye) {
+    const youUser = (yourCell.top?.kind === 'user' && yourCell.top.user.id === user.id ? yourCell.top.user : null)
+      ?? (yourCell.bottom?.kind === 'user' && yourCell.bottom.user.id === user.id ? yourCell.bottom.user : null);
+    return (
+      <div
+        className="rounded-2xl border-2 border-violet-200/70 bg-gradient-to-r from-violet-50 to-white px-4 py-3"
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        <div className="flex items-center gap-3">
+          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-violet-100 text-violet-700 text-base">★</span>
+          <div className="flex-1 min-w-0">
+            <p className="text-[9.5px] font-bold uppercase tracking-[0.22em] text-violet-700">You — first-round bye</p>
+            <p className="text-[13px] text-foreground/75 mt-0.5">
+              Nice draw, {(youUser?.full_name || 'you').split(' ')[0]} — you advance to round 2 automatically.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Round 1 PvP — show the opponent + a CTA.
+  const youTop = yourCell.top?.kind === 'user' && yourCell.top.user.id === user.id;
+  const oppSlot = youTop ? yourCell.bottom : yourCell.top;
+  const opp = oppSlot?.kind === 'user' ? oppSlot.user : null;
+  return (
+    <div
+      className="rounded-2xl border-2 border-primary/30 bg-gradient-to-r from-primary/5 to-white px-4 py-3"
+      style={{ fontFamily: 'var(--font-body)' }}
+    >
+      <div className="flex items-center gap-3">
+        <Avatar user={opp ?? null} size="sm" />
+        <div className="flex-1 min-w-0">
+          <p className="text-[9.5px] font-bold uppercase tracking-[0.22em] text-primary">Your first-round match</p>
+          <p className="text-[14px] font-semibold text-foreground mt-0.5 truncate">
+            vs. <span className="text-primary">{opp?.full_name || opp?.email || 'TBD'}</span>
+          </p>
+        </div>
+        <span className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-white text-[11px] font-bold uppercase tracking-wider">
+          Find on bracket ↓
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Tournament progress meter (Phase 7) ────────────────────────── */
+
+function TournamentProgressMeter({
+  bracketRounds,
+  matches,
+}: {
+  bracketRounds: BracketCell[][];
+  matches: MatchRow[] | null;
+}) {
+  const round1 = bracketRounds[0] ?? [];
+  const realGames = round1.filter((c) => !c.isBye);
+  const byeCount = round1.length - realGames.length;
+  const total = realGames.length;
+  if (total === 0) return null;
+
+  // Resolve game state for each real round-1 cell by looking up the
+  // matching connect4_matches row by pair.
+  let started = 0;
+  let done = 0;
+  if (matches) {
+    const byPair = new Map<string, MatchRow>();
+    for (const m of matches) byPair.set(pairKey(m.challenger_id, m.opponent_id), m);
+    for (const c of realGames) {
+      const a = c.top?.kind === 'user' ? c.top.user : null;
+      const b = c.bottom?.kind === 'user' ? c.bottom.user : null;
+      if (!a || !b) continue;
+      const m = byPair.get(pairKey(a.id, b.id));
+      if (!m) continue;
+      started += 1;
+      if (m.status === 'complete' || m.status === 'forfeit') done += 1;
+    }
+  }
+  const pendingStart = Math.max(0, total - started);
+  const inFlight = Math.max(0, started - done);
+
+  return (
+    <div
+      className="rounded-2xl border border-black/10 bg-white/70 px-4 py-3"
+      style={{ fontFamily: 'var(--font-body)' }}
+      aria-label="Tournament progress"
+    >
+      <div className="flex items-baseline justify-between mb-2">
+        <h3 className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">Round 1 progress</h3>
+        <span className="text-[10.5px] tabular-nums text-foreground/45">{done}/{total} complete · {byeCount} bye{byeCount === 1 ? '' : 's'}</span>
+      </div>
+      {/* Three-segment stacked bar: done (emerald) · in-flight
+          (sky) · not started (warm-bg). The proportions read at a
+          glance — a tournament that's stalled because nobody's
+          started shows a single grey bar; one in full swing shows
+          a colorful mix. */}
+      <div className="relative h-2 rounded-full overflow-hidden bg-warm-bg/60">
+        {done > 0 && (
+          <div
+            className="absolute inset-y-0 left-0 bg-emerald-500"
+            style={{ width: `${(done / total) * 100}%` }}
+          />
+        )}
+        {inFlight > 0 && (
+          <div
+            className="absolute inset-y-0 bg-sky-400"
+            style={{ left: `${(done / total) * 100}%`, width: `${(inFlight / total) * 100}%` }}
+          />
+        )}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-foreground/55">
+        <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> {done} done</span>
+        <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-sky-400" /> {inFlight} in flight</span>
+        <span className="inline-flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-foreground/20" /> {pendingStart} not started</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── LIVE NOW strip (Phase 6) ────────────────────────────────────── */
 
 function LiveNow({
   matches,
@@ -430,14 +627,7 @@ function LiveNow({
   youId: string | null;
 }) {
   if (matches.length === 0) {
-    return (
-      <section className="rounded-2xl border border-black/10 bg-gradient-to-r from-warm-bg/70 to-white/60 px-4 py-3 flex items-center gap-3">
-        <span className="inline-block w-2 h-2 rounded-full bg-foreground/30" />
-        <span className="text-[12px] text-foreground/55" style={{ fontFamily: 'var(--font-body)' }}>
-          No matches in progress — claim a bracket slot below to kick the day off.
-        </span>
-      </section>
-    );
+    return null;
   }
   return (
     <section
@@ -452,7 +642,7 @@ function LiveNow({
           </span>
           Live now
         </h2>
-        <span className="text-[10.5px] tabular-nums text-foreground/40">{matches.length}</span>
+        <span className="text-[10.5px] tabular-nums text-foreground/40">{matches.length} game{matches.length === 1 ? '' : 's'}</span>
       </header>
       <ul className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
         {matches.map((m) => {
@@ -462,18 +652,29 @@ function LiveNow({
           const bIsYou = m.opponent_id === youId;
           const aName = (a?.full_name || a?.email || '—').split(' ')[0];
           const bName = (b?.full_name || b?.email || '—').split(' ')[0];
+          // Phase 6 — denser, more legible cards: paired avatars on
+          // the left, the matchup name in the middle, move count
+          // chip on the right. Hover bumps the border so spectators
+          // see the affordance.
           return (
             <li key={m.id} className="shrink-0">
               <Link
                 href={`/app/games/connect4?match=${m.id}`}
-                className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-1.5 border border-emerald-200/60 hover:border-emerald-400 hover:shadow-sm transition-all"
+                className="inline-flex items-center gap-2.5 rounded-lg bg-white px-3 py-2 border border-emerald-200/60 hover:border-emerald-400 hover:shadow-sm transition-all"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
-                <Avatar user={a} size="xs" />
-                <span className={`text-[12px] ${aIsYou ? 'font-bold text-primary' : 'font-semibold text-foreground/80'}`}>{aName}</span>
-                <span className="text-[10px] text-foreground/35 uppercase tracking-wider">vs</span>
-                <span className={`text-[12px] ${bIsYou ? 'font-bold text-primary' : 'font-semibold text-foreground/80'}`}>{bName}</span>
-                <span className="text-[10px] text-foreground/40 tabular-nums">· {m.moves.length} moves</span>
+                <span className="relative inline-flex items-center -space-x-1.5">
+                  <Avatar user={a} size="xs" />
+                  <Avatar user={b} size="xs" />
+                </span>
+                <span className="text-[12px] leading-tight flex flex-col">
+                  <span className="font-semibold">
+                    <span className={aIsYou ? 'text-primary font-bold' : 'text-foreground'}>{aName}</span>
+                    <span className="mx-1 text-foreground/35 text-[10px] uppercase tracking-wider">vs</span>
+                    <span className={bIsYou ? 'text-primary font-bold' : 'text-foreground'}>{bName}</span>
+                  </span>
+                  <span className="text-[9.5px] text-foreground/45 tabular-nums">{m.moves.length} {m.moves.length === 1 ? 'move' : 'moves'}</span>
+                </span>
               </Link>
             </li>
           );
@@ -538,9 +739,20 @@ function Bracket({
   const laterRounds = bracketRounds.slice(1);
 
   return (
+    // Phase 8 — subtle left-cool / right-warm tonal gradient on the
+    // bracket itself so spectators can intuit "champion of east vs
+    // champion of west" without an extra legend. The center Final
+    // column reads neutral because the gradient is symmetric around
+    // the midpoint.
+    // Phase 3 — `divide-x` between grid items adds a thin connector
+    // line between round columns so the eye can follow the
+    // round-to-round flow without needing a full SVG bracket tree.
     <div
-      className="grid gap-3 lg:gap-4 items-stretch"
-      style={{ gridTemplateColumns }}
+      className="grid gap-3 lg:gap-4 items-stretch rounded-xl p-2 sm:p-3"
+      style={{
+        gridTemplateColumns,
+        backgroundImage: 'linear-gradient(to right, rgba(56, 189, 248, 0.06), transparent 40%, transparent 60%, rgba(245, 158, 11, 0.06))',
+      }}
     >
       {/* Left half — round 1 column is interactive; subsequent
           columns render advancers / TBD heading toward the final. */}
@@ -637,7 +849,7 @@ function BracketColumn({
       >
         {label}
       </p>
-      <div className="flex flex-col gap-3 flex-1 justify-around">
+      <div className="flex flex-col gap-1.5 flex-1 justify-around">
         {pairs.map((pair, i) => (
           <MatchupCell
             key={`${side}-${i}`}
@@ -685,7 +897,7 @@ function BracketAdvancerColumn({
       >
         {label}
       </p>
-      <div className="flex flex-col gap-3 flex-1 justify-around">
+      <div className="flex flex-col gap-1.5 flex-1 justify-around">
         {safeCells.map((cell, i) => (
           <AdvancerCell key={i} cell={cell} side={side} youId={youId} />
         ))}
@@ -706,66 +918,62 @@ function AdvancerCell({
   const topKnown = cell.top?.kind === 'user' ? cell.top.user : null;
   const bottomKnown = cell.bottom?.kind === 'user' ? cell.bottom.user : null;
   const bothKnown = !!(topKnown && bottomKnown);
-  const noneKnown = !cell.top && !cell.bottom
-    ? true
-    : (!topKnown && !bottomKnown);
+  const someKnown = !!(topKnown || bottomKnown);
 
-  // Status line conveys whether this cell can play yet.
-  let statusText: string;
-  let statusTone: 'ready' | 'half' | 'tbd';
-  if (bothKnown) {
-    statusText = 'Ready to play';
-    statusTone = 'ready';
-  } else if (topKnown || bottomKnown) {
-    statusText = 'Waiting for round 1';
-    statusTone = 'half';
-  } else {
-    statusText = 'TBD';
-    statusTone = 'tbd';
+  // Phase 2 — Quiet placeholders. Cells where NEITHER feeder has
+  // resolved render as a slim connector slot (one thin line, no
+  // verbose "Winner of round 1" text repeated 32 times across the
+  // bracket). Cells where one or both feeders ARE resolved still
+  // render the player rows so a spectator can trace the bye path.
+  if (!someKnown) {
+    return (
+      <div
+        className={`rounded-md border border-dashed border-black/10 bg-white/30 ${side === 'right' ? 'pr-1.5' : 'pl-1.5'} h-10 flex items-center justify-center text-foreground/25`}
+        aria-hidden="true"
+      >
+        <span className="text-[10px] tracking-[0.18em]">— vs —</span>
+      </div>
+    );
   }
-  const statusClasses = statusTone === 'ready'
+
+  const statusText = bothKnown ? 'Ready' : 'Half-set';
+  const statusClasses = bothKnown
     ? 'text-emerald-700 bg-emerald-100/70'
-    : statusTone === 'half'
-      ? 'text-sky-700 bg-sky-100/60'
-      : 'text-foreground/40 bg-white/40';
+    : 'text-sky-700 bg-sky-100/60';
 
   return (
     <div
-      className={`rounded-lg border ${bothKnown ? 'border-black/10 bg-white' : 'border-dashed border-black/10 bg-white/40'} ${side === 'right' ? 'pr-2' : 'pl-2'}`}
+      className={`rounded-lg border ${bothKnown ? 'border-black/10 bg-white' : 'border-dashed border-black/10 bg-white/55'} ${side === 'right' ? 'pr-1.5' : 'pl-1.5'}`}
       style={{ fontFamily: 'var(--font-body)' }}
     >
       <AdvancerRow slot={cell.top} you={topKnown?.id === youId} />
       <div className="h-px bg-black/5" />
       <AdvancerRow slot={cell.bottom} you={bottomKnown?.id === youId} />
       <div
-        className={`flex items-center justify-between gap-1 px-2 py-1 rounded-b-md text-[9.5px] font-semibold uppercase tracking-wider ${statusClasses}`}
+        className={`flex items-center justify-between gap-1 px-2 py-0.5 rounded-b-md text-[9px] font-semibold uppercase tracking-wider ${statusClasses}`}
       >
         <span className="truncate">{statusText}</span>
-        {noneKnown && <span className="text-[8.5px] font-normal opacity-60">·</span>}
       </div>
     </div>
   );
 }
 
 function AdvancerRow({ slot, you }: { slot: CellSlot | null; you: boolean }) {
-  if (!slot) {
+  if (!slot || slot.kind === 'pending') {
+    // Phase 2 — silent pending row. A single en-dash conveys
+    // "feeder match hasn't resolved" without repeating the same
+    // sentence on every placeholder cell in the bracket.
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 text-[11.5px] text-foreground/30 italic">
-        TBD
-      </div>
-    );
-  }
-  if (slot.kind === 'pending') {
-    return (
-      <div className="flex items-center gap-2 px-3 py-1.5 text-[11.5px] text-foreground/40 italic">
-        Winner of round 1
+      <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-foreground/30">
+        <span aria-hidden="true" className="w-5 h-5 rounded-full bg-foreground/5 shrink-0" />
+        <span className="flex-1">—</span>
       </div>
     );
   }
   const u = slot.user;
   const name = u.full_name || u.email || '—';
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 text-[12px] text-foreground/75">
+    <div className="flex items-center gap-2 px-2.5 py-1.5 text-[12px] text-foreground/85 font-medium">
       <Avatar user={u} size="xs" />
       <span className="truncate flex-1">
         {name}
@@ -901,10 +1109,11 @@ function MatchupCell({
       onClick={canAct ? onClick : undefined}
       disabled={!canAct}
       className={`group relative rounded-lg border bg-white text-left transition-all
-        ${side === 'right' ? 'pr-2' : 'pl-2'}
+        ${side === 'right' ? 'pr-1.5' : 'pl-1.5'}
         ${canAct ? 'border-black/10 hover:border-primary/40 hover:shadow-sm cursor-pointer' : 'border-black/5 cursor-default'}
         ${isLive ? 'ring-2 ring-emerald-400/60' : ''}
-        ${isDone ? 'bg-warm-bg/50' : ''}`}
+        ${isDone ? 'bg-warm-bg/50' : ''}
+        ${isBye ? 'bg-violet-50/40 border-violet-200/50' : ''}`}
     >
       {isLive && (
         <span className="absolute -top-1.5 right-2 inline-flex items-center gap-1 px-1.5 py-px rounded-full bg-emerald-500 text-white text-[8.5px] font-bold tracking-widest uppercase">
@@ -915,45 +1124,65 @@ function MatchupCell({
           Live
         </span>
       )}
-      <Row user={a} winner={!!isDone && match?.winner_id === a?.id} you={a?.id === youId} byePlaceholder={isBye && !a} />
-      <div className="h-px bg-black/5" />
-      <Row user={b} winner={!!isDone && match?.winner_id === b?.id} you={b?.id === youId} byePlaceholder={isBye && !b} />
 
-      {/* Status footer — reads even when the cell isn't clickable
-          (e.g. a finished round-1 match, or a "Waiting for seed"
-          slot in a sparse bracket). Picks tone from the resolved
-          match state so an admin scanning the page can see the
-          state of every game without opening each one. */}
-      <div
-        className={`flex items-center justify-between gap-1 px-2 py-1 rounded-b-md text-[9.5px] font-semibold uppercase tracking-wider ${statusClasses}`}
-        style={{ fontFamily: 'var(--font-body)' }}
-      >
-        <span className="truncate">{statusText}</span>
-        {match && (
-          <span className="text-[8.5px] font-normal opacity-60 tabular-nums shrink-0">{match.moves.length}m</span>
-        )}
-      </div>
+      {isBye ? (
+        // Phase 1 — Compact BYE rendering: the player and the BYE
+        // chip share a single row. The advance arrow on the right
+        // edge replaces the verbose "Bye · advances" footer the cell
+        // used to carry; the chip + arrow together convey the same
+        // meaning in a fraction of the vertical space.
+        <div className="flex items-center gap-2 px-2.5 py-2 text-[12px]" style={{ fontFamily: 'var(--font-body)' }}>
+          <Avatar user={a ?? b} size="xs" />
+          <span className="truncate flex-1 text-foreground/85 font-medium">
+            {(a ?? b)?.full_name || (a ?? b)?.email || '—'}
+            {((a?.id === youId) || (b?.id === youId)) && (
+              <span className="ml-1 text-[9px] text-primary uppercase tracking-wider font-bold">you</span>
+            )}
+          </span>
+          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-violet-100/80 text-violet-700 text-[9px] font-bold uppercase tracking-[0.18em] shrink-0">
+            Bye
+            <span aria-hidden="true" className="text-[10px] leading-none">→</span>
+          </span>
+        </div>
+      ) : (
+        <>
+          <Row user={a} winner={!!isDone && match?.winner_id === a?.id} you={a?.id === youId} />
+          <div className="h-px bg-black/5" />
+          <Row user={b} winner={!!isDone && match?.winner_id === b?.id} you={b?.id === youId} />
+
+          {/* Status footer — reads even when the cell isn't
+              clickable (a finished round-1 match, a "Waiting for
+              seed" sparse-bracket slot). Picks tone from the resolved
+              match state so an admin scanning the page can see the
+              state of every game without opening each one. The bye
+              path above skips the footer because the inline chip is
+              already the entire signal. */}
+          <div
+            className={`flex items-center justify-between gap-1 px-2 py-1 rounded-b-md text-[9.5px] font-semibold uppercase tracking-wider ${statusClasses}`}
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <span className="truncate">{statusText}</span>
+            {match && (
+              <span className="text-[8.5px] font-normal opacity-60 tabular-nums shrink-0">{match.moves.length}m</span>
+            )}
+          </div>
+        </>
+      )}
     </button>
   );
 }
 
-function Row({ user, winner, you, byePlaceholder = false }: { user: UserLite | null; winner: boolean; you: boolean; byePlaceholder?: boolean }) {
+function Row({ user, winner, you }: { user: UserLite | null; winner: boolean; you: boolean }) {
   if (!user) {
     return (
-      <div className="flex items-center gap-2 px-3 py-1.5 text-[11.5px] italic" style={{ fontFamily: 'var(--font-body)' }}>
-        {byePlaceholder ? (
-          <span className="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-md bg-violet-100/60 text-violet-700 text-[9.5px] font-bold uppercase tracking-[0.18em] not-italic">
-            Bye
-          </span>
-        ) : (
-          <span className="text-foreground/35">Empty seed</span>
-        )}
+      <div className="flex items-center gap-2 px-2.5 py-1.5 text-[11px] text-foreground/35 italic" style={{ fontFamily: 'var(--font-body)' }}>
+        Empty seed
       </div>
     );
   }
   const name = user.full_name || user.email || '—';
   return (
-    <div className={`flex items-center gap-2 px-3 py-1.5 text-[12px] ${winner ? 'font-bold text-foreground' : 'text-foreground/75'}`} style={{ fontFamily: 'var(--font-body)' }}>
+    <div className={`flex items-center gap-2 px-2.5 py-1.5 text-[12px] ${winner ? 'font-bold text-foreground' : 'text-foreground/75'}`} style={{ fontFamily: 'var(--font-body)' }}>
       <Avatar user={user} size="xs" />
       <span className="truncate flex-1">
         {name}
