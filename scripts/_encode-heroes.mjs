@@ -4,6 +4,18 @@ import { stat } from 'node:fs/promises';
 const inputs = [
   { src: 'public/images/facility-exterior-mountains.jpg', out: 'public/hero/facility-exterior-mountains' },
   { src: 'public/images/embrace-connection.jpg',          out: 'public/hero/embrace-connection' },
+  { src: 'public/images/sign-night-sky-milky-way.jpg',    out: 'public/hero/sign-night-sky-milky-way' },
+  { src: 'public/images/sound-healing-session.jpg',       out: 'public/hero/sound-healing-session' },
+  { src: 'public/images/group-therapy-room.jpg',          out: 'public/hero/group-therapy-room' },
+  { src: 'public/images/covered-porch-desert-view.jpg',   out: 'public/hero/covered-porch-desert-view' },
+  { src: 'public/images/common-area-living-room.jpg',     out: 'public/hero/common-area-living-room' },
+  { src: 'public/images/equine-therapy-portrait.jpg',     out: 'public/hero/equine-therapy-portrait' },
+  { src: 'public/images/group-gathering-pavilion.jpg',    out: 'public/hero/group-gathering-pavilion' },
+  { src: 'public/images/horses-grazing.jpg',              out: 'public/hero/horses-grazing' },
+  { src: 'public/images/group-sunset-desert.jpg',         out: 'public/hero/group-sunset-desert' },
+  { src: 'public/images/individual-therapy-session.jpg',  out: 'public/hero/individual-therapy-session' },
+  { src: 'public/images/horse-sketch-artwork.jpg',        out: 'public/hero/horse-sketch-artwork' },
+  { src: 'public/images/resident-reading-window.jpg',     out: 'public/hero/resident-reading-window' },
 ];
 
 for (const { src, out } of inputs) {
