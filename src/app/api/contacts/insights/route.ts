@@ -27,6 +27,7 @@ interface LogRow {
   contacted_by: string | null;
   contacted_at: string;
   duration_seconds: number | null;
+  method: string | null;
 }
 interface ContactLite {
   id: string;
@@ -110,7 +111,7 @@ export async function GET() {
   const [logsRes, contactsRes] = await Promise.all([
     admin
       .from('contact_logs')
-      .select('contact_id, contacted_by, contacted_at, duration_seconds')
+      .select('contact_id, contacted_by, contacted_at, duration_seconds, method')
       .gte('contacted_at', new Date(monthCut).toISOString()),
     // Pipeline counters use the denormalised contacts.last_contact_at
     // so a contact last touched 35 days ago still rolls into
@@ -122,7 +123,17 @@ export async function GET() {
   ]);
   if (logsRes.error) return NextResponse.json({ error: logsRes.error.message }, { status: 500 });
   if (contactsRes.error) return NextResponse.json({ error: contactsRes.error.message }, { status: 500 });
-  const rows = (logsRes.data ?? []) as LogRow[];
+  // `contact_logs` carries two flavours of rows: real outreach
+  // touchpoints (calls, emails, texts, in-person, etc.) AND a
+  // 'New Contact' registration event written every time a contact
+  // is added — including by the auto-add cron and the auto-contact
+  // lever. The registration events are NOT outreach and shouldn't
+  // count toward "areas contacted today" or the activity
+  // leaderboards (the user flagged that the locations chip was
+  // surfacing places they hadn't actually reached out to today,
+  // because the rows were just freshly-added contacts).
+  const allLogs = (logsRes.data ?? []) as LogRow[];
+  const rows = allLogs.filter((r) => (r.method ?? '').trim().toLowerCase() !== 'new contact');
   const contacts = contactsRes.data;
   const contactList = (contacts ?? []) as ContactLite[];
   const byId = new Map<string, ContactLite>();

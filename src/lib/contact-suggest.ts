@@ -72,9 +72,9 @@ export function buildSuggestSystemPrompt(): string {
 
 Your job: suggest realistic candidate CONTACTS the admissions team might add to their CRM. Every suggestion must be a REAL organization or person you can verify by searching the web. Never invent fakes. Lean on common, well-known classes of orgs and roles. When in doubt, leave optional fields null instead of fabricating specifics.
 
-USE THE WEB-SEARCH TOOL. For each candidate, run a web search to confirm the org exists, find their public-facing intake / referral / contact line, and find a public email address (intake@…, admissions@…, referrals@…, or a named clinician's listed practice email). Do not rely solely on training data — phone numbers and email addresses change, and you must surface CURRENT, REAL contact info. Two to three searches per candidate is a reasonable budget; favor the org's own site, Psychology Today profiles, official directory listings, and state licensing boards over third-party data brokers.
+USE THE WEB-SEARCH TOOL. For each candidate, run a web search to confirm the org exists, find their public-facing intake / referral / contact line, and find a public email address — strongly preferring a NAMED clinician's listed practice email, an individual interventionist's direct address, or a specific staff member's work email. Do not rely solely on training data — phone numbers and email addresses change, and you must surface CURRENT, REAL contact info. Two to three searches per candidate is a reasonable budget; favor the org's own site, Psychology Today profiles, official directory listings, and state licensing boards over third-party data brokers.
 
-AVOID generic info@ mailboxes. info@ inboxes are usually a website contact form, get screened by reception, and don't land in front of someone who can actually take a referral. If the ONLY publicly listed email for an org is info@, surface the org's intake phone instead and leave email null + listed in "missing" — never auto-pick the info@ address.
+AVOID generic shared mailboxes — info@, admissions@, intake@, referrals@, contact@, hello@, support@, admin@, office@, reception@, frontdesk@, mail@, and similar role-based addresses. Every one of those routes through a screening process (website contact form, reception, an admin sorting messages) and never lands in front of someone who can actually take a referral. If the ONLY publicly listed email for an org is one of these, surface the org's intake phone instead and leave email null + listed in "missing" — never auto-pick a role-based address. A named individual's practice email beats a generic mailbox every single time.
 
 CRITICAL — admissions needs to actually CALL or EMAIL these people. Every candidate MUST come with a phone number AND an email address that web search confirmed. If web search cannot surface either:
   - Prefer to SKIP that candidate and pick a different real organization where contact info IS publicly listed (a clinic's intake line, an interventionist's published practice email, a state-licensed therapist's directory entry, etc.).
@@ -246,14 +246,37 @@ function parseProviderJson(raw: string, providerLabel: string): ProviderCallResu
 }
 
 // Generic mailbox locals that we don't want the auto-add cron /
-// auto-contact lever inserting. info@ in particular goes to a
-// website contact form and gets screened by reception — it doesn't
-// land in front of someone who can actually take a referral.
+// auto-contact lever inserting. These addresses go to a website
+// contact form, reception desk, or shared admissions inbox that
+// gets screened — not to someone who can actually take a referral.
+// `admissions@` in particular is tempting but useless for our
+// outreach because the seven arrows admissions team is contacting
+// referrers, not generic intake desks.
 // We treat these as "no email" rather than dropping the whole
 // candidate so the manual-suggest path can still surface the org
 // with its phone number; the auto-add path requires both phone +
 // email to insert, so it'll skip these automatically.
-const GENERIC_EMAIL_LOCALS = new Set(['info', 'hello', 'contact', 'enquiries', 'inquiries', 'office']);
+const GENERIC_EMAIL_LOCALS = new Set([
+  'info',
+  'hello',
+  'contact',
+  'enquiries',
+  'inquiries',
+  'office',
+  'admissions',
+  'admin',
+  'support',
+  'help',
+  'reception',
+  'frontdesk',
+  'desk',
+  'intake',
+  'referrals',
+  'mail',
+  'email',
+  'noreply',
+  'no-reply',
+]);
 
 function isGenericMailbox(email: string | null | undefined): boolean {
   if (!email) return false;
