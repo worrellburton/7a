@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
   // disabled or doesn't match — keeps the cron polite + cheap.
   const { data: schedule } = await admin
     .from('lever_schedules')
-    .select('enabled, day_of_week, hour_utc')
+    .select('enabled, day_of_week, hour_utc, recipient_user_ids')
     .eq('lever_type', 'log-report')
     .maybeSingle();
   if (!schedule || schedule.enabled !== true) {
@@ -73,12 +73,20 @@ export async function GET(req: NextRequest) {
       schedule: { day: schedule.day_of_week, hour: schedule.hour_utc },
     });
   }
-  const { data: superAdminRows } = await admin
-    .from('users')
-    .select('id, full_name, email')
-    .eq('is_super_admin', true)
-    .not('email', 'is', null);
-  const recipients = ((superAdminRows ?? []) as Array<{ id: string; full_name: string | null; email: string | null }>)
+  // Saved recipient set wins; falls back to every super admin
+  // when the list is empty so a freshly-seeded org still gets the
+  // weekly email.
+  const savedIds = Array.isArray(schedule.recipient_user_ids)
+    ? (schedule.recipient_user_ids as string[]).filter((v) => typeof v === 'string' && v.length > 0)
+    : [];
+  let recipientQuery = admin.from('users').select('id, full_name, email');
+  if (savedIds.length > 0) {
+    recipientQuery = recipientQuery.in('id', savedIds);
+  } else {
+    recipientQuery = recipientQuery.eq('is_super_admin', true);
+  }
+  const { data: recipientRows } = await recipientQuery.not('email', 'is', null);
+  const recipients = ((recipientRows ?? []) as Array<{ id: string; full_name: string | null; email: string | null }>)
     .filter((u) => !!u.email)
     .map((u) => ({ id: u.id, name: u.full_name, email: u.email as string }));
 
