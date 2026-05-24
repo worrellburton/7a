@@ -120,6 +120,14 @@ export default function NewEmailCampaignContent() {
   // fresh rebuild is kicked off so the marketer never has to
   // remember the second step.
   const [replaceImagesOpen, setReplaceImagesOpen] = useState(false);
+  // Inline text editing on the preview iframe. When the marketer
+  // clicks "Edit text" we ask the iframe to flip its <body> to
+  // contentEditable; every input event there posts the updated
+  // outerHTML back to this window via postMessage, which we splice
+  // into draft.generatedHtml so Save persists the edits. Click
+  // "Done editing" (or trigger any rebuild) to commit + flip back.
+  const [editingPreview, setEditingPreview] = useState(false);
+  const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
   const [iterateNote, setIterateNote] = useState('');
   const [building, setBuilding] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -250,6 +258,97 @@ export default function NewEmailCampaignContent() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Inject a small contenteditable bridge into the email HTML
+  // before handing it to the iframe srcDoc. The bridge:
+  //   1. Listens for {type: 'edit:on' | 'edit:off'} messages from
+  //      the parent window.
+  //   2. On edit:on, flips document.body to contentEditable and
+  //      draws a copper dashed outline so the editable surface is
+  //      visually obvious.
+  //   3. On every input (debounced ~250ms) posts the updated
+  //      outerHTML back to the parent so the draft stays in sync
+  //      without saving on every keystroke roundtrip.
+  // Defined once per generated_html change — the iframe's srcDoc
+  // re-mounts when the string changes, which means we re-inject
+  // the bridge after every rebuild. iframe is `sandbox="allow-
+  // scripts"` (no allow-same-origin, no allow-forms) — the bridge
+  // only needs script execution + postMessage, neither of which
+  // requires same-origin.
+  const editableHtml = useMemo(() => {
+    const html = draft.generatedHtml;
+    if (!html) return null;
+    const bridge = `
+<script>
+(function(){
+  var editing = false;
+  var debounceTimer = null;
+  function post(){
+    try {
+      parent.postMessage({ type: 'html:update', html: '<!DOCTYPE html>\\n' + document.documentElement.outerHTML }, '*');
+    } catch (e) { /* ignore postMessage failures */ }
+  }
+  function schedulePost(){
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(post, 250);
+  }
+  window.addEventListener('message', function(e){
+    var data = e && e.data;
+    if (!data) return;
+    if (data.type === 'edit:on') {
+      editing = true;
+      document.body.setAttribute('contenteditable', 'true');
+      document.body.style.outline = '2px dashed #bc6b4a';
+      document.body.style.outlineOffset = '-4px';
+      document.body.style.cursor = 'text';
+    } else if (data.type === 'edit:off') {
+      editing = false;
+      document.body.setAttribute('contenteditable', 'false');
+      document.body.style.outline = '';
+      document.body.style.outlineOffset = '';
+      document.body.style.cursor = '';
+      post();
+    }
+  });
+  document.addEventListener('input', function(){ if (editing) schedulePost(); }, true);
+  document.addEventListener('blur', function(){ if (editing) post(); }, true);
+})();
+<\/script>`;
+    // Inject just before </body> if present; otherwise append.
+    // Case-insensitive match because Claude sometimes emits BODY
+    // tags uppercase.
+    if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${bridge}</body>`);
+    return html + bridge;
+  }, [draft.generatedHtml]);
+
+  // Receive edit messages from the iframe and splice them back into
+  // the draft. The iframe always posts the FULL document outerHTML
+  // (with the bridge script attached), so before persisting we
+  // strip the bridge out again — otherwise it would compound on
+  // every render and the saved html would carry a dozen copies.
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      const data = e.data as { type?: string; html?: string } | null;
+      if (!data || data.type !== 'html:update' || typeof data.html !== 'string') return;
+      // Drop the bridge script (everything inside the inserted
+      // <script>...<\/script> wrapper). The bridge is the only
+      // <script> we ever insert, so a single regex match is safe.
+      const cleaned = data.html
+        .replace(/<script>\s*\(function\(\)\{[\s\S]*?\}\)\(\);\s*<\/script>/g, '')
+        .trim();
+      setDraft((p) => (p.generatedHtml === cleaned ? p : { ...p, generatedHtml: cleaned }));
+    }
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  // Helper: send the edit-on/edit-off message into the iframe.
+  // Wrapped so the button handlers stay one-liners.
+  const setIframeEditing = (on: boolean) => {
+    const win = previewIframeRef.current?.contentWindow;
+    if (!win) return;
+    win.postMessage({ type: on ? 'edit:on' : 'edit:off' }, '*');
+  };
 
   // featuredBlog resolves whichever of the two storage slots is
   // populated — featured_blog_id (UUID) for AI-pipeline posts, or
@@ -882,6 +981,23 @@ export default function NewEmailCampaignContent() {
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
+                onClick={() => {
+                  // Toggle inline-edit mode on the preview iframe.
+                  // Going OFF first flushes any pending edits back
+                  // to the draft before the user clicks Rebuild /
+                  // Save / etc., so no keystroke is silently lost.
+                  const next = !editingPreview;
+                  setIframeEditing(next);
+                  setEditingPreview(next);
+                }}
+                disabled={building}
+                className={`px-2.5 py-1 rounded-md border text-[11px] font-semibold disabled:opacity-50 transition-colors ${editingPreview ? 'bg-primary text-white border-primary hover:bg-primary/90' : 'border-black/10 bg-white text-foreground/70 hover:bg-warm-bg/60'}`}
+                title={editingPreview ? 'Stop editing and commit changes' : 'Edit the email text inline'}
+              >
+                {editingPreview ? '✓ Done editing' : '✎ Edit text'}
+              </button>
+              <button
+                type="button"
                 onClick={() => setReplaceImagesOpen(true)}
                 disabled={building}
                 className="px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60 disabled:opacity-50"
@@ -890,7 +1006,15 @@ export default function NewEmailCampaignContent() {
               </button>
               <button
                 type="button"
-                onClick={() => onBuild('fresh')}
+                onClick={() => {
+                  // Flush pending edits before kicking off a rebuild
+                  // so Claude doesn't iterate against a stale draft.
+                  if (editingPreview) {
+                    setIframeEditing(false);
+                    setEditingPreview(false);
+                  }
+                  onBuild('fresh');
+                }}
                 disabled={building}
                 className="px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60 disabled:opacity-50"
               >
@@ -898,11 +1022,21 @@ export default function NewEmailCampaignContent() {
               </button>
             </div>
           </div>
+          {editingPreview && (
+            <p className="text-[10.5px] text-primary mb-2 px-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+              Editing mode on — click any text in the preview to change it. Changes save into the draft automatically; click <strong>Done editing</strong> to lock the layout back.
+            </p>
+          )}
           <div className="rounded-xl border border-black/10 overflow-hidden bg-warm-bg/30">
             <iframe
-              srcDoc={draft.generatedHtml}
+              ref={previewIframeRef}
+              srcDoc={editableHtml ?? draft.generatedHtml ?? ''}
               title="Email preview"
-              sandbox=""
+              // allow-scripts so the contenteditable bridge script
+              // can run + postMessage edits back to this window.
+              // No allow-same-origin so the iframe still can't
+              // access the parent's cookies / storage / DOM.
+              sandbox="allow-scripts"
               className="w-full h-[560px] bg-white"
             />
           </div>
