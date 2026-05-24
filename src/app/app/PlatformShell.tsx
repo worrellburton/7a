@@ -973,8 +973,11 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         <div className="px-6 py-5 border-b border-gray-100">
           <Link href="/app" className={`flex items-center gap-2.5 transition-all duration-500 ease-out ${navMounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
             <SevenArrowsLogo />
+            {/* Wordmark only renders once the rail expands. Same
+                group-hover/sidebar gate the search bar + Other-pages
+                section use, so the collapsed icon-rail stays clean. */}
             <span
-              className="text-[15px] font-semibold tracking-tight text-foreground/85 lowercase"
+              className="hidden group-hover/sidebar:inline text-[15px] font-semibold tracking-tight text-foreground/85 lowercase"
               style={{ fontFamily: 'var(--font-display)' }}
             >
               feather
