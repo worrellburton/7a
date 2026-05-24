@@ -5,7 +5,10 @@ import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { logActivity } from '@/lib/activity';
 import { formatNameWithCredentials } from '@/lib/displayName';
-import PermissionsModal from './PermissionsModal';
+import dynamic from 'next/dynamic';
+// Lazy: 482 LOC modal only mounts when an admin clicks a row, never
+// on first paint. Skips the route's initial JS bundle.
+const PermissionsModal = dynamic(() => import('./PermissionsModal'), { ssr: false });
 import AccessGroupsTab from './AccessGroupsTab';
 import ContentAccessTab from './ContentAccessTab';
 

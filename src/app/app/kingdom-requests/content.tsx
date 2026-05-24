@@ -6,7 +6,9 @@ import { useModal } from '@/lib/ModalProvider';
 import { logActivity } from '@/lib/activity';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import FeatureRequestModal from './FeatureRequestModal';
+import dynamic from 'next/dynamic';
+// Lazy: only mounts when an admin clicks "Submit a request".
+const FeatureRequestModal = dynamic(() => import('./FeatureRequestModal'), { ssr: false });
 
 interface FeatureRequest {
   id: string;
