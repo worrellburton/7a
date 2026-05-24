@@ -5,7 +5,7 @@ import { AuthProvider } from '@/lib/AuthProvider';
 import ModalProvider from '@/lib/ModalProvider';
 import { GoogleAnalytics } from '@/components/GoogleAnalytics';
 import { JsonLd } from '@/components/JsonLd';
-import { buildOrganizationSchema, buildWebSiteSchema } from '@/lib/seo/schema';
+import { buildMedicalBusinessSchema, buildWebSiteSchema, RANCH_GOOGLE_MAP_URL } from '@/lib/seo/schema';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -87,7 +87,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             URLs category. (site)/layout.tsx now emits a per-request
             self-canonical via generateMetadata + the x-pathname
             header set in middleware.ts. */}
-        <JsonLd data={[buildOrganizationSchema(), buildWebSiteSchema()]} />
+        {/* Global business object — combined Organization +
+            MedicalBusiness + LocalBusiness on the same @id so every
+            page on the site references the single canonical business
+            entity. medicalSpecialty, geo, address, openingHours,
+            telephone and contactPoint are all baked in by the
+            builder; pass hasMap so Google's Knowledge Panel surfaces
+            the maps deep-link. */}
+        <JsonLd
+          data={[
+            buildMedicalBusinessSchema({ hasMap: RANCH_GOOGLE_MAP_URL }),
+            buildWebSiteSchema(),
+          ]}
+        />
       </head>
       <body className="min-h-screen flex flex-col antialiased">
         <GoogleAnalytics />
