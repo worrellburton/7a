@@ -396,14 +396,14 @@ function CardSlot({
   // (animated breathing for ambient draw + brighter on hover/drag).
   // On light mode we keep the original outlined drop-zone treatment.
   const buttonCls = dark
-    ? `group relative block w-full aspect-[1.6/1] rounded-xl border-2 border-dashed transition-all overflow-hidden text-left ${
+    ? `group relative block w-full aspect-[2.6/1] max-h-[112px] rounded-xl border-2 border-dashed transition-all overflow-hidden text-left ${
         dragOver
           ? 'border-amber-200/80 bg-white/[0.10]'
           : file
             ? 'border-amber-200/40 bg-white/[0.06]'
             : 'border-white/15 bg-white/[0.04] hover:border-amber-200/60 hover:bg-white/[0.07]'
       }`
-    : `group relative block w-full aspect-[1.6/1] rounded-xl border-2 border-dashed transition-all overflow-hidden text-left ${
+    : `group relative block w-full aspect-[2.6/1] max-h-[112px] rounded-xl border-2 border-dashed transition-all overflow-hidden text-left ${
         dragOver
           ? 'border-primary bg-primary/5'
           : file

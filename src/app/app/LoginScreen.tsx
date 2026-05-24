@@ -249,16 +249,43 @@ function AnimatedLogo() {
           }}
           aria-hidden="true"
         />
-        <img
-          src="/images/logo.png"
-          alt="Seven Arrows Recovery"
-          className="relative z-10 w-full h-auto"
+        {/* Feather wordmark — replaces the round Seven Arrows logo
+            with the same feather glyph used in the platform sidebar
+            so the login + the in-app chrome share an identity. The
+            copper feather glyph stays prominent on the dark slides;
+            the "feather" word below it pairs the mark with the
+            product name. Drop-shadow lifts the SVG off any slide. */}
+        <div
+          className="relative z-10 flex flex-col items-center justify-center gap-3"
           style={{
-            // A strong dual drop-shadow lifts the mark off any slide.
             filter:
               'drop-shadow(0 2px 4px rgba(0,0,0,0.55)) drop-shadow(0 6px 18px rgba(0,0,0,0.5))',
           }}
-        />
+        >
+          <svg
+            aria-label="feather"
+            role="img"
+            width="96"
+            height="96"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.6}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-primary w-20 h-20 sm:w-24 sm:h-24"
+          >
+            <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
+            <line x1="16" y1="8" x2="2" y2="22" />
+            <line x1="17.5" y1="15" x2="9" y2="15" />
+          </svg>
+          <span
+            className="text-white/95 text-3xl sm:text-4xl font-semibold tracking-tight lowercase"
+            style={{ fontFamily: 'var(--font-display)' }}
+          >
+            feather
+          </span>
+        </div>
       </div>
 
       <style jsx global>{`
