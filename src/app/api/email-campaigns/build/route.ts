@@ -330,7 +330,13 @@ ${ctxLines.join('\n\n')}`;
       },
       body: JSON.stringify({
         model,
-        max_tokens: 8192,
+        // 16384 was 8192 — but a darkmode + multi-image + featured-
+        // horse + insurance-strip + social-footer email reliably blew
+        // past 8k tokens, truncating mid-HTML-string and producing the
+        // "Claude returned an unparseable response" toggle bug. Opus
+        // 4.7 supports well above this; the visible ceiling for our
+        // payloads sits around 12-14k.
+        max_tokens: 16384,
         system: systemPrompt,
         messages: [{ role: 'user', content: userContent }],
       }),
@@ -389,25 +395,121 @@ function stripDashes(input: string): string {
     .replace(/\s+,/g, ',');
 }
 
-// Claude usually returns clean JSON when asked to, but sometimes
-// wraps in ```json fences or prepends a sentence. Strip both, then
-// JSON.parse, falling back to a brace-balanced substring as a
-// last resort.
+// Claude usually returns clean JSON when asked to, but real-world
+// responses break the parser in three repeatable ways:
+//   1. ```json fences anywhere (start, end, or both).
+//   2. A "Here is the email:" preamble before the first '{', or
+//      a "Let me know if you want changes" trailer after the last
+//      '}'.
+//   3. Literal newlines / tabs / CRs inside the HTML string value
+//      that should have been escaped — strict JSON.parse rejects
+//      them as control characters in strings.
+//   4. Truncation: the response ran out of tokens mid-HTML, leaving
+//      a string that never closes plus an unbalanced object. We
+//      try to repair that by closing the open string and balancing
+//      braces, so the marketer at least gets a draft instead of a
+//      hard failure.
 function parseClaudeJson(raw: string): { subject?: string; html?: string } | null {
-  const trimmed = raw
-    .replace(/^```(?:json)?/i, '')
-    .replace(/```$/i, '')
-    .trim();
-  try {
-    return JSON.parse(trimmed) as { subject?: string; html?: string };
-  } catch {
-    const start = trimmed.indexOf('{');
-    const end = trimmed.lastIndexOf('}');
-    if (start === -1 || end === -1 || end <= start) return null;
+  // Strip fences anywhere, then narrow to the JSON object span by
+  // taking content between the first '{' and the matching '}'. The
+  // matching pass walks the string char-by-char so a '}' inside an
+  // HTML string value can't end the object early.
+  const fenced = raw.replace(/```(?:json)?/gi, '').trim();
+  const start = fenced.indexOf('{');
+  if (start === -1) return null;
+  const end = findMatchingBrace(fenced, start);
+  const slice = end !== -1 ? fenced.slice(start, end + 1) : fenced.slice(start);
+
+  const candidates = [
+    slice,
+    escapeStringControlChars(slice),
+    repairTruncated(slice),
+    escapeStringControlChars(repairTruncated(slice)),
+  ];
+  for (const c of candidates) {
     try {
-      return JSON.parse(trimmed.slice(start, end + 1)) as { subject?: string; html?: string };
+      const parsed = JSON.parse(c) as { subject?: string; html?: string };
+      if (parsed && (parsed.html || parsed.subject)) return parsed;
     } catch {
-      return null;
+      // try next candidate
     }
   }
+  return null;
+}
+
+// Returns the index of the '}' that closes the '{' at `from`, or
+// -1 if the object is unterminated (i.e. truncation). Tracks string
+// boundaries with backslash escaping so braces inside HTML values
+// don't end the object early.
+function findMatchingBrace(s: string, from: number): number {
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = from; i < s.length; i++) {
+    const c = s[i];
+    if (inString) {
+      if (escape) { escape = false; continue; }
+      if (c === '\\') { escape = true; continue; }
+      if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') { inString = true; continue; }
+    if (c === '{') depth++;
+    else if (c === '}') { depth--; if (depth === 0) return i; }
+  }
+  return -1;
+}
+
+// Walks the string and, when inside a JSON string literal, replaces
+// unescaped CR/LF/TAB with their escape sequences so JSON.parse
+// stops rejecting otherwise-valid Claude output. Quote and
+// backslash boundaries are honoured the same way findMatchingBrace
+// honours them.
+function escapeStringControlChars(s: string): string {
+  let out = '';
+  let inString = false;
+  let escape = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inString) {
+      if (escape) { out += c; escape = false; continue; }
+      if (c === '\\') { out += c; escape = true; continue; }
+      if (c === '"') { out += c; inString = false; continue; }
+      if (c === '\n') { out += '\\n'; continue; }
+      if (c === '\r') { out += '\\r'; continue; }
+      if (c === '\t') { out += '\\t'; continue; }
+      out += c;
+      continue;
+    }
+    out += c;
+    if (c === '"') inString = true;
+  }
+  return out;
+}
+
+// Best-effort repair for truncated output. If the slice ends inside
+// an open string (no closing '"'), close the string. Then close any
+// open braces. This produces a syntactically-valid object that loses
+// only the trailing characters Claude never got to emit, which is
+// almost always better than handing the user a hard error.
+function repairTruncated(s: string): string {
+  let inString = false;
+  let escape = false;
+  let depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inString) {
+      if (escape) { escape = false; continue; }
+      if (c === '\\') { escape = true; continue; }
+      if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') { inString = true; continue; }
+    if (c === '{') depth++;
+    else if (c === '}') depth--;
+  }
+  let out = s;
+  if (inString) out += '"';
+  while (depth > 0) { out += '}'; depth--; }
+  return out;
 }
