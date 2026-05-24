@@ -13,6 +13,7 @@ export const metadata: Metadata = {
 export const revalidate = 60;
 
 
+import dynamic from "next/dynamic";
 import Hero from "@/components/Hero";
 import { fetchLiveHeroSources } from "@/lib/landing-hero";
 import TourStats from "@/components/tour/TourStats";
@@ -20,12 +21,17 @@ import PlaceToHeal from "@/components/PlaceToHeal";
 import ProgramSection from "@/components/ProgramSection";
 import TreatmentServices from "@/components/TreatmentServices";
 import ComprehensiveTreatment from "@/components/ComprehensiveTreatment";
-import InsuranceCarousel from "@/components/InsuranceCarousel";
-import CampusTour from "@/components/CampusTour";
+// Phase 8 — Heavy below-the-fold client sections lazy-imported so
+// the homepage's initial JS payload skips them; they hydrate when
+// the browser actually scrolls into range. ~830 LOC of client code
+// (InsuranceCarousel 207 + CampusTour 393 + FAQSection 232) shifted
+// out of the LCP-blocking bundle.
+const InsuranceCarousel = dynamic(() => import("@/components/InsuranceCarousel"));
+const CampusTour = dynamic(() => import("@/components/CampusTour"));
 
 import DailyLifeSection from "@/components/DailyLifeSection";
 import AboutSection from "@/components/AboutSection";
-import FAQSection from "@/components/FAQSection";
+const FAQSection = dynamic(() => import("@/components/FAQSection"));
 import GoogleReviewsCinema from "@/components/GoogleReviewsCinema";
 import BlogPreview from "@/components/BlogPreview";
 import OutingsSection from "@/components/outings/OutingsSection";
