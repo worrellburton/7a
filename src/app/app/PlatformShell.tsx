@@ -973,7 +973,12 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         <div className="px-6 py-5 border-b border-gray-100">
           <Link href="/app" className={`flex items-center gap-2.5 transition-all duration-500 ease-out ${navMounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
             <SevenArrowsLogo />
-
+            <span
+              className="text-[15px] font-semibold tracking-tight text-foreground/85 lowercase"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              feather
+            </span>
           </Link>
         </div>
 
@@ -1345,8 +1350,14 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <Link href="/app" aria-label="Seven Arrows Recovery">
+          <Link href="/app" aria-label="Seven Arrows Recovery" className="inline-flex items-center gap-2">
             <SevenArrowsLogo size="sm" />
+            <span
+              className="text-[14px] font-semibold tracking-tight text-foreground/85 lowercase"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              feather
+            </span>
           </Link>
           <div className="w-10" aria-hidden="true" />
         </div>
@@ -1374,6 +1385,12 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   title="Daily logs"
                 >
                   <SevenArrowsLogo />
+                  <span
+                    className="text-[15px] font-semibold tracking-tight text-foreground/85 lowercase"
+                    style={{ fontFamily: 'var(--font-display)' }}
+                  >
+                    feather
+                  </span>
                 </Link>
                 <button
                   onClick={() => setMobileMenuOpen(false)}
