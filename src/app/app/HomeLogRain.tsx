@@ -487,9 +487,26 @@ export default function HomeLogRain({
   }, [enabled, size, isMobile, fetchToday]);
 
   // ─── Phase 6: realtime live drops ──────────────────────────────────
+  //
+  // Perf phase 7 — document-visibility gating: this channel is the
+  // single highest-traffic realtime listener in the app (every
+  // contact_logs INSERT fires it, across the whole team). When the
+  // tab is hidden the browser throttles render work anyway, so any
+  // events we receive get queued / dropped on the floor — meanwhile
+  // the open WebSocket holds the network process awake (bad for
+  // battery on phones) and pins a supabase connection slot. We
+  // open the channel on mount when visible, close it when the tab
+  // is hidden, and re-open + re-fetch when it comes back so the
+  // rain stays current without leaking the connection in the
+  // background.
   useEffect(() => {
     if (!enabled || !user?.id) return;
-    const channel = supabase
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let attached = false;
+    const attach = () => {
+      if (attached) return;
+      attached = true;
+      channel = supabase
       .channel(`home-log-rain-${user.id}-${Math.random().toString(36).slice(2, 7)}`)
       .on(
         'postgres_changes',
@@ -531,7 +548,32 @@ export default function HomeLogRain({
         },
       )
       .subscribe();
-    return () => { void supabase.removeChannel(channel); };
+    };
+    const detach = () => {
+      if (!attached) return;
+      attached = false;
+      if (channel) {
+        void supabase.removeChannel(channel);
+        channel = null;
+      }
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        attach();
+        // Catch up on logs that landed while the tab was hidden so
+        // a returning user immediately sees recent activity instead
+        // of an empty rain that fills as new events trickle in.
+        void fetchToday();
+      } else {
+        detach();
+      }
+    };
+    if (document.visibilityState === 'visible') attach();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibility);
+      detach();
+    };
   }, [enabled, user?.id, spawnParticle, onCountChange]);
 
   // After a realtime insert, fetch the same row via REST so we can
