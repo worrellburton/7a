@@ -263,6 +263,21 @@ export async function runKaizenScan(
 ): Promise<ScanResult> {
   const model = opts.model || process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
 
+  // Self-heal stuck scans. Any row left at status='running' for
+  // longer than 10 minutes is, in practice, a Vercel function that
+  // timed out mid-Claude-call and never got to write the failed/
+  // completed update. Mark them failed before inserting the new
+  // row so the UI (which surfaces the most recent terminal status)
+  // never reads a frozen 'running' row forever.
+  await admin
+    .from('kaizen_scans')
+    .update({
+      status: 'failed',
+      error_message: 'Scan was still running after 10 minutes — Vercel function likely timed out before Claude responded.',
+    })
+    .eq('status', 'running')
+    .lt('scanned_at', new Date(Date.now() - 10 * 60 * 1000).toISOString());
+
   const { data: scanRow, error: scanErr } = await admin
     .from('kaizen_scans')
     .insert({

@@ -13,6 +13,13 @@ import { runKaizenScan } from '@/lib/kaizen-scan';
 // MST (Phoenix is UTC-7 year-round, no DST).
 
 export const dynamic = 'force-dynamic';
+// Default Vercel serverless timeout (10s on Hobby, 60s on Pro) is
+// far below the time a full Claude opus call with a 6000-token max
+// completion needs on a cold cron start. We were silently timing
+// out mid-scan, leaving rows stuck at status='running' (see the
+// 06:00:22 PHX row from 2026-05-24). 300s is the Pro-plan ceiling
+// and is plenty for a single Anthropic call.
+export const maxDuration = 300;
 
 export async function GET(req: NextRequest) {
   return withCronLogging('/api/cron/kaizen/scan', async () => {
