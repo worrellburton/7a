@@ -214,6 +214,28 @@ export default function KaizenContent() {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
+  // Keep the page live without forcing the marketer to hit reload.
+  // Two triggers:
+  //   1. Window focus — covers the common path of leaving the tab
+  //      open overnight and coming back after the 6 AM cron has
+  //      finished. The daily-logs page uses the same pattern.
+  //   2. A 30-second poll *while* a scan is actively running, so
+  //      a manually-triggered or in-flight cron-fired scan flips
+  //      from "scan running…" to the new recommendations on its
+  //      own. We don't poll when idle — once the latest scan is
+  //      terminal (completed/failed) there's nothing to wait for
+  //      until the next focus event.
+  useEffect(() => {
+    function onFocus() { void refresh(); }
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [refresh]);
+  useEffect(() => {
+    if (scan?.status !== 'running' && !scanning) return;
+    const id = window.setInterval(() => { void refresh(); }, 30_000);
+    return () => window.clearInterval(id);
+  }, [scan?.status, scanning, refresh]);
+
   // Auto-fire on first visit when no scan has ever run, so the
   // super admin lands on real content instead of an empty page.
   useEffect(() => {
