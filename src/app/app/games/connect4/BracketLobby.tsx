@@ -739,21 +739,55 @@ function Bracket({
   const laterRounds = bracketRounds.slice(1);
 
   return (
-    // Phase 8 — subtle left-cool / right-warm tonal gradient on the
-    // bracket itself so spectators can intuit "champion of east vs
-    // champion of west" without an extra legend. The center Final
-    // column reads neutral because the gradient is symmetric around
-    // the midpoint.
-    // Phase 3 — `divide-x` between grid items adds a thin connector
-    // line between round columns so the eye can follow the
-    // round-to-round flow without needing a full SVG bracket tree.
-    <div
-      className="grid gap-3 lg:gap-4 items-stretch rounded-xl p-2 sm:p-3"
-      style={{
-        gridTemplateColumns,
-        backgroundImage: 'linear-gradient(to right, rgba(56, 189, 248, 0.06), transparent 40%, transparent 60%, rgba(245, 158, 11, 0.06))',
-      }}
-    >
+    <>
+      {/* ── Mobile (< sm): vertical bracket ──────────────────────
+          A 6-round bracket squeezed into a phone-width grid forces
+          horizontal scroll and unreadable name truncation. On mobile
+          we stack rounds vertically: round 1 fully expanded (it's
+          the only interactive layer); rounds 2..(rounds-1) render
+          as tight chips so an interested player can still see their
+          path through the bracket; the Final pins at the bottom. */}
+      <div className="sm:hidden flex flex-col gap-4">
+        <MobileBracketRound
+          label={firstRoundLabel}
+          interactive
+          round1Cells={bracketRounds[0] ?? []}
+          matchByPair={matchByPair}
+          userById={userById}
+          youId={youId}
+          onCellClick={onCellClick}
+          creating={creating}
+        />
+        {laterRounds.slice(0, -1).map((cells, idx) => (
+          <MobileBracketRound
+            key={`mobile-r${idx + 2}`}
+            label={sideRoundLabels[idx + 1] ?? `Round ${idx + 2}`}
+            interactive={false}
+            advancerCells={cells}
+            youId={youId}
+            matchByPair={matchByPair}
+            userById={userById}
+            onCellClick={onCellClick}
+            creating={creating}
+            round1Cells={[]}
+          />
+        ))}
+        <MobileFinal finalCell={bracketRounds[rounds - 1]?.[0]} youId={youId} />
+      </div>
+
+      {/* ── Desktop (sm+): full bracket grid ─────────────────────
+          Phase 8 — subtle left-cool / right-warm tonal gradient on
+          the bracket itself so spectators can intuit "champion of
+          east vs champion of west" without an extra legend. Phase 3
+          — the gradient + the gap between grid items adds enough
+          visual flow that we don't need an SVG connector tree. */}
+      <div
+        className="hidden sm:grid gap-3 lg:gap-4 items-stretch rounded-xl p-2 sm:p-3"
+        style={{
+          gridTemplateColumns,
+          backgroundImage: 'linear-gradient(to right, rgba(56, 189, 248, 0.06), transparent 40%, transparent 60%, rgba(245, 158, 11, 0.06))',
+        }}
+      >
       {/* Left half — round 1 column is interactive; subsequent
           columns render advancers / TBD heading toward the final. */}
       <BracketColumn
@@ -813,7 +847,126 @@ function Bracket({
         creating={creating}
         round1Cells={bracketRounds[0]?.slice(left.length) ?? []}
       />
-    </div>
+      </div>
+    </>
+  );
+}
+
+/* ── Mobile bracket components (Phase 9) ─────────────────────── */
+
+function MobileBracketRound({
+  label,
+  interactive,
+  round1Cells,
+  advancerCells,
+  matchByPair,
+  userById,
+  youId,
+  onCellClick,
+  creating,
+}: {
+  label: string;
+  interactive: boolean;
+  round1Cells: BracketCell[];
+  advancerCells?: BracketCell[];
+  matchByPair: Map<string, MatchRow>;
+  userById: Map<string, UserLite>;
+  youId: string | null;
+  onCellClick: (a: UserLite | null, b: UserLite | null) => void;
+  creating: string | null;
+}) {
+  // Mobile: rounds collapse by default to keep the page short;
+  // round 1 (interactive) opens by default so the player can
+  // immediately see and click their match. The chevron flips on
+  // state change so the affordance reads as a real disclosure.
+  const [open, setOpen] = useState(interactive);
+  const cells = interactive ? round1Cells : (advancerCells ?? []);
+  const cellCount = cells.length;
+  const playableCount = interactive
+    ? round1Cells.filter((c) => !c.isBye).length
+    : (advancerCells ?? []).filter((c) =>
+        c.top?.kind === 'user' && c.bottom?.kind === 'user',
+      ).length;
+  const summaryHint = interactive
+    ? `${cellCount} matchups · ${cellCount - playableCount} bye${cellCount - playableCount === 1 ? '' : 's'}`
+    : `${cellCount} match${cellCount === 1 ? '' : 'es'} · ${playableCount} ready`;
+
+  return (
+    <section className="rounded-xl border border-black/10 bg-white/70 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-2 px-3 py-2.5 hover:bg-warm-bg/40 transition-colors"
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        <span className="flex items-baseline gap-2">
+          <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/50">{label}</span>
+          <span className="text-[10px] text-foreground/40 tabular-nums">{summaryHint}</span>
+        </span>
+        <span
+          aria-hidden="true"
+          className={`text-foreground/40 transition-transform ${open ? 'rotate-180' : ''}`}
+        >
+          ▾
+        </span>
+      </button>
+      {open && (
+        <div className="flex flex-col gap-1.5 px-2 pb-2">
+          {interactive
+            ? round1Cells.map((c, i) => {
+                const pair: [UserLite | null, UserLite | null] = [
+                  c.top?.kind === 'user' ? c.top.user : null,
+                  c.bottom?.kind === 'user' ? c.bottom.user : null,
+                ];
+                return (
+                  <MatchupCell
+                    key={`mobile-r1-${i}`}
+                    pair={pair}
+                    isBye={c.isBye}
+                    side="left"
+                    matchByPair={matchByPair}
+                    userById={userById}
+                    youId={youId}
+                    onClick={() => onCellClick(pair[0], pair[1])}
+                    creating={creating}
+                  />
+                );
+              })
+            : cells.map((cell, i) => (
+                <AdvancerCell key={`mobile-adv-${i}`} cell={cell} side="left" youId={youId} />
+              ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function MobileFinal({ finalCell, youId }: { finalCell?: BracketCell; youId: string | null }) {
+  const topKnown = finalCell?.top?.kind === 'user' ? finalCell.top.user : null;
+  const bottomKnown = finalCell?.bottom?.kind === 'user' ? finalCell.bottom.user : null;
+  return (
+    <section
+      className="rounded-xl border-2 border-primary/40 bg-gradient-to-br from-primary/5 to-warm-bg/40 px-4 py-3 flex items-center gap-3"
+      style={{ fontFamily: 'var(--font-body)' }}
+    >
+      <span className="text-2xl" aria-hidden="true">🏆</span>
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-primary">Final</p>
+        {topKnown || bottomKnown ? (
+          <p className="text-[12.5px] text-foreground/75 mt-0.5">
+            <span className={topKnown?.id === youId ? 'font-bold text-primary' : 'font-semibold'}>
+              {topKnown ? (topKnown.full_name || topKnown.email || '—').split(' ').slice(0, 2).join(' ') : 'TBD'}
+            </span>
+            <span className="mx-1.5 text-foreground/35 text-[10px] uppercase tracking-wider">vs</span>
+            <span className={bottomKnown?.id === youId ? 'font-bold text-primary' : 'font-semibold'}>
+              {bottomKnown ? (bottomKnown.full_name || bottomKnown.email || '—').split(' ').slice(0, 2).join(' ') : 'TBD'}
+            </span>
+          </p>
+        ) : (
+          <p className="text-[12px] text-foreground/55 mt-0.5">The champion lands here.</p>
+        )}
+      </div>
+    </section>
   );
 }
 
