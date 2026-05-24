@@ -68,6 +68,10 @@ interface CampaignDraft {
   featuredEpisodeSlug: string | null;
   /** Site-relative path of the featured inner page, e.g. /admissions. */
   featuredPagePath: string | null;
+  /** Library image URL paired with the featured page. Required
+   *  whenever featuredPagePath is set — the page picker forces a
+   *  picture pick as its second step. */
+  featuredPageImageUrl: string | null;
   featuredEmployeeId: string | null;
   featuredEquineId: string | null;
   generatedHtml: string | null;
@@ -102,6 +106,7 @@ export default function NewEmailCampaignContent() {
     featuredBlogId: null,
     featuredEpisodeSlug: null,
     featuredPagePath: null,
+    featuredPageImageUrl: null,
     featuredEmployeeId: null,
     featuredEquineId: null,
     generatedHtml: null,
@@ -165,7 +170,7 @@ export default function NewEmailCampaignContent() {
     void (async () => {
       const { data } = await supabase
         .from('email_campaigns')
-        .select('id, prompt, image_urls, use_logos, link_to_website, include_phone, include_quote, include_insurance_strip, include_social_footer, dark_mode, featured_blog_id, featured_episode_slug, featured_page_path, featured_employee_id, featured_equine_id, generated_html, generated_subject')
+        .select('id, prompt, image_urls, use_logos, link_to_website, include_phone, include_quote, include_insurance_strip, include_social_footer, dark_mode, featured_blog_id, featured_episode_slug, featured_page_path, featured_page_image_url, featured_employee_id, featured_equine_id, generated_html, generated_subject')
         .eq('id', editingId)
         .maybeSingle();
       if (cancelled || !data) return;
@@ -183,6 +188,7 @@ export default function NewEmailCampaignContent() {
         featuredBlogId: data.featured_blog_id ?? null,
         featuredEpisodeSlug: data.featured_episode_slug ?? null,
         featuredPagePath: data.featured_page_path ?? null,
+        featuredPageImageUrl: (data as { featured_page_image_url?: string | null }).featured_page_image_url ?? null,
         featuredEmployeeId: data.featured_employee_id ?? null,
         featuredEquineId: data.featured_equine_id ?? null,
         generatedHtml: data.generated_html ?? null,
@@ -430,6 +436,7 @@ export default function NewEmailCampaignContent() {
           featuredBlogId: draft.featuredBlogId,
           featuredEpisodeSlug: draft.featuredEpisodeSlug,
           featuredPagePath: draft.featuredPagePath,
+          featuredPageImageUrl: draft.featuredPageImageUrl,
           featuredEmployeeId: draft.featuredEmployeeId,
           featuredEquineId: draft.featuredEquineId,
         }),
@@ -490,6 +497,7 @@ export default function NewEmailCampaignContent() {
           featuredBlogId: draft.featuredBlogId,
           featuredEpisodeSlug: draft.featuredEpisodeSlug,
           featuredPagePath: draft.featuredPagePath,
+          featuredPageImageUrl: draft.featuredPageImageUrl,
           featuredEmployeeId: draft.featuredEmployeeId,
           featuredEquineId: draft.featuredEquineId,
           previousHtml: mode === 'iterate' ? draft.generatedHtml : null,
@@ -541,6 +549,7 @@ export default function NewEmailCampaignContent() {
         featured_blog_id: draft.featuredBlogId,
         featured_episode_slug: draft.featuredEpisodeSlug,
         featured_page_path: draft.featuredPagePath,
+        featured_page_image_url: draft.featuredPageImageUrl,
         featured_employee_id: draft.featuredEmployeeId,
         featured_equine_id: draft.featuredEquineId,
         generated_html: draft.generatedHtml,
@@ -902,7 +911,8 @@ export default function NewEmailCampaignContent() {
         {featuredPage ? (
           <FeaturedPageCard
             page={featuredPage}
-            onClear={() => setDraft((p) => ({ ...p, featuredPagePath: null }))}
+            imageUrl={draft.featuredPageImageUrl}
+            onClear={() => setDraft((p) => ({ ...p, featuredPagePath: null, featuredPageImageUrl: null }))}
           />
         ) : (
           <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
@@ -1132,8 +1142,10 @@ export default function NewEmailCampaignContent() {
       {pagePickerOpen && (
         <PagePicker
           selectedPath={draft.featuredPagePath}
-          onSelect={(path) => {
-            setDraft((p) => ({ ...p, featuredPagePath: path }));
+          selectedImageUrl={draft.featuredPageImageUrl}
+          assets={libraryAssets}
+          onSelect={(path, imageUrl) => {
+            setDraft((p) => ({ ...p, featuredPagePath: path, featuredPageImageUrl: imageUrl }));
             setPagePickerOpen(false);
           }}
           onClose={() => setPagePickerOpen(false)}
@@ -1176,12 +1188,23 @@ export function CancelButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function PagePicker({ selectedPath, onSelect, onClose }: {
+function PagePicker({ selectedPath, selectedImageUrl, assets, onSelect, onClose }: {
   selectedPath: string | null;
-  onSelect: (path: string | null) => void;
+  selectedImageUrl: string | null;
+  assets: LibraryImage[];
+  onSelect: (path: string, imageUrl: string) => void;
   onClose: () => void;
 }) {
+  // Two-step wizard. Step 1: pick the page. Step 2: pick a picture
+  // to pair with it. The marketer can't bail out of step 2 without
+  // hitting "Back" — the featured-page card in the email requires
+  // both pieces. `pendingPath` carries the step-1 selection while
+  // step 2 is open so we don't commit until BOTH choices are in.
+  const [step, setStep] = useState<'page' | 'image'>(selectedPath && !selectedImageUrl ? 'image' : 'page');
+  const [pendingPath, setPendingPath] = useState<string | null>(selectedPath);
+  const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(selectedImageUrl);
   const [query, setQuery] = useState('');
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return SITE_PAGES;
@@ -1192,7 +1215,6 @@ function PagePicker({ selectedPath, onSelect, onClose }: {
       || p.group.toLowerCase().includes(q),
     );
   }, [query]);
-  // Group rows by their `group` for the sectioned list view.
   const grouped = useMemo(() => {
     const map = new Map<SitePage['group'], SitePage[]>();
     for (const p of filtered) {
@@ -1202,53 +1224,124 @@ function PagePicker({ selectedPath, onSelect, onClose }: {
     }
     return SITE_PAGE_GROUPS.map((g) => ({ group: g, rows: map.get(g) ?? [] })).filter((s) => s.rows.length > 0);
   }, [filtered]);
+  const pendingPage = useMemo(() => findSitePage(pendingPath), [pendingPath]);
+
+  // ── Step 1 ─ page list ──────────────────────────────────────
+  if (step === 'page') {
+    return (
+      <ModalShell title="Feature a page" subtitle={`${SITE_PAGES.length} marketing pages, grouped. Step 1 of 2.`} onClose={onClose}>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by title, path, or group…"
+          className="w-full mb-3 px-3 py-1.5 rounded-md border border-black/10 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+          style={{ fontFamily: 'var(--font-body)' }}
+        />
+        {filtered.length === 0 ? (
+          <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
+            No pages match that search.
+          </p>
+        ) : (
+          <div className="max-h-[60vh] overflow-y-auto pr-1 flex flex-col gap-3">
+            {grouped.map(({ group, rows }) => (
+              <div key={group}>
+                <p className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-foreground/45 mb-1.5 px-0.5">
+                  {group}
+                </p>
+                <ul className="flex flex-col gap-1.5">
+                  {rows.map((p) => {
+                    const isSelected = p.path === pendingPath;
+                    return (
+                      <li key={p.path}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Lock the page choice into pending and
+                            // advance straight to step 2 — a single
+                            // click feels like one continuous flow
+                            // even though there are two choices.
+                            setPendingPath(p.path);
+                            setStep('image');
+                          }}
+                          className={`w-full flex items-center gap-3 rounded-xl border p-2.5 text-left transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-black/10 bg-white hover:bg-warm-bg/40'}`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{p.title}</p>
+                            <p className="text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>{p.path}</p>
+                            <p className="text-[10.5px] text-foreground/45 truncate" style={{ fontFamily: 'var(--font-body)' }}>{p.blurb}</p>
+                          </div>
+                          {isSelected && (
+                            <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold" aria-label="Selected">✓</span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+      </ModalShell>
+    );
+  }
+
+  // ── Step 2 ─ image picker for the chosen page ─────────────────
+  const subtitle = pendingPage
+    ? `Pair “${pendingPage.title}” with a picture. Step 2 of 2.`
+    : 'Pick a picture for this page. Step 2 of 2.';
   return (
-    <ModalShell title="Feature a page" subtitle={`${SITE_PAGES.length} marketing pages, grouped.`} onClose={onClose}>
-      <input
-        type="text"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search by title, path, or group…"
-        className="w-full mb-3 px-3 py-1.5 rounded-md border border-black/10 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/30"
-        style={{ fontFamily: 'var(--font-body)' }}
-      />
-      {filtered.length === 0 ? (
+    <ModalShell title="Pick a picture" subtitle={subtitle} onClose={onClose}>
+      {assets.length === 0 ? (
         <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
-          No pages match that search.
+          Image library is empty. Upload images via /app/images first.
         </p>
       ) : (
-        <div className="max-h-[60vh] overflow-y-auto pr-1 flex flex-col gap-3">
-          {grouped.map(({ group, rows }) => (
-            <div key={group}>
-              <p className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-foreground/45 mb-1.5 px-0.5">
-                {group}
-              </p>
-              <ul className="flex flex-col gap-1.5">
-                {rows.map((p) => {
-                  const isSelected = p.path === selectedPath;
-                  return (
-                    <li key={p.path}>
-                      <button
-                        type="button"
-                        onClick={() => onSelect(p.path)}
-                        className={`w-full flex items-center gap-3 rounded-xl border p-2.5 text-left transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-black/10 bg-white hover:bg-warm-bg/40'}`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{p.title}</p>
-                          <p className="text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>{p.path}</p>
-                          <p className="text-[10.5px] text-foreground/45 truncate" style={{ fontFamily: 'var(--font-body)' }}>{p.blurb}</p>
-                        </div>
-                        {isSelected && (
-                          <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold" aria-label="Selected">✓</span>
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
-        </div>
+        <>
+          <ul className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 mb-4 max-h-[55vh] overflow-y-auto pr-1">
+            {assets.map((a) => {
+              const isSelected = a.url === pendingImageUrl;
+              return (
+                <li key={a.id}>
+                  <button
+                    type="button"
+                    onClick={() => setPendingImageUrl(a.url)}
+                    className={`relative w-full aspect-square rounded-md overflow-hidden border-2 transition-all ${isSelected ? 'border-primary ring-2 ring-primary/30' : 'border-black/10 hover:border-primary'}`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={a.url} alt={a.filename ?? ''} className="w-full h-full object-cover" />
+                    {isSelected && (
+                      <span className="absolute top-1 right-1 px-1 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-primary text-white">
+                        Selected
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="flex items-center justify-between gap-2 sticky bottom-0 bg-white pt-2">
+            <button
+              type="button"
+              onClick={() => setStep('page')}
+              className="px-3 py-1.5 rounded-md border border-black/10 bg-white text-[11.5px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+            >
+              ← Back to page
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!pendingPath || !pendingImageUrl) return;
+                onSelect(pendingPath, pendingImageUrl);
+              }}
+              disabled={!pendingPath || !pendingImageUrl}
+              className="px-4 py-1.5 rounded-md bg-primary text-white text-[11.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Use this picture
+            </button>
+          </div>
+        </>
       )}
     </ModalShell>
   );

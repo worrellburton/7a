@@ -45,6 +45,7 @@ interface BuildBody {
   featuredBlogId?: unknown;
   featuredEpisodeSlug?: unknown;
   featuredPagePath?: unknown;
+  featuredPageImageUrl?: unknown;
   featuredEmployeeId?: unknown;
   featuredEquineId?: unknown;
   previousHtml?: unknown;
@@ -91,6 +92,9 @@ export async function POST(req: NextRequest) {
   const featuredBlogId = typeof body.featuredBlogId === 'string' ? body.featuredBlogId : null;
   const featuredEpisodeSlug = typeof body.featuredEpisodeSlug === 'string' ? body.featuredEpisodeSlug : null;
   const featuredPagePath = typeof body.featuredPagePath === 'string' ? body.featuredPagePath : null;
+  const featuredPageImageUrl = typeof body.featuredPageImageUrl === 'string' && body.featuredPageImageUrl.length > 0
+    ? body.featuredPageImageUrl
+    : null;
   const featuredEmployeeId = typeof body.featuredEmployeeId === 'string' ? body.featuredEmployeeId : null;
   const featuredEquineId = typeof body.featuredEquineId === 'string' ? body.featuredEquineId : null;
   const previousHtml = typeof body.previousHtml === 'string' ? body.previousHtml : null;
@@ -288,9 +292,20 @@ export async function POST(req: NextRequest) {
     );
   }
   if (featuredPage && featuredPageUrl) {
-    ctxLines.push(
-      `FEATURED PAGE (render a quiet "Continue exploring" module BELOW the body copy and ABOVE the CTA, separate from any FEATURED BLOG card). Treat it like a section sign-post: a small uppercase eyebrow that reads "ON ${featuredPage.group.toUpperCase()}" or "DIVE DEEPER", a 22px display-serif headline with the page title, a single 1-sentence blurb (you can use the description below), and a Copper-text "Read more →" link to the URL. No card border, no button styling. Skip if it would duplicate the primary CTA URL.\n  title: ${featuredPage.title}\n  url: ${featuredPageUrl}\n  group: ${featuredPage.group}\n  description: ${featuredPage.blurb}`,
-    );
+    // The page picker forces the marketer to pair a specific image
+    // with the page (step 2 of the modal). When that image is
+    // present we render the module as a small photo card; when
+    // absent (legacy drafts saved before this UI shipped) we keep
+    // the original text-only "Continue exploring" module.
+    if (featuredPageImageUrl) {
+      ctxLines.push(
+        `FEATURED PAGE (render a small image-led "Continue exploring" module BELOW the body copy and ABOVE the CTA, separate from any FEATURED BLOG card). Layout: the image on the left at 120x120 (border-radius 8px, object-cover), the text block on the right. Text block: a small uppercase Copper eyebrow ("ON ${featuredPage.group.toUpperCase()}" or "DIVE DEEPER"), a 20px display-serif headline with the page title, a single 1-sentence blurb, and a Copper-text "Read more →" link to the URL. No card border, no button styling. Skip if it would duplicate the primary CTA URL.\n  title: ${featuredPage.title}\n  url: ${featuredPageUrl}\n  group: ${featuredPage.group}\n  description: ${featuredPage.blurb}\n  image: ${featuredPageImageUrl}  ← USE THIS EXACT URL for the card photo, do not substitute another IMAGE from the library`,
+      );
+    } else {
+      ctxLines.push(
+        `FEATURED PAGE (render a quiet "Continue exploring" module BELOW the body copy and ABOVE the CTA, separate from any FEATURED BLOG card). Treat it like a section sign-post: a small uppercase eyebrow that reads "ON ${featuredPage.group.toUpperCase()}" or "DIVE DEEPER", a 22px display-serif headline with the page title, a single 1-sentence blurb (you can use the description below), and a Copper-text "Read more →" link to the URL. No card border, no button styling. Skip if it would duplicate the primary CTA URL.\n  title: ${featuredPage.title}\n  url: ${featuredPageUrl}\n  group: ${featuredPage.group}\n  description: ${featuredPage.blurb}`,
+      );
+    }
   }
   if (emp) {
     ctxLines.push(

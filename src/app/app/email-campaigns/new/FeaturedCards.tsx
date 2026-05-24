@@ -104,9 +104,17 @@ export function FeaturedHorseCard({ horse, onClear }: { horse: HorseOption; onCl
   );
 }
 
-export function FeaturedPageCard({ page, onClear }: { page: SitePage; onClear: () => void }) {
+export function FeaturedPageCard({ page, imageUrl, onClear }: { page: SitePage; imageUrl?: string | null; onClear: () => void }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+      {imageUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={imageUrl}
+          alt=""
+          className="shrink-0 w-14 h-14 rounded-md object-cover border border-black/10 bg-warm-bg"
+        />
+      ) : (
       <span
         className="shrink-0 w-14 h-14 rounded-md bg-warm-bg border border-black/10 flex flex-col items-center justify-center text-foreground/55"
         aria-hidden="true"
@@ -114,6 +122,7 @@ export function FeaturedPageCard({ page, onClear }: { page: SitePage; onClear: (
         <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary">Page</span>
         <span className="mt-0.5 text-[9px] tracking-wider text-foreground/45">→</span>
       </span>
+      )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.14em] bg-primary/15 text-primary ring-1 ring-primary/25">
