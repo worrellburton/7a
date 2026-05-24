@@ -318,31 +318,6 @@ export default function BracketLobby() {
     ]);
   }, [bracketRounds]);
 
-  // Only the round-1 PvP cells are "real" tournament matchups; bye
-  // cells and later-round cells don't have a concrete opponent
-  // assignment yet. LIVE NOW used to surface any in-flight game on
-  // the platform — including stale casual matches a teammate had
-  // open before the tournament started — which produced the
-  // multi-Bobby strip the user flagged. We now restrict LIVE NOW to
-  // matches whose (challenger, opponent) pair is in the round-1
-  // PvP set, so only tournament games show up. The set is rebuilt
-  // weekly when the bracket reshuffles, which naturally hides any
-  // stale matches from previous brackets.
-  const tournamentPairKeys = useMemo<Set<string>>(() => {
-    const out = new Set<string>();
-    for (const cell of bracketRounds[0] ?? []) {
-      if (cell.isBye) continue;
-      const a = cell.top?.kind === 'user' ? cell.top.user : null;
-      const b = cell.bottom?.kind === 'user' ? cell.bottom.user : null;
-      if (a && b) out.add(pairKey(a.id, b.id));
-    }
-    return out;
-  }, [bracketRounds]);
-  const tournamentLiveMatches = useMemo(
-    () => liveMatches.filter((m) => tournamentPairKeys.has(pairKey(m.challenger_id, m.opponent_id))),
-    [liveMatches, tournamentPairKeys],
-  );
-
   const challenge = useCallback(
     async (opponentId: string) => {
       if (!session?.access_token) return;
@@ -401,7 +376,7 @@ export default function BracketLobby() {
         bracketRounds={bracketRounds}
       />
 
-      <LiveNow matches={tournamentLiveMatches} userById={userById} youId={user?.id ?? null} />
+      <LiveNow matches={liveMatches} userById={userById} youId={user?.id ?? null} />
 
       {/* Phase 7 — Tournament progress meter. Stacked bar showing
           done / in-flight / not-started across round 1; bye count
@@ -472,12 +447,45 @@ function YourMatchSpotlight({
 }) {
   if (!user) return null;
 
-  // Priority 1: your live/open game (your turn or opponent's turn,
-  // doesn't matter — the spotlight just gets you back to the board).
-  const liveOrOpen = (matches ?? []).find(
-    (m) => (m.status === 'active' || m.status === 'open')
-      && (m.challenger_id === user.id || m.opponent_id === user.id),
+  // Find the user's bracket seat FIRST so the bracket truth wins
+  // over any stale active match. Without this guard a player who
+  // got a bye this week but had an unfinished match from last
+  // week's bracket would see "Your match — in progress vs. <stale
+  // opponent>" instead of the bye message — which is the
+  // contradiction the user flagged ("the tourney says i have a bye
+  // week but also that im in a match with brendan").
+  const round1 = bracketRounds[0] ?? [];
+  const yourCellEarly = round1.find((c) =>
+    (c.top?.kind === 'user' && c.top.user.id === user.id)
+    || (c.bottom?.kind === 'user' && c.bottom.user.id === user.id),
   );
+  const youHaveBye = !!yourCellEarly?.isBye;
+  // Build a "valid opponents this week" set — only games whose pair
+  // matches the user's current bracket cell count as "your tournament
+  // match". Any other in-flight game is a stale row from a previous
+  // bracket and is intentionally ignored by the spotlight (LIVE NOW
+  // still surfaces those for spectators).
+  const yourBracketOpponentId: string | null = (() => {
+    if (!yourCellEarly || yourCellEarly.isBye) return null;
+    if (yourCellEarly.top?.kind === 'user' && yourCellEarly.top.user.id === user.id) {
+      return yourCellEarly.bottom?.kind === 'user' ? yourCellEarly.bottom.user.id : null;
+    }
+    if (yourCellEarly.bottom?.kind === 'user' && yourCellEarly.bottom.user.id === user.id) {
+      return yourCellEarly.top?.kind === 'user' ? yourCellEarly.top.user.id : null;
+    }
+    return null;
+  })();
+
+  // Priority 1: your live/open game IF it's against your current
+  // bracket opponent. Stale matches against last-week's opponent are
+  // ignored here (they still show up in LIVE NOW for spectators).
+  const liveOrOpen = !youHaveBye && yourBracketOpponentId
+    ? (matches ?? []).find(
+        (m) => (m.status === 'active' || m.status === 'open')
+          && ((m.challenger_id === user.id && m.opponent_id === yourBracketOpponentId)
+            || (m.opponent_id === user.id && m.challenger_id === yourBracketOpponentId)),
+      )
+    : undefined;
 
   if (liveOrOpen) {
     const opponentId = liveOrOpen.challenger_id === user.id ? liveOrOpen.opponent_id : liveOrOpen.challenger_id;
@@ -510,14 +518,12 @@ function YourMatchSpotlight({
     );
   }
 
-  // Priority 2: your bracket seat (if you're in round 1). Surface
-  // the opponent and a "Click to start" prompt so finding your game
-  // is a single glance instead of a bracket-wide scan.
-  const round1 = bracketRounds[0] ?? [];
-  const yourCell = round1.find((c) =>
-    (c.top?.kind === 'user' && c.top.user.id === user.id)
-    || (c.bottom?.kind === 'user' && c.bottom.user.id === user.id),
-  );
+  // Priority 2: your bracket seat. Surfaces the opponent and a
+  // "Click to start" prompt — or the violet bye message — so
+  // finding your spot is a single glance instead of a bracket-wide
+  // scan. Reuses the bracket cell we already resolved at the top
+  // of this component.
+  const yourCell = yourCellEarly;
   if (!yourCell) return null;
 
   if (yourCell.isBye) {
@@ -1301,6 +1307,20 @@ function MatchupCell({
           Live
         </span>
       )}
+      {/* Move-count badge — pinned to the top-left of every cell
+          that has a match (live, open, or complete). Reads as a
+          quick "this game is N moves deep" without having to drill
+          into the status footer. Hidden for byes and seedless
+          cells so the chrome only shows up where it adds info. */}
+      {match && (
+        <span
+          className="absolute -top-1.5 left-2 inline-flex items-center gap-0.5 px-1.5 py-px rounded-full bg-foreground/85 text-white text-[8.5px] font-bold tabular-nums tracking-wider shadow-sm"
+          aria-label={`${match.moves.length} move${match.moves.length === 1 ? '' : 's'}`}
+        >
+          {match.moves.length}
+          <span className="opacity-70">m</span>
+        </span>
+      )}
 
       {isBye ? (
         // Phase 1 — Compact BYE rendering: the player and the BYE
@@ -1339,9 +1359,6 @@ function MatchupCell({
             style={{ fontFamily: 'var(--font-body)' }}
           >
             <span className="truncate">{statusText}</span>
-            {match && (
-              <span className="text-[8.5px] font-normal opacity-60 tabular-nums shrink-0">{match.moves.length}m</span>
-            )}
           </div>
         </>
       )}
