@@ -636,20 +636,29 @@ export default function HomeContent() {
 
         {/* Centerpiece — flex-1 so it eats the leftover vertical space
             between the absolutely-positioned hero (top) and the WIP
-            footer pill (bottom), and `justify-center` parks the orbit
-            + Ask Policies stack at the dead center of that space. */}
-        <div className="relative flex-1 flex flex-col items-stretch justify-center gap-4 sm:gap-6 lg:gap-8 mt-2 lg:mt-0">
+            footer pill (bottom). The orbit is absolute-positioned to
+            this column's geometric centre (see below) so the 7A
+            medallion always lands dead-centre. The remaining children
+            (Connect-4 nudge, action stack) flow with `justify-end` so
+            they stack at the bottom of the centerpiece instead of
+            colliding with the absolutely-positioned orbit. */}
+        <div className="relative flex-1 flex flex-col items-stretch justify-end gap-4 sm:gap-6 lg:gap-8 mt-2 lg:mt-0">
 
         {/* Centered, slowly-rotating ring of teammates active in the
             last 24 hours, with the horse roster orbiting in the inner
             ring. See HomeOnlineOrbit.tsx for the anatomy + animation.
             Mobile: fixed-positioned so it pins to the visible
-            viewport's centre — using `absolute` would only centre it
-            inside the centerpiece flex column, which sits below the
-            welcome header and so isn't actually in the middle of the
-            screen. sm+: returns to normal flex flow. */}
+            viewport's centre. Desktop: absolute-positioned to the
+            centerpiece's geometric centre so the 7A medallion sits
+            dead-centre regardless of how many siblings (Connect-4
+            nudge, signature stack, etc.) flow below it — leaving the
+            orbit in normal flex flow lets sibling height push the
+            orbit upward off the visual centre, which is exactly the
+            bug we kept hitting. `pointer-events-none` on the section
+            so the click-through area around the orbit doesn't block
+            anything below; the inner content opts back in to clicks. */}
         {recentUsers.length > 0 && (
-          <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:relative sm:top-auto sm:left-auto sm:translate-x-0 sm:translate-y-0 pointer-events-none sm:pointer-events-auto">
+          <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed sm:absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
             <div className="pointer-events-auto flex flex-col items-center gap-3">
               <HomeOnlineOrbit users={recentUsers} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
               {/* Mobile-only chip — the desktop chip sits between the
