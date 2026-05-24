@@ -20,7 +20,6 @@ import TourStats from "@/components/tour/TourStats";
 import PlaceToHeal from "@/components/PlaceToHeal";
 import ProgramSection from "@/components/ProgramSection";
 import TreatmentServices from "@/components/TreatmentServices";
-import ComprehensiveTreatment from "@/components/ComprehensiveTreatment";
 // Phase 8 — Heavy below-the-fold client sections lazy-imported so
 // the homepage's initial JS payload skips them; they hydrate when
 // the browser actually scrolls into range. ~830 LOC of client code
@@ -138,7 +137,6 @@ export default async function Home() {
       <PlaceToHeal />
       <ProgramSection />
       <TreatmentServices />
-      <ComprehensiveTreatment />
       <CampusTour />
       <InsuranceCarousel />
       <GoogleReviewsCinema />
