@@ -789,27 +789,53 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     // normal click for the click counter / Other-pages threshold),
     // but visually it never leaves the top — the rest of the stack
     // fills positions 2..N below it.
-    const HOME_PATH = '/app';
+    //
+    // Alumni override: their home is /app/alumni (not /app), and
+    // My Profile is permanently pinned to position 2 — alumni were
+    // having to drill into the avatar popup to edit identity, which
+    // for the alumni audience (less app-fluent than staff) hid the
+    // single most important page in the portal. Pinning both lets
+    // recency-reordering still run for positions 3..N.
+    const HOME_PATH = isAlumni ? '/app/alumni' : '/app';
+    const PROFILE_PATH = '/app/profile';
     const homePage = visibleNavPages.find((p) => p.path === HOME_PATH);
-    const nonHomeVisible = visibleNavPages.filter((p) => p.path !== HOME_PATH);
-    const byPath = new Map(nonHomeVisible.map((p) => [p.path, p] as const));
+    // /app/profile lives in the popup section by default; for
+    // alumni we synthesise a nav-shaped entry so it can sit at
+    // position 2 without rewriting the PagePermissions seed.
+    const profilePage = isAlumni
+      ? (visibleNavPages.find((p) => p.path === PROFILE_PATH)
+          ?? popupPages.find((p) => p.path === PROFILE_PATH)
+          ?? null)
+      : null;
+    const pinned = new Set<string>([HOME_PATH, ...(isAlumni ? [PROFILE_PATH] : [])]);
+    const nonPinnedVisible = visibleNavPages.filter((p) => !pinned.has(p.path));
+    const byPath = new Map(nonPinnedVisible.map((p) => [p.path, p] as const));
     const ranked: typeof visibleNavPages = [];
     const seen = new Set<string>();
     for (const path of sidebarRecentPaths) {
-      if (path === HOME_PATH) continue;
+      if (pinned.has(path)) continue;
       const hit = byPath.get(path);
       if (hit && !seen.has(path)) {
         ranked.push(hit);
         seen.add(path);
       }
     }
-    const leftover = nonHomeVisible
+    const leftover = nonPinnedVisible
       .filter((p) => !seen.has(p.path))
       .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
     const tail = [...ranked, ...leftover];
-    return homePage ? [homePage, ...tail] : tail;
-  }, [visibleNavPages, sidebarRecentPaths]);
-  const recencyTopPages = recencyOrderedPages.slice(0, RECENCY_VISIBLE_COUNT);
+    const head: typeof visibleNavPages = [];
+    if (homePage) head.push(homePage);
+    if (profilePage) head.push(profilePage);
+    return [...head, ...tail];
+  }, [visibleNavPages, popupPages, sidebarRecentPaths, isAlumni]);
+  // Alumni see a flat sidebar — their portal is small enough
+  // (~7 pages) that an Other-Pages disclosure adds confusion
+  // without saving real space. Staff still get the top-N
+  // + Other-Pages split for their larger surface.
+  const recencyTopPages = isAlumni
+    ? recencyOrderedPages
+    : recencyOrderedPages.slice(0, RECENCY_VISIBLE_COUNT);
 
   // Apply the sidebar search query — when there's anything typed,
   // flatten the whole accessible-pages set to label/path matches
@@ -827,8 +853,11 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   // "Other pages" section. Still ordered by recency (most-recent
   // first) so a page that just dropped out of the top-7 sits at the
   // top of Other, matching the brief: "When a page goes to spot 8,
-  // put it in the top of other pages."
-  const recencyOtherPages = recencyOrderedPages.slice(RECENCY_VISIBLE_COUNT);
+  // put it in the top of other pages." Alumni get no spillover —
+  // their whole nav is flat (see recencyTopPages above).
+  const recencyOtherPages = isAlumni
+    ? ([] as typeof recencyOrderedPages)
+    : recencyOrderedPages.slice(RECENCY_VISIBLE_COUNT);
   // Track the disclosure state for the Other pages section. Per-user
   // persistence is overkill — a tab reload is cheap, and forgetting
   // the collapsed state after each session matches how reps actually
