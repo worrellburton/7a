@@ -189,11 +189,12 @@ export default function AlumniMapContent() {
         </div>
       </header>
 
-      {/* Interactive map — only pins with a geocoded lat/lng. The
-          list below stays visible too so an alum whose city hasn't
-          been geocoded yet still appears, and screen-reader users
-          have a textual fallback. */}
-      {!loading && pins.some((p) => p.lat != null && p.lng != null) && (
+      {/* Interactive map — always rendered, even when nobody is
+          geocoded yet, so an alum landing here can see the AZ map
+          base and the affordance for what 'turn the toggle on'
+          will look like. The list below covers ungeocoded pins +
+          screen-reader users. */}
+      {!loading && (
         <div className="mb-8">
           <AlumniMapCanvas
             pins={pins
