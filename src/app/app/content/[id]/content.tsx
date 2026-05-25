@@ -160,6 +160,55 @@ export default function BlogEditor({ id }: { id: string }) {
         <p className="mt-1 text-[12px] text-foreground/50 font-mono">slug: {blog.slug} · status: {blog.status}</p>
       </header>
 
+      {/* Published blogs land here from the content list — but the
+          pipeline editor below is for shepherding a draft TO
+          publication. Once published, the marketer's primary need
+          is to tweak the live copy / swap images. Surface that as
+          the page's hero action so they don't have to scroll past
+          the pipeline accordions. Live edit mode on the rendered
+          post is gated by ?edit=1 + super-admin (see the public
+          blog page). */}
+      {reachedPublish && (
+        <section
+          className="mb-6 rounded-2xl border-2 border-primary/30 bg-gradient-to-r from-primary/5 via-warm-bg/40 to-white p-5 lg:p-6"
+        >
+          <div className="flex items-start gap-4 flex-wrap">
+            <div className="flex-1 min-w-[260px]">
+              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary mb-1.5">Live post</p>
+              <h2 className="text-lg font-bold text-foreground leading-tight">
+                Edit the published copy + photos
+              </h2>
+              <p className="text-[13px] text-foreground/65 leading-relaxed mt-1">
+                Opens the live rendered post in edit mode — change headlines, body text, and swap any photo right on the page.
+                Saves write straight back to this post.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+              <Link
+                href={`/who-we-are/blog/${blog.slug}?edit=1`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-primary text-white text-[12.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 transition-colors shadow-[0_10px_28px_-10px_rgba(188,107,74,0.55)]"
+              >
+                Edit live post
+                <span aria-hidden="true">→</span>
+              </Link>
+              <Link
+                href={`/who-we-are/blog/${blog.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg border border-foreground/15 bg-white text-foreground/75 text-[12.5px] font-semibold hover:bg-warm-bg/60 transition-colors"
+              >
+                View as visitor
+              </Link>
+            </div>
+          </div>
+          <p className="mt-3 text-[11px] text-foreground/45 font-mono">
+            /who-we-are/blog/{blog.slug}
+          </p>
+        </section>
+      )}
+
       {error && (
         <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-800">{error}</div>
       )}
