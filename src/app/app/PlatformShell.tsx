@@ -1336,7 +1336,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       label would be noise. Regular staff also
                       don't see it because they don't see alumni-only
                       pages at all. */}
-                  {isSuperAdmin && !isAlumni && item.alumniOnly && (
+                  {isSuperAdmin && !isAlumni && (item.alumniOnly || item.path === '/app/chat' || item.path === '/app/arcade') && (
                     <span
                       aria-label="alumni page"
                       className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[8.5px] font-bold uppercase tracking-[0.14em] bg-violet-500/12 text-violet-700 border border-violet-500/20 whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200"
