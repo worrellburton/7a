@@ -113,10 +113,20 @@ for the buck" wins from "risky rewrites".
 
 TARGET_KIND + TARGET_PATH + TARGET_LABEL (where the change lands):
   target_kind = "existing" — modifies a page or surface that
-                exists today. Set target_path to the route
-                (e.g. "/admissions", "/app/admissions/leads/[id]")
-                and target_label to a 1-3 word friendly name
-                (e.g. "Admissions hero", "Lead detail header").
+                EXISTS TODAY. You MUST only suggest a target_path
+                that is currently routable. Real examples on this
+                codebase: "/", "/admissions", "/our-program",
+                "/contact", "/who-we-are", "/who-we-are/team",
+                "/who-we-are/blog", "/app", "/app/outreach",
+                "/app/calls", "/app/content", "/app/calendar",
+                "/app/equine", "/app/team", "/app/social-media",
+                "/app/email-campaigns". Do NOT invent sub-routes
+                ("/app/admissions/leads" does not exist — admissions
+                is a marketing page only, /app/admissions was
+                deleted). When unsure, omit target_path entirely
+                rather than guess. target_label is a 1-3 word
+                friendly name (e.g. "Admissions hero", "Calls
+                lead detail").
   target_kind = "new" — introduces a brand-new page or surface.
                 Set target_path to the route you propose
                 (e.g. "/insurance/cost-calculator"). Label is
@@ -158,7 +168,7 @@ no markdown fences, no extra text. Each object has the keys:
     "risk_score": 1-5,
     "value_score": 1-5,
     "target_kind": "existing"|"new"|"global",
-    "target_path": "/admissions"|"/app/.../leads/[id]"|null,
+    "target_path": "/admissions"|"/app/outreach"|"/app/content"|null,
     "target_label": "Admissions hero"|null,
     "design_preview_html": "..."  // only when category=design
   }

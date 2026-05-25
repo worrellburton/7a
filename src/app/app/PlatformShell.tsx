@@ -1024,17 +1024,36 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             let animIdx = 0;
             const renderLink = (item: PageConfig) => {
               const idx = animIdx++;
-              const isActive = pathname === item.path;
+              // Active route logic — exact match OR `pathname is a
+              // sub-route of item.path`. Catches /app/admissions/leads/123
+              // for an item.path of /app/admissions so deep links still
+              // light up the parent nav row. Excludes the bare "/app"
+              // dashboard from matching every /app/* (otherwise Home would
+              // be permanently "active") by requiring the +'/' suffix.
+              const isActive = item.path === pathname
+                || (item.path !== '/app' && pathname?.startsWith(item.path + '/'));
               // External-URL entries (e.g. "Website" → marketing
               // site) render as a target="_blank" anchor instead of
               // a Next Link. The recency visit still fires so they
               // participate in reordering like internal pages.
-              const commonClassName = `group/nav relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium overflow-hidden transition-all duration-500 ease-out motion-reduce:transition-none hover:shadow-[0_4px_14px_-6px_rgba(188,107,74,0.35)] ${
+              // Active treatment: 3px copper left border via the
+              // ::before pseudo-element on the parent (border on the
+              // pill itself would clash with the rounded-xl shape),
+              // font-semibold lift, and a subtle warm-sand background
+              // pulled from the same primary tint used elsewhere in
+              // the sidebar so the active state reads in lockstep
+              // with the brand.
+              const commonClassName = `group/nav relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm overflow-hidden transition-all duration-500 ease-out motion-reduce:transition-none hover:shadow-[0_4px_14px_-6px_rgba(188,107,74,0.35)] ${
                 isActive
-                  ? 'bg-primary/12 text-primary shadow-[inset_0_0_0_1px_rgba(188,107,74,0.18)]'
-                  : 'text-foreground/60 hover:text-foreground'
+                  ? 'font-semibold bg-warm-bg/70 text-primary shadow-[inset_3px_0_0_0_var(--color-primary),inset_0_0_0_1px_rgba(188,107,74,0.18)]'
+                  : 'font-medium text-foreground/60 hover:text-foreground'
               } ${navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'}`;
               const commonStyle = { fontFamily: 'var(--font-body)', transitionDelay: `${idx * 50}ms` } as const;
+              // Use ARIA's exact spec: aria-current='page' when active,
+              // attribute fully omitted when not. Don't pass aria-current
+              // ='false' — screen readers treat that the same as 'page'
+              // on some platforms.
+              const ariaCurrent: 'page' | undefined = isActive ? 'page' : undefined;
               if (item.externalUrl) {
                 return (
                   <a
@@ -1046,6 +1065,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); }}
                     className={commonClassName}
                     style={commonStyle}
+                    aria-current={ariaCurrent}
                   >
                     {/* External-link svg slipped in next to the icon
                         so the label still aligns with internal rows. */}
@@ -1092,6 +1112,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   }}
                   className={commonClassName}
                   style={commonStyle}
+                  aria-current={ariaCurrent}
                 >
                   {/* Phase 2: sliding pill background — primary-tinted
                       gradient that grows from the left edge on hover.
