@@ -14,8 +14,15 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import Leaderboard from '../_components/Leaderboard';
 import { useArcadeScore } from '../_lib/useArcadeScore';
+
+interface Horse {
+  id: string;
+  name: string;
+  image_url: string | null;
+}
 
 const WORLD = { w: 880, h: 360 } as const;
 const GROUND_Y = 280;
@@ -49,6 +56,23 @@ export default function TrailRideContent() {
   const [gameOver, setGameOver] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  // Horse roster — fetched once on mount; the player picks one
+  // before they ride. The choice is stored on the score row's
+  // meta so the leaderboard can attribute the run to a horse.
+  const [horses, setHorses] = useState<Horse[]>([]);
+  const [selectedHorse, setSelectedHorse] = useState<Horse | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    void supabase
+      .from('horses')
+      .select('id, name, image_url')
+      .order('name', { ascending: true })
+      .then((r) => {
+        if (cancelled) return;
+        setHorses(((r.data ?? []) as Horse[]).filter((h) => h.name));
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   const stateRef = useRef<{
     cameraX: number;
@@ -85,6 +109,7 @@ export default function TrailRideContent() {
   });
 
   const start = useCallback(() => {
+    if (!selectedHorse) return; // can't ride without picking one
     stateRef.current = {
       cameraX: 0,
       horseY: GROUND_Y - HORSE.h,
@@ -107,7 +132,7 @@ export default function TrailRideContent() {
     setRunning(true);
     setGameOver(false);
     setSubmitted(false);
-  }, []);
+  }, [selectedHorse]);
 
   const jump = useCallback(() => {
     const s = stateRef.current;
@@ -292,11 +317,16 @@ export default function TrailRideContent() {
     if (!gameOver || submitted) return;
     const score = hudDist + hudHay * 50;
     if (score <= 0) { setSubmitted(true); return; }
-    void submitScore(score, { distance: hudDist, hay: hudHay }).then((ok) => {
+    void submitScore(score, {
+      distance: hudDist,
+      hay: hudHay,
+      horse_id: selectedHorse?.id ?? null,
+      horse_name: selectedHorse?.name ?? null,
+    }).then((ok) => {
       setSubmitted(true);
       if (ok) setRefreshKey((k) => k + 1);
     });
-  }, [gameOver, submitted, hudDist, hudHay, submitScore]);
+  }, [gameOver, submitted, hudDist, hudHay, submitScore, selectedHorse]);
 
   const finalScore = hudDist + hudHay * 50;
 
@@ -347,14 +377,41 @@ export default function TrailRideContent() {
                 ) : (
                   <>
                     <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary">Mount up</p>
-                    <h2 className="mt-1 text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Trail Ride</h2>
-                    <p className="mt-2 text-[12px] text-foreground/55">Tap / space to jump. Watch for fences and creeks.</p>
+                    <h2 className="mt-1 text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Pick your horse</h2>
+                    <p className="mt-1 text-[11.5px] text-foreground/55">{horses.length === 0 ? 'Loading the herd…' : 'The horse you choose rides with you on the leaderboard.'}</p>
+                    <div className="mt-3 max-h-44 overflow-y-auto pr-1">
+                      <div className="grid grid-cols-3 gap-2">
+                        {horses.map((h) => {
+                          const isPicked = selectedHorse?.id === h.id;
+                          return (
+                            <button
+                              key={h.id}
+                              type="button"
+                              onClick={() => setSelectedHorse(h)}
+                              className={`group/h flex flex-col items-center gap-1 p-1.5 rounded-lg border transition-colors ${
+                                isPicked ? 'bg-primary/15 border-primary' : 'border-black/10 hover:bg-warm-bg/60'
+                              }`}
+                              title={h.name}
+                            >
+                              {h.image_url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img src={h.image_url} alt="" referrerPolicy="no-referrer" className="w-10 h-10 rounded-full object-cover border border-black/10" />
+                              ) : (
+                                <span className="w-10 h-10 rounded-full bg-warm-bg/80 text-foreground/45 flex items-center justify-center text-xs font-bold">{h.name.charAt(0)}</span>
+                              )}
+                              <span className="text-[10px] font-semibold text-foreground/75 truncate w-full text-center">{h.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
                     <button
                       type="button"
                       onClick={start}
-                      className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary text-white text-[12px] font-semibold uppercase tracking-wider hover:bg-primary/90"
+                      disabled={!selectedHorse}
+                      className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-md bg-primary text-white text-[12px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-40"
                     >
-                      Ride · Space
+                      {selectedHorse ? `Ride with ${selectedHorse.name}` : 'Pick a horse first'}
                     </button>
                   </>
                 )}

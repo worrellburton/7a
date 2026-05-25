@@ -25,6 +25,7 @@ interface RankedRow extends ScoreRow {
   rank: number;
   name: string;
   avatar: string | null;
+  meta: Record<string, unknown>;
 }
 
 export default function Leaderboard({
@@ -37,6 +38,7 @@ export default function Leaderboard({
   puzzleDate,
   limit = 10,
   refreshKey,
+  metaRenderer,
 }: {
   game: ArcadeGameKey;
   scoreLabel?: string;
@@ -48,6 +50,10 @@ export default function Leaderboard({
   // board only matters at game-over time — pulling fresh on
   // each submit is plenty.
   refreshKey?: number;
+  // Optional per-row decorator the game can use to surface
+  // run-specific metadata (which horse Trail Ride was ridden
+  // on, etc.). Gets the score row's meta jsonb.
+  metaRenderer?: (meta: Record<string, unknown>) => React.ReactNode;
 }) {
   const { user } = useAuth();
   const [rows, setRows] = useState<RankedRow[]>([]);
@@ -96,14 +102,24 @@ export default function Leaderboard({
         usersMap.set(u.id, { full_name: u.full_name, avatar_url: u.avatar_url });
       }
     }
+    // Need the meta jsonb on each top row too — bestPerUser
+    // stored ScoreRow without it; merge back in from `all` so
+    // the leaderboard can render run-specific metadata.
+    const metaByKey = new Map<string, Record<string, unknown>>();
+    for (const r of all) {
+      const key = `${r.user_id}|${r.score}|${r.created_at}`;
+      if (!metaByKey.has(key)) metaByKey.set(key, r.meta || {});
+    }
     setRows(
       top.map((r, i): RankedRow => {
-        const meta = usersMap.get(r.user_id);
+        const u = usersMap.get(r.user_id);
+        const meta = metaByKey.get(`${r.user_id}|${r.score}|${r.created_at}`) ?? {};
         return {
           ...r,
           rank: i + 1,
-          name: meta?.full_name || 'Player',
-          avatar: meta?.avatar_url ?? null,
+          name: u?.full_name || 'Player',
+          avatar: u?.avatar_url ?? null,
+          meta,
         };
       }),
     );
@@ -150,9 +166,16 @@ export default function Leaderboard({
                     {(r.name || '?').charAt(0).toUpperCase()}
                   </span>
                 )}
-                <span className="text-[13px] font-semibold text-foreground/85 flex-1 truncate">
-                  {r.name}
-                  {isMine && <span className="ml-1.5 text-[10px] uppercase tracking-wider text-primary">You</span>}
+                <span className="flex-1 min-w-0">
+                  <span className="text-[13px] font-semibold text-foreground/85 truncate block">
+                    {r.name}
+                    {isMine && <span className="ml-1.5 text-[10px] uppercase tracking-wider text-primary">You</span>}
+                  </span>
+                  {metaRenderer && (
+                    <span className="block text-[10.5px] text-foreground/50 truncate">
+                      {metaRenderer(r.meta)}
+                    </span>
+                  )}
                 </span>
                 <span className="text-[13px] font-bold text-foreground tabular-nums">{fmt(r.score)}</span>
               </li>
