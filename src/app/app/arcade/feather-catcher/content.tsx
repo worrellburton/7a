@@ -316,23 +316,28 @@ export default function FeatherCatcherContent() {
           Catch the feathers, dodge the rocks.
         </h1>
         <p className="mt-1 text-[12.5px] text-foreground/65 max-w-xl">
-          Arrow keys / A · D, or move your mouse. Gold feathers are worth 5. Three rocks (or cacti) and the run ends.
+          Arrow keys / A · D on desktop, drag your finger on mobile, or move the mouse. Gold feathers are worth 5. Catch three rocks or cacti and the run ends.
         </p>
       </header>
 
-      <div className="grid lg:grid-cols-[1fr_280px] gap-5">
+      <div className="grid lg:grid-cols-[1fr_280px] gap-5 lg:gap-5">
         <div ref={containerRef} className="relative">
           <canvas
             ref={canvasRef}
-            className="block w-full rounded-2xl border border-black/10 shadow-lg bg-amber-50"
+            className="block w-full rounded-2xl border border-black/10 shadow-lg bg-amber-50 touch-none select-none"
           />
           {/* HUD overlay */}
           <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
             <span className="px-2.5 py-1 rounded-md bg-foreground/85 text-white text-[12px] font-bold tabular-nums tracking-wider">
               {hudScore}
             </span>
-            <span className="px-2.5 py-1 rounded-md bg-foreground/85 text-white text-[12px] font-bold tracking-wider">
-              {'❤'.repeat(hudLives)}{'·'.repeat(Math.max(0, 3 - hudLives))}
+            <span className="px-2.5 py-1 rounded-md bg-foreground/85 text-white text-[11px] font-bold tracking-wider inline-flex items-center gap-1">
+              <span className="opacity-80">Lives</span>
+              {[0, 1, 2].map((i) => (
+                <span key={i} className="text-rose-300" aria-hidden="true">
+                  {i < hudLives ? '♥' : '♡'}
+                </span>
+              ))}
             </span>
           </div>
 

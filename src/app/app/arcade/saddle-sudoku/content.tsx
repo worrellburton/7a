@@ -285,8 +285,9 @@ export default function SaddleSudokuContent() {
             </p>
           </div>
 
-          {/* Board */}
-          <div className="inline-block mx-auto">
+          {/* Board · centered, scrolls horizontally on tiny phones
+              if the cells happen to overflow the viewport. */}
+          <div className="overflow-x-auto -mx-2 px-2 flex justify-center">
             <div
               className="grid bg-foreground/15 p-[2px] rounded-md"
               style={{ gridTemplateColumns: 'repeat(9, minmax(0, 1fr))', gap: '1px' }}
@@ -304,7 +305,7 @@ export default function SaddleSudokuContent() {
                     key={i}
                     type="button"
                     onClick={() => setSelected(i)}
-                    className={`relative aspect-square min-w-[34px] min-h-[34px] sm:min-w-[42px] sm:min-h-[42px] flex items-center justify-center transition-colors ${
+                    className={`relative aspect-square min-w-[36px] min-h-[36px] sm:min-w-[44px] sm:min-h-[44px] flex items-center justify-center transition-colors active:bg-primary/40 ${
                       isSelected
                         ? 'bg-primary/25'
                         : sameDigit
@@ -336,7 +337,7 @@ export default function SaddleSudokuContent() {
                   disabled={selected === null || givens[selected]}
                   onClick={() => selected !== null && setCell(selected, d)}
                   title={GLYPH_LABELS[d]}
-                  className={`w-11 h-11 rounded-md border flex items-center justify-center transition-colors disabled:opacity-40 ${
+                  className={`w-12 h-12 rounded-md border flex items-center justify-center transition-colors disabled:opacity-40 active:scale-95 ${
                     selectedDigit === d ? 'bg-primary text-white border-primary' : 'bg-white border-black/10 text-foreground hover:bg-warm-bg/60'
                   }`}
                 >
@@ -347,7 +348,7 @@ export default function SaddleSudokuContent() {
                 type="button"
                 disabled={selected === null || givens[selected] || (selected !== null && board[selected] === 0)}
                 onClick={() => selected !== null && setBoard((prev) => { const n = prev.slice(); n[selected] = 0; return n; })}
-                className="w-11 h-11 rounded-md border border-black/10 bg-white text-foreground/55 text-[11px] font-semibold hover:bg-warm-bg/60 disabled:opacity-40"
+                className="w-12 h-12 rounded-md border border-black/10 bg-white text-foreground/55 text-[11px] font-semibold hover:bg-warm-bg/60 disabled:opacity-40 active:scale-95"
               >
                 Clear
               </button>

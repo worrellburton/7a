@@ -315,7 +315,7 @@ export default function TrailRideContent() {
 
       <div className="grid lg:grid-cols-[1fr_280px] gap-5">
         <div ref={containerRef} className="relative">
-          <canvas ref={canvasRef} className="block w-full rounded-2xl border border-black/10 shadow-lg bg-amber-50" />
+          <canvas ref={canvasRef} className="block w-full rounded-2xl border border-black/10 shadow-lg bg-amber-50 touch-none select-none" />
           <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
             <span className="px-2.5 py-1 rounded-md bg-foreground/85 text-white text-[12px] font-bold tabular-nums tracking-wider">
               {hudDist}m
