@@ -438,12 +438,15 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
           className="relative w-full aspect-square"
           style={{ maxWidth: `${idealDiameter}px` }}
         >
-        {/* Decorative concentric rings + centre medallion. The
-            outermost border is exactly where the avatars will land,
-            so the eye reads the orbit as one composed shape. */}
+        {/* Decorative concentric rings + centre medallion.
+            Each ring border now lands EXACTLY at the radius of
+            the corresponding avatar ring (inset-[7%] sm:inset-0
+            for staff; inset-[20%] for horses) so the eye reads
+            each ring of avatars as sitting on its own real track
+            instead of floating between mismatched guide lines. */}
         <div
           aria-hidden="true"
-          className="absolute inset-[6%] rounded-full border border-primary/15"
+          className="absolute inset-[7%] sm:inset-0 rounded-full border border-primary/15"
         />
         <div
           aria-hidden="true"

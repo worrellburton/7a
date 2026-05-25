@@ -1338,10 +1338,14 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       pages at all. */}
                   {isSuperAdmin && !isAlumni && (item.alumniOnly || item.path === '/app/chat' || item.path === '/app/arcade') && (
                     <span
-                      aria-label="alumni page"
-                      className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[8.5px] font-bold uppercase tracking-[0.14em] bg-violet-500/12 text-violet-700 border border-violet-500/20 whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200"
+                      aria-label={item.alumniOnly ? 'alumni-only page' : 'alumni page'}
+                      className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[8.5px] font-bold uppercase tracking-[0.14em] whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 ${
+                        item.alumniOnly
+                          ? 'bg-violet-500/15 text-violet-700 border border-violet-500/30'
+                          : 'bg-violet-500/8 text-violet-700/80 border border-violet-500/15'
+                      }`}
                     >
-                      Alumni
+                      {item.alumniOnly ? 'Alumni only' : 'Alumni'}
                     </span>
                   )}
                   {(navBadges[item.path] ?? 0) > 0 && (
