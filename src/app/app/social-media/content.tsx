@@ -205,14 +205,17 @@ export default function SocialMediaContent() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style={{ fontFamily: 'var(--font-body)' }}>
-      <header className="mb-4">
-        <p className="text-xs uppercase tracking-[0.22em] text-foreground/50 mb-1">Marketing &amp; Admissions</p>
-        <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
-          Social Media
-        </h1>
-        <p className="mt-1 text-sm text-foreground/60">
-          Compose once, post to every connected channel.
-        </p>
+      <header className="mb-4 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <p className="text-xs uppercase tracking-[0.22em] text-foreground/50 mb-1">Marketing &amp; Admissions</p>
+          <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+            Social Media
+          </h1>
+          <p className="mt-1 text-sm text-foreground/60">
+            Compose once, post to every connected channel.
+          </p>
+        </div>
+        <PostingToggle />
       </header>
 
       <SubNav />
@@ -3559,5 +3562,67 @@ function HistoryList({
         })}
       </ul>
     </section>
+  );
+}
+
+// Global posting kill switch · super-admin-only flip. Reads
+// /api/social-media/posting-toggle on mount, lets the admin
+// pause/resume actual posting from the page header. When off,
+// the server-side POST route returns 423 and refuses to send.
+function PostingToggle() {
+  const [enabled, setEnabled] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    void fetch('/api/social-media/posting-toggle', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => { if (!cancelled && j) setEnabled(!!j.enabled); });
+    return () => { cancelled = true; };
+  }, []);
+  async function flip() {
+    if (enabled === null || saving) return;
+    setSaving(true);
+    const next = !enabled;
+    setEnabled(next);
+    try {
+      const r = await fetch('/api/social-media/posting-toggle', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: next }),
+      });
+      if (!r.ok) setEnabled(!next);
+    } catch {
+      setEnabled(!next);
+    } finally {
+      setSaving(false);
+    }
+  }
+  const on = enabled === true;
+  return (
+    <div className={`inline-flex items-center gap-3 px-3 py-2 rounded-xl border ${on ? 'border-emerald-300 bg-emerald-50/70' : 'border-amber-300 bg-amber-50/70'}`}>
+      <div className="text-right">
+        <p className={`text-[10px] font-bold uppercase tracking-[0.22em] ${on ? 'text-emerald-800' : 'text-amber-900'}`}>Posting</p>
+        <p className={`text-[11.5px] font-semibold ${on ? 'text-emerald-900' : 'text-amber-900'}`}>
+          {enabled === null ? 'Loading…' : on ? 'Live · posts will send' : 'Paused · no posts will send'}
+        </p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={on}
+        aria-label={on ? 'Turn posting off' : 'Turn posting on'}
+        onClick={() => void flip()}
+        disabled={enabled === null || saving}
+        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${
+          on ? 'bg-emerald-500' : 'bg-foreground/25'
+        }`}
+      >
+        <span
+          className={`absolute top-0.5 inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+            on ? 'translate-x-[22px]' : 'translate-x-0.5'
+          }`}
+        />
+      </button>
+    </div>
   );
 }
