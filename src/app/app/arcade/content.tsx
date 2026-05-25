@@ -75,6 +75,26 @@ const GAMES: GameDef[] = [
       </svg>
     ),
   },
+  {
+    key: 'connect_four',
+    href: '/app/arcade/connect-four',
+    title: 'Connect Four',
+    pitch: 'Drop arrows. Stack four in a row before the feather AI does. Each win extends your streak; AI gets smarter the longer you survive.',
+    scoreLabel: 'Best streak',
+    gradient: 'from-rose-200 via-amber-200 to-orange-300',
+    art: (
+      <svg viewBox="0 0 80 80" className="w-20 h-20 text-rose-900/85" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="6" y="14" width="68" height="56" rx="4" />
+        <circle cx="20" cy="56" r="6" fill="currentColor" stroke="none" />
+        <circle cx="34" cy="56" r="6" fill="currentColor" stroke="none" opacity="0.55" />
+        <circle cx="48" cy="56" r="6" fill="currentColor" stroke="none" />
+        <circle cx="62" cy="56" r="6" fill="currentColor" stroke="none" opacity="0.55" />
+        <circle cx="34" cy="42" r="6" fill="currentColor" stroke="none" />
+        <circle cx="48" cy="42" r="6" fill="currentColor" stroke="none" opacity="0.55" />
+        <circle cx="48" cy="28" r="6" fill="currentColor" stroke="none" />
+      </svg>
+    ),
+  },
 ];
 
 interface BestScore {
@@ -143,7 +163,7 @@ export default function ArcadeContent() {
         </p>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {GAMES.map((g) => {
           const best = topByGame.get(g.key) ?? null;
           return (
