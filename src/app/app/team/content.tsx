@@ -7,7 +7,10 @@ import { useModal } from '@/lib/ModalProvider';
 import { formatNameWithCredentials } from '@/lib/displayName';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import TeamPageOrderModal from './TeamPageOrderModal';
+import dynamic from 'next/dynamic';
+// Lazy: 678 LOC reorder/drag modal only opens when an admin clicks
+// the Edit-order button. Initial /app/team paint never needs it.
+const TeamPageOrderModal = dynamic(() => import('./TeamPageOrderModal'), { ssr: false });
 
 interface AppUser {
   id: string;

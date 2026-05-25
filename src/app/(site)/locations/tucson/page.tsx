@@ -1,5 +1,12 @@
 import type { Metadata } from 'next';
 
+// 1-hour ISR — marketing pages are otherwise fully static; this lets the
+// edge cache hold the rendered HTML so TTFB drops from ~250ms (cold SSR)
+// to ~30ms (edge hit). Editorial copy + image swaps go live within an hour
+// of merging; if you need sub-hour freshness on a specific page, override
+// with a smaller value or remove this line.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'Drug Rehab in Tucson, AZ | Seven Arrows Recovery',
   description:
@@ -68,7 +75,7 @@ export default function LocationTucsonPage() {
           { label: 'Tucson' },
         ]}
         description="As the closest major city to our campus, Tucson holds a special place in the Seven Arrows community. Just 90 miles separate you from a world-class recovery experience in the Swisshelm Mountains—close enough for family involvement, far enough for real change."
-        image="/images/sign-night-sky-milky-way.jpg"
+        image="/hero/sign-night-sky-milky-way.jpg"
         ctas={[
           {
             kind: 'phone',

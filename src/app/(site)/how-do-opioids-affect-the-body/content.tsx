@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "How Do Opioids Affect the Body?" },
         ]}
         description="Opioids are a class of drugs that include prescription painkillers like oxycodone and hydrocodone and illicit substances such as heroin. While opioids can be effective in managing pain, they also carry a high risk of addiction…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

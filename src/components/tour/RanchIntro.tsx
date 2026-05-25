@@ -51,7 +51,7 @@ export default function RanchIntro() {
         aria-hidden="true"
         className="absolute inset-0 will-change-transform"
         style={{
-          backgroundImage: "url('/images/facility-exterior-mountains.jpg')",
+          backgroundImage: "url('/hero/facility-exterior-mountains.jpg')",
           backgroundSize: 'cover',
           backgroundPosition: `center calc(50% + ${parY}px)`,
           transition: 'background-position 0.1s linear',

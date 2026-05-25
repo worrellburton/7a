@@ -39,7 +39,7 @@ export default function EquineHero() {
       <video
         ref={videoRef}
         src={siteVideos.horsesRail}
-        poster="/images/equine-therapy-portrait.jpg"
+        poster="/hero/equine-therapy-portrait.jpg"
         autoPlay
         muted
         loop

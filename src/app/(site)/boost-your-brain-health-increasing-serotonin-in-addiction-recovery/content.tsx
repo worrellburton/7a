@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Boost Your Brain Health Increasing Serotonin in Addiction Recovery" },
         ]}
         description="Serotonin, a crucial neurotransmitter, plays a key role in regulating mood, sleep, and appetite. Its deficiencies often lead to conditions such as depression and anxiety. Understanding ways to increase serotonin without drugs can…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

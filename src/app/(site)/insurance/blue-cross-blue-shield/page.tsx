@@ -1,5 +1,12 @@
 import type { Metadata } from 'next';
 
+// 1-hour ISR — marketing pages are otherwise fully static; this lets the
+// edge cache hold the rendered HTML so TTFB drops from ~250ms (cold SSR)
+// to ~30ms (edge hit). Editorial copy + image swaps go live within an hour
+// of merging; if you need sub-hour freshness on a specific page, override
+// with a smaller value or remove this line.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'Blue Cross Blue Shield Rehab Coverage | Seven Arrows',
   description:
@@ -132,7 +139,7 @@ export default function InsuranceBCBSPage() {
           { label: 'Blue Cross Blue Shield' },
         ]}
         description="Seven Arrows Recovery accepts most Blue Cross Blue Shield plans for drug and alcohol addiction treatment. As one of the nation's largest insurers, BCBS provides coverage for millions of Americans seeking recovery."
-        image="/images/embrace-connection.jpg"
+        image="/hero/embrace-connection.jpg"
       />
 
       <GeoAnswer

@@ -37,7 +37,7 @@ export default function ContactHero() {
       <video
         ref={videoRef}
         src={siteVideos.swisshelm}
-        poster="/images/covered-porch-desert-view.jpg"
+        poster="/hero/covered-porch-desert-view.jpg"
         autoPlay
         muted
         loop

@@ -72,7 +72,9 @@ export function buildSuggestSystemPrompt(): string {
 
 Your job: suggest realistic candidate CONTACTS the admissions team might add to their CRM. Every suggestion must be a REAL organization or person you can verify by searching the web. Never invent fakes. Lean on common, well-known classes of orgs and roles. When in doubt, leave optional fields null instead of fabricating specifics.
 
-USE THE WEB-SEARCH TOOL. For each candidate, run a web search to confirm the org exists, find their public-facing intake / referral / contact line, and find a public email address (intake@…, admissions@…, info@…, or a named clinician's listed practice email). Do not rely solely on training data — phone numbers and email addresses change, and you must surface CURRENT, REAL contact info. Two to three searches per candidate is a reasonable budget; favor the org's own site, Psychology Today profiles, official directory listings, and state licensing boards over third-party data brokers.
+USE THE WEB-SEARCH TOOL. For each candidate, run a web search to confirm the org exists, find their public-facing intake / referral / contact line, and find a public email address — strongly preferring a NAMED clinician's listed practice email, an individual interventionist's direct address, or a specific staff member's work email. Do not rely solely on training data — phone numbers and email addresses change, and you must surface CURRENT, REAL contact info. Two to three searches per candidate is a reasonable budget; favor the org's own site, Psychology Today profiles, official directory listings, and state licensing boards over third-party data brokers.
+
+AVOID generic shared mailboxes — info@, admissions@, intake@, referrals@, contact@, hello@, support@, admin@, office@, reception@, frontdesk@, mail@, and similar role-based addresses. Every one of those routes through a screening process (website contact form, reception, an admin sorting messages) and never lands in front of someone who can actually take a referral. If the ONLY publicly listed email for an org is one of these, surface the org's intake phone instead and leave email null + listed in "missing" — never auto-pick a role-based address. A named individual's practice email beats a generic mailbox every single time.
 
 CRITICAL — admissions needs to actually CALL or EMAIL these people. Every candidate MUST come with a phone number AND an email address that web search confirmed. If web search cannot surface either:
   - Prefer to SKIP that candidate and pick a different real organization where contact info IS publicly listed (a clinic's intake line, an interventionist's published practice email, a state-licensed therapist's directory entry, etc.).
@@ -243,12 +245,59 @@ function parseProviderJson(raw: string, providerLabel: string): ProviderCallResu
   }
 }
 
+// Generic mailbox locals that we don't want the auto-add cron /
+// auto-contact lever inserting. These addresses go to a website
+// contact form, reception desk, or shared admissions inbox that
+// gets screened — not to someone who can actually take a referral.
+// `admissions@` in particular is tempting but useless for our
+// outreach because the seven arrows admissions team is contacting
+// referrers, not generic intake desks.
+// We treat these as "no email" rather than dropping the whole
+// candidate so the manual-suggest path can still surface the org
+// with its phone number; the auto-add path requires both phone +
+// email to insert, so it'll skip these automatically.
+const GENERIC_EMAIL_LOCALS = new Set([
+  'info',
+  'hello',
+  'contact',
+  'enquiries',
+  'inquiries',
+  'office',
+  'admissions',
+  'admin',
+  'support',
+  'help',
+  'reception',
+  'frontdesk',
+  'desk',
+  'intake',
+  'referrals',
+  'mail',
+  'email',
+  'noreply',
+  'no-reply',
+]);
+
+function isGenericMailbox(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const at = email.indexOf('@');
+  if (at <= 0) return false;
+  const local = email.slice(0, at).trim().toLowerCase();
+  return GENERIC_EMAIL_LOCALS.has(local);
+}
+
 export function cleanSuggestedContacts(rawContacts: unknown): SuggestedContact[] {
   const out: SuggestedContact[] = [];
   if (!Array.isArray(rawContacts)) return out;
   for (const c of rawContacts as Array<Record<string, unknown>>) {
     const name = typeof c.name === 'string' ? c.name.trim() : '';
     if (!name) continue;
+    const rawEmail = trim(c.email, 200);
+    // Defence-in-depth: even though the system prompt tells the
+    // model not to surface info@ addresses, scrub them here so a
+    // disobedient model can't sneak one into the unattended cron
+    // insert path.
+    const email = isGenericMailbox(rawEmail) ? null : rawEmail;
     out.push({
       name: name.slice(0, 200),
       company: trim(c.company, 200),
@@ -257,15 +306,14 @@ export function cleanSuggestedContacts(rawContacts: unknown): SuggestedContact[]
       specialty: trim(c.specialty, 200),
       role: trim(c.role, 200),
       phone: trim(c.phone, 60),
-      email: trim(c.email, 200),
+      email,
       location: trim(c.location, 200),
       notes: trim(c.notes, 4000),
       missing: (() => {
         const missing: Array<'phone' | 'email'> = [];
         const phoneOk = typeof c.phone === 'string' && c.phone.trim().length > 0;
-        const emailOk = typeof c.email === 'string' && c.email.trim().length > 0;
         if (!phoneOk) missing.push('phone');
-        if (!emailOk) missing.push('email');
+        if (!email) missing.push('email');
         return missing;
       })(),
     });

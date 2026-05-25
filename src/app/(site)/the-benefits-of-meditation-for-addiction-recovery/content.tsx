@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "The Benefits of Meditation for Addiction Recovery" },
         ]}
         description="Meditation is a practice that dates back centuries, and its benefits for mental health are widely recognized. In today’s fast-paced and stressful world, finding ways to achieve a balanced mind and a healthy mental state is more…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

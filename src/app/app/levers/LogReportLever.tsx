@@ -55,8 +55,15 @@ export default function LogReportLever() {
   const [showFailures, setShowFailures] = useState(false);
   const [retrying, setRetrying] = useState(false);
   // Recipients picker — defaults to every super admin returned by
-  // the preview endpoint. The puller can deselect names per send.
+  // the preview endpoint, OR to the persisted recipient list saved
+  // on lever_schedules.recipient_user_ids when one exists. The
+  // puller can deselect names per send, and hitting "Save
+  // recipients" writes the current selection back so both the
+  // manual pull and the auto-fire cron pick it up.
   const [selectedRecipientIds, setSelectedRecipientIds] = useState<Set<string>>(new Set());
+  const [savedRecipientIds, setSavedRecipientIds] = useState<Set<string> | null>(null);
+  const [savingRecipients, setSavingRecipients] = useState(false);
+  const [recipientsSavedAt, setRecipientsSavedAt] = useState<number | null>(null);
   const [showRecipients, setShowRecipients] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<HistoryEntry[] | null>(null);
@@ -79,6 +86,23 @@ export default function LogReportLever() {
     } catch { /* non-fatal */ }
   }, []);
   useEffect(() => { void loadSchedule(); }, [loadSchedule]);
+
+  // Load the persisted recipient list once. Drives the seed below
+  // (so the picker opens to the saved cohort, not "all super
+  // admins") and powers the dirty-state indicator on the Save
+  // button so the admin can tell whether their current selection
+  // differs from what's on disk.
+  const loadSavedRecipients = useCallback(async () => {
+    try {
+      const res = await fetch('/api/levers/log-report/recipients', { cache: 'no-store' });
+      if (!res.ok) { setSavedRecipientIds(new Set()); return; }
+      const j = (await res.json().catch(() => ({}))) as { recipientUserIds?: string[] };
+      setSavedRecipientIds(new Set(Array.isArray(j.recipientUserIds) ? j.recipientUserIds : []));
+    } catch {
+      setSavedRecipientIds(new Set());
+    }
+  }, []);
+  useEffect(() => { void loadSavedRecipients(); }, [loadSavedRecipients]);
   const [showTest, setShowTest] = useState(false);
   const [testEmail, setTestEmail] = useState('');
   const [testing, setTesting] = useState(false);
@@ -132,23 +156,26 @@ export default function LogReportLever() {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  // Seed the recipient selection — super admins are checked by
-  // default (preserves the old one-click behaviour) while every
-  // other active staff member is available but unchecked. The
-  // puller can add anyone in / drop super admins out. Once the
-  // user has made a manual selection (size > 0) we don't clobber
-  // it on subsequent preview refreshes.
+  // Seed the recipient selection — saved cohort wins. If the
+  // admin has previously saved a recipient list, open the picker
+  // to exactly that list (so re-opening Recipients shows the
+  // chosen people pre-checked). When no list has been saved yet,
+  // fall back to "every super admin" — preserves the original
+  // one-click behaviour for a fresh install. Once the user has
+  // edited the in-memory selection (size > 0) we don't clobber it
+  // on subsequent preview refreshes.
   useEffect(() => {
-    if (!preview) return;
+    if (!preview || savedRecipientIds === null) return;
     setSelectedRecipientIds((prev) => {
       if (prev.size > 0) return prev;
+      if (savedRecipientIds.size > 0) return new Set(savedRecipientIds);
       return new Set(
         preview.defaultRecipients
           .filter((r) => r.isSuperAdmin === true)
           .map((r) => r.id),
       );
     });
-  }, [preview]);
+  }, [preview, savedRecipientIds]);
 
   async function loadHistory() {
     setHistoryLoading(true);
@@ -169,6 +196,48 @@ export default function LogReportLever() {
       return next;
     });
   }
+
+  // Persist the current selection so the auto-fire cron and the
+  // next manual pull both use it. Empty selection clears the
+  // saved list (the cron then falls back to "all super admins"
+  // again). The "Saved" badge timestamp drives the green flash
+  // under the Save button.
+  async function saveRecipients() {
+    if (savingRecipients) return;
+    setSavingRecipients(true);
+    try {
+      const ids = Array.from(selectedRecipientIds);
+      const res = await fetch('/api/levers/log-report/recipients', {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ recipientUserIds: ids }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { recipientUserIds?: string[]; error?: string };
+      if (!res.ok) {
+        setError(j.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      setSavedRecipientIds(new Set(Array.isArray(j.recipientUserIds) ? j.recipientUserIds : ids));
+      setRecipientsSavedAt(Date.now());
+      // Clear the "just saved" flash after a couple seconds so the
+      // button doesn't sit perma-green and stop conveying state.
+      window.setTimeout(() => { setRecipientsSavedAt(null); }, 2500);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save recipients');
+    } finally {
+      setSavingRecipients(false);
+    }
+  }
+
+  // Dirty if the current in-memory selection differs from what's
+  // on disk. Used to enable the Save button only when there's
+  // actually something new to write.
+  const isRecipientsDirty = (() => {
+    if (!savedRecipientIds) return false;
+    if (savedRecipientIds.size !== selectedRecipientIds.size) return true;
+    for (const id of selectedRecipientIds) if (!savedRecipientIds.has(id)) return true;
+    return false;
+  })();
 
   // Shared send helper — used by the primary "pull lever" action
   // *and* the "Retry failed" button on the result popup. Targeting
@@ -403,33 +472,73 @@ export default function LogReportLever() {
           {(preview?.defaultRecipients ?? []).length === 0 ? (
             <p className="text-[12px] text-white/55 italic">No eligible recipients yet — every staff member needs an email on file.</p>
           ) : (
-            <ul className="space-y-1 max-h-64 overflow-y-auto">
-              {(preview?.defaultRecipients ?? []).map((r) => {
-                const checked = selectedRecipientIds.has(r.id);
-                return (
-                  <li key={r.id}>
-                    <label className="flex items-center gap-2 text-[12.5px] text-white/85 cursor-pointer hover:bg-white/5 rounded px-1.5 py-1">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleRecipient(r.id)}
-                        className="accent-amber-400"
-                      />
-                      <span className="flex-1 truncate min-w-0">
-                        <span className="font-semibold">{r.name ?? r.email}</span>
-                        {r.name && <span className="ml-1 text-white/45">· {r.email}</span>}
-                      </span>
-                      {r.isSuperAdmin && (
-                        <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-200 border border-violet-500/40">SA</span>
-                      )}
-                      {!r.isSuperAdmin && r.isAdmin && (
-                        <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-200 border border-sky-500/40">Admin</span>
-                      )}
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
+            <>
+              <ul className="space-y-1 max-h-64 overflow-y-auto">
+                {(preview?.defaultRecipients ?? []).map((r) => {
+                  const checked = selectedRecipientIds.has(r.id);
+                  return (
+                    <li key={r.id}>
+                      <label className="flex items-center gap-2 text-[12.5px] text-white/85 cursor-pointer hover:bg-white/5 rounded px-1.5 py-1">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleRecipient(r.id)}
+                          className="accent-amber-400"
+                        />
+                        <span className="flex-1 truncate min-w-0">
+                          <span className="font-semibold">{r.name ?? r.email}</span>
+                          {r.name && <span className="ml-1 text-white/45">· {r.email}</span>}
+                        </span>
+                        {r.isSuperAdmin && (
+                          <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-violet-500/20 text-violet-200 border border-violet-500/40">SA</span>
+                        )}
+                        {!r.isSuperAdmin && r.isAdmin && (
+                          <span className="shrink-0 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-200 border border-sky-500/40">Admin</span>
+                        )}
+                      </label>
+                    </li>
+                  );
+                })}
+              </ul>
+
+              {/* Save bar — pins the persistence affordance to the
+                  bottom of the picker so the admin sees that
+                  "Recipients" is a saveable cohort, not a per-send
+                  override. The cron + manual pull both read this
+                  list, so saving here propagates everywhere. */}
+              <div className="mt-3 pt-3 border-t border-white/10 flex items-center justify-between gap-2">
+                <p className="text-[10.5px] text-white/45 leading-tight">
+                  Saved recipients receive the auto-fire cron <em>and</em> the next manual pull.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void saveRecipients()}
+                  disabled={savingRecipients || (!isRecipientsDirty && recipientsSavedAt === null)}
+                  className={`shrink-0 px-3 py-1.5 rounded text-[11px] font-semibold uppercase tracking-wider transition-colors ${
+                    recipientsSavedAt
+                      ? 'bg-emerald-500/25 text-emerald-200 border border-emerald-400/40'
+                      : isRecipientsDirty
+                        ? 'bg-amber-400/90 text-black hover:bg-amber-300'
+                        : 'bg-white/10 text-white/45 border border-white/10 cursor-not-allowed'
+                  }`}
+                  title={
+                    recipientsSavedAt
+                      ? 'Saved — the cron and the next pull will use this list.'
+                      : isRecipientsDirty
+                        ? 'Persist this cohort to the auto-fire cron + the next manual pull.'
+                        : 'No changes to save.'
+                  }
+                >
+                  {savingRecipients
+                    ? 'Saving…'
+                    : recipientsSavedAt
+                      ? '✓ Saved'
+                      : isRecipientsDirty
+                        ? `Save (${selectedRecipientIds.size})`
+                        : 'Saved'}
+                </button>
+              </div>
+            </>
           )}
         </div>
       )}

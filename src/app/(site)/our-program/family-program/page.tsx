@@ -11,6 +11,13 @@ import FamilyFAQ from '@/components/family/FamilyFAQ';
 import { familyFaqs } from '@/components/family/familyFaqs';
 import FamilyCTA from '@/components/family/FamilyCTA';
 
+// 1-hour ISR — marketing pages are otherwise fully static; this lets the
+// edge cache hold the rendered HTML so TTFB drops from ~250ms (cold SSR)
+// to ~30ms (edge hit). Editorial copy + image swaps go live within an hour
+// of merging; if you need sub-hour freshness on a specific page, override
+// with a smaller value or remove this line.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'Family Program | Seven Arrows Recovery',
   description:
@@ -28,7 +35,7 @@ export const metadata: Metadata = {
       'The whole system heals, or nothing does. Weekly family support sessions, education groups, and boundary coaching.',
     images: [
       {
-        url: '/images/embrace-connection.jpg',
+        url: '/hero/embrace-connection.jpg',
         width: 1200,
         height: 630,
         alt: 'Family reconnecting at Seven Arrows Recovery',

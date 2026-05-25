@@ -66,3 +66,49 @@ export function medicalWebPageSchema({
 export function jsonLdScript(data: unknown) {
   return { __html: JSON.stringify(data) };
 }
+
+// LocalBusiness schema for per-city location pages. The ranch
+// address stays constant across every city page (the physical
+// facility is in Cochise County); `areaServed` flips per city so
+// Google's Knowledge Graph + GBP parsers see a distinct
+// city-coverage signal on each location URL without claiming
+// multiple physical addresses we don't actually have.
+type LocalBusinessArgs = {
+  url: string;
+  city: string;
+  region?: string;
+};
+
+export function localBusinessSchema({ url, city, region = 'AZ' }: LocalBusinessArgs) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'MedicalBusiness',
+    '@id': `${url}#localbusiness`,
+    name: `Seven Arrows Recovery — Serving ${city}, ${region}`,
+    url,
+    telephone: '+1-866-718-1665',
+    medicalSpecialty: 'AddictionMedicine',
+    address: {
+      '@type': 'PostalAddress',
+      streetAddress: '13771 E Rucker Canyon Rd',
+      addressLocality: 'Pearce',
+      addressRegion: 'AZ',
+      postalCode: '85625',
+      addressCountry: 'US',
+    },
+    geo: {
+      '@type': 'GeoCoordinates',
+      latitude: 31.8786,
+      longitude: -109.6342,
+    },
+    areaServed: [
+      { '@type': 'City', name: `${city}, ${region}` },
+      { '@type': 'AdministrativeArea', name: 'Arizona' },
+    ],
+    parentOrganization: {
+      '@type': 'MedicalBusiness',
+      '@id': 'https://sevenarrowsrecovery.com/#organization',
+      name: 'Seven Arrows Recovery',
+    },
+  } as const;
+}

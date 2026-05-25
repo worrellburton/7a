@@ -2992,7 +2992,7 @@ function ContactsGrid({
         data-outreach-table
         className="overflow-x-auto rounded-xl border border-black/10 bg-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        <table className="w-full text-[13px] table-fixed">
+        <table className="w-full text-[11.5px] table-fixed">
         {/* <colgroup> drives the actual column widths so resize is
             cheap (only one node per column needs its width set, not
             every cell). Default widths from `DEFAULT_COL_WIDTHS_PX`
@@ -4392,30 +4392,6 @@ function InsightsCard({ fallback }: { fallback: { week: number; month: number; t
         </div>
       )}
 
-      {/* Areas touched today */}
-      <div className="px-4 py-3 border-b border-black/5">
-        <div className="flex items-baseline justify-between gap-2 mb-2">
-          <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-foreground/55">Areas contacted today</p>
-          <p className="text-[10.5px] text-foreground/45 tabular-nums">{areas.length} {areas.length === 1 ? 'area' : 'areas'}</p>
-        </div>
-        {areas.length === 0 ? (
-          <p className="text-[11.5px] italic text-foreground/40">No contacts logged today yet.</p>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {areas.slice(0, 12).map((a) => (
-              <span
-                key={a.area}
-                className="inline-flex items-center gap-1.5 rounded-full bg-warm-bg/60 border border-black/10 px-2.5 py-0.5 text-[11px] text-foreground/80"
-                title={`${a.count} ${a.count === 1 ? 'touchpoint' : 'touchpoints'} in ${a.area}`}
-              >
-                <span className="truncate max-w-[200px]">{a.area}</span>
-                <span className="tabular-nums text-foreground/55">{a.count}</span>
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* Leaderboards. Gated behind showLogs so the home view stays
           compact by default — the Today / This week / This month
           rankings only mount when the user clicks the Logs-today
@@ -5566,10 +5542,16 @@ function ContactMobileCard({
           onClick={onContact}
           aria-label="Log a contact"
           title="Log a contact"
-          className="sa-log-button flex-1 inline-flex items-center justify-center gap-1.5 px-3 h-9 rounded-md bg-primary/10 text-primary text-[14px] leading-none border border-primary/20 hover:bg-primary/15 active:bg-primary/20 transition-colors"
+          // Matches the mobile "New log" FAB at the bottom of the
+          // page (bg-foreground + white + uppercase + 🪵 emoji) so
+          // the per-card LOG button and the page-level NEW LOG read
+          // as the same affordance. The HISTORY button alongside
+          // stays in its neutral border-only style so we still get
+          // a primary/secondary hierarchy inside each card.
+          className="sa-log-button flex-1 inline-flex items-center justify-center gap-1.5 px-3 h-9 rounded-md bg-foreground text-white text-[11px] font-semibold uppercase tracking-wider shadow-[0_4px_12px_-4px_rgba(0,0,0,0.35)] hover:bg-foreground/90 active:bg-foreground/80 active:scale-[0.98] transition-all"
         >
-          <span aria-hidden>🪵</span>
-          <span className="text-[11px] font-semibold uppercase tracking-wider">Log</span>
+          <span aria-hidden className="text-base leading-none">🪵</span>
+          <span>Log</span>
         </button>
         <button
           type="button"

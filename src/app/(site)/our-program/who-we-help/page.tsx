@@ -12,6 +12,13 @@ import WhoFAQ from '@/components/who-we-help/WhoFAQ';
 import { whoFaqs } from '@/components/who-we-help/whoFaqs';
 import WhoCTA from '@/components/who-we-help/WhoCTA';
 
+// 1-hour ISR — marketing pages are otherwise fully static; this lets the
+// edge cache hold the rendered HTML so TTFB drops from ~250ms (cold SSR)
+// to ~30ms (edge hit). Editorial copy + image swaps go live within an hour
+// of merging; if you need sub-hour freshness on a specific page, override
+// with a smaller value or remove this line.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'Who We Help | Arizona Drug & Alcohol Rehab for Adults 18+',
   description:
@@ -29,7 +36,7 @@ export const metadata: Metadata = {
       'Residential addiction treatment in Arizona for adults 18+ struggling with alcohol, opioids, stimulants, benzodiazepines, and co-occurring mental health conditions. Serving Phoenix, Tucson, Scottsdale, Mesa, and clients nationwide.',
     images: [
       {
-        url: '/images/group-gathering-pavilion.jpg',
+        url: '/hero/group-gathering-pavilion.jpg',
         width: 1200,
         height: 630,
         alt: 'Group gathering at Seven Arrows Recovery in the Swisshelm Mountains of Arizona',

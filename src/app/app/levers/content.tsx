@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import JdReminderLever from './JdReminderLever';
 import LogReportLever from './LogReportLever';
 import AutoContactLever from './AutoContactLever';
+import ResetConnect4Switch from './ResetConnect4Switch';
 
 // Levers page — vertical stack of independent console cards, one
 // per lever, on a scrollable page.
@@ -87,12 +88,13 @@ export default function LeversContent() {
     return (
       <div className="px-6 py-10 max-w-xl">
         <h1 className="text-xl font-semibold text-foreground mb-2" style={{ fontFamily: 'var(--font-display)' }}>
-          Levers
+          Levers and switches
         </h1>
         <p className="text-sm text-foreground/65">
-          Levers are super-admin-only broadcast tools (full-screen popups
-          pushed to specific groups of teammates). Ask a super admin if you
-          need to pull one.
+          Levers and switches are super-admin-only console controls — levers
+          fire broadcasts to specific cohorts; switches flip one-shot
+          state-changing actions (resets, archives, etc.). Ask a super admin
+          if you need to operate one.
         </p>
         <Link href="/app" className="mt-4 inline-block text-xs font-semibold text-primary hover:underline">
           ← Back to home
@@ -108,13 +110,14 @@ export default function LeversContent() {
           Super-admin tools
         </p>
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
-          Levers
+          Levers and switches
         </h1>
         <p className="mt-1 text-sm text-foreground/65 max-w-2xl">
-          Pull a lever to broadcast a full-screen popup to the matching
-          cohort. Each lever&rsquo;s count is live — the cohort behind it
-          updates as teammates complete the action. Each card below carries
-          its own options and automation state.
+          <strong>Levers</strong> broadcast a full-screen popup to a cohort —
+          each lever&rsquo;s count is live and updates as teammates complete
+          the action. <strong>Switches</strong> are one-shot state-changing
+          flips (resets, wipes) that take effect the moment the paddle drops.
+          Each card below carries its own options.
         </p>
       </header>
 
@@ -133,8 +136,17 @@ export default function LeversContent() {
         <ConsoleCard label="Auto-contact" authorizedEmail={user.email}>
           <AutoContactLever />
         </ConsoleCard>
-        {/* Future levers stack here as additional ConsoleCard
-            children. Same chrome, independent state. */}
+
+        {/* ── Switches start here ─────────────────────────────────
+            Switches share the same ConsoleCard chrome as the
+            levers above so the page reads as one console; the
+            control inside each card is the only thing that
+            differs (paddle vs. brass shaft).  */}
+        <ConsoleCard label="Reset Connect-4 tournament" authorizedEmail={user.email}>
+          <ResetConnect4Switch />
+        </ConsoleCard>
+        {/* Future levers + switches stack here as additional
+            ConsoleCard children. Same chrome, independent state. */}
       </div>
 
       <p className="mt-4 text-[11px] text-foreground/45 text-center">

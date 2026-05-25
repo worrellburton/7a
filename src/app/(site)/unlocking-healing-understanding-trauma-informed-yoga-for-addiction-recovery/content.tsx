@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Unlocking Healing: Understanding Trauma-Informed Yoga for Addiction Recovery" },
         ]}
         description="In the journey toward addiction recovery, healing takes many forms. While traditional therapies and support groups play vital roles, complementary practices such as yoga are gaining recognition for their profound impact on the…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

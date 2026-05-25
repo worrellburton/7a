@@ -68,6 +68,10 @@ interface CampaignDraft {
   featuredEpisodeSlug: string | null;
   /** Site-relative path of the featured inner page, e.g. /admissions. */
   featuredPagePath: string | null;
+  /** Library image URL paired with the featured page. Required
+   *  whenever featuredPagePath is set — the page picker forces a
+   *  picture pick as its second step. */
+  featuredPageImageUrl: string | null;
   featuredEmployeeId: string | null;
   featuredEquineId: string | null;
   generatedHtml: string | null;
@@ -102,6 +106,7 @@ export default function NewEmailCampaignContent() {
     featuredBlogId: null,
     featuredEpisodeSlug: null,
     featuredPagePath: null,
+    featuredPageImageUrl: null,
     featuredEmployeeId: null,
     featuredEquineId: null,
     generatedHtml: null,
@@ -120,6 +125,14 @@ export default function NewEmailCampaignContent() {
   // fresh rebuild is kicked off so the marketer never has to
   // remember the second step.
   const [replaceImagesOpen, setReplaceImagesOpen] = useState(false);
+  // Inline text editing on the preview iframe. When the marketer
+  // clicks "Edit text" we ask the iframe to flip its <body> to
+  // contentEditable; every input event there posts the updated
+  // outerHTML back to this window via postMessage, which we splice
+  // into draft.generatedHtml so Save persists the edits. Click
+  // "Done editing" (or trigger any rebuild) to commit + flip back.
+  const [editingPreview, setEditingPreview] = useState(false);
+  const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
   const [iterateNote, setIterateNote] = useState('');
   const [building, setBuilding] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -157,7 +170,7 @@ export default function NewEmailCampaignContent() {
     void (async () => {
       const { data } = await supabase
         .from('email_campaigns')
-        .select('id, prompt, image_urls, use_logos, link_to_website, include_phone, include_quote, include_insurance_strip, include_social_footer, dark_mode, featured_blog_id, featured_episode_slug, featured_page_path, featured_employee_id, featured_equine_id, generated_html, generated_subject')
+        .select('id, prompt, image_urls, use_logos, link_to_website, include_phone, include_quote, include_insurance_strip, include_social_footer, dark_mode, featured_blog_id, featured_episode_slug, featured_page_path, featured_page_image_url, featured_employee_id, featured_equine_id, generated_html, generated_subject')
         .eq('id', editingId)
         .maybeSingle();
       if (cancelled || !data) return;
@@ -175,6 +188,7 @@ export default function NewEmailCampaignContent() {
         featuredBlogId: data.featured_blog_id ?? null,
         featuredEpisodeSlug: data.featured_episode_slug ?? null,
         featuredPagePath: data.featured_page_path ?? null,
+        featuredPageImageUrl: (data as { featured_page_image_url?: string | null }).featured_page_image_url ?? null,
         featuredEmployeeId: data.featured_employee_id ?? null,
         featuredEquineId: data.featured_equine_id ?? null,
         generatedHtml: data.generated_html ?? null,
@@ -250,6 +264,97 @@ export default function NewEmailCampaignContent() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Inject a small contenteditable bridge into the email HTML
+  // before handing it to the iframe srcDoc. The bridge:
+  //   1. Listens for {type: 'edit:on' | 'edit:off'} messages from
+  //      the parent window.
+  //   2. On edit:on, flips document.body to contentEditable and
+  //      draws a copper dashed outline so the editable surface is
+  //      visually obvious.
+  //   3. On every input (debounced ~250ms) posts the updated
+  //      outerHTML back to the parent so the draft stays in sync
+  //      without saving on every keystroke roundtrip.
+  // Defined once per generated_html change — the iframe's srcDoc
+  // re-mounts when the string changes, which means we re-inject
+  // the bridge after every rebuild. iframe is `sandbox="allow-
+  // scripts"` (no allow-same-origin, no allow-forms) — the bridge
+  // only needs script execution + postMessage, neither of which
+  // requires same-origin.
+  const editableHtml = useMemo(() => {
+    const html = draft.generatedHtml;
+    if (!html) return null;
+    const bridge = `
+<script>
+(function(){
+  var editing = false;
+  var debounceTimer = null;
+  function post(){
+    try {
+      parent.postMessage({ type: 'html:update', html: '<!DOCTYPE html>\\n' + document.documentElement.outerHTML }, '*');
+    } catch (e) { /* ignore postMessage failures */ }
+  }
+  function schedulePost(){
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(post, 250);
+  }
+  window.addEventListener('message', function(e){
+    var data = e && e.data;
+    if (!data) return;
+    if (data.type === 'edit:on') {
+      editing = true;
+      document.body.setAttribute('contenteditable', 'true');
+      document.body.style.outline = '2px dashed #bc6b4a';
+      document.body.style.outlineOffset = '-4px';
+      document.body.style.cursor = 'text';
+    } else if (data.type === 'edit:off') {
+      editing = false;
+      document.body.setAttribute('contenteditable', 'false');
+      document.body.style.outline = '';
+      document.body.style.outlineOffset = '';
+      document.body.style.cursor = '';
+      post();
+    }
+  });
+  document.addEventListener('input', function(){ if (editing) schedulePost(); }, true);
+  document.addEventListener('blur', function(){ if (editing) post(); }, true);
+})();
+<\/script>`;
+    // Inject just before </body> if present; otherwise append.
+    // Case-insensitive match because Claude sometimes emits BODY
+    // tags uppercase.
+    if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${bridge}</body>`);
+    return html + bridge;
+  }, [draft.generatedHtml]);
+
+  // Receive edit messages from the iframe and splice them back into
+  // the draft. The iframe always posts the FULL document outerHTML
+  // (with the bridge script attached), so before persisting we
+  // strip the bridge out again — otherwise it would compound on
+  // every render and the saved html would carry a dozen copies.
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      const data = e.data as { type?: string; html?: string } | null;
+      if (!data || data.type !== 'html:update' || typeof data.html !== 'string') return;
+      // Drop the bridge script (everything inside the inserted
+      // <script>...<\/script> wrapper). The bridge is the only
+      // <script> we ever insert, so a single regex match is safe.
+      const cleaned = data.html
+        .replace(/<script>\s*\(function\(\)\{[\s\S]*?\}\)\(\);\s*<\/script>/g, '')
+        .trim();
+      setDraft((p) => (p.generatedHtml === cleaned ? p : { ...p, generatedHtml: cleaned }));
+    }
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  // Helper: send the edit-on/edit-off message into the iframe.
+  // Wrapped so the button handlers stay one-liners.
+  const setIframeEditing = (on: boolean) => {
+    const win = previewIframeRef.current?.contentWindow;
+    if (!win) return;
+    win.postMessage({ type: on ? 'edit:on' : 'edit:off' }, '*');
+  };
 
   // featuredBlog resolves whichever of the two storage slots is
   // populated — featured_blog_id (UUID) for AI-pipeline posts, or
@@ -331,6 +436,7 @@ export default function NewEmailCampaignContent() {
           featuredBlogId: draft.featuredBlogId,
           featuredEpisodeSlug: draft.featuredEpisodeSlug,
           featuredPagePath: draft.featuredPagePath,
+          featuredPageImageUrl: draft.featuredPageImageUrl,
           featuredEmployeeId: draft.featuredEmployeeId,
           featuredEquineId: draft.featuredEquineId,
         }),
@@ -391,6 +497,7 @@ export default function NewEmailCampaignContent() {
           featuredBlogId: draft.featuredBlogId,
           featuredEpisodeSlug: draft.featuredEpisodeSlug,
           featuredPagePath: draft.featuredPagePath,
+          featuredPageImageUrl: draft.featuredPageImageUrl,
           featuredEmployeeId: draft.featuredEmployeeId,
           featuredEquineId: draft.featuredEquineId,
           previousHtml: mode === 'iterate' ? draft.generatedHtml : null,
@@ -442,6 +549,7 @@ export default function NewEmailCampaignContent() {
         featured_blog_id: draft.featuredBlogId,
         featured_episode_slug: draft.featuredEpisodeSlug,
         featured_page_path: draft.featuredPagePath,
+        featured_page_image_url: draft.featuredPageImageUrl,
         featured_employee_id: draft.featuredEmployeeId,
         featured_equine_id: draft.featuredEquineId,
         generated_html: draft.generatedHtml,
@@ -803,7 +911,8 @@ export default function NewEmailCampaignContent() {
         {featuredPage ? (
           <FeaturedPageCard
             page={featuredPage}
-            onClear={() => setDraft((p) => ({ ...p, featuredPagePath: null }))}
+            imageUrl={draft.featuredPageImageUrl}
+            onClear={() => setDraft((p) => ({ ...p, featuredPagePath: null, featuredPageImageUrl: null }))}
           />
         ) : (
           <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
@@ -882,6 +991,23 @@ export default function NewEmailCampaignContent() {
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
+                onClick={() => {
+                  // Toggle inline-edit mode on the preview iframe.
+                  // Going OFF first flushes any pending edits back
+                  // to the draft before the user clicks Rebuild /
+                  // Save / etc., so no keystroke is silently lost.
+                  const next = !editingPreview;
+                  setIframeEditing(next);
+                  setEditingPreview(next);
+                }}
+                disabled={building}
+                className={`px-2.5 py-1 rounded-md border text-[11px] font-semibold disabled:opacity-50 transition-colors ${editingPreview ? 'bg-primary text-white border-primary hover:bg-primary/90' : 'border-black/10 bg-white text-foreground/70 hover:bg-warm-bg/60'}`}
+                title={editingPreview ? 'Stop editing and commit changes' : 'Edit the email text inline'}
+              >
+                {editingPreview ? '✓ Done editing' : '✎ Edit text'}
+              </button>
+              <button
+                type="button"
                 onClick={() => setReplaceImagesOpen(true)}
                 disabled={building}
                 className="px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60 disabled:opacity-50"
@@ -890,7 +1016,15 @@ export default function NewEmailCampaignContent() {
               </button>
               <button
                 type="button"
-                onClick={() => onBuild('fresh')}
+                onClick={() => {
+                  // Flush pending edits before kicking off a rebuild
+                  // so Claude doesn't iterate against a stale draft.
+                  if (editingPreview) {
+                    setIframeEditing(false);
+                    setEditingPreview(false);
+                  }
+                  onBuild('fresh');
+                }}
                 disabled={building}
                 className="px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60 disabled:opacity-50"
               >
@@ -898,11 +1032,21 @@ export default function NewEmailCampaignContent() {
               </button>
             </div>
           </div>
+          {editingPreview && (
+            <p className="text-[10.5px] text-primary mb-2 px-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+              Editing mode on — click any text in the preview to change it. Changes save into the draft automatically; click <strong>Done editing</strong> to lock the layout back.
+            </p>
+          )}
           <div className="rounded-xl border border-black/10 overflow-hidden bg-warm-bg/30">
             <iframe
-              srcDoc={draft.generatedHtml}
+              ref={previewIframeRef}
+              srcDoc={editableHtml ?? draft.generatedHtml ?? ''}
               title="Email preview"
-              sandbox=""
+              // allow-scripts so the contenteditable bridge script
+              // can run + postMessage edits back to this window.
+              // No allow-same-origin so the iframe still can't
+              // access the parent's cookies / storage / DOM.
+              sandbox="allow-scripts"
               className="w-full h-[560px] bg-white"
             />
           </div>
@@ -998,8 +1142,10 @@ export default function NewEmailCampaignContent() {
       {pagePickerOpen && (
         <PagePicker
           selectedPath={draft.featuredPagePath}
-          onSelect={(path) => {
-            setDraft((p) => ({ ...p, featuredPagePath: path }));
+          selectedImageUrl={draft.featuredPageImageUrl}
+          assets={libraryAssets}
+          onSelect={(path, imageUrl) => {
+            setDraft((p) => ({ ...p, featuredPagePath: path, featuredPageImageUrl: imageUrl }));
             setPagePickerOpen(false);
           }}
           onClose={() => setPagePickerOpen(false)}
@@ -1042,12 +1188,23 @@ export function CancelButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function PagePicker({ selectedPath, onSelect, onClose }: {
+function PagePicker({ selectedPath, selectedImageUrl, assets, onSelect, onClose }: {
   selectedPath: string | null;
-  onSelect: (path: string | null) => void;
+  selectedImageUrl: string | null;
+  assets: LibraryImage[];
+  onSelect: (path: string, imageUrl: string) => void;
   onClose: () => void;
 }) {
+  // Two-step wizard. Step 1: pick the page. Step 2: pick a picture
+  // to pair with it. The marketer can't bail out of step 2 without
+  // hitting "Back" — the featured-page card in the email requires
+  // both pieces. `pendingPath` carries the step-1 selection while
+  // step 2 is open so we don't commit until BOTH choices are in.
+  const [step, setStep] = useState<'page' | 'image'>(selectedPath && !selectedImageUrl ? 'image' : 'page');
+  const [pendingPath, setPendingPath] = useState<string | null>(selectedPath);
+  const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(selectedImageUrl);
   const [query, setQuery] = useState('');
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return SITE_PAGES;
@@ -1058,7 +1215,6 @@ function PagePicker({ selectedPath, onSelect, onClose }: {
       || p.group.toLowerCase().includes(q),
     );
   }, [query]);
-  // Group rows by their `group` for the sectioned list view.
   const grouped = useMemo(() => {
     const map = new Map<SitePage['group'], SitePage[]>();
     for (const p of filtered) {
@@ -1068,53 +1224,124 @@ function PagePicker({ selectedPath, onSelect, onClose }: {
     }
     return SITE_PAGE_GROUPS.map((g) => ({ group: g, rows: map.get(g) ?? [] })).filter((s) => s.rows.length > 0);
   }, [filtered]);
+  const pendingPage = useMemo(() => findSitePage(pendingPath), [pendingPath]);
+
+  // ── Step 1 ─ page list ──────────────────────────────────────
+  if (step === 'page') {
+    return (
+      <ModalShell title="Feature a page" subtitle={`${SITE_PAGES.length} marketing pages, grouped. Step 1 of 2.`} onClose={onClose}>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by title, path, or group…"
+          className="w-full mb-3 px-3 py-1.5 rounded-md border border-black/10 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+          style={{ fontFamily: 'var(--font-body)' }}
+        />
+        {filtered.length === 0 ? (
+          <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
+            No pages match that search.
+          </p>
+        ) : (
+          <div className="max-h-[60vh] overflow-y-auto pr-1 flex flex-col gap-3">
+            {grouped.map(({ group, rows }) => (
+              <div key={group}>
+                <p className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-foreground/45 mb-1.5 px-0.5">
+                  {group}
+                </p>
+                <ul className="flex flex-col gap-1.5">
+                  {rows.map((p) => {
+                    const isSelected = p.path === pendingPath;
+                    return (
+                      <li key={p.path}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Lock the page choice into pending and
+                            // advance straight to step 2 — a single
+                            // click feels like one continuous flow
+                            // even though there are two choices.
+                            setPendingPath(p.path);
+                            setStep('image');
+                          }}
+                          className={`w-full flex items-center gap-3 rounded-xl border p-2.5 text-left transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-black/10 bg-white hover:bg-warm-bg/40'}`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{p.title}</p>
+                            <p className="text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>{p.path}</p>
+                            <p className="text-[10.5px] text-foreground/45 truncate" style={{ fontFamily: 'var(--font-body)' }}>{p.blurb}</p>
+                          </div>
+                          {isSelected && (
+                            <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold" aria-label="Selected">✓</span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
+          </div>
+        )}
+      </ModalShell>
+    );
+  }
+
+  // ── Step 2 ─ image picker for the chosen page ─────────────────
+  const subtitle = pendingPage
+    ? `Pair “${pendingPage.title}” with a picture. Step 2 of 2.`
+    : 'Pick a picture for this page. Step 2 of 2.';
   return (
-    <ModalShell title="Feature a page" subtitle={`${SITE_PAGES.length} marketing pages, grouped.`} onClose={onClose}>
-      <input
-        type="text"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder="Search by title, path, or group…"
-        className="w-full mb-3 px-3 py-1.5 rounded-md border border-black/10 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/30"
-        style={{ fontFamily: 'var(--font-body)' }}
-      />
-      {filtered.length === 0 ? (
+    <ModalShell title="Pick a picture" subtitle={subtitle} onClose={onClose}>
+      {assets.length === 0 ? (
         <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
-          No pages match that search.
+          Image library is empty. Upload images via /app/images first.
         </p>
       ) : (
-        <div className="max-h-[60vh] overflow-y-auto pr-1 flex flex-col gap-3">
-          {grouped.map(({ group, rows }) => (
-            <div key={group}>
-              <p className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-foreground/45 mb-1.5 px-0.5">
-                {group}
-              </p>
-              <ul className="flex flex-col gap-1.5">
-                {rows.map((p) => {
-                  const isSelected = p.path === selectedPath;
-                  return (
-                    <li key={p.path}>
-                      <button
-                        type="button"
-                        onClick={() => onSelect(p.path)}
-                        className={`w-full flex items-center gap-3 rounded-xl border p-2.5 text-left transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-black/10 bg-white hover:bg-warm-bg/40'}`}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <p className="text-[13px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{p.title}</p>
-                          <p className="text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>{p.path}</p>
-                          <p className="text-[10.5px] text-foreground/45 truncate" style={{ fontFamily: 'var(--font-body)' }}>{p.blurb}</p>
-                        </div>
-                        {isSelected && (
-                          <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold" aria-label="Selected">✓</span>
-                        )}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
-        </div>
+        <>
+          <ul className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 mb-4 max-h-[55vh] overflow-y-auto pr-1">
+            {assets.map((a) => {
+              const isSelected = a.url === pendingImageUrl;
+              return (
+                <li key={a.id}>
+                  <button
+                    type="button"
+                    onClick={() => setPendingImageUrl(a.url)}
+                    className={`relative w-full aspect-square rounded-md overflow-hidden border-2 transition-all ${isSelected ? 'border-primary ring-2 ring-primary/30' : 'border-black/10 hover:border-primary'}`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={a.url} alt={a.filename ?? ''} className="w-full h-full object-cover" />
+                    {isSelected && (
+                      <span className="absolute top-1 right-1 px-1 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-primary text-white">
+                        Selected
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="flex items-center justify-between gap-2 sticky bottom-0 bg-white pt-2">
+            <button
+              type="button"
+              onClick={() => setStep('page')}
+              className="px-3 py-1.5 rounded-md border border-black/10 bg-white text-[11.5px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+            >
+              ← Back to page
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!pendingPath || !pendingImageUrl) return;
+                onSelect(pendingPath, pendingImageUrl);
+              }}
+              disabled={!pendingPath || !pendingImageUrl}
+              className="px-4 py-1.5 rounded-md bg-primary text-white text-[11.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Use this picture
+            </button>
+          </div>
+        </>
       )}
     </ModalShell>
   );

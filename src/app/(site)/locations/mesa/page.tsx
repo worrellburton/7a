@@ -1,5 +1,12 @@
 import type { Metadata } from 'next';
 
+// 1-hour ISR — marketing pages are otherwise fully static; this lets the
+// edge cache hold the rendered HTML so TTFB drops from ~250ms (cold SSR)
+// to ~30ms (edge hit). Editorial copy + image swaps go live within an hour
+// of merging; if you need sub-hour freshness on a specific page, override
+// with a smaller value or remove this line.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'Drug Rehab in Mesa, AZ | Seven Arrows Recovery',
   description:
@@ -68,7 +75,7 @@ export default function LocationMesaPage() {
           { label: 'Mesa' },
         ]}
         description="Mesa is one of the largest cities in Arizona—and one of the hardest hit by the opioid and fentanyl crisis. Seven Arrows Recovery provides Mesa residents with a clear path from the East Valley to lasting recovery at our private campus in the Swisshelm Mountains."
-        image="/images/sign-night-sky-milky-way.jpg"
+        image="/hero/sign-night-sky-milky-way.jpg"
         ctas={[
           {
             kind: 'phone',

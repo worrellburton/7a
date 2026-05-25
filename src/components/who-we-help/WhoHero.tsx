@@ -39,7 +39,7 @@ export default function WhoHero() {
       <video
         ref={videoRef}
         src={siteVideos.swisshelm}
-        poster="/images/group-gathering-pavilion.jpg"
+        poster="/hero/group-gathering-pavilion.jpg"
         autoPlay
         muted
         loop

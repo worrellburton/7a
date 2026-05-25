@@ -74,7 +74,7 @@ export default function ProgramOverview() {
             {/* Feature photo with overlay quote */}
             <figure className="mt-10 rounded-2xl overflow-hidden relative aspect-[16/10]">
               <img
-                src="/images/covered-porch-desert-view.jpg"
+                src="/hero/covered-porch-desert-view.jpg"
                 alt="Covered porch overlooking the desert at Seven Arrows."
                 className="absolute inset-0 w-full h-full object-cover"
                 loading="lazy"

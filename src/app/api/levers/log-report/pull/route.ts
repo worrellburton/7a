@@ -74,15 +74,36 @@ export async function POST(req: NextRequest) {
   let body: PullBody = {};
   try { body = (await req.json()) as PullBody; } catch { /* allow empty */ }
 
-  // Resolve recipient set. Explicit override wins; default = every
-  // super admin with a real email.
+  // Resolve recipient set in three tiers:
+  //   1. Explicit ids on the request body (a manual "send only to
+  //      these people" or a retry of a partial failure).
+  //   2. Persisted recipient list on lever_schedules.recipient_user_ids
+  //      (the Save button on the UI). Lets the manual pull stay in
+  //      sync with the saved cohort that the cron uses.
+  //   3. Fallback: every super admin with a real email (the
+  //      original default).
   const explicitIds = Array.isArray(body.recipientIds)
     ? body.recipientIds.filter((id) => typeof id === 'string' && id.length > 0)
     : null;
 
+  let savedIds: string[] = [];
+  if (!explicitIds || explicitIds.length === 0) {
+    const { data: scheduleRow } = await admin
+      .from('lever_schedules')
+      .select('recipient_user_ids')
+      .eq('lever_type', 'log-report')
+      .maybeSingle();
+    const raw = scheduleRow?.recipient_user_ids;
+    if (Array.isArray(raw)) {
+      savedIds = (raw as unknown[]).filter((v): v is string => typeof v === 'string' && v.length > 0);
+    }
+  }
+
   let recipientQuery = admin.from('users').select('id, full_name, email');
   if (explicitIds && explicitIds.length > 0) {
     recipientQuery = recipientQuery.in('id', explicitIds);
+  } else if (savedIds.length > 0) {
+    recipientQuery = recipientQuery.in('id', savedIds);
   } else {
     recipientQuery = recipientQuery.eq('is_super_admin', true);
   }

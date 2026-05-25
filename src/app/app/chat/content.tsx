@@ -39,7 +39,30 @@ interface TypingPresence {
 const ROOM = 'general';
 
 export default function ChatContent() {
-  const { user, session, userKind, isSuperAdmin } = useAuth();
+  const { user, session, userKind, isSuperAdmin, avatarUrl: myAvatarFromAuth } = useAuth();
+  // OAuth metadata's full_name + avatar_url can be stale (or empty)
+  // for any teammate who edited their profile via /app/profile —
+  // those edits land on public.users, not the auth metadata. Pull
+  // the canonical name + avatar from the users row so the chat
+  // byline matches what every other surface in the app shows.
+  const [myName, setMyName] = useState<string | null>(null);
+  const [myAvatar, setMyAvatar] = useState<string | null>(null);
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const r = await supabase.from('users').select('full_name, avatar_url').eq('id', user.id).maybeSingle();
+        if (cancelled) return;
+        const dbName = (r.data?.full_name as string | null | undefined) ?? null;
+        const dbAvatar = (r.data?.avatar_url as string | null | undefined) ?? null;
+        const metaName = (user.user_metadata?.full_name as string | undefined) ?? null;
+        setMyName(dbName ?? metaName ?? user.email?.split('@')[0] ?? null);
+        setMyAvatar(dbAvatar ?? myAvatarFromAuth ?? null);
+      } catch { /* fallback below handles it */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, user?.email, user?.user_metadata?.full_name, myAvatarFromAuth]);
   const [rows, setRows] = useState<Message[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState('');
@@ -108,8 +131,6 @@ export default function ChatContent() {
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!user?.id) return;
-    const myName = (user.user_metadata?.full_name as string | undefined) ?? null;
-    const myAvatar = (user.user_metadata?.avatar_url as string | undefined) ?? null;
     const ch = supabase.channel(`chat-presence-${ROOM}`, { config: { presence: { key: user.id } } });
     presenceRef.current = ch;
     ch.on('presence', { event: 'sync' }, () => {
@@ -138,19 +159,17 @@ export default function ChatContent() {
       presenceRef.current = null;
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
-  }, [user?.id, user?.user_metadata?.full_name, user?.user_metadata?.avatar_url]);
+  }, [user?.id, myName, myAvatar]);
 
   const announceTyping = useCallback(() => {
     const ch = presenceRef.current;
     if (!ch || !user?.id) return;
-    const myName = (user.user_metadata?.full_name as string | undefined) ?? null;
-    const myAvatar = (user.user_metadata?.avatar_url as string | undefined) ?? null;
     void ch.track({ is_typing: true, full_name: myName, avatar_url: myAvatar });
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     idleTimerRef.current = setTimeout(() => {
       void ch.track({ is_typing: false, full_name: myName, avatar_url: myAvatar });
     }, 3000);
-  }, [user?.id, user?.user_metadata?.full_name, user?.user_metadata?.avatar_url]);
+  }, [user?.id, myName, myAvatar]);
 
   async function send() {
     if (!session?.access_token || !user?.id) return;
@@ -161,8 +180,6 @@ export default function ChatContent() {
     // Stop the typing indicator immediately.
     const ch = presenceRef.current;
     if (ch) {
-      const myName = (user.user_metadata?.full_name as string | undefined) ?? null;
-      const myAvatar = (user.user_metadata?.avatar_url as string | undefined) ?? null;
       void ch.track({ is_typing: false, full_name: myName, avatar_url: myAvatar });
     }
     try {
@@ -288,22 +305,27 @@ export default function ChatContent() {
               }
               const head = g.messages[0];
               const isMine = g.authorId === user.id;
+              // For your own messages, prefer the live state copy of
+              // name + avatar — the API join can lag a fresh INSERT
+              // and we don't want a `?` flash before realtime backfills.
+              const displayAvatar = isMine ? (head.author_avatar_url || myAvatar) : head.author_avatar_url;
+              const displayName = isMine ? (head.author_name || myName) : head.author_name;
               return (
                 <div key={head.id} className={`flex gap-3 ${isMine ? 'flex-row-reverse' : ''}`}>
                   <div className="shrink-0">
-                    {head.author_avatar_url ? (
+                    {displayAvatar ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={head.author_avatar_url} alt="" className="w-9 h-9 rounded-full object-cover border border-black/10" />
+                      <img src={displayAvatar} alt="" className="w-9 h-9 rounded-full object-cover border border-black/10" />
                     ) : (
                       <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20">
-                        {(head.author_name || '?').charAt(0).toUpperCase()}
+                        {(displayName || '?').charAt(0).toUpperCase()}
                       </span>
                     )}
                   </div>
                   <div className={`min-w-0 max-w-[80%] ${isMine ? 'text-right' : ''}`}>
                     <div className={`flex items-baseline gap-2 ${isMine ? 'justify-end' : ''}`}>
                       <p className="text-[12.5px] font-semibold text-foreground">
-                        {isMine ? 'You' : (head.author_name || 'Someone')}
+                        {isMine ? (displayName || 'You') : (displayName || 'Someone')}
                       </p>
                       {head.author_kind === 'alumni' && !isMine && (
                         <span className="inline-block px-1.5 py-0.5 rounded-md text-[9.5px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">

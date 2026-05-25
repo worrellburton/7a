@@ -160,6 +160,56 @@ export default function BlogEditor({ id }: { id: string }) {
         <p className="mt-1 text-[12px] text-foreground/50 font-mono">slug: {blog.slug} · status: {blog.status}</p>
       </header>
 
+      {/* Published blogs land here from the content list — but the
+          pipeline editor below is for shepherding a draft TO
+          publication. Once published, the marketer's primary need
+          is to tweak the live copy / swap images. Surface that as
+          the page's hero action so they don't have to scroll past
+          the pipeline accordions. Live edit mode on the rendered
+          post is gated by ?edit=1 + super-admin (see the public
+          blog page). */}
+      {reachedPublish && (
+        <section
+          className="mb-6 rounded-2xl border-2 border-primary/30 bg-gradient-to-r from-primary/5 via-warm-bg/40 to-white p-5 lg:p-6"
+        >
+          <div className="flex items-start gap-4 flex-wrap">
+            <div className="flex-1 min-w-[260px]">
+              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary mb-1.5">Live post</p>
+              <h2 className="text-lg font-bold text-foreground leading-tight">
+                Edit the published copy + photos
+              </h2>
+              <p className="text-[13px] text-foreground/65 leading-relaxed mt-1">
+                Opens the live rendered post in edit mode — change headlines, body text, and swap any photo right on the page.
+                Saves write straight back to this post.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+              <Link
+                href={`/who-we-are/blog/${blog.slug}?edit=1`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-primary text-white text-[12.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 transition-colors shadow-[0_10px_28px_-10px_rgba(188,107,74,0.55)]"
+              >
+                Edit live post
+                <span aria-hidden="true">→</span>
+              </Link>
+              <Link
+                href={`/who-we-are/blog/${blog.slug}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg border border-foreground/15 bg-white text-foreground/75 text-[12.5px] font-semibold hover:bg-warm-bg/60 transition-colors"
+              >
+                View as visitor
+              </Link>
+              <GenerateSchemaButton blog={blog} />
+            </div>
+          </div>
+          <p className="mt-3 text-[11px] text-foreground/45 font-mono">
+            /who-we-are/blog/{blog.slug}
+          </p>
+        </section>
+      )}
+
       {error && (
         <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-800">{error}</div>
       )}
@@ -1639,5 +1689,104 @@ function PublishPanel({ blog, token, onChange }: { blog: DbBlog; token: string |
         </button>
       )}
     </Panel>
+  );
+}
+
+/**
+ * Generate Article-schema JSON-LD for a published blog and copy
+ * it to the clipboard. The schema is built client-side from the
+ * blog row that's already loaded, so there's no API roundtrip —
+ * the marketer clicks, the JSON lands in their clipboard, they
+ * paste it wherever it needs to go (a CMS field, a content audit,
+ * Schema.org validator, etc.).
+ *
+ * Includes the fields Google's Article guidelines want most: name,
+ * headline, datePublished, author, image (first image from the
+ * layout), articleBody preview, and a stable @id pointing at the
+ * canonical URL.
+ */
+function GenerateSchemaButton({ blog }: { blog: DbBlog }) {
+  const [copied, setCopied] = useState(false);
+
+  function buildSchema() {
+    const url = `https://sevenarrowsrecoveryarizona.com/who-we-are/blog/${blog.slug}`;
+    // Pull the first image from the layout if there is one — Google
+    // requires an image on Article schema for rich-result eligibility.
+    const firstImage = (() => {
+      const blocks = (blog.layout?.blocks ?? []) as Array<{ kind?: string; url?: string }>;
+      for (const b of blocks) {
+        if ((b.kind === 'image' || b.kind === 'hero') && typeof b.url === 'string' && b.url.length > 0) {
+          return b.url;
+        }
+      }
+      return null;
+    })();
+    // ~160-char extract from the markdown body for description.
+    const description = (() => {
+      const text = (blog.body_markdown ?? '')
+        .replace(/[#*_>`~\-]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      return text.length > 200 ? text.slice(0, 197) + '…' : text;
+    })();
+    return {
+      '@context': 'https://schema.org',
+      '@type': 'Article',
+      '@id': `${url}#article`,
+      mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+      headline: blog.title || '(Untitled)',
+      name: blog.title || '(Untitled)',
+      description,
+      datePublished: blog.published_at ?? blog.created_at,
+      dateModified: blog.updated_at,
+      image: firstImage ? [firstImage] : undefined,
+      author: blog.author_slug
+        ? { '@type': 'Person', '@id': `https://sevenarrowsrecoveryarizona.com/who-we-are/team/${blog.author_slug}` }
+        : { '@type': 'Organization', name: 'Seven Arrows Recovery' },
+      reviewedBy: blog.reviewer_slug
+        ? {
+            '@type': 'Person',
+            '@id': `https://sevenarrowsrecoveryarizona.com/who-we-are/team/${blog.reviewer_slug}`,
+          }
+        : undefined,
+      publisher: {
+        '@type': 'MedicalBusiness',
+        '@id': 'https://sevenarrowsrecovery.com/#organization',
+        name: 'Seven Arrows Recovery',
+      },
+    };
+  }
+
+  async function onClick() {
+    try {
+      const schema = buildSchema();
+      const text = JSON.stringify(schema, null, 2);
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2200);
+    } catch {
+      // Clipboard API can throw on insecure contexts / older Safari —
+      // fall back to a window.prompt so the marketer can copy manually.
+      try {
+        window.prompt('Copy schema (Cmd/Ctrl+C):', JSON.stringify(buildSchema(), null, 2));
+      } catch {
+        /* truly nothing we can do */
+      }
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-[12.5px] font-semibold border transition-colors ${
+        copied
+          ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+          : 'border-foreground/15 bg-white text-foreground/75 hover:bg-warm-bg/60'
+      }`}
+      title="Copy Article JSON-LD schema for this post to the clipboard"
+    >
+      {copied ? '✓ Schema copied' : 'Generate schema'}
+    </button>
   );
 }

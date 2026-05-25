@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Drug Rehabs with Horses" },
         ]}
         description="Finding the right path to recovery is a deeply personal journey that touches every aspect of an individual’s life. At Seven Arrows Recovery, we believe this journey should be as unique as the person seeking help. While…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

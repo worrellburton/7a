@@ -38,7 +38,7 @@ export default function FAQHero() {
       <video
         ref={videoRef}
         src={siteVideos.swisshelm}
-        poster="/images/common-area-living-room.jpg"
+        poster="/hero/common-area-living-room.jpg"
         autoPlay
         muted
         loop

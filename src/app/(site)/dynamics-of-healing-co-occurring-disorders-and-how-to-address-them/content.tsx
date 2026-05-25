@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Dynamics of Healing Co Occurring Disorders and How to Address Them" },
         ]}
         description="Did you know that the brain is one of the most complex parts of the human body? It regulates and cooperates with multiple systems, and keeps everything in balance with one another."
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

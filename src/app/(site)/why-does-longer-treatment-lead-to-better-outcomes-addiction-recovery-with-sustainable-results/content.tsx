@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Why Does Longer Treatment Lead to Better Outcomes? Addiction Recovery with Sustainable Results" },
         ]}
         description="Many people approach addiction recovery as though it’s a microwave: systematic, straightforward, and—above all else—fast. The “30-day treatment” myth doesn’t help with these misconceptions either."
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

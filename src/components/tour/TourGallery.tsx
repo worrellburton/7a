@@ -14,21 +14,21 @@ import { useEffect, useRef, useState } from 'react';
 type Shot = { src: string; alt: string; caption: string };
 
 const shots: Shot[] = [
-  { src: '/images/facility-exterior-mountains.jpg', alt: 'Facility exterior', caption: 'Main residence at first light' },
-  { src: '/images/horses-grazing.jpg', alt: 'Horses grazing', caption: 'The herd, grazing before morning sessions' },
-  { src: '/images/group-sunset-desert.jpg', alt: 'Group at sunset', caption: 'Sunset gathering on the ridgeline' },
+  { src: '/hero/facility-exterior-mountains.jpg', alt: 'Facility exterior', caption: 'Main residence at first light' },
+  { src: '/hero/horses-grazing.jpg', alt: 'Horses grazing', caption: 'The herd, grazing before morning sessions' },
+  { src: '/hero/group-sunset-desert.jpg', alt: 'Group at sunset', caption: 'Sunset gathering on the ridgeline' },
   { src: '/images/campfire-ceremony-circle.webp', alt: 'Ceremony circle', caption: 'Evening talking circle & ceremony' },
-  { src: '/images/covered-porch-desert-view.jpg', alt: 'Covered porch', caption: 'The porches where hard conversations finally happen' },
-  { src: '/images/sound-healing-session.jpg', alt: 'Sound healing', caption: 'Sound healing with singing bowls' },
-  { src: '/images/equine-therapy-portrait.jpg', alt: 'Equine therapy', caption: 'One client, one horse, for the whole stay' },
-  { src: '/images/common-area-living-room.jpg', alt: 'Living room', caption: 'Common-area living room' },
-  { src: '/images/group-gathering-pavilion.jpg', alt: 'Evening gathering', caption: 'Evening community gathering under the pavilion' },
-  { src: '/images/individual-therapy-session.jpg', alt: 'Individual therapy', caption: '1:1 trauma-informed therapy' },
-  { src: '/images/resident-reading-window.jpg', alt: 'Resident reading', caption: 'Afternoons the sun reaches every window' },
-  { src: '/images/horse-sketch-artwork.jpg', alt: 'Artwork', caption: 'Artwork from the herd — drawn by alumni' },
-  { src: '/images/group-therapy-room.jpg', alt: 'Group therapy room', caption: 'Light-filled group therapy space' },
-  { src: '/images/embrace-connection.jpg', alt: 'Embrace', caption: 'Connection, the moment it arrives' },
-  { src: '/images/sign-night-sky-milky-way.jpg', alt: 'Milky Way', caption: 'The sign under an unbroken Milky Way' },
+  { src: '/hero/covered-porch-desert-view.jpg', alt: 'Covered porch', caption: 'The porches where hard conversations finally happen' },
+  { src: '/hero/sound-healing-session.jpg', alt: 'Sound healing', caption: 'Sound healing with singing bowls' },
+  { src: '/hero/equine-therapy-portrait.jpg', alt: 'Equine therapy', caption: 'One client, one horse, for the whole stay' },
+  { src: '/hero/common-area-living-room.jpg', alt: 'Living room', caption: 'Common-area living room' },
+  { src: '/hero/group-gathering-pavilion.jpg', alt: 'Evening gathering', caption: 'Evening community gathering under the pavilion' },
+  { src: '/hero/individual-therapy-session.jpg', alt: 'Individual therapy', caption: '1:1 trauma-informed therapy' },
+  { src: '/hero/resident-reading-window.jpg', alt: 'Resident reading', caption: 'Afternoons the sun reaches every window' },
+  { src: '/hero/horse-sketch-artwork.jpg', alt: 'Artwork', caption: 'Artwork from the herd — drawn by alumni' },
+  { src: '/hero/group-therapy-room.jpg', alt: 'Group therapy room', caption: 'Light-filled group therapy space' },
+  { src: '/hero/embrace-connection.jpg', alt: 'Embrace', caption: 'Connection, the moment it arrives' },
+  { src: '/hero/sign-night-sky-milky-way.jpg', alt: 'Milky Way', caption: 'The sign under an unbroken Milky Way' },
 ];
 
 export default function TourGallery() {

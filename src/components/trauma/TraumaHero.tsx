@@ -43,7 +43,7 @@ export default function TraumaHero() {
         className="absolute inset-0 z-[1] pointer-events-none"
         aria-hidden="true"
         style={{
-          backgroundImage: "url('/images/embrace-connection.jpg')",
+          backgroundImage: "url('/hero/embrace-connection.jpg')",
           backgroundSize: 'cover',
           backgroundPosition: 'center 30%',
           mixBlendMode: 'overlay',

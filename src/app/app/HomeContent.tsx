@@ -26,6 +26,9 @@ interface RecentUser {
   last_path: string | null;
   last_seen_at: string | null;
   status: 'active' | 'on_hold' | 'denied' | null;
+  // 'staff' / 'alumni' / 'guest' — drives the staff-vs-alumni
+  // ring split on the orbit. Null treated as staff.
+  user_kind?: 'staff' | 'alumni' | 'guest' | null;
   // Activity-feed counters, joined in client-side after the user
   // list loads. > 10 today flips the avatar into "on fire" mode in
   // the orbit; the tooltip shows the count + a few recent actions.
@@ -73,6 +76,7 @@ export default function HomeContent() {
   const { pages } = usePagePermissions();
   const router = useRouter();
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
+  const [recentAlumni, setRecentAlumni] = useState<RecentUser[]>([]);
   const [horses, setHorses] = useState<OrbitHorse[]>([]);
   const [pendingSignatures, setPendingSignatures] = useState<PendingSignature[]>([]);
   const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string; pdfUrl: string | null } | null>(null);
@@ -261,7 +265,7 @@ export default function HomeContent() {
     if (!session?.access_token) return;
     let cancelled = false;
     async function fetchRecentUsers() {
-      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, last_sign_in, last_seen_at, last_path, job_title, status', order: { column: 'last_sign_in', ascending: false } });
+      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, last_sign_in, last_seen_at, last_path, job_title, status, user_kind', order: { column: 'last_sign_in', ascending: false } });
       if (cancelled || !Array.isArray(data)) {
         setTimeout(() => setLoaded(true), 100);
         return;
@@ -277,7 +281,15 @@ export default function HomeContent() {
           u.last_sign_in &&
           new Date(u.last_sign_in) >= today,
       );
-      setRecentUsers(filtered);
+      // Split staff vs. alumni so the orbit can render them as
+      // separate rings (alumni become the outermost ring around
+      // employees + horses). user_kind null defaults to staff so
+      // legacy rows from before the column existed still appear
+      // on the employee ring.
+      const staff = filtered.filter((u) => u.user_kind !== 'alumni');
+      const alumni = filtered.filter((u) => u.user_kind === 'alumni');
+      setRecentUsers(staff);
+      setRecentAlumni(alumni);
       setTimeout(() => setLoaded(true), 100);
 
       // Second pass: pull today's activity_log rows and join them
@@ -481,14 +493,16 @@ export default function HomeContent() {
         <div className="absolute bottom-0 left-1/3 w-[480px] h-[480px] rounded-full bg-amber-200/35 blur-[130px]" />
       </div>
 
-      {/* On lg+ the global `app-shell` applies zoom: 0.82, so a plain
-          h-[100vh] CSS height renders at only 82% of the actual
-          viewport — which would sit the orbit ~85px above true centre
-          on a 1080p display. Mirror the sidebar's compensation pattern
-          (`h-[calc(100vh/0.82)]`) so the wrapper fills the real screen
-          and `justify-center` on the centerpiece below lands the
-          orbit at the visual middle of the viewport. */}
-      <div className="relative flex-1 flex flex-col h-[calc(100svh-1px)] max-h-[calc(100svh-1px)] lg:h-[calc((100vh-1px)/0.82)] lg:max-h-[calc((100vh-1px)/0.82)] overflow-hidden px-4 sm:px-6 lg:px-10 py-3 lg:py-6">
+      {/* Wrapper height = viewport height (1px subtracted to defeat
+          a Chrome subpixel rounding quirk that otherwise produces a
+          1px stray scrollbar). The old lg: divisor of `/0.82` was
+          compensating for an `app-shell { zoom: 0.82 }` rule that
+          got dropped in 41bfd939 — without that zoom, dividing the
+          viewport by 0.82 produced a ~122vh container, and the
+          overflow-hidden then clipped the daily-logs chip + mission
+          tagline out of frame. Uniform 100svh across breakpoints
+          restores the one-viewport home page. */}
+      <div className="relative flex-1 flex flex-col h-[calc(100svh-1px)] max-h-[calc(100svh-1px)] overflow-hidden px-4 sm:px-6 lg:px-10 py-3 lg:py-6">
 
         {/* Phase 4: hero — no glass card; the avatar/greeting and the
             create-menu button float on the page background. The hero
@@ -634,22 +648,31 @@ export default function HomeContent() {
 
         {/* Centerpiece — flex-1 so it eats the leftover vertical space
             between the absolutely-positioned hero (top) and the WIP
-            footer pill (bottom), and `justify-center` parks the orbit
-            + Ask Policies stack at the dead center of that space. */}
-        <div className="relative flex-1 flex flex-col items-stretch justify-center gap-4 sm:gap-6 lg:gap-8 mt-2 lg:mt-0">
+            footer pill (bottom). The orbit is absolute-positioned to
+            this column's geometric centre (see below) so the 7A
+            medallion always lands dead-centre. The remaining children
+            (Connect-4 nudge, action stack) flow with `justify-end` so
+            they stack at the bottom of the centerpiece instead of
+            colliding with the absolutely-positioned orbit. */}
+        <div className="relative flex-1 flex flex-col items-stretch justify-end gap-4 sm:gap-6 lg:gap-8 mt-2 lg:mt-0">
 
         {/* Centered, slowly-rotating ring of teammates active in the
             last 24 hours, with the horse roster orbiting in the inner
             ring. See HomeOnlineOrbit.tsx for the anatomy + animation.
             Mobile: fixed-positioned so it pins to the visible
-            viewport's centre — using `absolute` would only centre it
-            inside the centerpiece flex column, which sits below the
-            welcome header and so isn't actually in the middle of the
-            screen. sm+: returns to normal flex flow. */}
+            viewport's centre. Desktop: absolute-positioned to the
+            centerpiece's geometric centre so the 7A medallion sits
+            dead-centre regardless of how many siblings (Connect-4
+            nudge, signature stack, etc.) flow below it — leaving the
+            orbit in normal flex flow lets sibling height push the
+            orbit upward off the visual centre, which is exactly the
+            bug we kept hitting. `pointer-events-none` on the section
+            so the click-through area around the orbit doesn't block
+            anything below; the inner content opts back in to clicks. */}
         {recentUsers.length > 0 && (
-          <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:relative sm:top-auto sm:left-auto sm:translate-x-0 sm:translate-y-0 pointer-events-none sm:pointer-events-auto">
+          <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed sm:absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
             <div className="pointer-events-auto flex flex-col items-center gap-3">
-              <HomeOnlineOrbit users={recentUsers} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
+              <HomeOnlineOrbit users={recentUsers} alumni={recentAlumni} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
               {/* Mobile-only chip — the desktop chip sits between the
                   centerpiece and the Seven Arrows tagline (further
                   down), but on mobile the orbit is fixed-positioned
@@ -756,7 +779,7 @@ export default function HomeContent() {
         </div> {/* end centerpiece */}
 
         {/* Live count of touchpoints logged today + the historical
-            daily record below it. Clicks through to /app/daily-logs,
+            daily record below it. Clicks through to /app/logs,
             the dedicated surface with leaderboard + records. Sits
             between the centerpiece and the Seven Arrows tagline so
             the chip floats in clear space without crowding the

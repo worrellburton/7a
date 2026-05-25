@@ -1,35 +1,31 @@
-// Floating mobile call button. Sits fixed bottom-center, above the
-// Google reviews badge (which is anchored at bottom-0), so neither
-// covers the other. Matches the desktop BeforeFooterCTA treatment:
-// a phone-icon disc on the left with the pulsing green "live" dot
-// pinned to its corner, and a two-line text block on the right —
-// tiny "AVAILABLE 24/7" kicker above the bold phone number. iOS
-// safe-area inset respected so it never sits under the home-bar.
+// Full-width sticky call-CTA pinned to the bottom of the mobile
+// viewport, directly above GoogleReviewsBadge. Two together form
+// a 2-row ribbon at the bottom of every mobile page: phone on top,
+// social-proof badge underneath.
 //
-// The pill is always visible on mobile — inner pages no longer carry
-// a duplicate phone CTA inside the hero (PageHero filters out phone
-// CTAs), so this is the single source of truth for the call action.
+// No dismiss affordance — the phone CTA is the highest-value
+// conversion surface on the site; making it dismissable was lower-
+// signal than the friction of users hitting the X by mistake.
+// (Earlier sessionStorage-backed dismiss state has been removed.)
+//
+// The `sticky-mobile-cta` class is used by globals.css to hide the
+// row while the mobile nav drawer is open (otherwise the call bar
+// floats over the open menu and looks like part of it). The
+// attribute is set on <html> by MobileMenu.
 
 export default function StickyMobileCTA() {
   return (
     <div
-      // The `sticky-mobile-cta` class is used by globals.css to hide
-      // this pill while the mobile nav drawer is open (otherwise the
-      // call button floats over the open menu and looks like part of
-      // it). The attribute is set on <html> by MobileMenu.
-      className="sticky-mobile-cta fixed left-1/2 -translate-x-1/2 z-50 lg:hidden"
-      // Lift above the GoogleReviewsBadge bar (~52px tall) plus the
-      // device safe-area inset and a small breathing-room gap.
-      style={{ bottom: 'calc(env(safe-area-inset-bottom) + 60px)' }}
+      className="sticky-mobile-cta fixed inset-x-0 z-50 lg:hidden bg-primary text-white shadow-[0_-6px_18px_-4px_rgba(42,15,10,0.45)]"
+      style={{ bottom: 'calc(env(safe-area-inset-bottom) + 52px)' }}
     >
       <a
         href="tel:+18667181665"
         aria-label="Call (866) 718-1665 — available 24/7"
-        className="inline-flex items-center gap-3 bg-primary active:bg-primary-dark transition-colors rounded-full pl-2.5 pr-5 py-2 shadow-[0_12px_30px_-6px_rgba(42,15,10,0.55)] ring-1 ring-black/5"
+        className="flex items-center justify-center gap-3 px-4 py-2.5 active:opacity-90 transition-opacity"
       >
-        {/* Icon disc with the green ping dot pinned to its upper-
-            right corner, identical to the desktop BeforeFooterCTA
-            treatment. */}
+        {/* Icon disc with the pulsing green ping pinned to its
+            upper-right corner. */}
         <span
           className="relative inline-flex items-center justify-center w-9 h-9 rounded-full shrink-0"
           style={{ backgroundColor: 'rgba(255,255,255,0.14)' }}
@@ -59,7 +55,7 @@ export default function StickyMobileCTA() {
             Available 24/7
           </span>
           <span
-            className="text-sm font-bold tracking-wide text-white"
+            className="text-[15px] font-bold tracking-wide text-white"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             (866) 718-1665

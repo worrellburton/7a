@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Using Insurance to Cover Detox for Cocaine Addiction" },
         ]}
         description="Cocaine addiction can impact every facet of a person’s life—relationships, career, physical health, and emotional well-being. If you or someone you love is struggling with cocaine addiction, the decision to seek help is a…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

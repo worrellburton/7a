@@ -30,7 +30,7 @@ export async function GET() {
 
   const { data: recs, error: recErr } = await gate.admin
     .from('kaizen_recommendations')
-    .select('id, area, category, seo_geo, title, description, copy_prompt, priority, dismissed_at, created_at')
+    .select('id, area, category, seo_geo, title, description, copy_prompt, priority, risk_score, value_score, target_kind, target_path, target_label, design_preview_html, dismissed_at, created_at')
     .eq('scan_id', scan.id)
     .is('dismissed_at', null)
     .order('area', { ascending: true })

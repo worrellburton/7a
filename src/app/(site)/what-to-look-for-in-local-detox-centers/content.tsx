@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "What to Look for in Local Detox Centers" },
         ]}
         description="Starting the recovery journey is a brave and life-changing decision, and choosing the right detox center is a crucial first step. At Seven Arrows Recovery, we understand the challenges of addiction and the importance of a safe,…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

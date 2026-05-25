@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "A Simple Guide to 12-Step Meetings" },
         ]}
         description="The journey to recovery is deeply personal, filled with unique challenges and moments of profound growth. At Seven Arrows Recovery, we understand that each person’s path is different, and supporting these individual journeys is…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

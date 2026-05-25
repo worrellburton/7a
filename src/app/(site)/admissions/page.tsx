@@ -11,6 +11,15 @@ import PaymentOptions from '@/components/admissions/PaymentOptions';
 import AdmissionsFAQ from '@/components/admissions/AdmissionsFAQ';
 import AdmissionsCTA from '@/components/admissions/AdmissionsCTA';
 import { admissionsFaqs } from '@/components/admissions/admissionsFaqs';
+import { JsonLd } from '@/components/JsonLd';
+import { buildBreadcrumbSchema, buildFAQSchema, SITE_URL, ORGANIZATION_ID } from '@/lib/seo/schema';
+
+// 1-hour ISR — marketing pages are otherwise fully static; this lets the
+// edge cache hold the rendered HTML so TTFB drops from ~250ms (cold SSR)
+// to ~30ms (edge hit). Editorial copy + image swaps go live within an hour
+// of merging; if you need sub-hour freshness on a specific page, override
+// with a smaller value or remove this line.
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: 'Admissions · Arizona Rehab | Seven Arrows Recovery',
@@ -29,7 +38,7 @@ export const metadata: Metadata = {
       'Start with a phone call. Free insurance verification, phone assessment, and travel coordination — most clients arrive within 24 to 48 hours.',
     images: [
       {
-        url: '/images/embrace-connection.jpg',
+        url: '/hero/embrace-connection.jpg',
         width: 1200,
         height: 630,
         alt: 'Arriving at Seven Arrows Recovery in Cochise County, Arizona',
@@ -44,36 +53,32 @@ export const metadata: Metadata = {
   },
 };
 
-const breadcrumbSchema = {
-  '@context': 'https://schema.org',
-  '@type': 'BreadcrumbList',
-  itemListElement: [
-    { '@type': 'ListItem', position: 1, name: 'Home', item: 'https://sevenarrowsrecoveryarizona.com' },
-    { '@type': 'ListItem', position: 2, name: 'Admissions', item: 'https://sevenarrowsrecoveryarizona.com/admissions' },
-  ],
-};
+// Breadcrumb + FAQ now come from the shared builders in
+// src/lib/seo/schema.ts so the host, ID conventions, and item
+// shapes stay in sync with the global MedicalBusiness object the
+// root layout emits. MedicalWebPage stays inline because it's
+// page-scoped — it references the global MedicalBusiness by @id
+// via ORGANIZATION_ID rather than re-emitting the whole entity.
+const breadcrumbSchema = buildBreadcrumbSchema([
+  { name: 'Home', url: '/' },
+  { name: 'Admissions', url: '/admissions' },
+]);
 
-const faqSchema = {
-  '@context': 'https://schema.org',
-  '@type': 'FAQPage',
-  mainEntity: admissionsFaqs.map((f) => ({
-    '@type': 'Question',
-    name: f.q,
-    acceptedAnswer: { '@type': 'Answer', text: f.a },
-  })),
-};
+const faqSchema = buildFAQSchema(
+  admissionsFaqs.map((f) => ({ question: f.q, answer: f.a })),
+);
 
 const medicalWebPageSchema = {
   '@context': 'https://schema.org',
   '@type': 'MedicalWebPage',
   name: 'Admissions — Seven Arrows Recovery',
-  url: 'https://sevenarrowsrecoveryarizona.com/admissions',
+  url: `${SITE_URL}/admissions`,
   description:
     'How to begin residential addiction treatment at Seven Arrows Recovery: insurance verification, phone assessment, travel coordination, and what to bring.',
   inLanguage: 'en-US',
-  isPartOf: { '@id': 'https://sevenarrowsrecoveryarizona.com/#organization' },
+  isPartOf: { '@id': ORGANIZATION_ID },
   about: [
-    { '@type': 'MedicalBusiness', '@id': 'https://sevenarrowsrecoveryarizona.com/#organization' },
+    { '@type': 'MedicalBusiness', '@id': ORGANIZATION_ID },
     { '@type': 'MedicalTherapy', name: 'Residential Addiction Treatment' },
   ],
   mainContentOfPage: { '@type': 'WebPageElement', cssSelector: 'main' },
@@ -83,18 +88,7 @@ const medicalWebPageSchema = {
 export default function AdmissionsPage() {
   return (
     <main>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(medicalWebPageSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
-      />
+      <JsonLd data={[breadcrumbSchema, medicalWebPageSchema, faqSchema]} />
       <PageHero
         label="Admissions"
         breadcrumbs={[{ label: 'Home', href: '/' }, { label: 'Admissions' }]}

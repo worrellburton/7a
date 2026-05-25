@@ -419,9 +419,20 @@ function MegaMenuDropdown({
   const [open, setOpen] = useState(false);
   const timeout = useRef<ReturnType<typeof setTimeout>>(null);
 
+  // Stabilize the parent's onOpenChange callback through a ref so
+  // the effect below only fires when `open` actually changes —
+  // not every time the parent re-renders. Without this, the
+  // parent's inline callback gets a new identity on every render;
+  // the effect re-fires; calls onOpenChange(open) repeatedly; the
+  // parent's openDropdowns counter cascades and the nav-color
+  // treatment flickered on / off mid-hover. This was the "WHO WE
+  // ARE / OUR PROGRAM nav turns white then disappears" bug.
+  const onOpenChangeRef = useRef(onOpenChange);
+  useEffect(() => { onOpenChangeRef.current = onOpenChange; }, [onOpenChange]);
+
   useEffect(() => {
-    onOpenChange?.(open);
-  }, [open, onOpenChange]);
+    onOpenChangeRef.current?.(open);
+  }, [open]);
 
   // Panel theme flips with the nav — translucent dark when the nav is
   // sitting on the dark hero, solid white after you scroll past it.
@@ -951,11 +962,25 @@ export default function Header() {
   // menu items stay legible — otherwise the drawer renders over dark hero
   // video and "text-white/90 over white drawer" becomes invisible.
   //
-  // Mega-menu dropdowns used to flip the nav to solid when open; we now
-  // keep the nav transparent so the dropdown panel itself can render in a
-  // matching translucent dark treatment — the "nav is on top" aesthetic
-  // stays consistent rather than snapping to a different color scheme.
-  const transparent = !scrolled && !mobileMenuOpen;
+  // Mega-menu dropdowns ALSO flip the nav to solid white while open. There's
+  // a deliberate grace-period on the FLIP-BACK direction: a cursor moving
+  // from the trigger button down into the panel briefly leaves the wrapper
+  // (the panel is fixed-positioned outside the trigger's relative box, so a
+  // diagonal cursor path can hit a few pixels of dead zone). That brief
+  // openDropdowns → 0 was making the nav flash transparent for a frame
+  // mid-hover. We now hold the white state for 300ms after the counter
+  // returns to 0, which fully absorbs the traversal glitch without making
+  // the close feel laggy.
+  const [dropdownLingering, setDropdownLingering] = useState(false);
+  useEffect(() => {
+    if (openDropdowns > 0) {
+      setDropdownLingering(true);
+      return;
+    }
+    const t = setTimeout(() => setDropdownLingering(false), 300);
+    return () => clearTimeout(t);
+  }, [openDropdowns]);
+  const transparent = !scrolled && !mobileMenuOpen && !dropdownLingering;
 
   return (
     <header

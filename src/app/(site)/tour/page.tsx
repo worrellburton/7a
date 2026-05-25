@@ -1,5 +1,12 @@
 import type { Metadata } from 'next';
 
+// 1-hour ISR — marketing pages are otherwise fully static; this lets the
+// edge cache hold the rendered HTML so TTFB drops from ~250ms (cold SSR)
+// to ~30ms (edge hit). Editorial copy + image swaps go live within an hour
+// of merging; if you need sub-hour freshness on a specific page, override
+// with a smaller value or remove this line.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'Tour Our Campus | Seven Arrows Recovery',
   description:
@@ -57,7 +64,7 @@ export default function TourPage() {
           map is more important here than anywhere else on the
           public site. */}
       <section className="bg-warm-bg py-14 lg:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr),minmax(0,1.6fr)] gap-8 lg:gap-12 items-center">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-1 lg:grid-cols-[minmax(0,1.3fr),minmax(0,1fr)] gap-8 lg:gap-12 items-center">
           <div>
             <p className="text-xs uppercase tracking-[0.22em] text-foreground/55 mb-2">Find us</p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4" style={{ fontFamily: 'var(--font-display)' }}>
@@ -70,7 +77,11 @@ export default function TourPage() {
             </p>
             <RanchAddress />
           </div>
-          <RanchMap className="aspect-video lg:aspect-square" ariaLabel="Map of Seven Arrows Recovery near Tucson, Arizona" />
+          {/* Map column — content on the left is the lede, the map is
+              a supporting visual on the right. Was `lg:aspect-square`
+              on a 1.6fr column which made the map dominate the row;
+              now `aspect-[4/3]` on a 1fr column keeps it compact. */}
+          <RanchMap className="aspect-[4/3]" ariaLabel="Map of Seven Arrows Recovery near Tucson, Arizona" />
         </div>
       </section>
 

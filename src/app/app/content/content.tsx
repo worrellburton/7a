@@ -277,6 +277,12 @@ export default function ContentLanding() {
                       subtitle={`${r.slug} · updated ${new Date(r.updated_at).toLocaleDateString()}`}
                       episodeLabel={epNum ? `Episode ${epNum}` : null}
                       href={`/app/content/${r.id}`}
+                      // Only published posts have a live URL worth
+                      // opening — drafts / reviewing / image-select
+                      // would 404. Mirror the hand-coded-posts row
+                      // which always has externalHref because every
+                      // .tsx-based post is live by definition.
+                      externalHref={r.status === 'published' ? `/who-we-are/blog/${r.slug}` : undefined}
                       statusBadge={(
                         <span className={`shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${STATUS_TONES[r.status]}`}>
                           {STATUS_LABELS[r.status]}
@@ -284,6 +290,7 @@ export default function ContentLanding() {
                       )}
                       hidden={hidden}
                       onToggleHidden={() => void toggleHidden(r.slug, !hidden)}
+                      toggleDisabled={r.status !== 'published'}
                       analyticsOpen={expanded}
                       onToggleAnalytics={() => setAnalyticsFor(expanded ? null : r.id)}
                       onDelete={() => void deleteBlog(r.id, r.title || '(Untitled)')}
@@ -356,6 +363,7 @@ function BlogRow({
   statusBadge,
   hidden,
   onToggleHidden,
+  toggleDisabled = false,
   analyticsOpen,
   onToggleAnalytics,
   onDelete,
@@ -371,6 +379,11 @@ function BlogRow({
   statusBadge?: React.ReactNode;
   hidden: boolean;
   onToggleHidden: () => void;
+  /** When true, the visibility toggle renders in a muted disabled
+   *  state and is non-interactive. Used for blogs whose status
+   *  isn't 'published' yet — hiding/showing has no meaning until
+   *  the post actually has a live URL to hide. */
+  toggleDisabled?: boolean;
   analyticsOpen: boolean;
   onToggleAnalytics: () => void;
   // Only AI-pipeline rows get a Delete affordance; hand-coded posts
@@ -433,7 +446,7 @@ function BlogRow({
           View
         </a>
       )}
-      <VisibilityToggle hidden={hidden} onChange={onToggleHidden} />
+      <VisibilityToggle hidden={hidden} onChange={onToggleHidden} disabled={toggleDisabled} />
       {onDelete && (
         <button
           type="button"
@@ -454,22 +467,38 @@ function BlogRow({
   );
 }
 
-function VisibilityToggle({ hidden, onChange }: { hidden: boolean; onChange: () => void }) {
+function VisibilityToggle({ hidden, onChange, disabled = false }: { hidden: boolean; onChange: () => void; disabled?: boolean }) {
   // ON = visible on public site. OFF = hidden from listings.
   // Color: emerald when visible, foreground/15 when hidden.
-  const visible = !hidden;
+  // When `disabled` (blog isn't published yet) we force the OFF
+  // visual + skip the click handler entirely — visibility is a
+  // post-publish concept so a green "showing" toggle on a draft
+  // is misleading.
+  const visible = !hidden && !disabled;
   return (
     <button
       type="button"
       role="switch"
       aria-checked={visible}
-      onClick={onChange}
-      title={visible ? 'Visible on the public site — click to hide' : 'Hidden from public listings — click to show'}
-      className={`shrink-0 relative inline-flex items-center h-5 w-9 rounded-full transition-colors ${visible ? 'bg-emerald-500' : 'bg-foreground/20'}`}
+      aria-disabled={disabled}
+      onClick={disabled ? undefined : onChange}
+      tabIndex={disabled ? -1 : 0}
+      title={
+        disabled
+          ? 'Publish this post first — visibility only matters once it has a live URL'
+          : visible
+            ? 'Visible on the public site — click to hide'
+            : 'Hidden from public listings — click to show'
+      }
+      className={`shrink-0 relative inline-flex items-center h-5 w-9 rounded-full transition-colors ${
+        disabled ? 'bg-foreground/10 cursor-not-allowed' : visible ? 'bg-emerald-500' : 'bg-foreground/20'
+      }`}
     >
-      <span className="sr-only">{visible ? 'Visible' : 'Hidden'}</span>
+      <span className="sr-only">{disabled ? 'Not yet published' : visible ? 'Visible' : 'Hidden'}</span>
       <span
-        className={`absolute top-0.5 inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${visible ? 'translate-x-[18px]' : 'translate-x-0.5'}`}
+        className={`absolute top-0.5 inline-block h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+          visible ? 'translate-x-[18px]' : 'translate-x-0.5'
+        } ${disabled ? 'opacity-70' : ''}`}
       />
     </button>
   );

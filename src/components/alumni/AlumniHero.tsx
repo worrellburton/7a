@@ -37,7 +37,7 @@ export default function AlumniHero() {
       <video
         ref={videoRef}
         src={siteVideos.sonoranRanch}
-        poster="/images/group-gathering-pavilion.jpg"
+        poster="/hero/group-gathering-pavilion.jpg"
         autoPlay
         muted
         loop

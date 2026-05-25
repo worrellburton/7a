@@ -160,6 +160,26 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M5 16l.6 1.8L7.4 18.4l-1.8.6L5 20.8l-.6-1.8L2.6 18.4l1.8-.6z" />
     </svg>
   ),
+  // Daily touchpoint logs — a stack of horizontal logs (🪵), to
+  // echo the wood-stack metaphor the page itself uses for each
+  // recorded contact.
+  '/app/logs': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <ellipse cx="6" cy="7" rx="2" ry="1.5" />
+      <path d="M6 7h12" />
+      <path d="M18 7v2" />
+      <ellipse cx="18" cy="9" rx="2" ry="1.5" />
+      <path d="M6 7v2" />
+      <path d="M6 11h12" />
+      <ellipse cx="6" cy="11" rx="2" ry="1.5" />
+      <ellipse cx="18" cy="13" rx="2" ry="1.5" />
+      <path d="M18 11v2" />
+      <path d="M6 15h12" />
+      <ellipse cx="6" cy="15" rx="2" ry="1.5" />
+      <ellipse cx="18" cy="17" rx="2" ry="1.5" />
+      <path d="M18 15v2" />
+    </svg>
+  ),
   '/app/website-requests': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 4h16v12H5.17L4 17.17V4z" />
@@ -287,11 +307,6 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
     </svg>
   ),
-  '/app/admissions': (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-    </svg>
-  ),
   '/app/partnerships': (
     // Two interlocking handshake / network nodes — referral partners
     // are people connected to other people, so the visual is two
@@ -403,6 +418,75 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M12 3a14 14 0 010 18M12 3a14 14 0 000 18" />
     </svg>
   ),
+  // ── Alumni portal ──────────────────────────────────────────
+  // Hub: a circle of small dots around a center — the community
+  // metaphor that also reads in the sidebar search.
+  '/app/alumni': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="12" cy="4" r="1.5" />
+      <circle cx="20" cy="12" r="1.5" />
+      <circle cx="12" cy="20" r="1.5" />
+      <circle cx="4" cy="12" r="1.5" />
+      <circle cx="17.5" cy="6.5" r="1.2" />
+      <circle cx="17.5" cy="17.5" r="1.2" />
+      <circle cx="6.5" cy="17.5" r="1.2" />
+      <circle cx="6.5" cy="6.5" r="1.2" />
+    </svg>
+  ),
+  // Map: classic folded-map glyph
+  '/app/alumni/map': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 4l-6 2v14l6-2 6 2 6-2V4l-6 2-6-2z" />
+      <path d="M9 4v14" />
+      <path d="M15 6v14" />
+      <circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+  // Peer support: phone handset
+  '/app/alumni/peer-support': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z" />
+    </svg>
+  ),
+  // Meetups: two people / handshake
+  '/app/alumni/meetups': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="7" r="3" />
+      <path d="M2 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2" />
+      <circle cx="17" cy="6" r="2.5" />
+      <path d="M22 21v-1.5a3 3 0 0 0-3-3h-1" />
+    </svg>
+  ),
+  // Scholarships: graduation cap
+  '/app/alumni/scholarships': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 10L12 5 2 10l10 5 10-5z" />
+      <path d="M6 12v5c3 2.5 9 2.5 12 0v-5" />
+      <path d="M22 10v6" />
+    </svg>
+  ),
+  // Resources: open book / library
+  '/app/alumni/resources': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v17H6.5a2.5 2.5 0 0 0 0 5H20" />
+      <path d="M8 6h8M8 10h8" />
+    </svg>
+  ),
+  // Voices & talks: speech bubble with quote mark
+  '/app/alumni/stories': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+      <path d="M9 9c.5 0 1 .5 1 1 0 .8-.5 1.3-1 1.5M14 9c.5 0 1 .5 1 1 0 .8-.5 1.3-1 1.5" />
+    </svg>
+  ),
+  // Moderation: shield (staff-only review queue)
+  '/app/alumni/moderation': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2l8 4v6c0 5-3.5 9.5-8 10-4.5-.5-8-5-8-10V6l8-4z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  ),
 };
 
 function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {
@@ -458,7 +542,7 @@ function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
 }
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin, departmentId, status, userKind, sidebarRecentPaths, sidebarClickCount, recordSidebarVisit, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
+  const { user, loading, isAdmin, isSuperAdmin, departmentId, status, userKind, sidebarRecentPaths, sidebarClickCount, recordSidebarVisit, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
   const isAlumni = userKind === 'alumni';
   const { navPages, popupPages, isPageAllowedForDepartment, isPageAllowedForDepartmentSet, userOverrides, userExtraDepartmentIds } = usePagePermissions();
   const pathname = usePathname();
@@ -534,9 +618,12 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     const override = userOverrides[item.path];
     if (override === false) return false;
     if (override === true) return true;
-    // Alumni-only pages are exclusive: only user_kind='alumni' sees
-    // them, regardless of admin / super-admin / department rules.
-    if (item.alumniOnly) return isAlumni;
+    // Alumni-only pages: alumni see them by membership, AND super
+    // admins see them too so they can administer + spot-check the
+    // alumni portal without switching accounts. Regular staff +
+    // department admins are still gated out — that's the privacy
+    // boundary the alumni rely on. (Was: `return isAlumni;`.)
+    if (item.alumniOnly) return isAlumni || isSuperAdmin;
     // Alumni only see pages explicitly marked alumni-only (handled
     // above). Everything else in /app is staff-facing.
     if (isAlumni) return false;
@@ -926,10 +1013,15 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           page on group-hover, restoring labels + section headers
           via an opacity fade. Click-away or unhover collapses back. */}
       <aside data-sidebar-rail className="group/sidebar w-16 shrink-0 hidden lg:block relative z-30">
-        {/* Sticky sized to the real viewport; `app-shell` applies
-            zoom: 0.82 at lg+, so a plain h-screen renders at only
-            82% of the real height. */}
-        <div className="sticky top-0 h-[calc(100vh/0.82)]">
+        {/* Sticky sized to the real viewport. The `100vh/0.82`
+            divisor here was compensating for `.app-shell { zoom: 0.82 }`
+            at lg+, but that transform was removed (see globals.css —
+            "removing the transform so the platform renders at 100%
+            on every breakpoint"). With no zoom, the divisor pushed
+            the sticky wrapper to ~122vh, dropping the bottom-pinned
+            user chip + popup menu below the visible viewport. Plain
+            `h-screen` matches the real viewport again. */}
+        <div className="sticky top-0 h-screen">
         {/* Inner glass panel — overlay layer that grows from w-16
             (collapsed) to w-64 (expanded) on hover. Glass treatment
             lives here now so the column-only collapsed state still
@@ -953,7 +1045,15 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         <div className="px-6 py-5 border-b border-gray-100">
           <Link href="/app" className={`flex items-center gap-2.5 transition-all duration-500 ease-out ${navMounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
             <SevenArrowsLogo />
-
+            {/* Wordmark only renders once the rail expands. Same
+                group-hover/sidebar gate the search bar + Other-pages
+                section use, so the collapsed icon-rail stays clean. */}
+            <span
+              className="hidden group-hover/sidebar:inline text-[15px] font-semibold tracking-tight text-foreground/85 lowercase"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              feather
+            </span>
           </Link>
         </div>
 
@@ -996,17 +1096,36 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             let animIdx = 0;
             const renderLink = (item: PageConfig) => {
               const idx = animIdx++;
-              const isActive = pathname === item.path;
+              // Active route logic — exact match OR `pathname is a
+              // sub-route of item.path`. Catches /app/admissions/leads/123
+              // for an item.path of /app/admissions so deep links still
+              // light up the parent nav row. Excludes the bare "/app"
+              // dashboard from matching every /app/* (otherwise Home would
+              // be permanently "active") by requiring the +'/' suffix.
+              const isActive = item.path === pathname
+                || (item.path !== '/app' && pathname?.startsWith(item.path + '/'));
               // External-URL entries (e.g. "Website" → marketing
               // site) render as a target="_blank" anchor instead of
               // a Next Link. The recency visit still fires so they
               // participate in reordering like internal pages.
-              const commonClassName = `group/nav relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium overflow-hidden transition-all duration-500 ease-out motion-reduce:transition-none hover:shadow-[0_4px_14px_-6px_rgba(188,107,74,0.35)] ${
+              // Active treatment: 3px copper left border via the
+              // ::before pseudo-element on the parent (border on the
+              // pill itself would clash with the rounded-xl shape),
+              // font-semibold lift, and a subtle warm-sand background
+              // pulled from the same primary tint used elsewhere in
+              // the sidebar so the active state reads in lockstep
+              // with the brand.
+              const commonClassName = `group/nav relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm overflow-hidden transition-all duration-500 ease-out motion-reduce:transition-none hover:shadow-[0_4px_14px_-6px_rgba(188,107,74,0.35)] ${
                 isActive
-                  ? 'bg-primary/12 text-primary shadow-[inset_0_0_0_1px_rgba(188,107,74,0.18)]'
-                  : 'text-foreground/60 hover:text-foreground'
+                  ? 'font-semibold bg-warm-bg/70 text-primary shadow-[inset_3px_0_0_0_var(--color-primary),inset_0_0_0_1px_rgba(188,107,74,0.18)]'
+                  : 'font-medium text-foreground/60 hover:text-foreground'
               } ${navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'}`;
               const commonStyle = { fontFamily: 'var(--font-body)', transitionDelay: `${idx * 50}ms` } as const;
+              // Use ARIA's exact spec: aria-current='page' when active,
+              // attribute fully omitted when not. Don't pass aria-current
+              // ='false' — screen readers treat that the same as 'page'
+              // on some platforms.
+              const ariaCurrent: 'page' | undefined = isActive ? 'page' : undefined;
               if (item.externalUrl) {
                 return (
                   <a
@@ -1018,6 +1137,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); }}
                     className={commonClassName}
                     style={commonStyle}
+                    aria-current={ariaCurrent}
                   >
                     {/* External-link svg slipped in next to the icon
                         so the label still aligns with internal rows. */}
@@ -1064,6 +1184,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   }}
                   className={commonClassName}
                   style={commonStyle}
+                  aria-current={ariaCurrent}
                 >
                   {/* Phase 2: sliding pill background — primary-tinted
                       gradient that grows from the left edge on hover.
@@ -1305,7 +1426,13 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           rail is hidden, so letting the body scroll naturally avoids
           the double-scrollbar (page + main panel) iOS shows when this
           element is taller than the viewport. */}
-      <div data-platform-main className="flex-1 lg:overflow-auto relative">
+      <div data-platform-main className="flex-1 min-w-0 lg:overflow-auto relative">
+        {/* min-w-0 — flex items default to min-width:auto, which lets
+            an inner element with a wide intrinsic content width
+            (long paragraph, button row, table) push this panel past
+            the viewport on mobile. The page then renders horizontally
+            scrollable and iOS Safari hijacks pinch-to-zoom-out as a
+            swipe-back, leaving the user "zoomed in" with no escape. */}
         {/* Mobile top bar */}
         <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-14 bg-white/90 backdrop-blur border-b border-gray-100">
           <button
@@ -1319,8 +1446,14 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <Link href="/app" aria-label="Seven Arrows Recovery">
+          <Link href="/app" aria-label="Seven Arrows Recovery" className="inline-flex items-center gap-2">
             <SevenArrowsLogo size="sm" />
+            <span
+              className="text-[14px] font-semibold tracking-tight text-foreground/85 lowercase"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              feather
+            </span>
           </Link>
           <div className="w-10" aria-hidden="true" />
         </div>
@@ -1341,13 +1474,19 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               {/* Header: brand (taps through to today's log surface) + close */}
               <div className="flex items-center justify-between p-5 border-b border-gray-100 shrink-0">
                 <Link
-                  href="/app/daily-logs"
+                  href="/app/logs"
                   onClick={() => setMobileMenuOpen(false)}
                   className="flex items-center gap-2.5"
                   aria-label="Daily logs"
                   title="Daily logs"
                 >
                   <SevenArrowsLogo />
+                  <span
+                    className="text-[15px] font-semibold tracking-tight text-foreground/85 lowercase"
+                    style={{ fontFamily: 'var(--font-display)' }}
+                  >
+                    feather
+                  </span>
                 </Link>
                 <button
                   onClick={() => setMobileMenuOpen(false)}

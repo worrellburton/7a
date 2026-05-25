@@ -6,6 +6,13 @@ import FAQIntake from '@/components/faqs/FAQIntake';
 import FAQCTA from '@/components/faqs/FAQCTA';
 import { allFaqs } from '@/components/faqs/faqData';
 
+// 1-hour ISR — marketing pages are otherwise fully static; this lets the
+// edge cache hold the rendered HTML so TTFB drops from ~250ms (cold SSR)
+// to ~30ms (edge hit). Editorial copy + image swaps go live within an hour
+// of merging; if you need sub-hour freshness on a specific page, override
+// with a smaller value or remove this line.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'FAQs | Arizona Drug & Alcohol Rehab — Seven Arrows Recovery',
   description:
@@ -23,7 +30,7 @@ export const metadata: Metadata = {
       'Direct answers to common rehab questions — admissions, insurance, detox, treatment length, family, dual diagnosis, aftercare, and privacy.',
     images: [
       {
-        url: '/images/common-area-living-room.jpg',
+        url: '/hero/common-area-living-room.jpg',
         width: 1200,
         height: 630,
         alt: 'Common area at Seven Arrows Recovery in Cochise County, Arizona',

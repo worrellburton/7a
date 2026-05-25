@@ -90,6 +90,11 @@ interface OrbitHorse {
 
 interface Props {
   users: OrbitUser[];
+  /** Alumni online today — render as the OUTERMOST ring around
+   *  the staff (middle) + horse (inner) rings. Falls back to []
+   *  when no alumni were online so the older two-ring layout
+   *  still works for staff-only deployments. */
+  alumni?: OrbitUser[];
   horses?: OrbitHorse[];
   pathLabelFor: (path: string | null) => string | null;
   /** When set, the matching avatar gets a copper pulse ring —
@@ -281,7 +286,7 @@ function OrbitTooltip({
   );
 }
 
-export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, highlightUserId = null }: Props) {
+export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathLabelFor, highlightUserId = null }: Props) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   // Tooltips were previously pinned under the 7A medallion to dodge
@@ -360,11 +365,18 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
   // because the team count is light. Clamped between 240px (a tidy
   // ring for sparse teams) and 500px (so the orbit + tagline fit on
   // one viewport without scrolling on a typical laptop screen).
+  // Outer alumni ring overhangs the staff ring by ~18% (the
+  // staff ring sits at inset-[7%]; alumni live at inset-[-11%]
+  // visually, but we paint them on the SAME aspect-square box
+  // with a slightly larger orbit-slot radius via negative inset
+  // below). The radius in arc-length terms is ~1.18× the staff
+  // radius, so we back-solve a comfort minimum from there too.
   const usersNeeded = (users.length * 64) / Math.PI;
   const horsesNeeded = (horses.length * 40) / (0.6 * Math.PI);
+  const alumniNeeded = (alumni.length * 56) / (1.18 * Math.PI);
   const idealDiameter = Math.max(
     240,
-    Math.min(500, Math.round(Math.max(usersNeeded, horsesNeeded))),
+    Math.min(560, Math.round(Math.max(usersNeeded, horsesNeeded, alumniNeeded))),
   );
 
   return (
@@ -687,6 +699,83 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
           })}
         </div>
 
+        {/* Outermost ring — alumni online today. Pinned to a
+            NEGATIVE inset so the alumni avatars orbit at a larger
+            radius than the staff ring above. Counter-rotates
+            (opposite spin direction) so the three rings read as
+            three distinct motions instead of a single drift.
+            Smaller avatars (sm:w-10) than the staff ring so the
+            visual hierarchy stays "staff = primary, alumni =
+            ambient community around them". */}
+        {alumni.length > 0 && (
+          <div
+            className={`orbit-ring absolute inset-[-12%] motion-reduce:!animate-none ${mounted ? 'orbit-spin-rev' : ''} ${hovered ? 'orbit-paused' : ''}`}
+          >
+            {alumni.map((u, i) => {
+              const angle = (i / alumni.length) * 360;
+              const online = isOnlineNow(u.last_seen_at);
+              const slotStyle: CSSProperties = { transform: `rotate(${angle}deg)` };
+              const pinStyle: CSSProperties = {
+                ['--angle' as string]: `${angle}deg`,
+                ['--enter-delay' as string]: `${500 + i * 65}ms`,
+              };
+              return (
+                <div key={`alum-${u.id}`} className="orbit-slot" style={slotStyle}>
+                  <div
+                    className={`orbit-pin group ${mounted ? 'orbit-pin-in' : 'orbit-pin-pre'}`}
+                    style={pinStyle}
+                    title={`${u.full_name || 'Alumni'} · alumni community`}
+                    aria-label={`${u.full_name || 'Alumni'} (alumni)`}
+                  >
+                    <span className={`motion-reduce:!animate-none ${mounted ? 'orbit-counter-rev' : ''}`}>
+                      <span className="block" style={{ transform: `rotate(${-angle}deg)` }}>
+                        <span className="relative block">
+                          {u.avatar_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={u.avatar_url}
+                              alt={u.full_name || ''}
+                              referrerPolicy="no-referrer"
+                              width={40}
+                              height={40}
+                              decoding="async"
+                              className={`block w-7 h-7 sm:w-9 sm:h-9 rounded-full object-cover border-2 ${
+                                online
+                                  ? 'border-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.55)]'
+                                  : 'border-violet-200/70 shadow-sm'
+                              }`}
+                            />
+                          ) : (
+                            <span
+                              className={`flex w-7 h-7 sm:w-9 sm:h-9 rounded-full items-center justify-center text-xs font-bold border-2 bg-violet-500/85 text-white ${
+                                online ? 'border-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.55)]' : 'border-violet-200/70'
+                              }`}
+                            >
+                              {(u.full_name || '?').charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                          {online && (
+                            <span aria-hidden="true" className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-violet-400 border-2 border-white" />
+                          )}
+                          {/* Tiny "alum" label tucked under-right
+                              so the alumni ring reads as distinct
+                              from the staff ring at a glance. */}
+                          <span
+                            aria-hidden="true"
+                            className="absolute -bottom-3 left-1/2 -translate-x-1/2 px-1 py-0 rounded text-[7.5px] font-bold uppercase tracking-[0.18em] bg-violet-500/15 text-violet-700"
+                          >
+                            Alum
+                          </span>
+                        </span>
+                      </span>
+                    </span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         </div>
       </div>
 
@@ -712,9 +801,15 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
            (which produced visible per-avatar rotation over time). */
         @property --orbit-angle      { syntax: '<angle>'; initial-value: 0deg; inherits: true; }
         @property --orbit-angle-slow { syntax: '<angle>'; initial-value: 0deg; inherits: true; }
+        /* Counter-clockwise variable for the alumni ring. Same
+           single-source-of-truth pattern as --orbit-angle so the
+           per-avatar counter-rotation stays locked to the parent
+           ring's spin. */
+        @property --orbit-angle-rev  { syntax: '<angle>'; initial-value: 0deg; inherits: true; }
 
         @keyframes orbit-angle-tick      { to { --orbit-angle: 360deg; } }
         @keyframes orbit-angle-tick-slow { to { --orbit-angle-slow: 360deg; } }
+        @keyframes orbit-angle-tick-rev  { to { --orbit-angle-rev:  -360deg; } }
 
         /* GPU layer promotion. Without these hints mobile (especially
            iOS Safari and older Android Chromium) re-rasterises the
@@ -755,6 +850,15 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
           animation: orbit-angle-tick-slow 180s linear infinite;
           transform: rotate(var(--orbit-angle-slow)) translateZ(0);
         }
+        /* Alumni outer ring · 150s counter-clockwise. The negative
+           keyframe end value means rotate() ticks DOWN from 0 to
+           -360°, giving the appearance of the alumni orbiting the
+           opposite direction from the staff + horse rings. Reads
+           as three distinct motions instead of one drift. */
+        .orbit-spin-rev {
+          animation: orbit-angle-tick-rev 150s linear infinite;
+          transform: rotate(var(--orbit-angle-rev)) translateZ(0);
+        }
 
         /* Each avatar's counter rotation reads the same variable the
            parent ring is animating and applies the negation. Because
@@ -764,23 +868,27 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
            every frame. The result: ring rotates around the centre,
            individual avatars never rotate, no drift. */
         .orbit-counter,
-        .orbit-counter-slow {
+        .orbit-counter-slow,
+        .orbit-counter-rev {
           display: inline-block;
           will-change: transform;
           backface-visibility: hidden;
         }
         .orbit-counter      { transform: rotate(calc(-1 * var(--orbit-angle)))      translateZ(0); }
         .orbit-counter-slow { transform: rotate(calc(-1 * var(--orbit-angle-slow))) translateZ(0); }
+        .orbit-counter-rev  { transform: rotate(calc(-1 * var(--orbit-angle-rev)))  translateZ(0); }
 
         /* When any avatar is hovered we freeze the rings (and their
            paired counter-rotations) so the trigger stays pinned under
            the cursor and the portaled tooltip — anchored to that
            trigger's getBoundingClientRect — stays glued to the avatar
-           instead of drifting off as the ring spins. Pausing both
-           directions simultaneously keeps faces upright while frozen. */
+           instead of drifting off as the ring spins. Pausing all
+           three directions simultaneously keeps faces upright while
+           frozen. */
         .orbit-ring.orbit-paused,
         .orbit-ring.orbit-paused .orbit-counter,
-        .orbit-ring.orbit-paused .orbit-counter-slow {
+        .orbit-ring.orbit-paused .orbit-counter-slow,
+        .orbit-ring.orbit-paused .orbit-counter-rev {
           animation-play-state: paused;
         }
 

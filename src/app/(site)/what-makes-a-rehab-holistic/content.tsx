@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "What Makes a Rehab Holistic" },
         ]}
         description="Holistic rehab centers take a comprehensive approach to addiction treatment, addressing not only the physical aspects of addiction but also the emotional, mental, and spiritual components. These centers recognize that addiction…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Inpatient Mental Health Facilities in Arizona" },
         ]}
         description="Understanding how to find the best inpatient mental health facilities in Arizona is crucial in your journey to healing and recovery. With various options available, each offering different approaches and services, it can be…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

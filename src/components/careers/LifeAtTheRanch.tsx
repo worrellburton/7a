@@ -11,31 +11,31 @@ interface Tile {
 
 const tiles: Tile[] = [
   {
-    src: '/images/facility-exterior-mountains.jpg',
+    src: '/hero/facility-exterior-mountains.jpg',
     alt: 'Seven Arrows facility exterior with the Swisshelm Mountains behind',
     caption: '160 acres at the base of the Swisshelms',
     span: 'lg:col-span-2 lg:row-span-2',
   },
   {
-    src: '/images/group-therapy-room.jpg',
+    src: '/hero/group-therapy-room.jpg',
     alt: 'Group therapy room with natural light',
     caption: 'Small groups, real depth',
     span: '',
   },
   {
-    src: '/images/horses-grazing.jpg',
+    src: '/hero/horses-grazing.jpg',
     alt: 'Ranch horses grazing at Seven Arrows',
     caption: 'A resident herd, always on campus',
     span: '',
   },
   {
-    src: '/images/covered-porch-desert-view.jpg',
+    src: '/hero/covered-porch-desert-view.jpg',
     alt: 'Covered porch at Seven Arrows overlooking the desert',
     caption: 'Where a lot of the best conversations happen',
     span: '',
   },
   {
-    src: '/images/sign-night-sky-milky-way.jpg',
+    src: '/hero/sign-night-sky-milky-way.jpg',
     alt: 'Seven Arrows sign under a Milky Way night sky',
     caption: 'A dark-sky preserve out the back door',
     span: 'lg:col-span-2',

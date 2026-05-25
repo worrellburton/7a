@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Exercise and Addiction Recovery 4 Ways to Rewire Your Brain" },
         ]}
         description="Substance abuse and addiction wire your brain to prioritize substances above everything else. Your lifestyle bends to accommodate them, and your enjoyment of things you used to love slowly wanes. One of the ways that these…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

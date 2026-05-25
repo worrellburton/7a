@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "What to Look for Local Detox Center" },
         ]}
         description="When beginning the journey to recovery, knowing what to look for in a local detox center or rehab is one of the most important decisions you can make. Detox is the first and often most challenging phase of overcoming addiction.…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

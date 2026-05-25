@@ -235,19 +235,19 @@ export const alcoholContent: SubstanceContent = {
         quote:
           'I slept through a whole night for the first time in a decade on day twenty-two. I cried at breakfast. Nobody at the ranch was surprised — they told me it always comes back.',
         attribution: 'Alumna · 2 years sober · high-functioning pattern',
-        photo: '/images/covered-porch-desert-view.jpg',
+        photo: '/hero/covered-porch-desert-view.jpg',
       },
       {
         quote:
           'The equine work broke something open. A horse that had refused me all week walked up and put her head on my chest. I had not realized how braced my body had been for years.',
         attribution: 'Alumnus · 18 months sober · alcohol + cannabis',
-        photo: '/images/facility-exterior-mountains.jpg',
+        photo: '/hero/facility-exterior-mountains.jpg',
       },
       {
         quote:
           'This was my fourth treatment center. The difference here was the sequencing — they did not push me into trauma work until my nervous system could actually hold it. That was the missing piece.',
         attribution: 'Alumnus · 14 months sober · prior multiple relapses',
-        photo: '/images/group-sunset-desert.jpg',
+        photo: '/hero/group-sunset-desert.jpg',
       },
     ],
   },

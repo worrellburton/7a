@@ -1,5 +1,12 @@
 import type { Metadata } from 'next';
 
+// 1-hour ISR — marketing pages are otherwise fully static; this lets the
+// edge cache hold the rendered HTML so TTFB drops from ~250ms (cold SSR)
+// to ~30ms (edge hit). Editorial copy + image swaps go live within an hour
+// of merging; if you need sub-hour freshness on a specific page, override
+// with a smaller value or remove this line.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'Areas We Serve | Seven Arrows Recovery, Arizona',
   description:
@@ -58,7 +65,7 @@ export default function AreasWeServePage() {
           { label: 'Areas We Serve' },
         ]}
         description="Seven Arrows Recovery is located in southeastern Arizona at the base of the Swisshelm Mountains. We serve individuals and families across Arizona and beyond."
-        image="/images/sign-night-sky-milky-way.jpg"
+        image="/hero/sign-night-sky-milky-way.jpg"
         ctas={[
           {
             kind: 'phone',

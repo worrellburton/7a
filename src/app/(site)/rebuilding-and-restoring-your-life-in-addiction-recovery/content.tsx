@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Rebuilding and Restoring Your Life in Addiction Recovery" },
         ]}
         description="Recovery from substance abuse and addiction is a lifelong process and can come in many forms. But still many people continue to think that residential treatments and detox programs are the most important part of addiction…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

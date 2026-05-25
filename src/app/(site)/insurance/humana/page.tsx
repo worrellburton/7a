@@ -1,5 +1,12 @@
 import type { Metadata } from 'next';
 
+// 1-hour ISR — marketing pages are otherwise fully static; this lets the
+// edge cache hold the rendered HTML so TTFB drops from ~250ms (cold SSR)
+// to ~30ms (edge hit). Editorial copy + image swaps go live within an hour
+// of merging; if you need sub-hour freshness on a specific page, override
+// with a smaller value or remove this line.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'Humana Rehab Coverage | Seven Arrows Recovery',
   description:
@@ -94,7 +101,7 @@ export default function InsuranceHumanaPage() {
           { label: 'Humana' },
         ]}
         description="Seven Arrows Recovery accepts most Humana plans for drug and alcohol addiction treatment. Our admissions team verifies your behavioral health benefits at no cost and handles all insurance coordination."
-        image="/images/embrace-connection.jpg"
+        image="/hero/embrace-connection.jpg"
       />
 
       {/* Humana Overview */}

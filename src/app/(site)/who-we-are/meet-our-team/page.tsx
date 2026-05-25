@@ -33,7 +33,7 @@ export default async function MeetOurTeamPage() {
   const lindsay = team.find((m) =>
     /lindsay/i.test(m.full_name) && /roth/i.test(m.full_name),
   );
-  const directorImage = lindsay?.avatar_url || '/images/equine-therapy-portrait.jpg';
+  const directorImage = lindsay?.avatar_url || '/hero/equine-therapy-portrait.jpg';
 
   return (
     <>
@@ -50,7 +50,7 @@ export default async function MeetOurTeamPage() {
           { label: 'Meet Our Team' },
         ]}
         description="Behind every successful recovery is a dedicated team of professionals. At Seven Arrows Recovery, our clinicians, therapists, and support staff bring expertise, empathy, and genuine care to everything they do."
-        image="/images/equine-therapy-portrait.jpg"
+        image="/hero/equine-therapy-portrait.jpg"
         ctas={[
           {
             kind: 'phone',

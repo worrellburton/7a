@@ -3,7 +3,7 @@ import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 
 // GET /api/contacts/logs-today
 //
-// Powers /app/daily-logs and the HomeDailyLogsChip on /app.
+// Powers /app/logs and the HomeDailyLogsChip on /app.
 //
 // Query param:
 //   range = today | this_week | last_week | this_month | last_month | all_time
@@ -319,7 +319,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Window-count rollup — one log-count per date range so the
-  // glowing chart on /app/daily-logs renders all six bars in a
+  // glowing chart on /app/logs renders all six bars in a
   // single round-trip. Computed in-memory from the same `history`
   // sweep we already pulled for the records section, so this is
   // free; no extra DB query.
@@ -339,6 +339,20 @@ export async function GET(req: NextRequest) {
     if (k >= lastMonthStartKey && k < thisMonthStartKey) counts.last_month += 1;
   }
 
+  // Weekly time series — last WEEKS_BACK Phoenix-Monday-anchored
+  // weeks ending with the current (in-progress) week, oldest →
+  // newest. Pre-filled with zeros so a quiet week still draws a
+  // point on the line instead of a gap that misleads the reader.
+  const WEEKS_BACK = 6;
+  const weekSlots: Array<{ weekStart: string; count: number }> = [];
+  let cursor = thisWeekStartKey;
+  for (let i = 0; i < WEEKS_BACK; i++) {
+    weekSlots.push({ weekStart: cursor, count: weekCount.get(cursor) ?? 0 });
+    cursor = addDaysKey(cursor, -7);
+  }
+  weekSlots.reverse();
+  const trimmed = weekSlots;
+
   return NextResponse.json({
     range,
     rangeLabel: win.label,
@@ -353,5 +367,6 @@ export async function GET(req: NextRequest) {
       dayBestByUser,
     },
     windowCounts: counts,
+    weeklySeries: trimmed,
   });
 }

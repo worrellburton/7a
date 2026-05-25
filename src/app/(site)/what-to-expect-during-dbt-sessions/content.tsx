@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "What to Expect During Dbt Sessions" },
         ]}
         description="Finding the perfect therapy solution for your addiction recovery or mental health needs can seem daunting. At Seven Arrows Recovery, we pride ourselves on offering highly effective therapies grounded in scientific research. DBT,…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

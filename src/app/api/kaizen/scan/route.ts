@@ -10,6 +10,10 @@ import { runKaizenScan } from '@/lib/kaizen-scan';
 // cron uses /api/cron/kaizen/scan instead.
 
 export const dynamic = 'force-dynamic';
+// Match the cron route — a manual scan calls the same Claude opus
+// pipeline and can hit the same cold-start timeout. See
+// /api/cron/kaizen/scan/route.ts for the why.
+export const maxDuration = 300;
 
 export async function POST(req: NextRequest) {
   const gate = await requireSuperAdmin(req, 'Only super admins can run Kaizen scans.');

@@ -1,7 +1,28 @@
+import withBundleAnalyzerFactory from '@next/bundle-analyzer';
+import { withSentryConfig } from '@sentry/nextjs';
+
+// Bundle analyzer — enabled when ANALYZE=true is set on a build,
+// otherwise a no-op wrapper. Run with `ANALYZE=true npm run build`
+// to dump a treemap of every route's first-load JS into a browser
+// tab. Useful for catching regressions before they ship.
+const withBundleAnalyzer = withBundleAnalyzerFactory({
+  enabled: process.env.ANALYZE === 'true',
+  openAnalyzer: true,
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    unoptimized: true,
+    // Next-image optimizer ON. The two heroes we hand-rolled via
+    // <picture> still work (they don't go through next/image). Any
+    // future <Image> usage will automatically serve AVIF / WebP /
+    // responsive srcset variants from the same source file.
+    // Audited in phase 6: only `BlogPostMeta.tsx` currently imports
+    // next/image, and it uses no remote hosts — so flipping the
+    // flag is safe without an `remotePatterns` allowlist today.
+    // Add remote hosts here when a future <Image src=https://...>
+    // ships (Supabase storage, Brandfetch, etc.).
+    formats: ['image/avif', 'image/webp'],
   },
 
   // Tell Next.js NOT to auto-redirect trailing slashes (its default
@@ -213,4 +234,23 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry wrap. Tunnels client error reports through a same-origin
+// route so ad-blockers (which heavily target sentry.io domains)
+// don't drop them silently. Source map upload only happens when
+// SENTRY_AUTH_TOKEN is present; locally it's a no-op.
+const withSentry = (cfg) =>
+  withSentryConfig(cfg, {
+    // CLI flags
+    silent: true,
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    // SDK behavior
+    widenClientFileUpload: true,
+    tunnelRoute: '/monitoring/sentry',
+    hideSourceMaps: true,
+    disableLogger: true,
+    automaticVercelMonitors: false,
+  });
+
+export default withSentry(withBundleAnalyzer(nextConfig));

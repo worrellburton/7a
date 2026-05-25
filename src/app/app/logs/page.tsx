@@ -1,9 +1,10 @@
-import LogsContent from './content';
+import type { Metadata } from 'next';
+import DailyLogsContent from './content';
 
-export const metadata = {
-  title: 'Daily logs · Feather',
+export const metadata: Metadata = {
+  title: 'Daily logs',
 };
 
-export default function LogsPage() {
-  return <LogsContent />;
+export default function DailyLogsPage() {
+  return <DailyLogsContent />;
 }

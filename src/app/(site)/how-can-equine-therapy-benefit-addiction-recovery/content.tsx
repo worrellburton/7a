@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "How Can Equine Therapy Benefit Addiction Recovery?" },
         ]}
         description="Addiction is an ongoing issue affecting millions of people worldwide. Whether it’s substances like drugs and alcohol or behaviors such as gambling, addiction disrupts lives, fractures families, and depletes communities.…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

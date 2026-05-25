@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -69,7 +68,14 @@ const fallbackHeroSources: HeroSource[] = [
 // Poster shown until the first <video> frame paints. Eliminates the
 // black flash between page load and video decode. Static asset, so
 // it lands with the HTML/CSS rather than over the video pipeline.
-const HERO_POSTER = '/images/facility-exterior-mountains.jpg';
+// Poster swapped to the pre-encoded variants under /public/hero/.
+// AVIF (119 KB, 77% smaller than the source) ships to ~97% of
+// browsers via the <picture> source below; older Safari/embeds get
+// the JPEG fallback (232 KB). next/image's automatic AVIF emission
+// is disabled site-wide (next.config `unoptimized: true`), so we
+// hand-roll the picture element below to actually deliver AVIF.
+const HERO_POSTER_JPG = '/hero/facility-exterior-mountains.jpg';
+const HERO_POSTER_AVIF = '/hero/facility-exterior-mountains.avif';
 
 /* ── Ticker Items ──────────────────────────────────────────────────── */
 
@@ -269,7 +275,7 @@ function Mp4Slide({
       muted
       loop={isOnly}
       playsInline
-      poster={HERO_POSTER}
+      poster={HERO_POSTER_JPG}
       // Active slide preloads aggressively; inactive slides hold off
       // so they don't compete with the active clip for bandwidth on
       // first paint. The poster covers the brief gap on rotation.
@@ -341,15 +347,23 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
             and effectively hides it. The video <slide>s now treat the
             same path as a transparent fallback rather than the canonical
             first paint. */}
-        <Image
-          src={HERO_POSTER}
-          alt=""
-          aria-hidden="true"
-          priority
-          fill
-          sizes="100vw"
-          className="absolute inset-0 z-0 object-cover"
-        />
+        <picture className="absolute inset-0 z-0 block w-full h-full" aria-hidden="true">
+          <source srcSet={HERO_POSTER_AVIF} type="image/avif" sizes="100vw" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={HERO_POSTER_JPG}
+            alt=""
+            width={1920}
+            height={1080}
+            sizes="100vw"
+            // @ts-expect-error fetchPriority is valid HTML on img
+            // but React's TS types lag the spec on older versions.
+            fetchpriority="high"
+            loading="eager"
+            decoding="async"
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        </picture>
         {/* Rotating video stack */}
         {sources.map((src, i) => (
           <div
