@@ -585,6 +585,35 @@ export default function HomeContent() {
                 small document icon next to the + keeps the
                 quick-access without invading the orbit. */}
             <div className={`shrink-0 flex items-center gap-2 ${userKind === 'alumni' ? 'hidden' : ''}`}>
+            {/* Pending-signature pill — amber, urgent, sits LEFT
+                of the signed-JD pill so the eye reads 'need to
+                sign' first. If multiple pending, only the first
+                title shows; count chip indicates the rest. */}
+            {pendingSignatures.length > 0 && (
+              <button
+                type="button"
+                onClick={() => router.push(`/app/sign/${pendingSignatures[0].id}`)}
+                title={pendingSignatures.length === 1
+                  ? `Sign: ${pendingSignatures[0].title}`
+                  : `${pendingSignatures.length} job descriptions waiting for your signature — open the first.`}
+                aria-label={`${pendingSignatures.length} pending signature${pendingSignatures.length === 1 ? '' : 's'} — open ${pendingSignatures[0].title}`}
+                className="inline-flex items-center gap-1.5 h-9 lg:h-10 pl-3 pr-3.5 rounded-full bg-amber-100/85 border border-amber-300 text-amber-900 hover:bg-amber-100 hover:border-amber-400 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 max-w-[14rem] sm:max-w-xs"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                <svg className="w-4 h-4 text-amber-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 113 3L7 19l-4 1 1-4 12.5-12.5z" />
+                </svg>
+                <span className="text-[12px] font-semibold truncate">
+                  Sign: {pendingSignatures[0].title}
+                </span>
+                {pendingSignatures.length > 1 && (
+                  <span className="shrink-0 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-amber-700 text-white text-[10px] font-bold tabular-nums">
+                    {pendingSignatures.length}
+                  </span>
+                )}
+              </button>
+            )}
             {latestSignedJd && (
               latestSignedJd.pdfUrl ? (
                 <a
