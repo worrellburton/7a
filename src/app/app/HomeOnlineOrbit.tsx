@@ -373,7 +373,11 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
   // radius, so we back-solve a comfort minimum from there too.
   const usersNeeded = (users.length * 64) / Math.PI;
   const horsesNeeded = (horses.length * 40) / (0.6 * Math.PI);
-  const alumniNeeded = (alumni.length * 56) / (1.18 * Math.PI);
+  // Alumni ring now sits at inset -30%, so its arc radius is
+  // about 1.6× the staff radius. Back-solve the comfort minimum
+  // diameter using that multiplier so a packed alumni roster
+  // fans out instead of clumping.
+  const alumniNeeded = (alumni.length * 56) / (1.6 * Math.PI);
   const idealDiameter = Math.max(
     240,
     Math.min(560, Math.round(Math.max(usersNeeded, horsesNeeded, alumniNeeded))),
@@ -421,13 +425,15 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
           one fans out to 680px. `w-full` still clamps to the viewport
           on phones, so the px-4 padding keeps mobile avatars off the
           screen edges without needing a hard breakpoint cap. */}
-      {/* pt-20 reserves vertical clearance above the orbit's
-          aspect-square box so the alumni ring (inset -22%, ie
-          overhangs ~22% above the container) doesn't poke into
-          the title block sitting just above. The same padding
-          appears below via pb-12 so the bottom alumni avatars
-          don't clip whatever block follows on the page. */}
-      <div className="w-full flex justify-center px-4 pt-20 pb-12">
+      {/* pt-32 reserves vertical clearance above the orbit's
+          aspect-square box so the alumni ring (inset -30%, ie
+          overhangs ~30% above the container) doesn't poke into
+          the title block sitting just above. Matching pb-20
+          guarantees the bottom alumni avatars don't clip into
+          whatever block follows. Also adds px-12 sm:px-16 so the
+          left/right alumni avatars stay visible inside the
+          viewport rather than colliding with the sidebar rail. */}
+      <div className="w-full flex justify-center px-12 sm:px-16 pt-32 pb-20">
         <div
           className="relative w-full aspect-square"
           style={{ maxWidth: `${idealDiameter}px` }}
@@ -698,17 +704,26 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
           })}
         </div>
 
-        {/* Outermost ring — alumni online today. Pinned to a
-            NEGATIVE inset so the alumni avatars orbit at a larger
-            radius than the staff ring above. Was -12% which made
-            top alumni avatars clip the title; -22% puts them in a
-            clearly separate orbit with room above the ring for
-            the "Online today" header. Counter-rotates (opposite
-            spin direction) so the three rings read as three
-            distinct motions. */}
+        {/* Decorative outermost ring border — sits exactly on the
+            alumni radius so the eye reads the alumni avatars as
+            following a real concentric track instead of floating
+            in space outside the inner two rings. */}
         {alumni.length > 0 && (
           <div
-            className={`orbit-ring absolute inset-[-22%] motion-reduce:!animate-none ${mounted ? 'orbit-spin-rev' : ''} ${hovered ? 'orbit-paused' : ''}`}
+            aria-hidden="true"
+            className="absolute inset-[-30%] rounded-full border border-violet-400/25"
+          />
+        )}
+
+        {/* Outermost ring — alumni online today. Pinned to a
+            NEGATIVE inset (-30%) so alumni orbit at a much larger
+            radius than the staff ring, reading as a distinct
+            outer halo with the decorative ring border tracing
+            their path. Counter-rotates so all three rings drift
+            in different directions. */}
+        {alumni.length > 0 && (
+          <div
+            className={`orbit-ring absolute inset-[-30%] motion-reduce:!animate-none ${mounted ? 'orbit-spin-rev' : ''} ${hovered ? 'orbit-paused' : ''}`}
           >
             {alumni.map((u, i) => {
               const angle = (i / alumni.length) * 360;
