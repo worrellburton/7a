@@ -29,7 +29,9 @@ const WPM = 220;
 
 export default async function BlogPreview() {
   const all = await getAllEpisodesNewestFirst();
-  const latest = all.slice(0, 3);
+  // 5 episodes: 1 oversized featured on the left + a 2×2 grid of
+  // older episodes on the right. Was 3 equal cards.
+  const latest = all.slice(0, 5);
   const total = all.length;
 
   return (
@@ -114,22 +116,23 @@ export default async function BlogPreview() {
           </div>
         </div>
 
-        {/* Episode cards. First card spans 2 cols on lg+ for a
-            "featured" treatment that breaks the symmetry; the
-            other two stack normally. Gives the section visual
-            rhythm that the previous 3-equal-cards row lacked. */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-6">
+        {/* Episode cards · 1 oversized featured on the far left,
+            then a 2x2 grid of 4 older episodes on the right.
+            Layout: 3 columns on lg+, featured spans col 1 + both
+            rows; the four siblings fill cols 2-3 × rows 1-2.
+            Below lg: stacks single-column for thumb reading. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 lg:grid-rows-2 gap-5 lg:gap-6 lg:auto-rows-fr">
           {latest.map((ep, idx) => {
             const isFeatured = idx === 0;
             return (
               <Link
                 key={ep.slug}
                 href={episodeHref(ep.slug)}
-                className={`relative bg-white rounded-2xl overflow-hidden shadow-[0_8px_28px_-16px_rgba(60,40,30,0.18)] group block no-underline transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_18px_44px_-18px_rgba(160,82,45,0.30)] ${
+                className={`relative bg-white rounded-2xl overflow-hidden shadow-[0_8px_28px_-16px_rgba(60,40,30,0.18)] group block no-underline transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_18px_44px_-18px_rgba(160,82,45,0.30)] flex flex-col ${
                   isFeatured ? 'lg:row-span-2 lg:col-span-1' : ''
                 }`}
               >
-                <div className={`relative ${isFeatured ? 'h-56 lg:h-[340px]' : 'h-48'}`}>
+                <div className={`relative ${isFeatured ? 'h-56 lg:h-[260px]' : 'h-40 lg:h-[150px]'}`}>
                   <img
                     src={episodeImage(ep)}
                     alt={ep.imageAlt}
@@ -163,7 +166,7 @@ export default async function BlogPreview() {
                     )}
                   </div>
                 </div>
-                <div className="p-5 lg:p-6">
+                <div className={`flex-1 ${isFeatured ? 'p-5 lg:p-6' : 'p-4 lg:p-5'}`}>
                   <div className="flex items-center gap-2 mb-2 text-[10.5px]">
                     <span
                       className="text-primary font-semibold uppercase tracking-[0.16em]"
