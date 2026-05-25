@@ -419,9 +419,20 @@ function MegaMenuDropdown({
   const [open, setOpen] = useState(false);
   const timeout = useRef<ReturnType<typeof setTimeout>>(null);
 
+  // Stabilize the parent's onOpenChange callback through a ref so
+  // the effect below only fires when `open` actually changes —
+  // not every time the parent re-renders. Without this, the
+  // parent's inline callback gets a new identity on every render;
+  // the effect re-fires; calls onOpenChange(open) repeatedly; the
+  // parent's openDropdowns counter cascades and the nav-color
+  // treatment flickered on / off mid-hover. This was the "WHO WE
+  // ARE / OUR PROGRAM nav turns white then disappears" bug.
+  const onOpenChangeRef = useRef(onOpenChange);
+  useEffect(() => { onOpenChangeRef.current = onOpenChange; }, [onOpenChange]);
+
   useEffect(() => {
-    onOpenChange?.(open);
-  }, [open, onOpenChange]);
+    onOpenChangeRef.current?.(open);
+  }, [open]);
 
   // Panel theme flips with the nav — translucent dark when the nav is
   // sitting on the dark hero, solid white after you scroll past it.
