@@ -103,14 +103,15 @@ export default async function DbBlogPage({ params }: { params: Promise<{ slug: s
   return (
     <>
       <BlogPostJsonLd episode={episode} author={author} reviewer={reviewer} />
-      {/* Byline rides above the layout body, mirroring how the
-          static hand-coded posts compose Hero → Byline → Content.
-          DbBlogRenderer owns the hero block, so the byline goes
-          right after the renderer's max-width wrapper has opened. */}
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        <AuthorByline episode={episode} author={author} reviewer={reviewer} />
-      </div>
-      <DbBlogRenderer layout={row.layout} />
+      {/* Byline now rides AFTER the hero (image + title + tagline)
+          inside DbBlogRenderer instead of above it, so the read
+          order is Hero → Title → Byline → Content. The renderer
+          splices the byline in right after the first hero block;
+          posts without a hero get it at the very top. */}
+      <DbBlogRenderer
+        layout={row.layout}
+        byline={<AuthorByline episode={episode} author={author} reviewer={reviewer} />}
+      />
     </>
   );
 }
