@@ -245,18 +245,22 @@ export async function POST(req: NextRequest) {
   // compact 24px round mark each, three across, centered with 16px
   // gaps. Links use the real 7A handles.
   if (includeSocialFooter) {
-    // Monochrome marks via simpleicons.org so the row reads as one
-    // consistent treatment instead of three mismatched brand logos
-    // (the previous brandfetch URLs returned the official full-color
-    // marks — the LinkedIn one in particular renders as fragmented
-    // bevelled "in" letters at small sizes on dark backgrounds).
-    // Color flips off the campaign's COLOR MODE: white on dark mode,
-    // near-black on light mode so the icons always read with high
-    // contrast against the email's background.
+    // Monochrome marks. Instagram + Facebook come from simpleicons.org
+    // (still available there), LinkedIn is self-hosted at
+    // /public/icons/linkedin-{ink|white}.svg because Simple Icons
+    // removed LinkedIn from their library after a trademark request
+    // and the CDN now serves an empty response for that slug — that
+    // was the broken icon the marketers were seeing in the
+    // FOLLOW ALONG row. Self-hosting decouples us from any future
+    // CDN brand pulls. Color flips off the campaign's COLOR MODE:
+    // white on dark mode, near-black on light mode so the icons
+    // always read with high contrast against the email's background.
     const iconHex = darkMode ? 'ffffff' : '1a1a1a';
     const igIcon = `https://cdn.simpleicons.org/instagram/${iconHex}`;
     const fbIcon = `https://cdn.simpleicons.org/facebook/${iconHex}`;
-    const liIcon = `https://cdn.simpleicons.org/linkedin/${iconHex}`;
+    const liIcon = darkMode
+      ? 'https://sevenarrowsrecoveryarizona.com/icons/linkedin-white.svg'
+      : 'https://sevenarrowsrecoveryarizona.com/icons/linkedin-ink.svg';
     ctxLines.push(
       `INCLUDE SOCIAL FOOTER: yes. Add a small social row INSIDE the footer block (PILLAR 10), directly above the closing phone-number line, with a single hairline rule above it for separation. Treatment:
   - A small uppercase eyebrow centered above the icons: "FOLLOW ALONG" (10.5px, letter-spacing 0.22em, Copper #b87333).
