@@ -1448,17 +1448,10 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               aria-label="Account menu"
               className="absolute bottom-full left-3 right-3 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-y-auto z-50 max-h-[calc(100vh-120px)] py-1"
             >
-              <Link
-                href="/app/profile"
-                onClick={() => setUserMenuOpen(false)}
-                className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                </svg>
-                My Profile
-              </Link>
+              {/* 'My Profile' is reachable from the avatar click +
+                  sidebar pin; keeping it in the popup duplicated
+                  the same destination users already had two
+                  obvious ways to reach. */}
               {popupPages.filter(canSeePage).filter((p) => p.path !== '/app/profile' && p.path !== '/app/alumni/profile').map((item) => (
                 <Link
                   key={item.path}

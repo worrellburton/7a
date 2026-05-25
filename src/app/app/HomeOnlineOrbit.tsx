@@ -443,18 +443,22 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
             the corresponding avatar ring (inset-[7%] sm:inset-0
             for staff; inset-[20%] for horses) so the eye reads
             each ring of avatars as sitting on its own real track
-            instead of floating between mismatched guide lines. */}
+            instead of floating between mismatched guide lines.
+            pointer-events-none is critical — without it, these
+            full-size invisible boxes capture hover/click events on
+            the staff and horse pins underneath them, breaking the
+            tooltip. */}
         <div
           aria-hidden="true"
-          className="absolute inset-[7%] sm:inset-0 rounded-full border border-primary/15"
+          className="pointer-events-none absolute inset-[7%] sm:inset-0 rounded-full border border-primary/15"
         />
         <div
           aria-hidden="true"
-          className="absolute inset-[20%] rounded-full border border-primary/10"
+          className="pointer-events-none absolute inset-[20%] rounded-full border border-primary/10"
         />
         <div
           aria-hidden="true"
-          className="absolute inset-[36%] rounded-full bg-gradient-to-br from-primary/[0.07] via-accent/[0.05] to-transparent"
+          className="pointer-events-none absolute inset-[36%] rounded-full bg-gradient-to-br from-primary/[0.07] via-accent/[0.05] to-transparent"
         />
         {/* Centre 7A — small glass pill, kept understated so the
             orbiting team avatars stay the focus. `backdrop-blur` is
