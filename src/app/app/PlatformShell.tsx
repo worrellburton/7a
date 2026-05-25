@@ -180,22 +180,14 @@ const pageIcons: Record<string, React.ReactNode> = {
   // Daily touchpoint logs — a stack of horizontal logs (🪵), to
   // echo the wood-stack metaphor the page itself uses for each
   // recorded contact.
+  // Logs · the one emoji icon in the rail. Every other entry uses
+  // a stroked SVG glyph to keep the sidebar visually uniform; logs
+  // gets the literal 🪵 wood-log emoji as a small wink so the row
+  // is instantly identifiable when scanning a long sidebar.
   '/app/logs': (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <ellipse cx="6" cy="7" rx="2" ry="1.5" />
-      <path d="M6 7h12" />
-      <path d="M18 7v2" />
-      <ellipse cx="18" cy="9" rx="2" ry="1.5" />
-      <path d="M6 7v2" />
-      <path d="M6 11h12" />
-      <ellipse cx="6" cy="11" rx="2" ry="1.5" />
-      <ellipse cx="18" cy="13" rx="2" ry="1.5" />
-      <path d="M18 11v2" />
-      <path d="M6 15h12" />
-      <ellipse cx="6" cy="15" rx="2" ry="1.5" />
-      <ellipse cx="18" cy="17" rx="2" ry="1.5" />
-      <path d="M18 15v2" />
-    </svg>
+    <span className="w-5 h-5 inline-flex items-center justify-center text-[18px] leading-none" aria-hidden="true">
+      🪵
+    </span>
   ),
   '/app/website-requests': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -1336,18 +1328,30 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       label would be noise. Regular staff also
                       don't see it because they don't see alumni-only
                       pages at all. */}
-                  {isSuperAdmin && !isAlumni && (item.alumniOnly || item.path === '/app/chat' || item.path === '/app/arcade') && (
-                    <span
-                      aria-label={item.alumniOnly ? 'alumni-only page' : 'alumni page'}
-                      className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[8.5px] font-bold uppercase tracking-[0.14em] whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 ${
-                        item.alumniOnly
-                          ? 'bg-violet-500/15 text-violet-700 border border-violet-500/30'
-                          : 'bg-violet-500/8 text-violet-700/80 border border-violet-500/15'
-                      }`}
-                    >
-                      {item.alumniOnly ? 'Alumni only' : 'Alumni'}
-                    </span>
-                  )}
+                  {/* Cross-portal paths (Chat, Arcade) are ALWAYS
+                      'Alumni' even if a stale DB row toggled them
+                      alumni_only=true — they're shared with staff
+                      by definition, so 'Alumni only' would be
+                      misleading. Pure alumni-only pages still get
+                      the louder 'Alumni only' chip. */}
+                  {(() => {
+                    const crossPortal = item.path === '/app/chat' || item.path === '/app/arcade';
+                    const showChip = isSuperAdmin && !isAlumni && (item.alumniOnly || crossPortal);
+                    if (!showChip) return null;
+                    const labelOnly = item.alumniOnly && !crossPortal;
+                    return (
+                      <span
+                        aria-label={labelOnly ? 'alumni-only page' : 'alumni page'}
+                        className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[8.5px] font-bold uppercase tracking-[0.14em] whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 ${
+                          labelOnly
+                            ? 'bg-violet-500/15 text-violet-700 border border-violet-500/30'
+                            : 'bg-violet-500/8 text-violet-700/80 border border-violet-500/15'
+                        }`}
+                      >
+                        {labelOnly ? 'Alumni only' : 'Alumni'}
+                      </span>
+                    );
+                  })()}
                   {(navBadges[item.path] ?? 0) > 0 && (
                     <span
                       aria-label={`${navBadges[item.path]} new`}
