@@ -60,6 +60,12 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
   const [subject, setSubject] = useState('');
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Subset of `selected` whose send_status='sent' on this campaign.
+  // These are LOCKED — the marketer can see them pre-checked but
+  // can't uncheck them, and persistRecipientsAndSubject refuses to
+  // delete them. Protects 'send to more contacts' from wiping
+  // history.
+  const [alreadySent, setAlreadySent] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
   // Selected type chips (Detox / PHP / IOP / …). Multi-select with
   // OR semantics — a contact matches when ANY of its `type` values
@@ -105,7 +111,7 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
           .order('name', { ascending: true })
           .limit(1000),
         supabase.from('email_campaign_recipients')
-          .select('contact_id')
+          .select('contact_id, send_status')
           .eq('campaign_id', campaignId),
       ]);
       if (cancelled) return;
@@ -113,11 +119,20 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
       setCampaign(c);
       setSubject(c?.generated_subject ?? '');
       setContacts((contactsRes.data ?? []) as ContactRow[]);
+      // Pre-check every contact already on this campaign so the
+      // marketer can see who's been hit before adding more. The
+      // sent-set is the subset whose send_status is 'sent' —
+      // those rows are locked: persistRecipientsAndSubject below
+      // refuses to delete them so a 'Send to more contacts' pass
+      // can never accidentally erase the campaign's send history.
       const existing = new Set<string>();
-      for (const r of (existingRes.data ?? []) as Array<{ contact_id: string }>) {
+      const sent = new Set<string>();
+      for (const r of (existingRes.data ?? []) as Array<{ contact_id: string; send_status: string | null }>) {
         existing.add(r.contact_id);
+        if (r.send_status === 'sent') sent.add(r.contact_id);
       }
       setSelected(existing);
+      setAlreadySent(sent);
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -204,6 +219,10 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
   }, [contacts, query, typeFilter]);
 
   const toggle = (id: string) => {
+    // Already-sent contacts are locked — can't be unchecked, the
+    // server-side delete-guard also won't remove their row, but
+    // we block the UI flip so the checkbox visibly stays in.
+    if (alreadySent.has(id)) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
@@ -217,7 +236,10 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
       return next;
     });
   };
-  const clearAll = () => setSelected(new Set());
+  // Clearing the selection still preserves already-sent rows so a
+  // 'select fresh contacts only' workflow can use this button to
+  // wipe pending picks without wiping campaign history.
+  const clearAll = () => setSelected(new Set(alreadySent));
 
   // Selected ids that overlap the recent-send set. Drives the
   // pre-finalize confirmation modal. Memoised so the button can
@@ -282,10 +304,13 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
 
     const { data: existingRows } = await supabase
       .from('email_campaign_recipients')
-      .select('id, contact_id')
+      .select('id, contact_id, send_status')
       .eq('campaign_id', campaignId);
-    const toDelete = ((existingRows ?? []) as Array<{ id: string; contact_id: string }>)
-      .filter((r) => !wantedSet.has(r.contact_id))
+    // Don't delete a row that's already been sent — that's the
+    // campaign's send history. The marketer might forget to keep
+    // it checked when adding new contacts; we protect it anyway.
+    const toDelete = ((existingRows ?? []) as Array<{ id: string; contact_id: string; send_status: string | null }>)
+      .filter((r) => !wantedSet.has(r.contact_id) && r.send_status !== 'sent')
       .map((r) => r.id);
     if (toDelete.length > 0) {
       await supabase.from('email_campaign_recipients').delete().in('id', toDelete);
@@ -535,26 +560,41 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
             {filtered.map((c) => {
               const on = selected.has(c.id);
               const recent = recentSends.get(c.id);
+              const sentAlready = alreadySent.has(c.id);
               return (
                 <li key={c.id}>
                   <button
                     type="button"
                     onClick={() => toggle(c.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${on ? 'bg-primary/5' : 'hover:bg-warm-bg/40'}`}
+                    disabled={sentAlready}
+                    className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
+                      sentAlready ? 'bg-emerald-50/60 cursor-default' : on ? 'bg-primary/5' : 'hover:bg-warm-bg/40'
+                    }`}
+                    title={sentAlready ? 'Already sent — locked so the campaign history can\'t be erased.' : undefined}
                   >
                     <span
-                      className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border ${on ? 'bg-primary border-primary' : 'bg-white border-black/20'}`}
+                      className={`inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                        sentAlready ? 'bg-emerald-500 border-emerald-500' : on ? 'bg-primary border-primary' : 'bg-white border-black/20'
+                      }`}
                       aria-hidden
                     >
-                      {on && <span className="text-white text-[10px] leading-none">✓</span>}
+                      {(on || sentAlready) && <span className="text-white text-[10px] leading-none">✓</span>}
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-[13px] font-semibold text-foreground truncate flex items-center gap-2" style={{ fontFamily: 'var(--font-body)' }}>
                         <span className="truncate">{c.name}</span>
+                        {sentAlready && (
+                          <span
+                            className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9.5px] font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200"
+                            title="This contact already received this campaign. They won't get it again."
+                          >
+                            ✓ Already sent
+                          </span>
+                        )}
                         {/* Recent-send guardrail. Shown whether or
                             not the row is selected so the picker
                             sees it on first scan. */}
-                        {recent && (
+                        {recent && !sentAlready && (
                           <span
                             className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9.5px] font-semibold uppercase tracking-wider bg-amber-50 text-amber-800 border border-amber-200"
                             title={`Last emailed ${new Date(recent.last_sent_at).toLocaleString()}${recent.last_subject ? ` — '${recent.last_subject}'` : ''}`}

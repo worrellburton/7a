@@ -362,6 +362,16 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
             ← Edit recipients
           </Link>
         )}
+        {isSent && canSend && (
+          <Link
+            href={`/app/email-campaigns/${campaignId}/recipients`}
+            className="px-3.5 py-2 rounded-md bg-primary text-white text-[11.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 inline-flex items-center gap-1.5"
+            style={{ fontFamily: 'var(--font-body)' }}
+            title="Add more contacts to this campaign. Already-sent recipients are preserved; only newly-added ones receive the email."
+          >
+            📩 Send to more contacts
+          </Link>
+        )}
       </header>
 
       {isSent && (
