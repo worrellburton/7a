@@ -2,13 +2,22 @@
 
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { supabase } from '@/lib/supabase';
 import AlumniProfileEditor from '../_components/AlumniProfileEditor';
 
-// Alumni map — Phase 1 ships a LIST of opted-in alumni grouped by
-// city/state. Phase 3 swaps the list for an interactive map (Mapbox
-// or Leaflet); the underlying alumni_profiles query is the same so
-// the swap is render-layer only.
+// Phase 3 — interactive Leaflet map (ssr:false because Leaflet
+// imports `window` at module load). The list view stays as a
+// fallback below the map for accessibility + when nobody has
+// lat/lng yet.
+const AlumniMapCanvas = dynamic(() => import('../_components/AlumniMapCanvas'), {
+  ssr: false,
+  loading: () => (
+    <div className="rounded-2xl bg-warm-bg/30 border border-black/10 h-[60vh] min-h-[420px] flex items-center justify-center text-[12px] text-foreground/55 italic">
+      Loading map…
+    </div>
+  ),
+});
 
 interface AlumniPin {
   user_id: string;
@@ -21,6 +30,8 @@ interface AlumniPin {
   email_for_alumni: string | null;
   phone_visible: boolean;
   email_visible: boolean;
+  lat: number | null;
+  lng: number | null;
 }
 
 export default function AlumniMapContent() {
@@ -32,7 +43,7 @@ export default function AlumniMapContent() {
     setLoading(true);
     const { data } = await supabase
       .from('alumni_profiles')
-      .select('user_id, city, state, bio, interests, available_for, phone, email_for_alumni, phone_visible, email_visible')
+      .select('user_id, city, state, bio, interests, available_for, phone, email_for_alumni, phone_visible, email_visible, lat, lng')
       .eq('on_map', true)
       .order('state', { ascending: true })
       .order('city', { ascending: true });
@@ -75,6 +86,33 @@ export default function AlumniMapContent() {
           ➕ Add me to the map
         </button>
       </header>
+
+      {/* Interactive map — only pins with a geocoded lat/lng. The
+          list below stays visible too so an alum whose city hasn't
+          been geocoded yet still appears, and screen-reader users
+          have a textual fallback. */}
+      {!loading && pins.some((p) => p.lat != null && p.lng != null) && (
+        <div className="mb-8">
+          <AlumniMapCanvas
+            pins={pins
+              .filter((p): p is AlumniPin & { lat: number; lng: number } => p.lat != null && p.lng != null)
+              .map((p) => ({
+                user_id: p.user_id,
+                city: p.city,
+                state: p.state,
+                bio: p.bio,
+                interests: p.interests,
+                available_for: p.available_for,
+                phone: p.phone,
+                email_for_alumni: p.email_for_alumni,
+                phone_visible: p.phone_visible,
+                email_visible: p.email_visible,
+                lat: p.lat,
+                lng: p.lng,
+              }))}
+          />
+        </div>
+      )}
 
       {loading ? (
         <p className="text-[13px] text-foreground/55 italic">Loading…</p>

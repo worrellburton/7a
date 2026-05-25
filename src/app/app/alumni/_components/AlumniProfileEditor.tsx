@@ -123,6 +123,22 @@ export default function AlumniProfileEditor({
         .from('alumni_profiles')
         .upsert(payload, { onConflict: 'user_id' });
       if (error) throw error;
+      // Fire-and-mostly-forget geocode. If the user has on_map=true
+      // (or might toggle it on later), we need lat/lng for the map
+      // page to render their pin. The endpoint is idempotent and
+      // short-circuits when city + lat/lng already match, so calling
+      // it on every save is cheap. Failure here doesn't roll back
+      // the profile save — the map just shows no pin until the
+      // next successful geocode.
+      if (profile.city) {
+        try {
+          await fetch('/api/alumni/geocode', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ city: profile.city, state: profile.state }),
+          });
+        } catch { /* non-fatal */ }
+      }
       onSaved?.(profile);
       onClose();
     } catch (e) {

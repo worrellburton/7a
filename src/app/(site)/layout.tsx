@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import TopBar from '@/components/TopBar';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import BeforeFooterCTA from '@/components/BeforeFooterCTA';
 import InsuranceVerification from '@/components/InsuranceVerification';
 import BottomTicker from '@/components/BottomTickerServer';
 import GoogleReviewsBadge from '@/components/GoogleReviewsBadge';
@@ -42,13 +43,14 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
           band at the bottom is cheaper than reflowing the page
           every time the bar comes / goes. */}
       <main className="flex-1 pb-[calc(env(safe-area-inset-bottom)+96px)] lg:pb-0">{children}</main>
-      {/* Pre-footer conversion block. The dark InsuranceVerification
-          form replaces the older "Change your life with a single
-          call" CTA (BeforeFooterCTA) — both said the same thing in
-          adjacent sections, which read as repetitive. The form is
-          the better next-step affordance: it captures benefits
-          info on the spot. Mobile-only sticky phone bar (rendered
-          below) keeps tap-to-call always available regardless. */}
+      {/* Pre-footer conversion stack. Brought BeforeFooterCTA back
+          above the form — the dog-photo "Change your life with a
+          single call" block is the warm hook (anyone, casual), then
+          InsuranceVerification is the actionable form (people ready
+          to commit benefits info). Reading order: emotional → form.
+          Mobile-only sticky phone bar (rendered below) keeps
+          tap-to-call always available regardless. */}
+      <BeforeFooterCTA />
       <InsuranceVerification />
       <Footer />
       <BottomTicker />
