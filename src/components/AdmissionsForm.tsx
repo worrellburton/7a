@@ -152,8 +152,22 @@ export default function AdmissionsForm({ dark = false }: { dark?: boolean } = {}
   const labelCls = dark
     ? 'block text-[11px] font-semibold uppercase tracking-[0.16em] text-white/65 mb-1'
     : 'block text-sm font-semibold text-foreground mb-1';
+  // Switched the dark-mode background from `bg-white/[0.06] +
+  // backdrop-blur` to a SOLID rgba color. The translucent-over-
+  // backdrop-blur combo rendered inconsistently on native date /
+  // select inputs (mobile browsers composite their own chrome on
+  // top of those, which made DOB look noticeably darker than the
+  // text inputs above it). A solid rgba bg gives every input the
+  // exact same visual weight regardless of how the browser styles
+  // the native control inside.
+  //
+  // The `[&::-webkit-date-and-time-value]:text-white` rule keeps
+  // the date input's user-entered value the same color as the text
+  // inputs; the empty "mm/dd/yyyy" hint stays at the browser's
+  // default light-mode color because [color-scheme:dark] (applied
+  // at the call site) flips it to a matching white/35 tone.
   const inputCls = dark
-    ? 'w-full rounded-lg border border-white/15 bg-white/[0.06] supports-[backdrop-filter]:bg-white/[0.08] backdrop-blur px-3.5 py-2.5 text-[14px] text-white placeholder-white/35 focus:outline-none focus:ring-2 focus:ring-amber-200/40 focus:border-amber-200/40 transition-colors'
+    ? 'w-full rounded-lg border border-white/15 bg-[rgba(255,255,255,0.07)] px-3.5 py-2.5 text-[14px] text-white placeholder-white/35 [&::-webkit-date-and-time-value]:text-white [&::-webkit-calendar-picker-indicator]:opacity-60 [&::-webkit-calendar-picker-indicator]:hover:opacity-100 [&::-webkit-calendar-picker-indicator]:cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-200/40 focus:border-amber-200/40 transition-colors'
     : 'w-full rounded-lg border border-foreground/20 bg-white px-4 py-3 text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50';
   const optionalCls = dark ? 'font-normal text-white/35' : 'font-normal text-foreground/50';
 
