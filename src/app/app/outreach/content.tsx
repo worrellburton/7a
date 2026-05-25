@@ -4392,30 +4392,6 @@ function InsightsCard({ fallback }: { fallback: { week: number; month: number; t
         </div>
       )}
 
-      {/* Areas touched today */}
-      <div className="px-4 py-3 border-b border-black/5">
-        <div className="flex items-baseline justify-between gap-2 mb-2">
-          <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-foreground/55">Areas contacted today</p>
-          <p className="text-[10.5px] text-foreground/45 tabular-nums">{areas.length} {areas.length === 1 ? 'area' : 'areas'}</p>
-        </div>
-        {areas.length === 0 ? (
-          <p className="text-[11.5px] italic text-foreground/40">No contacts logged today yet.</p>
-        ) : (
-          <div className="flex flex-wrap gap-1.5">
-            {areas.slice(0, 12).map((a) => (
-              <span
-                key={a.area}
-                className="inline-flex items-center gap-1.5 rounded-full bg-warm-bg/60 border border-black/10 px-2.5 py-0.5 text-[11px] text-foreground/80"
-                title={`${a.count} ${a.count === 1 ? 'touchpoint' : 'touchpoints'} in ${a.area}`}
-              >
-                <span className="truncate max-w-[200px]">{a.area}</span>
-                <span className="tabular-nums text-foreground/55">{a.count}</span>
-              </span>
-            ))}
-          </div>
-        )}
-      </div>
-
       {/* Leaderboards. Gated behind showLogs so the home view stays
           compact by default — the Today / This week / This month
           rankings only mount when the user clicks the Logs-today

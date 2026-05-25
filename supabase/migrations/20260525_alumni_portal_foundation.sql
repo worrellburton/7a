@@ -168,3 +168,15 @@ create policy alumni_scholarships_admin_all on public.alumni_scholarships
   for all to authenticated using (
     exists (select 1 from public.users where id = auth.uid() and (is_admin = true or is_super_admin = true))
   );
+
+-- Let any authenticated user propose a meetup (lands in the
+-- moderation queue with is_published=false). Authors can also see
+-- their own pending proposal so the UI confirms submission.
+drop policy if exists alumni_meetups_propose on public.alumni_meetups;
+create policy alumni_meetups_propose on public.alumni_meetups
+  for insert to authenticated
+  with check (is_published = false and created_by = auth.uid());
+
+drop policy if exists alumni_meetups_select_own_pending on public.alumni_meetups;
+create policy alumni_meetups_select_own_pending on public.alumni_meetups
+  for select to authenticated using (created_by = auth.uid());

@@ -848,6 +848,10 @@ const ALUMNI_PORTAL_PATHS = new Set<string>([
   '/app/alumni/scholarships',
   '/app/alumni/resources',
   '/app/alumni/stories',
+  // Chat lives outside the /app/alumni/* tree but is part of the
+  // alumni's daily surface — group it inside the master toggle so
+  // a single flip enables / disables the whole community.
+  '/app/chat',
 ]);
 
 function isAlumniPortalPath(path: string): boolean {

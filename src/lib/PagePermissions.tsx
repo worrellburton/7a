@@ -123,7 +123,7 @@ const defaultPages: PageConfig[] = [
   // moderation page is the one exception — it's gated for staff.
   // Sort orders 100-107 keep alumni surfaces grouped at the
   // bottom of the alumni's sidebar.
-  { path: '/app/alumni', label: 'Alumni hub', adminOnly: false, section: 'nav', sort_order: 100, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni', label: 'Home', adminOnly: false, section: 'nav', sort_order: 100, allowedDepartments: [], departmentId: null, alumniOnly: true },
   { path: '/app/alumni/map', label: 'Alumni map', adminOnly: false, section: 'nav', sort_order: 101, allowedDepartments: [], departmentId: null, alumniOnly: true },
   { path: '/app/alumni/peer-support', label: 'Peer support', adminOnly: false, section: 'nav', sort_order: 102, allowedDepartments: [], departmentId: null, alumniOnly: true },
   { path: '/app/alumni/meetups', label: 'Meetups', adminOnly: false, section: 'nav', sort_order: 103, allowedDepartments: [], departmentId: null, alumniOnly: true },

@@ -418,6 +418,75 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M12 3a14 14 0 010 18M12 3a14 14 0 000 18" />
     </svg>
   ),
+  // ── Alumni portal ──────────────────────────────────────────
+  // Hub: a circle of small dots around a center — the community
+  // metaphor that also reads in the sidebar search.
+  '/app/alumni': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="12" cy="4" r="1.5" />
+      <circle cx="20" cy="12" r="1.5" />
+      <circle cx="12" cy="20" r="1.5" />
+      <circle cx="4" cy="12" r="1.5" />
+      <circle cx="17.5" cy="6.5" r="1.2" />
+      <circle cx="17.5" cy="17.5" r="1.2" />
+      <circle cx="6.5" cy="17.5" r="1.2" />
+      <circle cx="6.5" cy="6.5" r="1.2" />
+    </svg>
+  ),
+  // Map: classic folded-map glyph
+  '/app/alumni/map': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 4l-6 2v14l6-2 6 2 6-2V4l-6 2-6-2z" />
+      <path d="M9 4v14" />
+      <path d="M15 6v14" />
+      <circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+  // Peer support: phone handset
+  '/app/alumni/peer-support': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z" />
+    </svg>
+  ),
+  // Meetups: two people / handshake
+  '/app/alumni/meetups': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="7" r="3" />
+      <path d="M2 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2" />
+      <circle cx="17" cy="6" r="2.5" />
+      <path d="M22 21v-1.5a3 3 0 0 0-3-3h-1" />
+    </svg>
+  ),
+  // Scholarships: graduation cap
+  '/app/alumni/scholarships': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 10L12 5 2 10l10 5 10-5z" />
+      <path d="M6 12v5c3 2.5 9 2.5 12 0v-5" />
+      <path d="M22 10v6" />
+    </svg>
+  ),
+  // Resources: open book / library
+  '/app/alumni/resources': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v17H6.5a2.5 2.5 0 0 0 0 5H20" />
+      <path d="M8 6h8M8 10h8" />
+    </svg>
+  ),
+  // Voices & talks: speech bubble with quote mark
+  '/app/alumni/stories': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+      <path d="M9 9c.5 0 1 .5 1 1 0 .8-.5 1.3-1 1.5M14 9c.5 0 1 .5 1 1 0 .8-.5 1.3-1 1.5" />
+    </svg>
+  ),
+  // Moderation: shield (staff-only review queue)
+  '/app/alumni/moderation': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2l8 4v6c0 5-3.5 9.5-8 10-4.5-.5-8-5-8-10V6l8-4z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  ),
 };
 
 function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {
