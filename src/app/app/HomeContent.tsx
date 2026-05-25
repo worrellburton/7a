@@ -26,6 +26,9 @@ interface RecentUser {
   last_path: string | null;
   last_seen_at: string | null;
   status: 'active' | 'on_hold' | 'denied' | null;
+  // 'staff' / 'alumni' / 'guest' — drives the staff-vs-alumni
+  // ring split on the orbit. Null treated as staff.
+  user_kind?: 'staff' | 'alumni' | 'guest' | null;
   // Activity-feed counters, joined in client-side after the user
   // list loads. > 10 today flips the avatar into "on fire" mode in
   // the orbit; the tooltip shows the count + a few recent actions.
@@ -73,6 +76,7 @@ export default function HomeContent() {
   const { pages } = usePagePermissions();
   const router = useRouter();
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
+  const [recentAlumni, setRecentAlumni] = useState<RecentUser[]>([]);
   const [horses, setHorses] = useState<OrbitHorse[]>([]);
   const [pendingSignatures, setPendingSignatures] = useState<PendingSignature[]>([]);
   const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string; pdfUrl: string | null } | null>(null);
@@ -261,7 +265,7 @@ export default function HomeContent() {
     if (!session?.access_token) return;
     let cancelled = false;
     async function fetchRecentUsers() {
-      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, last_sign_in, last_seen_at, last_path, job_title, status', order: { column: 'last_sign_in', ascending: false } });
+      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, last_sign_in, last_seen_at, last_path, job_title, status, user_kind', order: { column: 'last_sign_in', ascending: false } });
       if (cancelled || !Array.isArray(data)) {
         setTimeout(() => setLoaded(true), 100);
         return;
@@ -277,7 +281,15 @@ export default function HomeContent() {
           u.last_sign_in &&
           new Date(u.last_sign_in) >= today,
       );
-      setRecentUsers(filtered);
+      // Split staff vs. alumni so the orbit can render them as
+      // separate rings (alumni become the outermost ring around
+      // employees + horses). user_kind null defaults to staff so
+      // legacy rows from before the column existed still appear
+      // on the employee ring.
+      const staff = filtered.filter((u) => u.user_kind !== 'alumni');
+      const alumni = filtered.filter((u) => u.user_kind === 'alumni');
+      setRecentUsers(staff);
+      setRecentAlumni(alumni);
       setTimeout(() => setLoaded(true), 100);
 
       // Second pass: pull today's activity_log rows and join them
@@ -660,7 +672,7 @@ export default function HomeContent() {
         {recentUsers.length > 0 && (
           <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed sm:absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
             <div className="pointer-events-auto flex flex-col items-center gap-3">
-              <HomeOnlineOrbit users={recentUsers} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
+              <HomeOnlineOrbit users={recentUsers} alumni={recentAlumni} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
               {/* Mobile-only chip — the desktop chip sits between the
                   centerpiece and the Seven Arrows tagline (further
                   down), but on mobile the orbit is fixed-positioned

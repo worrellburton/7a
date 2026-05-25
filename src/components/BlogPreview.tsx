@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { getAllEpisodesNewestFirst, episodeHref, episodeImage } from '@/lib/episodes';
+import { resolveAuthorAsync, resolveReviewer, type BlogAuthor } from '@/lib/blogAuthors';
 
 // Landing-page surfacing of the Recovery Roadmap series. Reads the
 // latest episodes from the shared episode manifest, including any
@@ -29,10 +30,22 @@ const WPM = 220;
 
 export default async function BlogPreview() {
   const all = await getAllEpisodesNewestFirst();
+  // Resolve the author + reviewer for each surfaced episode. Async
+  // resolver hits the public_slug table when the slug points at a
+  // teammate, otherwise falls back to the BLOG_AUTHORS seed — same
+  // resolution the JSON-LD writer uses on the public blog page so
+  // E-E-A-T attribution stays in sync across surfaces. Resolved in
+  // parallel so we don't add a 5x roundtrip to the LCP.
   // 5 episodes: 1 oversized featured on the left + a 2×2 grid of
   // older episodes on the right. Was 3 equal cards.
   const latest = all.slice(0, 5);
   const total = all.length;
+  const bylines = await Promise.all(
+    latest.map(async (ep) => ({
+      author: await resolveAuthorAsync(ep.authorSlug),
+      reviewer: ep.reviewerSlug ? resolveReviewer(ep.reviewerSlug) : null,
+    })),
+  );
 
   return (
     <section
@@ -124,6 +137,7 @@ export default async function BlogPreview() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 lg:grid-rows-2 gap-5 lg:gap-6 lg:auto-rows-fr">
           {latest.map((ep, idx) => {
             const isFeatured = idx === 0;
+            const byline = bylines[idx];
             return (
               <Link
                 key={ep.slug}
@@ -199,6 +213,14 @@ export default async function BlogPreview() {
                   >
                     {ep.blurb}
                   </p>
+                  {/* Byline · author + medical reviewer photo +
+                      name. Pulls from resolveAuthorAsync /
+                      resolveReviewer at the top of this server
+                      component so the same Person attribution that
+                      the JSON-LD writer emits shows up visually. */}
+                  {(byline.author || byline.reviewer) && (
+                    <Byline author={byline.author} reviewer={byline.reviewer} featured={isFeatured} />
+                  )}
                   <p
                     className="mt-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary/85 group-hover:text-primary inline-flex items-center gap-1"
                     style={{ fontFamily: 'var(--font-body)' }}
@@ -223,5 +245,65 @@ export default async function BlogPreview() {
         </div>
       </div>
     </section>
+  );
+}
+
+// Per-card byline. Renders the author always; the medical reviewer
+// is appended after a small separator dot when present and
+// distinct from the author. Featured cards get the larger 28px
+// avatar; the four sibling cards get a 22px avatar so the byline
+// doesn't dominate their tighter layout.
+function Byline({
+  author,
+  reviewer,
+  featured,
+}: {
+  author: BlogAuthor | null;
+  reviewer: BlogAuthor | null;
+  featured: boolean;
+}) {
+  const dim = featured ? 28 : 22;
+  const showReviewer = !!reviewer && reviewer.slug !== author?.slug;
+  return (
+    <div className="mt-3 flex items-center gap-2">
+      {author && <AuthorChip author={author} dim={dim} role="By" />}
+      {showReviewer && (
+        <>
+          <span aria-hidden="true" className="text-foreground/25 text-[10px]">·</span>
+          <AuthorChip author={reviewer} dim={dim} role="Reviewed by" />
+        </>
+      )}
+    </div>
+  );
+}
+
+function AuthorChip({ author, dim, role }: { author: BlogAuthor; dim: number; role: string }) {
+  const initial = author.name.trim().charAt(0).toUpperCase() || '·';
+  return (
+    <span className="inline-flex items-center gap-1.5 min-w-0" aria-label={`${role} ${author.name}`}>
+      {author.avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={author.avatarUrl}
+          alt=""
+          width={dim}
+          height={dim}
+          className="rounded-full object-cover border border-black/10 shrink-0"
+          style={{ width: dim, height: dim }}
+        />
+      ) : (
+        <span
+          aria-hidden="true"
+          className="rounded-full bg-warm-bg flex items-center justify-center text-foreground/55 font-semibold shrink-0"
+          style={{ width: dim, height: dim, fontSize: dim * 0.42 }}
+        >
+          {initial}
+        </span>
+      )}
+      <span className="flex flex-col min-w-0 leading-tight" style={{ fontFamily: 'var(--font-body)' }}>
+        <span className="text-[9.5px] font-semibold uppercase tracking-[0.14em] text-foreground/45">{role}</span>
+        <span className="text-[11.5px] font-semibold text-foreground/80 truncate">{author.name}</span>
+      </span>
+    </span>
   );
 }
