@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { requireSuperAdmin } from '@/lib/social-media-auth';
 import { ayrsharePost, AYRSHARE_PLATFORMS, AyrshareNotConfigured, type AyrsharePlatform } from '@/lib/ayrshare';
+import { readFlag } from '@/lib/app-flags';
 
 // POST /api/social-media/post
 //   body: {
@@ -30,6 +31,17 @@ export async function POST(req: Request) {
   const supabase = await getServerSupabase();
   const auth = await requireSuperAdmin(supabase);
   if (auth.response) return auth.response;
+
+  // Global posting kill switch — flipped via the toggle at the top
+  // of /app/social-media. When false, every POST is short-circuited
+  // server-side so a stale tab or scheduled cron can't bypass it.
+  const postingEnabled = await readFlag<boolean>('social_posting_enabled', false);
+  if (!postingEnabled) {
+    return NextResponse.json({
+      error: 'Social posting is paused. Flip the toggle at the top of /app/social-media to re-enable.',
+      code: 'posting_disabled',
+    }, { status: 423 });
+  }
 
   let body: Body;
   try { body = (await req.json()) as Body; } catch { body = {}; }
