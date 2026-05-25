@@ -201,6 +201,7 @@ export default function BlogEditor({ id }: { id: string }) {
               >
                 View as visitor
               </Link>
+              <GenerateSchemaButton blog={blog} />
             </div>
           </div>
           <p className="mt-3 text-[11px] text-foreground/45 font-mono">
@@ -1688,5 +1689,104 @@ function PublishPanel({ blog, token, onChange }: { blog: DbBlog; token: string |
         </button>
       )}
     </Panel>
+  );
+}
+
+/**
+ * Generate Article-schema JSON-LD for a published blog and copy
+ * it to the clipboard. The schema is built client-side from the
+ * blog row that's already loaded, so there's no API roundtrip —
+ * the marketer clicks, the JSON lands in their clipboard, they
+ * paste it wherever it needs to go (a CMS field, a content audit,
+ * Schema.org validator, etc.).
+ *
+ * Includes the fields Google's Article guidelines want most: name,
+ * headline, datePublished, author, image (first image from the
+ * layout), articleBody preview, and a stable @id pointing at the
+ * canonical URL.
+ */
+function GenerateSchemaButton({ blog }: { blog: DbBlog }) {
+  const [copied, setCopied] = useState(false);
+
+  function buildSchema() {
+    const url = `https://sevenarrowsrecoveryarizona.com/who-we-are/blog/${blog.slug}`;
+    // Pull the first image from the layout if there is one — Google
+    // requires an image on Article schema for rich-result eligibility.
+    const firstImage = (() => {
+      const blocks = (blog.layout?.blocks ?? []) as Array<{ kind?: string; url?: string }>;
+      for (const b of blocks) {
+        if ((b.kind === 'image' || b.kind === 'hero') && typeof b.url === 'string' && b.url.length > 0) {
+          return b.url;
+        }
+      }
+      return null;
+    })();
+    // ~160-char extract from the markdown body for description.
+    const description = (() => {
+      const text = (blog.body_markdown ?? '')
+        .replace(/[#*_>`~\-]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      return text.length > 200 ? text.slice(0, 197) + '…' : text;
+    })();
+    return {
+      '@context': 'https://schema.org',
+      '@type': 'Article',
+      '@id': `${url}#article`,
+      mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+      headline: blog.title || '(Untitled)',
+      name: blog.title || '(Untitled)',
+      description,
+      datePublished: blog.published_at ?? blog.created_at,
+      dateModified: blog.updated_at,
+      image: firstImage ? [firstImage] : undefined,
+      author: blog.author_slug
+        ? { '@type': 'Person', '@id': `https://sevenarrowsrecoveryarizona.com/who-we-are/team/${blog.author_slug}` }
+        : { '@type': 'Organization', name: 'Seven Arrows Recovery' },
+      reviewedBy: blog.reviewer_slug
+        ? {
+            '@type': 'Person',
+            '@id': `https://sevenarrowsrecoveryarizona.com/who-we-are/team/${blog.reviewer_slug}`,
+          }
+        : undefined,
+      publisher: {
+        '@type': 'MedicalBusiness',
+        '@id': 'https://sevenarrowsrecovery.com/#organization',
+        name: 'Seven Arrows Recovery',
+      },
+    };
+  }
+
+  async function onClick() {
+    try {
+      const schema = buildSchema();
+      const text = JSON.stringify(schema, null, 2);
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2200);
+    } catch {
+      // Clipboard API can throw on insecure contexts / older Safari —
+      // fall back to a window.prompt so the marketer can copy manually.
+      try {
+        window.prompt('Copy schema (Cmd/Ctrl+C):', JSON.stringify(buildSchema(), null, 2));
+      } catch {
+        /* truly nothing we can do */
+      }
+    }
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-[12.5px] font-semibold border transition-colors ${
+        copied
+          ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+          : 'border-foreground/15 bg-white text-foreground/75 hover:bg-warm-bg/60'
+      }`}
+      title="Copy Article JSON-LD schema for this post to the clipboard"
+    >
+      {copied ? '✓ Schema copied' : 'Generate schema'}
+    </button>
   );
 }
