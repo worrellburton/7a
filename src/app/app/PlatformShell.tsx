@@ -1455,7 +1455,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 </svg>
                 My Profile
               </Link>
-              {popupPages.filter(canSeePage).filter((p) => p.path !== '/app/profile').map((item) => (
+              {popupPages.filter(canSeePage).filter((p) => p.path !== '/app/profile' && p.path !== '/app/alumni/profile').map((item) => (
                 <Link
                   key={item.path}
                   href={item.path}
@@ -1687,9 +1687,9 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   popup pages live one tap deeper. */}
               {mobileAccountOpen && (
                 <>
-                  {popupPages.filter(canSeePage).filter((p) => p.path !== '/app/profile').length > 0 && (
+                  {popupPages.filter(canSeePage).filter((p) => p.path !== '/app/profile' && p.path !== '/app/alumni/profile').length > 0 && (
                     <ul className="p-3 border-t border-gray-100 space-y-0.5 max-h-[30vh] overflow-y-auto shrink-0">
-                      {popupPages.filter(canSeePage).filter((p) => p.path !== '/app/profile').map((item) => {
+                      {popupPages.filter(canSeePage).filter((p) => p.path !== '/app/profile' && p.path !== '/app/alumni/profile').map((item) => {
                         const isActive = pathname === item.path;
                         return (
                           <li key={item.path}>

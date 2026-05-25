@@ -381,22 +381,21 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
 
   return (
     <section
-      className="relative z-40 flex flex-col items-center justify-center w-full"
+      className="relative z-40 flex flex-col items-center w-full"
       aria-label="Online today"
     >
-      {/* Header — pinned above the ring as an overlay so it doesn't
-          add height to the section's vertical centre. The ring's
-          aspect-square box is what gets centered; the title floats
-          just above it in absolute space. The big negative `top` is
-          deliberate — the topmost avatars on the ring extend ~25px
-          past the section's top edge (they're translate(-50%) on
-          the rim), so a smaller offset would have the title text
-          collide with those avatars. Hidden on phones so the
-          orbit's centre medallion sits at the viewport's vertical
-          centre (the parent absolute-positions the orbit on mobile). */}
-      <div className="hidden sm:block absolute left-1/2 -translate-x-1/2 bottom-[calc(100%+1.25rem)] sm:bottom-[calc(100%+1.5rem)] lg:bottom-[calc(100%+2rem)] text-center pointer-events-none z-10">
+      {/* Title sits as a NORMAL block at the top of the section
+          instead of an absolutely-positioned overlay. The earlier
+          absolute layout floated the title above the orbit by a
+          fixed offset, which made the alumni outer ring (which
+          extends ~22% past the orbit container) clip into the
+          title text every time. Putting the title in flow + giving
+          the orbit container generous top padding below
+          guarantees no overlap regardless of how many alumni are
+          orbiting today. */}
+      <div className="hidden sm:block text-center pointer-events-none mb-2">
         <h2
-          className="mt-1 text-foreground font-bold tracking-tight"
+          className="text-foreground font-bold tracking-tight"
           style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 2.6vw, 1.85rem)' }}
         >
           Online <em className="not-italic text-primary">today</em>
@@ -422,7 +421,13 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
           one fans out to 680px. `w-full` still clamps to the viewport
           on phones, so the px-4 padding keeps mobile avatars off the
           screen edges without needing a hard breakpoint cap. */}
-      <div className="w-full flex justify-center px-4">
+      {/* pt-20 reserves vertical clearance above the orbit's
+          aspect-square box so the alumni ring (inset -22%, ie
+          overhangs ~22% above the container) doesn't poke into
+          the title block sitting just above. The same padding
+          appears below via pb-12 so the bottom alumni avatars
+          don't clip whatever block follows on the page. */}
+      <div className="w-full flex justify-center px-4 pt-20 pb-12">
         <div
           className="relative w-full aspect-square"
           style={{ maxWidth: `${idealDiameter}px` }}
