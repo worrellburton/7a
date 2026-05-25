@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/lib/AuthProvider';
 import AlumniProfileEditor from '../_components/AlumniProfileEditor';
 
 // Phase 3 — interactive Leaflet map (ssr:false because Leaflet
@@ -21,6 +22,8 @@ const AlumniMapCanvas = dynamic(() => import('../_components/AlumniMapCanvas'), 
 
 interface AlumniPin {
   user_id: string;
+  full_name: string | null;
+  avatar_url: string | null;
   city: string | null;
   state: string | null;
   bio: string | null;
@@ -35,22 +38,98 @@ interface AlumniPin {
 }
 
 export default function AlumniMapContent() {
+  const { user } = useAuth();
   const [pins, setPins] = useState<AlumniPin[]>([]);
   const [loading, setLoading] = useState(true);
   const [editorOpen, setEditorOpen] = useState(false);
+  // Current viewer's own on_map state — drives the header toggle.
+  // null = unknown (not loaded), true/false = explicit setting.
+  const [myOnMap, setMyOnMap] = useState<boolean | null>(null);
+  const [togglingMap, setTogglingMap] = useState(false);
+  // Whether the viewer has any alumni_profiles row at all. If not,
+  // flipping the toggle "on" needs to open the editor so they can
+  // set a city before they can land a pin.
+  const [hasProfile, setHasProfile] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    // Pull pins + each alum's avatar/full_name in one round-trip via
+    // a join — the map markers ARE their profile photos.
     const { data } = await supabase
       .from('alumni_profiles')
-      .select('user_id, city, state, bio, interests, available_for, phone, email_for_alumni, phone_visible, email_visible, lat, lng')
+      .select('user_id, city, state, bio, interests, available_for, phone, email_for_alumni, phone_visible, email_visible, lat, lng, users:user_id(full_name, avatar_url)')
       .eq('on_map', true)
       .order('state', { ascending: true })
       .order('city', { ascending: true });
-    setPins((data ?? []) as AlumniPin[]);
+    const flattened: AlumniPin[] = ((data ?? []) as Array<Record<string, unknown>>).map((row) => {
+      const usr = (row.users as { full_name?: string | null; avatar_url?: string | null } | null) ?? null;
+      return {
+        user_id: row.user_id as string,
+        full_name: usr?.full_name ?? null,
+        avatar_url: usr?.avatar_url ?? null,
+        city: (row.city as string | null) ?? null,
+        state: (row.state as string | null) ?? null,
+        bio: (row.bio as string | null) ?? null,
+        interests: Array.isArray(row.interests) ? (row.interests as string[]) : [],
+        available_for: Array.isArray(row.available_for) ? (row.available_for as string[]) : [],
+        phone: (row.phone as string | null) ?? null,
+        email_for_alumni: (row.email_for_alumni as string | null) ?? null,
+        phone_visible: !!row.phone_visible,
+        email_visible: !!row.email_visible,
+        lat: (row.lat as number | null) ?? null,
+        lng: (row.lng as number | null) ?? null,
+      };
+    });
+    setPins(flattened);
     setLoading(false);
-  }, []);
+
+    // Fetch the viewer's own row separately so we know the toggle
+    // state — they might be a pin themselves (loaded above) or
+    // they might have a row with on_map=false (filtered out above).
+    if (user?.id) {
+      const { data: own } = await supabase
+        .from('alumni_profiles')
+        .select('on_map, city')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (own) {
+        setHasProfile(true);
+        setMyOnMap(!!own.on_map);
+      } else {
+        setHasProfile(false);
+        setMyOnMap(false);
+      }
+    }
+  }, [user?.id]);
   useEffect(() => { void load(); }, [load]);
+
+  // Flip my on_map flag. If the user has no profile yet, route them
+  // into the full editor so they can land a city + pin location;
+  // a profile with no city geocodes to nothing and lands no pin.
+  async function toggleOnMap() {
+    if (!user?.id || togglingMap) return;
+    if (!hasProfile) {
+      // No row yet — open the editor so they can set city/state.
+      // The editor's save flow flips on_map true on its own.
+      setEditorOpen(true);
+      return;
+    }
+    setTogglingMap(true);
+    const next = !myOnMap;
+    setMyOnMap(next);
+    const { error } = await supabase
+      .from('alumni_profiles')
+      .update({ on_map: next })
+      .eq('user_id', user.id);
+    if (error) {
+      // Revert on failure so the toggle's optimistic flip stays
+      // honest about server state.
+      setMyOnMap(!next);
+    } else {
+      void load();
+    }
+    setTogglingMap(false);
+  }
 
   // Group by `state · city` so the list reads like a directory.
   const grouped = (() => {
@@ -78,13 +157,36 @@ export default function AlumniMapContent() {
             you choose what&rsquo;s visible.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setEditorOpen(true)}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-md bg-primary text-white text-[12px] font-semibold uppercase tracking-wider hover:bg-primary/90 shrink-0"
-        >
-          ➕ Add me to the map
-        </button>
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-foreground/55">
+            {myOnMap ? 'You’re on the map' : 'You’re not on the map'}
+          </span>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={!!myOnMap}
+            aria-label={myOnMap ? 'Remove me from the map' : 'Add me to the map'}
+            onClick={() => void toggleOnMap()}
+            disabled={togglingMap || myOnMap === null}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${
+              myOnMap ? 'bg-primary' : 'bg-foreground/20'
+            }`}
+            title={myOnMap ? 'Click to remove your pin' : 'Click to drop a pin'}
+          >
+            <span
+              className={`absolute top-0.5 inline-block h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                myOnMap ? 'translate-x-[22px]' : 'translate-x-0.5'
+              }`}
+            />
+          </button>
+          <button
+            type="button"
+            onClick={() => setEditorOpen(true)}
+            className="text-[11px] font-semibold uppercase tracking-wider text-foreground/55 hover:text-foreground"
+          >
+            Edit details
+          </button>
+        </div>
       </header>
 
       {/* Interactive map — only pins with a geocoded lat/lng. The
@@ -98,6 +200,8 @@ export default function AlumniMapContent() {
               .filter((p): p is AlumniPin & { lat: number; lng: number } => p.lat != null && p.lng != null)
               .map((p) => ({
                 user_id: p.user_id,
+                full_name: p.full_name,
+                avatar_url: p.avatar_url,
                 city: p.city,
                 state: p.state,
                 bio: p.bio,
