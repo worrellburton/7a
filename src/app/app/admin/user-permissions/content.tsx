@@ -836,6 +836,24 @@ export default function UserPermissionsContent() {
 // user_kind='alumni' (the PagePermissions gate enforces this on
 // route entry + sidebar render). Defaults to off so nothing is
 // hidden from staff without an explicit click.
+// Canonical list of /app/alumni/* routes. Drives the "All alumni
+// pages" master toggle: flipping it ON sets alumni_only=true on
+// every path in this list in one batched update, and the page
+// list below renders these paths in a dedicated highlighted group.
+const ALUMNI_PORTAL_PATHS = new Set<string>([
+  '/app/alumni',
+  '/app/alumni/map',
+  '/app/alumni/peer-support',
+  '/app/alumni/meetups',
+  '/app/alumni/scholarships',
+  '/app/alumni/resources',
+  '/app/alumni/stories',
+]);
+
+function isAlumniPortalPath(path: string): boolean {
+  return ALUMNI_PORTAL_PATHS.has(path);
+}
+
 interface PagePermRow {
   path: string;
   section: string | null;
@@ -882,6 +900,38 @@ function AlumniTab({ users, onApproveAlumni }: { users: AppUser[]; onApproveAlum
       setPages((prev) => prev?.map((p) => (p.path === path ? { ...p, alumni_only: !next } : p)) ?? prev);
     }
     setPendingPath(null);
+  }
+
+  // Bulk toggle for the alumni-portal page bundle. Flips every
+  // /app/alumni/* row's alumni_only in one go via parallel db
+  // updates; rolls back the whole set if any individual write
+  // fails (consistency > partial-success here — half-on, half-off
+  // is worse than no change at all). Used by the "All alumni
+  // pages" master toggle at the top of the alumni section.
+  async function toggleAllAlumniPortal(next: boolean) {
+    if (!pages) return;
+    setPendingPath('__all_alumni_portal__');
+    setError(null);
+    const targets = pages.filter((p) => isAlumniPortalPath(p.path));
+    setPages((prev) => prev?.map((p) => (isAlumniPortalPath(p.path) ? { ...p, alumni_only: next } : p)) ?? prev);
+    try {
+      await Promise.all(
+        targets.map((p) =>
+          db({
+            action: 'update',
+            table: 'page_permissions',
+            data: { alumni_only: next },
+            match: { path: p.path },
+          }),
+        ),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      // Roll the whole set back so we don't leave a partial state.
+      setPages((prev) => prev?.map((p) => (isAlumniPortalPath(p.path) ? { ...p, alumni_only: !next } : p)) ?? prev);
+    } finally {
+      setPendingPath(null);
+    }
   }
 
   // Group pages by their `section` so the UI mirrors the sidebar's
@@ -975,40 +1025,112 @@ function AlumniTab({ users, onApproveAlumni }: { users: AppUser[]; onApproveAlum
           <div className="px-5 py-6 text-sm text-foreground/55">Loading pages…</div>
         ) : pages.length === 0 ? (
           <div className="px-5 py-6 text-sm text-foreground/55">No pages registered.</div>
-        ) : (
-          <ol className="divide-y divide-gray-100">
-            {grouped.map(([section, rows]) => (
-              <li key={section} className="px-5 py-3">
-                <p className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 mb-2">{section}</p>
-                <ul className="space-y-1">
-                  {rows.map((p) => (
-                    <li key={p.path} className="flex items-center justify-between gap-3 py-1">
-                      <div className="min-w-0">
-                        <p className="text-[12.5px] font-medium text-foreground truncate">{p.path}</p>
-                        {p.admin_only && (
-                          <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold border bg-amber-50 text-amber-800 border-amber-200">Admin-only</span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => void toggleAlumniOnly(p.path, !p.alumni_only)}
-                        aria-pressed={p.alumni_only}
-                        disabled={pendingPath === p.path}
-                        className={`shrink-0 w-10 h-6 rounded-full transition-colors relative ${p.alumni_only ? 'bg-primary' : 'bg-foreground/15'} ${pendingPath === p.path ? 'opacity-60' : ''}`}
-                        title={p.alumni_only ? 'Alumni-only — staff cannot see this page' : 'Not alumni-only'}
-                      >
-                        <span
-                          aria-hidden
-                          className={`absolute top-0.5 ${p.alumni_only ? 'left-[18px]' : 'left-0.5'} w-5 h-5 rounded-full bg-white shadow transition-all`}
-                        />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ol>
-        )}
+        ) : (() => {
+          // Pull the alumni-portal pages out of the main grouped
+          // list so we can render them in their own highlighted
+          // group with the master toggle on top. Everything else
+          // flows through the original section-grouped list below.
+          const alumniPortalPages = pages.filter((p) => isAlumniPortalPath(p.path));
+          const otherGrouped = grouped
+            .map(([section, rows]) => [section, rows.filter((p) => !isAlumniPortalPath(p.path))] as const)
+            .filter(([, rows]) => rows.length > 0);
+          const allOn = alumniPortalPages.length > 0 && alumniPortalPages.every((p) => p.alumni_only);
+          const someOn = alumniPortalPages.some((p) => p.alumni_only);
+          const bulkPending = pendingPath === '__all_alumni_portal__';
+          return (
+            <ol className="divide-y divide-gray-100">
+              {/* Master toggle row + grouped alumni-portal pages.
+                  Reads as "all alumni pages" → tap once → every
+                  alumni portal route gets alumni_only flipped in
+                  one go. Indented children show the current state
+                  per-page (in case a super admin wants a finer
+                  override later). */}
+              {alumniPortalPages.length > 0 && (
+                <li className="px-5 py-3 bg-primary/5">
+                  <div className="flex items-center justify-between gap-3 py-1 mb-2">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-bold text-foreground">All alumni pages</p>
+                      <p className="text-[11px] text-foreground/55 mt-0.5">
+                        {allOn
+                          ? `All ${alumniPortalPages.length} alumni-portal pages are visible to alumni + super admins.`
+                          : someOn
+                            ? `${alumniPortalPages.filter((p) => p.alumni_only).length} of ${alumniPortalPages.length} on — flip to enable the whole portal at once.`
+                            : `Flip ON to make all ${alumniPortalPages.length} alumni-portal pages alumni-only.`}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void toggleAllAlumniPortal(!allOn)}
+                      aria-pressed={allOn}
+                      disabled={bulkPending}
+                      className={`shrink-0 w-12 h-7 rounded-full transition-colors relative ${
+                        allOn ? 'bg-primary' : someOn ? 'bg-primary/40' : 'bg-foreground/15'
+                      } ${bulkPending ? 'opacity-60' : ''}`}
+                      title={allOn ? 'All alumni pages on · click to turn all off' : 'Turn on every alumni-portal page'}
+                    >
+                      <span
+                        aria-hidden
+                        className={`absolute top-0.5 ${allOn ? 'left-[22px]' : 'left-0.5'} w-6 h-6 rounded-full bg-white shadow transition-all`}
+                      />
+                    </button>
+                  </div>
+                  <ul className="space-y-1 pl-3 border-l-2 border-primary/30">
+                    {alumniPortalPages.map((p) => (
+                      <li key={p.path} className="flex items-center justify-between gap-3 py-1">
+                        <p className="text-[12.5px] font-medium text-foreground/85 truncate">{p.path}</p>
+                        <button
+                          type="button"
+                          onClick={() => void toggleAlumniOnly(p.path, !p.alumni_only)}
+                          aria-pressed={p.alumni_only}
+                          disabled={pendingPath === p.path || bulkPending}
+                          className={`shrink-0 w-10 h-6 rounded-full transition-colors relative ${p.alumni_only ? 'bg-primary' : 'bg-foreground/15'} ${pendingPath === p.path || bulkPending ? 'opacity-60' : ''}`}
+                          title={p.alumni_only ? 'Alumni-only — click to disable' : 'Click to make alumni-only'}
+                        >
+                          <span
+                            aria-hidden
+                            className={`absolute top-0.5 ${p.alumni_only ? 'left-[18px]' : 'left-0.5'} w-5 h-5 rounded-full bg-white shadow transition-all`}
+                          />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              )}
+
+              {/* Every other page, grouped by section as before. */}
+              {otherGrouped.map(([section, rows]) => (
+                <li key={section} className="px-5 py-3">
+                  <p className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 mb-2">{section}</p>
+                  <ul className="space-y-1">
+                    {rows.map((p) => (
+                      <li key={p.path} className="flex items-center justify-between gap-3 py-1">
+                        <div className="min-w-0">
+                          <p className="text-[12.5px] font-medium text-foreground truncate">{p.path}</p>
+                          {p.admin_only && (
+                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold border bg-amber-50 text-amber-800 border-amber-200">Admin-only</span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void toggleAlumniOnly(p.path, !p.alumni_only)}
+                          aria-pressed={p.alumni_only}
+                          disabled={pendingPath === p.path}
+                          className={`shrink-0 w-10 h-6 rounded-full transition-colors relative ${p.alumni_only ? 'bg-primary' : 'bg-foreground/15'} ${pendingPath === p.path ? 'opacity-60' : ''}`}
+                          title={p.alumni_only ? 'Alumni-only — staff cannot see this page' : 'Not alumni-only'}
+                        >
+                          <span
+                            aria-hidden
+                            className={`absolute top-0.5 ${p.alumni_only ? 'left-[18px]' : 'left-0.5'} w-5 h-5 rounded-full bg-white shadow transition-all`}
+                          />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ol>
+          );
+        })()}
       </section>
     </div>
   );

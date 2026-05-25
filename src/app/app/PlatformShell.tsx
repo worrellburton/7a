@@ -473,7 +473,7 @@ function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
 }
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin, departmentId, status, userKind, sidebarRecentPaths, sidebarClickCount, recordSidebarVisit, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
+  const { user, loading, isAdmin, isSuperAdmin, departmentId, status, userKind, sidebarRecentPaths, sidebarClickCount, recordSidebarVisit, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
   const isAlumni = userKind === 'alumni';
   const { navPages, popupPages, isPageAllowedForDepartment, isPageAllowedForDepartmentSet, userOverrides, userExtraDepartmentIds } = usePagePermissions();
   const pathname = usePathname();
@@ -549,9 +549,12 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     const override = userOverrides[item.path];
     if (override === false) return false;
     if (override === true) return true;
-    // Alumni-only pages are exclusive: only user_kind='alumni' sees
-    // them, regardless of admin / super-admin / department rules.
-    if (item.alumniOnly) return isAlumni;
+    // Alumni-only pages: alumni see them by membership, AND super
+    // admins see them too so they can administer + spot-check the
+    // alumni portal without switching accounts. Regular staff +
+    // department admins are still gated out — that's the privacy
+    // boundary the alumni rely on. (Was: `return isAlumni;`.)
+    if (item.alumniOnly) return isAlumni || isSuperAdmin;
     // Alumni only see pages explicitly marked alumni-only (handled
     // above). Everything else in /app is staff-facing.
     if (isAlumni) return false;
