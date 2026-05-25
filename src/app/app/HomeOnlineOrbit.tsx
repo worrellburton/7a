@@ -757,15 +757,6 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                           {online && (
                             <span aria-hidden="true" className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-violet-400 border-2 border-white" />
                           )}
-                          {/* Tiny "alum" label tucked under-right
-                              so the alumni ring reads as distinct
-                              from the staff ring at a glance. */}
-                          <span
-                            aria-hidden="true"
-                            className="absolute -bottom-3 left-1/2 -translate-x-1/2 px-1 py-0 rounded text-[7.5px] font-bold uppercase tracking-[0.18em] bg-violet-500/15 text-violet-700"
-                          >
-                            Alum
-                          </span>
                         </span>
                       </span>
                     </span>

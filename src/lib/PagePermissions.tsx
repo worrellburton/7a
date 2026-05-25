@@ -130,6 +130,13 @@ const defaultPages: PageConfig[] = [
   { path: '/app/alumni/scholarships', label: 'Scholarships', adminOnly: false, section: 'nav', sort_order: 104, allowedDepartments: [], departmentId: null, alumniOnly: true },
   { path: '/app/alumni/resources', label: 'Resources', adminOnly: false, section: 'nav', sort_order: 105, allowedDepartments: [], departmentId: null, alumniOnly: true },
   { path: '/app/alumni/stories', label: 'Voices & talks', adminOnly: false, section: 'nav', sort_order: 106, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  // Alumni-side My Profile. Lives at /app/alumni/profile (not the
+  // staff /app/profile) so the alumni form — opt-ins, sobriety
+  // date, interests — is the canonical identity surface for
+  // them. PlatformShell pins this to slot 2 of the alumni
+  // sidebar; the path itself is alumniOnly so staff never see
+  // the link unless they're a super admin auditing.
+  { path: '/app/alumni/profile', label: 'My Profile', adminOnly: false, section: 'popup', sort_order: 0.2, allowedDepartments: [], departmentId: null, alumniOnly: true },
   // Staff-only moderation queue — NOT alumniOnly. adminOnly hides
   // it from non-staff in the sidebar; an alumni who tries to navigate
   // in directly bounces back via the runtime is_admin check in the
