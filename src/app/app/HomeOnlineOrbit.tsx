@@ -701,15 +701,15 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
 
         {/* Outermost ring — alumni online today. Pinned to a
             NEGATIVE inset so the alumni avatars orbit at a larger
-            radius than the staff ring above. Counter-rotates
-            (opposite spin direction) so the three rings read as
-            three distinct motions instead of a single drift.
-            Smaller avatars (sm:w-10) than the staff ring so the
-            visual hierarchy stays "staff = primary, alumni =
-            ambient community around them". */}
+            radius than the staff ring above. Was -12% which made
+            top alumni avatars clip the title; -22% puts them in a
+            clearly separate orbit with room above the ring for
+            the "Online today" header. Counter-rotates (opposite
+            spin direction) so the three rings read as three
+            distinct motions. */}
         {alumni.length > 0 && (
           <div
-            className={`orbit-ring absolute inset-[-12%] motion-reduce:!animate-none ${mounted ? 'orbit-spin-rev' : ''} ${hovered ? 'orbit-paused' : ''}`}
+            className={`orbit-ring absolute inset-[-22%] motion-reduce:!animate-none ${mounted ? 'orbit-spin-rev' : ''} ${hovered ? 'orbit-paused' : ''}`}
           >
             {alumni.map((u, i) => {
               const angle = (i / alumni.length) * 360;
@@ -721,8 +721,19 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
               };
               return (
                 <div key={`alum-${u.id}`} className="orbit-slot" style={slotStyle}>
-                  <div
-                    className={`orbit-pin group ${mounted ? 'orbit-pin-in' : 'orbit-pin-pre'}`}
+                  <button
+                    type="button"
+                    onMouseEnter={(e) => {
+                      positionTooltipFor(e.currentTarget);
+                      setHovered({ kind: 'user', user: u, viewing: null, navTarget: null, online });
+                    }}
+                    onMouseLeave={() => clearHover((h) => h.kind === 'user' && h.user.id === u.id)}
+                    onFocus={(e) => {
+                      positionTooltipFor(e.currentTarget);
+                      setHovered({ kind: 'user', user: u, viewing: null, navTarget: null, online });
+                    }}
+                    onBlur={() => clearHover((h) => h.kind === 'user' && h.user.id === u.id)}
+                    className={`orbit-pin group ${mounted ? 'orbit-pin-in' : 'orbit-pin-pre'} cursor-pointer`}
                     style={pinStyle}
                     title={`${u.full_name || 'Alumni'} · alumni community`}
                     aria-label={`${u.full_name || 'Alumni'} (alumni)`}
@@ -760,7 +771,7 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                         </span>
                       </span>
                     </span>
-                  </div>
+                  </button>
                 </div>
               );
             })}
