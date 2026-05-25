@@ -369,6 +369,20 @@ const pageIcons: Record<string, React.ReactNode> = {
       <circle cx="8" cy="18" r="1.6" />
     </svg>
   ),
+  // Arcade — a tiny arcade-cabinet glyph (joystick + buttons).
+  '/app/arcade': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="13" rx="2" />
+      <path d="M9 10v2" />
+      <path d="M9 11h-1" />
+      <path d="M9 11h1" />
+      <circle cx="15" cy="10" r="0.9" fill="currentColor" stroke="none" />
+      <circle cx="17" cy="12" r="0.9" fill="currentColor" stroke="none" />
+      <path d="M7 20h10" />
+      <path d="M9 17v3" />
+      <path d="M15 17v3" />
+    </svg>
+  ),
   '/app/chat': (
     // Speech bubble — alumni + team chat room.
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -641,8 +655,19 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     // department admins are still gated out — that's the privacy
     // boundary the alumni rely on. (Was: `return isAlumni;`.)
     if (item.alumniOnly) return isAlumni || isSuperAdmin;
+    // Cross-portal pages — visible to BOTH staff and alumni.
+    // Arcade, Chat (peer + staff community surfaces) live
+    // here. Add a path to this set when a feature is explicitly
+    // shared across the two portals; default behavior below
+    // still hides everything else from alumni.
+    const CROSS_PORTAL_PATHS = new Set<string>(['/app/arcade', '/app/chat']);
+    if (CROSS_PORTAL_PATHS.has(item.path)) {
+      if (item.adminOnly && !isAdmin) return false;
+      return true;
+    }
     // Alumni only see pages explicitly marked alumni-only (handled
-    // above). Everything else in /app is staff-facing.
+    // above) or in the cross-portal allowlist. Everything else
+    // in /app is staff-facing.
     if (isAlumni) return false;
     if (item.adminOnly && !isAdmin) return false;
     if (isAdmin) return true;
@@ -1302,6 +1327,23 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       doesn't wrap or peek out while the rail is in
                       its collapsed (icon-only) state. */}
                   <span className="flex-1 whitespace-nowrap transition-[opacity,transform] duration-200 ease-out opacity-0 group-hover/sidebar:opacity-100 group-hover/nav:translate-x-0.5">{item.label}</span>
+                  {/* Super-admin-only "ALUMNI" tag · added so a
+                      super admin scanning their sidebar can tell at
+                      a glance which rows are alumni-portal pages
+                      they're auditing vs their own staff surfaces.
+                      Alumni themselves don't see this — every page
+                      visible to them IS an alumni page, so the
+                      label would be noise. Regular staff also
+                      don't see it because they don't see alumni-only
+                      pages at all. */}
+                  {isSuperAdmin && !isAlumni && item.alumniOnly && (
+                    <span
+                      aria-label="alumni page"
+                      className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[8.5px] font-bold uppercase tracking-[0.14em] bg-violet-500/12 text-violet-700 border border-violet-500/20 whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200"
+                    >
+                      Alumni
+                    </span>
+                  )}
                   {(navBadges[item.path] ?? 0) > 0 && (
                     <span
                       aria-label={`${navBadges[item.path]} new`}

@@ -395,12 +395,6 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
           orbit's centre medallion sits at the viewport's vertical
           centre (the parent absolute-positions the orbit on mobile). */}
       <div className="hidden sm:block absolute left-1/2 -translate-x-1/2 bottom-[calc(100%+1.25rem)] sm:bottom-[calc(100%+1.5rem)] lg:bottom-[calc(100%+2rem)] text-center pointer-events-none z-10">
-        <p
-          className="text-[10px] font-semibold uppercase tracking-[0.28em] text-foreground/45"
-          style={{ fontFamily: 'var(--font-body)' }}
-        >
-          The team
-        </p>
         <h2
           className="mt-1 text-foreground font-bold tracking-tight"
           style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 2.6vw, 1.85rem)' }}
@@ -828,6 +822,12 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
           will-change: transform;
           transform: translateZ(0);
           backface-visibility: hidden;
+          /* Empty space inside a ring must NOT capture events,
+             otherwise the outer alumni ring (which extends past
+             the container with negative inset) blocks hovers on
+             the staff + horse pins beneath. Only .orbit-pin
+             children get pointer-events:auto further down. */
+          pointer-events: none;
           /* layout + style only, NOT paint — avatars sit on the rim
              of the ring and translate(-50%, -50%) leaves half of
              each avatar outside the ring's bounding box, so paint
