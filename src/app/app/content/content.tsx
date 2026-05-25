@@ -277,6 +277,12 @@ export default function ContentLanding() {
                       subtitle={`${r.slug} · updated ${new Date(r.updated_at).toLocaleDateString()}`}
                       episodeLabel={epNum ? `Episode ${epNum}` : null}
                       href={`/app/content/${r.id}`}
+                      // Only published posts have a live URL worth
+                      // opening — drafts / reviewing / image-select
+                      // would 404. Mirror the hand-coded-posts row
+                      // which always has externalHref because every
+                      // .tsx-based post is live by definition.
+                      externalHref={r.status === 'published' ? `/who-we-are/blog/${r.slug}` : undefined}
                       statusBadge={(
                         <span className={`shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${STATUS_TONES[r.status]}`}>
                           {STATUS_LABELS[r.status]}

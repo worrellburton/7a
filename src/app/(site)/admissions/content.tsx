@@ -152,7 +152,12 @@ export default function PageContent() {
               Your Path to Admission
             </h2>
 
-            {/* Tab buttons */}
+            {/* Tab buttons · wrapped in a flex justify-center so
+                the pill bar stays horizontally centered regardless
+                of the parent's text-align (text-center only honors
+                inline children, and inline-flex doesn't reliably
+                center on every browser). */}
+            <div className="flex justify-center">
             <div className="inline-flex rounded-full bg-white shadow-sm p-1.5 gap-1">
               <button
                 type="button"
@@ -178,6 +183,7 @@ export default function PageContent() {
               >
                 Help for a Loved One
               </button>
+            </div>
             </div>
           </div>
 
