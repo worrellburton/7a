@@ -31,9 +31,26 @@ interface NavDepartment {
 // Meaning-first: Facilities=building (not wrench), Equine=horseshoe,
 // Billing=receipt, Calendar=dated grid.
 const pageIcons: Record<string, React.ReactNode> = {
+  // Home — same circle-of-dots community glyph the alumni Home
+  // uses, so 'Home' reads the same across both portals.
   '/app': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 9.5 12 2l9 7.5V20a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z" />
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="12" cy="4" r="1.5" />
+      <circle cx="20" cy="12" r="1.5" />
+      <circle cx="12" cy="20" r="1.5" />
+      <circle cx="4" cy="12" r="1.5" />
+      <circle cx="17.5" cy="6.5" r="1.2" />
+      <circle cx="17.5" cy="17.5" r="1.2" />
+      <circle cx="6.5" cy="17.5" r="1.2" />
+      <circle cx="6.5" cy="6.5" r="1.2" />
+    </svg>
+  ),
+  // Alumni-side My Profile uses the same person glyph as staff
+  // so 'My Profile' reads consistently across both portals.
+  '/app/alumni/profile': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
     </svg>
   ),
   '/app/profile': (
@@ -797,7 +814,10 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     // single most important page in the portal. Pinning both lets
     // recency-reordering still run for positions 3..N.
     const HOME_PATH = isAlumni ? '/app/alumni' : '/app';
-    const PROFILE_PATH = '/app/profile';
+    // Alumni have their own dedicated profile editor at
+    // /app/alumni/profile (sobriety date, opt-ins, etc.). Staff
+    // keep using /app/profile.
+    const PROFILE_PATH = isAlumni ? '/app/alumni/profile' : '/app/profile';
     const homePage = visibleNavPages.find((p) => p.path === HOME_PATH);
     // /app/profile lives in the popup section by default; for
     // alumni we synthesise a nav-shaped entry so it can sit at
