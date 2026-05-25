@@ -114,6 +114,11 @@ const defaultPages: PageConfig[] = [
   // for guests still applies (a guest sees Chat only when a super
   // admin grants /app/chat in their allow-list).
   { path: '/app/chat', label: 'Chat', adminOnly: false, section: 'nav', sort_order: 26, allowedDepartments: [], departmentId: null },
+  // Arcade — Seven Arrows themed games + leaderboards, open to
+  // both staff and alumni. canSeePage in PlatformShell adds
+  // /app/arcade to the cross-portal allowlist so the alumni-only
+  // gate doesn't hide it from staff.
+  { path: '/app/arcade', label: 'Arcade', adminOnly: false, section: 'nav', sort_order: 27, allowedDepartments: [], departmentId: null },
 
   // ── Alumni portal ──────────────────────────────────────────
   // Alumni-only surfaces. Every entry below carries alumniOnly:true

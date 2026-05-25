@@ -104,7 +104,7 @@ export default function EmailCampaignsContent() {
         .from('email_campaigns')
         .select('id, prompt, generated_subject, status, sent_at, created_at, created_by')
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(500);
       if (cancelled) return;
       const baseRows = (data ?? []) as CampaignRow[];
       // Resolve creator names in a single follow-up select so each
