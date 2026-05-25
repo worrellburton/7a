@@ -578,11 +578,47 @@ export default function HomeContent() {
               </div>
             </div>
 
-            {/* Right cluster — just the create (+) button now. The
-                old log-rain toggle moved to a chip under the orbit
-                (HomeDailyLogsChip below) so the header reads
-                cleaner. */}
-            <div className={`shrink-0 ${userKind === 'alumni' ? 'hidden' : ''}`}>
+            {/* Right cluster — JD icon + create (+) button. The
+                signed-JD pill used to render as a full-width card
+                under the orbit which was getting visually crashed
+                by the spinning avatar ring. Compacting it to a
+                small document icon next to the + keeps the
+                quick-access without invading the orbit. */}
+            <div className={`shrink-0 flex items-center gap-2 ${userKind === 'alumni' ? 'hidden' : ''}`}>
+            {latestSignedJd && (
+              latestSignedJd.pdfUrl ? (
+                <a
+                  href={latestSignedJd.pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`Open my signed job description: ${latestSignedJd.title}`}
+                  aria-label={`Open my signed job description: ${latestSignedJd.title}`}
+                  className="inline-flex items-center gap-1.5 h-9 lg:h-10 pl-3 pr-3.5 rounded-full bg-white/70 supports-[backdrop-filter]:bg-white/55 backdrop-blur-md border border-white/80 text-foreground hover:bg-white hover:border-primary/45 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 max-w-[14rem] sm:max-w-xs"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  <svg className="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+                    <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
+                  </svg>
+                  <span className="text-[12px] font-semibold truncate">{latestSignedJd.title}</span>
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => router.push(`/app/job-descriptions/${latestSignedJd.id}`)}
+                  title={`Open my signed job description: ${latestSignedJd.title}`}
+                  aria-label={`Open my signed job description: ${latestSignedJd.title}`}
+                  className="inline-flex items-center gap-1.5 h-9 lg:h-10 pl-3 pr-3.5 rounded-full bg-white/70 supports-[backdrop-filter]:bg-white/55 backdrop-blur-md border border-white/80 text-foreground hover:bg-white hover:border-primary/45 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 max-w-[14rem] sm:max-w-xs"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  <svg className="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M14 3v4a1 1 0 0 0 1 1h4" />
+                    <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
+                  </svg>
+                  <span className="text-[12px] font-semibold truncate">{latestSignedJd.title}</span>
+                </button>
+              )
+            )}
             <div ref={addMenuRef} className="relative">
               <button
                 type="button"
@@ -688,91 +724,40 @@ export default function HomeContent() {
 
         <HomeConnect4Nudge onOpponentChange={setC4OpponentId} />
 
-        {/* Phase 6: action stack — pending signatures + signed JD,
-            uniform glass cards. Renders only when there's something
-            to show; otherwise the space below the pulse stays clean. */}
-        {(pendingSignatures.length > 0 || latestSignedJd) && (
+        {/* Phase 6: action stack — pending signatures only.
+            (latestSignedJd moved up next to the + button in the
+            header so the orbit isn't visually crashed by a wide
+            card sitting on top of it.) */}
+        {pendingSignatures.length > 0 && (
           <section className="w-full max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-3">
-            {pendingSignatures.length > 0 && (
-              <div className="md:col-span-2">
-                <p
-                  className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2 px-1"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  Waiting for your signature
-                </p>
-                <div className="grid grid-cols-1 gap-2">
-                  {pendingSignatures.map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => router.push(`/app/sign/${p.id}`)}
-                      className="relative w-full text-left rounded-2xl border border-white/70 bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-xl px-4 py-3 hover:border-primary/45 hover:shadow-md transition-all flex items-center justify-between gap-3 shadow-[0_8px_24px_-16px_rgba(60,48,42,0.22)]"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      <div
-                        aria-hidden="true"
-                        className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-2xl bg-gradient-to-r from-transparent via-white/90 to-transparent"
-                      />
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">{p.title}</p>
-                        <p className="text-xs text-foreground/55">is waiting to be signed</p>
-                      </div>
-                      <span className="text-xs font-semibold text-primary whitespace-nowrap">Sign now →</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {latestSignedJd && (
-              <div className={pendingSignatures.length === 0 ? 'md:col-span-2' : 'md:col-span-2'}>
-                <p
-                  className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2 px-1"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  Your signed job description
-                </p>
-                {latestSignedJd.pdfUrl ? (
-                  <a
-                    href={latestSignedJd.pdfUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="relative block rounded-2xl border border-white/70 bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-xl px-4 py-3 hover:border-primary/45 hover:shadow-md transition-all shadow-[0_8px_24px_-16px_rgba(60,48,42,0.22)]"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                    title="Open signed PDF"
-                  >
-                    <div
-                      aria-hidden="true"
-                      className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-2xl bg-gradient-to-r from-transparent via-white/90 to-transparent"
-                    />
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <svg className="w-5 h-5 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-                          <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
-                        </svg>
-                        <span className="text-sm font-semibold text-foreground truncate">{latestSignedJd.title}</span>
-                      </div>
-                      <span className="uppercase tracking-wider text-[11px] font-bold text-primary/70 shrink-0">PDF</span>
-                    </div>
-                  </a>
-                ) : (
+            <div className="md:col-span-2">
+              <p
+                className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2 px-1"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Waiting for your signature
+              </p>
+              <div className="grid grid-cols-1 gap-2">
+                {pendingSignatures.map((p) => (
                   <button
-                    onClick={() => router.push(`/app/job-descriptions/${latestSignedJd.id}`)}
+                    key={p.id}
+                    onClick={() => router.push(`/app/sign/${p.id}`)}
                     className="relative w-full text-left rounded-2xl border border-white/70 bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-xl px-4 py-3 hover:border-primary/45 hover:shadow-md transition-all flex items-center justify-between gap-3 shadow-[0_8px_24px_-16px_rgba(60,48,42,0.22)]"
                     style={{ fontFamily: 'var(--font-body)' }}
-                    title="Open my signed job description"
                   >
                     <div
                       aria-hidden="true"
                       className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-2xl bg-gradient-to-r from-transparent via-white/90 to-transparent"
                     />
-                    <span className="text-sm font-semibold text-foreground truncate">{latestSignedJd.title}</span>
-                    <span className="text-xs font-semibold text-primary whitespace-nowrap">Open →</span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">{p.title}</p>
+                      <p className="text-xs text-foreground/55">is waiting to be signed</p>
+                    </div>
+                    <span className="text-xs font-semibold text-primary whitespace-nowrap">Sign now →</span>
                   </button>
-                )}
+                ))}
               </div>
-            )}
+            </div>
           </section>
         )}
 

@@ -1139,13 +1139,37 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           </Link>
         </div>
 
-        {/* Sidebar search — only visible inside the expanded rail.
-            Filters the visible page set by label / path substring.
-            Hidden in the collapsed (w-16) state via the same
-            group-hover/sidebar gate the Other-pages section uses,
-            so the icon-only rail isn't disrupted. */}
-        <div className="px-3 pt-1 pb-2 hidden group-hover/sidebar:block">
-          <label className="relative block">
+        {/* Sidebar search — visible in BOTH the collapsed and the
+            hover-expanded rail states so it's always reachable.
+            In collapsed state (w-16) the input is replaced by a
+            magnifier glyph chip that, when clicked, focuses the
+            input the moment hover-expand kicks in. In expanded
+            state (w-64) the full text input is shown. Previously
+            this whole block was hidden until hover, so anyone who
+            never realised the rail had hover-to-expand never knew
+            search existed — that surfaced as 'pros can't see it'.
+            Other Pages now also stays reachable from the same
+            expanded state. */}
+        <div className="px-3 pt-1 pb-2">
+          {/* Collapsed: icon-only chip (sidebar w-16). Hover-expand
+              hides this and shows the input below. */}
+          <button
+            type="button"
+            onClick={() => { /* hover-expand-on-click for keyboard users */
+              const el = document.getElementById('sidebar-search-input') as HTMLInputElement | null;
+              el?.focus();
+            }}
+            aria-label="Search pages"
+            title="Search pages"
+            className="group-hover/sidebar:hidden w-full inline-flex items-center justify-center h-9 rounded-xl text-foreground/50 hover:text-primary hover:bg-warm-bg/60 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden>
+              <circle cx="11" cy="11" r="7" />
+              <path strokeLinecap="round" d="M21 21l-4.3-4.3" />
+            </svg>
+          </button>
+          {/* Expanded: full input. */}
+          <label className="relative hidden group-hover/sidebar:block">
             <span aria-hidden className="absolute left-2.5 top-1/2 -translate-y-1/2 text-foreground/35">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <circle cx="11" cy="11" r="7" />
@@ -1153,6 +1177,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               </svg>
             </span>
             <input
+              id="sidebar-search-input"
               type="search"
               value={navSearch}
               onChange={(e) => setNavSearch(e.target.value)}
