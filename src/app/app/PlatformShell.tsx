@@ -163,7 +163,7 @@ const pageIcons: Record<string, React.ReactNode> = {
   // Daily touchpoint logs — a stack of horizontal logs (🪵), to
   // echo the wood-stack metaphor the page itself uses for each
   // recorded contact.
-  '/app/daily-logs': (
+  '/app/logs': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <ellipse cx="6" cy="7" rx="2" ry="1.5" />
       <path d="M6 7h12" />
@@ -1402,7 +1402,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               {/* Header: brand (taps through to today's log surface) + close */}
               <div className="flex items-center justify-between p-5 border-b border-gray-100 shrink-0">
                 <Link
-                  href="/app/daily-logs"
+                  href="/app/logs"
                   onClick={() => setMobileMenuOpen(false)}
                   className="flex items-center gap-2.5"
                   aria-label="Daily logs"

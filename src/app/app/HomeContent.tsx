@@ -767,7 +767,7 @@ export default function HomeContent() {
         </div> {/* end centerpiece */}
 
         {/* Live count of touchpoints logged today + the historical
-            daily record below it. Clicks through to /app/daily-logs,
+            daily record below it. Clicks through to /app/logs,
             the dedicated surface with leaderboard + records. Sits
             between the centerpiece and the Seven Arrows tagline so
             the chip floats in clear space without crowding the

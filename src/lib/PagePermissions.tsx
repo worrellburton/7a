@@ -94,7 +94,7 @@ const defaultPages: PageConfig[] = [
   // Touchpoint logs — the daily 🪵 board. Org-wide accountability
   // surface, so dept-agnostic (matches Kaizen's pattern) and the
   // auto-upsert on first-load won't wipe a department assignment.
-  { path: '/app/daily-logs', label: 'Logs', adminOnly: false, section: 'nav', sort_order: 27.5, allowedDepartments: [], departmentId: null },
+  { path: '/app/logs', label: 'Logs', adminOnly: false, section: 'nav', sort_order: 27.5, allowedDepartments: [], departmentId: null },
   { path: '/app/document-manager', label: 'Document Manager', adminOnly: false, section: 'nav', sort_order: 17, allowedDepartments: [], departmentId: null },
   // Org Chart is now accessed from inside another page (no longer in the popup menu).
   { path: '/app/reviews', label: 'Reviews', adminOnly: true, section: 'popup', sort_order: 6, allowedDepartments: [], departmentId: null },

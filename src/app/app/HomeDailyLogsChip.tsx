@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 
 // Small pill that sits just under the Online Orbit on the home page,
-// linking to /app/daily-logs. Reads the count + the historical
+// linking to /app/logs. Reads the count + the historical
 // single-day record from /api/contacts/logs-today (the same endpoint
 // the dedicated page hydrates from) so a quick glance from home
 // answers "how many touches landed today?" and "did we beat the
@@ -49,7 +49,7 @@ export default function HomeDailyLogsChip() {
   return (
     <div className="flex flex-col items-center gap-1.5" style={{ fontFamily: 'var(--font-body)' }}>
       <Link
-        href="/app/daily-logs"
+        href="/app/logs"
         className="group inline-flex items-center gap-2 rounded-full border border-emerald-500/40 bg-white/85 supports-[backdrop-filter]:bg-white/65 backdrop-blur-md px-3.5 py-1.5 shadow-[0_8px_22px_-12px_rgba(16,84,57,0.45)] hover:border-emerald-500/70 hover:shadow-[0_12px_26px_-12px_rgba(16,84,57,0.55)] transition-all"
         title="See every log that landed today"
       >
