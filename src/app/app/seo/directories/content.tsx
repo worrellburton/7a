@@ -4590,7 +4590,14 @@ export default function DirectoriesContent() {
                           onChange={(e) => setStatus(d.id, e.target.value as Status)}
                           onClick={(e) => e.stopPropagation()}
                           aria-label="Change directory status"
-                          className="appearance-none bg-transparent pl-2.5 pr-6 py-1 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
+                          // Focus ring color inherits the badge's
+                          // text color via currentColor — was
+                          // `ring-primary/30` (copper) which paints
+                          // a copper outline on a blue / amber /
+                          // emerald badge once focused, making the
+                          // same status look like two different
+                          // colors across rows.
+                          className="appearance-none bg-transparent pl-2.5 pr-6 py-1 text-[11px] font-semibold focus:outline-none focus:ring-2 focus:ring-[currentColor]/30 cursor-pointer"
                         >
                           {STATUS_ORDER.map((s) => (
                             <option key={s} value={s}>{STATUS_LABELS[s]}</option>
