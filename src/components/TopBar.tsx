@@ -30,9 +30,26 @@ export default function TopBar() {
         </div>
         <Link
           href="/app"
-          className="font-semibold tracking-widest text-xs hover:opacity-80 transition-opacity uppercase"
+          className="inline-flex items-center gap-1.5 font-semibold tracking-widest text-xs hover:opacity-80 transition-opacity uppercase"
+          aria-label="Sign in to feather"
         >
-          Sign In
+          <svg
+            aria-hidden="true"
+            className="w-3.5 h-3.5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.9}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
+            <line x1="16" y1="8" x2="2" y2="22" />
+            <line x1="17.5" y1="15" x2="9" y2="15" />
+          </svg>
+          <span>
+            Sign in to <span className="normal-case lowercase tracking-tight">feather</span>
+          </span>
         </Link>
       </div>
     </div>
