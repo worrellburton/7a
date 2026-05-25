@@ -718,7 +718,7 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
         {alumni.length > 0 && (
           <div
             aria-hidden="true"
-            className="absolute inset-[-30%] rounded-full border border-violet-400/25"
+            className="pointer-events-none absolute inset-[-30%] rounded-full border border-violet-400/25"
           />
         )}
 
