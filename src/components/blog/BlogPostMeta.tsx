@@ -19,7 +19,6 @@
 // content without a credentialed reviewer.
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { type Episode } from '@/lib/episodes';
 import {
   authorProfileUrl,
@@ -165,12 +164,22 @@ export function AuthorByline({
             className="shrink-0 rounded-full overflow-hidden ring-1 ring-black/10 hover:ring-primary/40"
             aria-label={`More about ${author.name}`}
           >
-            <Image
+            {/* Plain <img>, not next/image, so remote hosts like
+                Supabase storage work without a remotePatterns
+                whitelist. next/image was rendering a broken
+                placeholder icon for any unwhitelisted host —
+                that's what the marketers saw next to the
+                'WRITTEN BY' label. */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
               src={author.avatarUrl}
               alt={author.name}
+              referrerPolicy="no-referrer"
               width={44}
               height={44}
-              className="w-11 h-11 object-cover"
+              loading="eager"
+              decoding="async"
+              className="w-11 h-11 object-cover block"
             />
           </Link>
         ) : (
