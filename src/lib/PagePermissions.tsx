@@ -114,6 +114,27 @@ const defaultPages: PageConfig[] = [
   // for guests still applies (a guest sees Chat only when a super
   // admin grants /app/chat in their allow-list).
   { path: '/app/chat', label: 'Chat', adminOnly: false, section: 'nav', sort_order: 26, allowedDepartments: [], departmentId: null },
+
+  // ── Alumni portal ──────────────────────────────────────────
+  // Alumni-only surfaces. Every entry below carries alumniOnly:true
+  // so the sidebar hides them from staff + admins. The pages
+  // themselves also gate via userKind === 'alumni' at runtime so a
+  // staff member who pastes the URL bounces back to /app. The
+  // moderation page is the one exception — it's gated for staff.
+  // Sort orders 100-107 keep alumni surfaces grouped at the
+  // bottom of the alumni's sidebar.
+  { path: '/app/alumni', label: 'Alumni hub', adminOnly: false, section: 'nav', sort_order: 100, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/map', label: 'Alumni map', adminOnly: false, section: 'nav', sort_order: 101, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/peer-support', label: 'Peer support', adminOnly: false, section: 'nav', sort_order: 102, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/meetups', label: 'Meetups', adminOnly: false, section: 'nav', sort_order: 103, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/scholarships', label: 'Scholarships', adminOnly: false, section: 'nav', sort_order: 104, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/resources', label: 'Resources', adminOnly: false, section: 'nav', sort_order: 105, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/stories', label: 'Voices & talks', adminOnly: false, section: 'nav', sort_order: 106, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  // Staff-only moderation queue — NOT alumniOnly. adminOnly hides
+  // it from non-staff in the sidebar; an alumni who tries to navigate
+  // in directly bounces back via the runtime is_admin check in the
+  // page itself.
+  { path: '/app/alumni/moderation', label: 'Alumni moderation', adminOnly: true, section: 'popup', sort_order: 107, allowedDepartments: [], departmentId: null },
   // Super-admin gate is enforced inside the page itself + on every
   // /api/incoming-users/* route. adminOnly here keeps the link out
   // of regular admins' popup; the page bounces non-super admins to
