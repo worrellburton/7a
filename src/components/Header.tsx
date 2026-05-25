@@ -962,13 +962,25 @@ export default function Header() {
   // menu items stay legible — otherwise the drawer renders over dark hero
   // video and "text-white/90 over white drawer" becomes invisible.
   //
-  // Mega-menu dropdowns ALSO flip the nav to solid white while open: a
-  // transparent nav over a hero video while a panel of dark text is
-  // visible below it makes the bar disappear into the imagery. Flipping
-  // gives the panel a stable white frame so the dropdown reads as
-  // chrome instead of as floating content. Reverts the second the
-  // hover leaves and the panel closes.
-  const transparent = !scrolled && !mobileMenuOpen && openDropdowns === 0;
+  // Mega-menu dropdowns ALSO flip the nav to solid white while open. There's
+  // a deliberate grace-period on the FLIP-BACK direction: a cursor moving
+  // from the trigger button down into the panel briefly leaves the wrapper
+  // (the panel is fixed-positioned outside the trigger's relative box, so a
+  // diagonal cursor path can hit a few pixels of dead zone). That brief
+  // openDropdowns → 0 was making the nav flash transparent for a frame
+  // mid-hover. We now hold the white state for 300ms after the counter
+  // returns to 0, which fully absorbs the traversal glitch without making
+  // the close feel laggy.
+  const [dropdownLingering, setDropdownLingering] = useState(false);
+  useEffect(() => {
+    if (openDropdowns > 0) {
+      setDropdownLingering(true);
+      return;
+    }
+    const t = setTimeout(() => setDropdownLingering(false), 300);
+    return () => clearTimeout(t);
+  }, [openDropdowns]);
+  const transparent = !scrolled && !mobileMenuOpen && !dropdownLingering;
 
   return (
     <header
