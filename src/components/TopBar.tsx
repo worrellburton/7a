@@ -33,6 +33,7 @@ export default function TopBar() {
           className="inline-flex items-center gap-1.5 font-semibold tracking-widest text-xs hover:opacity-80 transition-opacity uppercase"
           aria-label="Sign in to feather"
         >
+          <span>Sign in to</span>
           <svg
             aria-hidden="true"
             className="w-3.5 h-3.5"
@@ -47,9 +48,7 @@ export default function TopBar() {
             <line x1="16" y1="8" x2="2" y2="22" />
             <line x1="17.5" y1="15" x2="9" y2="15" />
           </svg>
-          <span>
-            Sign in to <span className="normal-case lowercase tracking-tight">feather</span>
-          </span>
+          <span className="normal-case lowercase tracking-tight">feather</span>
         </Link>
       </div>
     </div>

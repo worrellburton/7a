@@ -863,11 +863,27 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   // visible at once. Empty query falls through to the normal
   // top-7 + Other-pages layout.
   const searchQuery = navSearch.trim().toLowerCase();
+  // Search hits the nav stack first, then folds in any popup
+  // pages the viewer can see (My Profile lives in popup) so a
+  // super admin searching "My Profile" finds BOTH the staff
+  // /app/profile and the alumni /app/alumni/profile sample —
+  // labels are intentionally identical, the sample-preview
+  // banner on the alumni page is what disambiguates them on
+  // landing.
   const searchMatchedPages = searchQuery
-    ? recencyOrderedPages.filter((p) =>
-        p.label.toLowerCase().includes(searchQuery)
-        || p.path.toLowerCase().includes(searchQuery),
-      )
+    ? (() => {
+        const navHits = recencyOrderedPages.filter((p) =>
+          p.label.toLowerCase().includes(searchQuery)
+          || p.path.toLowerCase().includes(searchQuery));
+        const seen = new Set(navHits.map((p) => p.path));
+        const popupHits = popupPages
+          .filter(canSeePage)
+          .filter((p) => !seen.has(p.path))
+          .filter((p) =>
+            p.label.toLowerCase().includes(searchQuery)
+            || p.path.toLowerCase().includes(searchQuery));
+        return [...navHits, ...popupHits];
+      })()
     : null;
   // Spillover. Anything past the top-7 lives in the collapsible
   // "Other pages" section. Still ordered by recency (most-recent
