@@ -34,6 +34,13 @@ const DEFAULT_FROM = 'Seven Arrows Recovery <onboarding@resend.dev>';
 
 interface SendBody {
   campaignId?: unknown;
+  /** Optional · how many of the pending recipients this call should
+   *  drain. Used by the scheduled-send cron to pace a big campaign
+   *  across multiple 1-minute ticks so we stay under Resend's daily
+   *  100-email free-tier ceiling AND the per-second rate. Default
+   *  (undefined) drains every pending row, matching the original
+   *  click-Send-now behaviour. */
+  batchSize?: unknown;
 }
 
 export async function POST(req: NextRequest) {
@@ -79,7 +86,14 @@ export async function POST(req: NextRequest) {
     .from('email_campaign_recipients')
     .select('id, email, send_status, contact_id')
     .eq('campaign_id', campaignId)
-    .eq('send_status', 'pending');
+    .eq('send_status', 'pending')
+    // Optional batching — when the cron passes batchSize, drain
+    // only that many pending rows per call so a big campaign
+    // spreads across multiple cron ticks instead of bursting.
+    .order('id', { ascending: true })
+    .limit(typeof body.batchSize === 'number' && body.batchSize > 0
+      ? Math.floor(body.batchSize)
+      : 10000);
   if (recErr) return NextResponse.json({ error: recErr.message }, { status: 500 });
   const allPending = (recipientRows ?? []) as Array<{ id: string; email: string; send_status: string; contact_id: string }>;
 
@@ -333,16 +347,42 @@ export async function POST(req: NextRequest) {
   for (let i = 0; i < Math.min(MAX_PARALLEL, recipients.length); i += 1) workers.push(worker());
   await Promise.all(workers);
 
-  const finalStatus = failed === 0 ? 'sent' : sent > 0 ? 'sent' : 'failed';
-  await supabase
-    .from('email_campaigns')
-    .update({
-      status: finalStatus,
-      sent_at: new Date().toISOString(),
-    })
-    .eq('id', campaignId);
+  // If this was a batched call, there may still be pending rows
+  // waiting on a future cron tick. Re-query before flipping the
+  // campaign so we don't prematurely close out a paced campaign.
+  const { count: stillPending } = await supabase
+    .from('email_campaign_recipients')
+    .select('id', { count: 'exact', head: true })
+    .eq('campaign_id', campaignId)
+    .eq('send_status', 'pending');
+  const havePending = (stillPending ?? 0) > 0;
 
-  return NextResponse.json({ ok: true, sent, failed, skipped, simulated });
+  if (havePending) {
+    // Keep status='sending'; the cron will pick this campaign up
+    // again on the next tick and drain the next batch.
+    await supabase
+      .from('email_campaigns')
+      .update({ status: 'sending' })
+      .eq('id', campaignId);
+  } else {
+    const finalStatus = failed === 0 ? 'sent' : sent > 0 ? 'sent' : 'failed';
+    await supabase
+      .from('email_campaigns')
+      .update({
+        status: finalStatus,
+        sent_at: new Date().toISOString(),
+      })
+      .eq('id', campaignId);
+  }
+
+  return NextResponse.json({
+    ok: true,
+    sent,
+    failed,
+    skipped,
+    simulated,
+    stillPending: stillPending ?? 0,
+  });
 }
 
 // Vercel's "Sensitive" env-var editor sometimes stores spaces as

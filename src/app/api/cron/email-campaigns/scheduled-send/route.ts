@@ -4,11 +4,23 @@ import { withCronLogging } from '@/lib/cron-observability';
 
 // GET /api/cron/email-campaigns/scheduled-send
 //
-// Vercel cron (every minute). Finds campaigns in status='scheduled'
-// whose scheduled_send_at has passed and fires them through the
-// existing /api/email-campaigns/send endpoint. Each campaign is
-// flipped to 'sending' atomically before we POST, so a slow run +
-// the next tick of the cron can't double-fire the same campaign.
+// Vercel cron (every minute). Two responsibilities:
+//
+// 1) Pick up campaigns in status='scheduled' whose
+//    scheduled_send_at has passed; atomically claim each by
+//    flipping to 'sending' (so a slow run + the next tick can't
+//    double-fire); kick off the send.
+//
+// 2) Pick up campaigns already in status='sending' that still
+//    have pending recipients and drain another batch. This is
+//    what spreads a big campaign across multiple ticks so we
+//    stay under Resend's free-tier daily cap + per-second rate.
+//
+// Pacing: SEND_WINDOW_MINUTES sets the desired span for one
+// campaign. Each tick we send pending_count / SEND_WINDOW_MINUTES
+// rows so a 236-recipient campaign with the default 10-minute
+// window drains in ~10 ticks (~10 minutes). Bumps the floor to 5
+// so a near-finished campaign still progresses on every tick.
 
 export const dynamic = 'force-dynamic';
 
@@ -30,25 +42,45 @@ export async function GET(req: NextRequest) {
   const admin = getAdminSupabase();
   const nowIso = new Date().toISOString();
 
-  // Pick up campaigns whose scheduled time has passed. Limit at 20
-  // per tick so a stuck campaign doesn't block the rest of the
-  // queue, and so a single cron run can't run for several minutes.
-  const { data: due, error } = await admin
-    .from('email_campaigns')
-    .select('id, scheduled_send_at, generated_subject, created_by')
-    .eq('status', 'scheduled')
-    .lte('scheduled_send_at', nowIso)
-    .order('scheduled_send_at', { ascending: true })
-    .limit(20);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  const rows = (due ?? []) as Array<{ id: string; scheduled_send_at: string; generated_subject: string | null; created_by: string | null }>;
-  if (rows.length === 0) return NextResponse.json({ ok: true, fired: 0 });
+  // Desired campaign send window in minutes. With a 1-minute cron
+  // tick this also equals the number of ticks a campaign of any
+  // size will take to drain — we send (pending / WINDOW) rows per
+  // tick (floor of 5 so near-finished campaigns finish promptly).
+  const SEND_WINDOW_MINUTES = Number(process.env.EMAIL_SEND_WINDOW_MINUTES) || 10;
+  const MIN_BATCH = 5;
 
-  // Claim each row by flipping status to 'sending' with a guard on
-  // the previous status, so two cron invocations racing for the
-  // same row can't both win.
-  const claimed: typeof rows = [];
-  for (const r of rows) {
+  // Pick up new scheduled-time-due campaigns AND any 'sending'
+  // campaigns that still have work. We process them in one
+  // unified pass so a single tick of the cron can both kick off a
+  // freshly-due campaign AND drain another batch of an
+  // in-progress one.
+  const [{ data: due, error: dueErr }, { data: inflight, error: inflightErr }] = await Promise.all([
+    admin
+      .from('email_campaigns')
+      .select('id, scheduled_send_at, generated_subject, created_by')
+      .eq('status', 'scheduled')
+      .lte('scheduled_send_at', nowIso)
+      .order('scheduled_send_at', { ascending: true })
+      .limit(20),
+    admin
+      .from('email_campaigns')
+      .select('id, scheduled_send_at, generated_subject, created_by')
+      .eq('status', 'sending')
+      .order('scheduled_send_at', { ascending: true, nullsFirst: false })
+      .limit(20),
+  ]);
+  if (dueErr) return NextResponse.json({ error: dueErr.message }, { status: 500 });
+  if (inflightErr) return NextResponse.json({ error: inflightErr.message }, { status: 500 });
+  type Row = { id: string; scheduled_send_at: string | null; generated_subject: string | null; created_by: string | null };
+  const dueRows = (due ?? []) as Row[];
+  const inflightRows = (inflight ?? []) as Row[];
+
+  // Claim newly-due rows by flipping 'scheduled' → 'sending' with
+  // a guard on the previous status. Inflight rows are already
+  // 'sending' so they don't need a claim — the send endpoint
+  // itself uses .eq('send_status', 'pending') as the row guard.
+  const claimedDue: Row[] = [];
+  for (const r of dueRows) {
     const { data: updated, error: claimErr } = await admin
       .from('email_campaigns')
       .update({ status: 'sending' })
@@ -56,14 +88,36 @@ export async function GET(req: NextRequest) {
       .eq('status', 'scheduled')
       .select('id')
       .maybeSingle();
-    if (!claimErr && updated) claimed.push(r);
+    if (!claimErr && updated) claimedDue.push(r);
   }
 
   const origin = req.nextUrl.origin;
   const sendUrl = `${origin}/api/email-campaigns/send`;
   let fired = 0;
   let failed = 0;
-  for (const r of claimed) {
+
+  // Send a paced batch for one campaign. The batch size is
+  // computed off the campaign's CURRENT pending count, divided by
+  // the configured send window, so a 236-recipient campaign with
+  // window=10 burns through 24 per tick.
+  const sendBatch = async (campaignId: string, createdBy: string | null) => {
+    const { count: pending } = await admin
+      .from('email_campaign_recipients')
+      .select('id', { count: 'exact', head: true })
+      .eq('campaign_id', campaignId)
+      .eq('send_status', 'pending');
+    const remaining = pending ?? 0;
+    if (remaining === 0) {
+      // Nothing left to send — flip the campaign to 'sent' so it
+      // stops appearing as in-progress. Per-row failure status
+      // is preserved on each email_campaign_recipients row.
+      await admin
+        .from('email_campaigns')
+        .update({ status: 'sent', sent_at: new Date().toISOString() })
+        .eq('id', campaignId);
+      return true;
+    }
+    const batchSize = Math.max(MIN_BATCH, Math.ceil(remaining / SEND_WINDOW_MINUTES));
     try {
       const res = await fetch(sendUrl, {
         method: 'POST',
@@ -72,15 +126,36 @@ export async function GET(req: NextRequest) {
           'x-cron-secret': cronSecret ?? '',
           'x-vercel-cron': '1',
         },
-        body: JSON.stringify({ campaignId: r.id, actingUserId: r.created_by ?? null }),
+        body: JSON.stringify({ campaignId, actingUserId: createdBy ?? null, batchSize }),
       });
-      if (res.ok) fired += 1;
-      else failed += 1;
+      return res.ok;
     } catch {
-      failed += 1;
+      return false;
     }
+  };
+
+  // Newly-claimed campaigns: kick the first batch immediately.
+  for (const r of claimedDue) {
+    const ok = await sendBatch(r.id, r.created_by);
+    if (ok) fired += 1; else failed += 1;
+  }
+  // Inflight campaigns: continue draining.
+  for (const r of inflightRows) {
+    // Don't double-process a campaign we just claimed in this
+    // same tick (could theoretically race if the dueRows query
+    // landed at the exact moment the claim happened).
+    if (claimedDue.some((d) => d.id === r.id)) continue;
+    const ok = await sendBatch(r.id, r.created_by);
+    if (ok) fired += 1; else failed += 1;
   }
 
-  return NextResponse.json({ ok: true, fired, failed, claimed: claimed.length });
+  return NextResponse.json({
+    ok: true,
+    fired,
+    failed,
+    claimed: claimedDue.length,
+    inflight: inflightRows.length,
+    send_window_minutes: SEND_WINDOW_MINUTES,
+  });
   });
 }
