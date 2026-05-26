@@ -121,6 +121,11 @@ export default function ImagesContent() {
     const { data, error } = await supabase
       .from('site_images')
       .select('*')
+      // Recently-used images surface at the top across every
+      // picker in the app; this canonical browser uses the same
+      // ordering so what users see here matches what they see
+      // in /app/content, /app/email-campaigns/new, etc.
+      .order('last_used_at', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false });
     if (error) {
       console.error('[images] load failed', error);
