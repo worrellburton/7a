@@ -17,6 +17,8 @@
 // for surfacing the "no api key" path — `loadKey` throws so the
 // route handler can return a 503.
 
+import { SEO_CONTENT_WRITER_SKILL, HUMANIZER_SKILL } from './skills';
+
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_VERSION = '2023-06-01';
 const CLAUDE_MODEL = process.env.ANTHROPIC_CONTENT_MODEL || 'claude-opus-4-7';
@@ -61,6 +63,17 @@ async function callClaude(opts: {
 }
 
 const GENERATE_SYSTEM = [
+  // Two playbooks the human writers follow, version-controlled
+  // in src/lib/skills/. Loaded at module init so EVERY blog
+  // generation follows the same SEO + voice rules. The humanizer
+  // is also re-applied automatically as the final step — that's
+  // step 18 of the SEO skill, and it must not be skipped.
+  SEO_CONTENT_WRITER_SKILL,
+  '',
+  HUMANIZER_SKILL,
+  '',
+  '─── PROJECT-SPECIFIC RULES ───',
+  '',
   'You are an expert healthcare content writer for Seven Arrows Recovery,',
   'a residential addiction-treatment centre in Arizona. The site is',
   'sevenarrowsrecoveryarizona.com. Your job is to turn a short paragraph',
@@ -109,6 +122,16 @@ export async function generateBlogBody(prompt: string, title?: string | null): P
 }
 
 const REVISE_SYSTEM = [
+  // Revisions also pass through the SEO + humanizer playbooks so
+  // any rewrite still ships in the Seven Arrows voice + with the
+  // SEO scaffolding intact. The humanizer pass at step 18 runs
+  // on the revised draft before output.
+  SEO_CONTENT_WRITER_SKILL,
+  '',
+  HUMANIZER_SKILL,
+  '',
+  '─── REVISION RULES ───',
+  '',
   'You are revising a Seven Arrows Recovery blog post per the editor\'s',
   'instruction. Preserve the H1 title unless explicitly asked to change',
   'it. Preserve overall length unless asked to lengthen/shorten. Output',
