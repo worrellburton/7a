@@ -759,7 +759,7 @@ function DraftsPanel({
                     </p>
                     {d.ready && (
                       <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-200">
-                        <span aria-hidden>●</span> Ready to go
+                        <span aria-hidden>●</span> Approved
                       </span>
                     )}
                   </div>
@@ -1564,7 +1564,7 @@ const CREATIVE_SUBS: { id: CreativeSub; label: string; description: string }[] =
   // etc.) keep working without a separate migration.
   { id: 'library', label: 'Build', description: 'Browse uploaded photos and videos.' },
   { id: 'templates', label: 'Draft', description: 'Reusable post drafts with placeholders, plus AI assist.' },
-  { id: 'ai', label: 'Ready to go', description: 'Every saved draft flagged ready, in one list view.' },
+  { id: 'ai', label: 'Approved posts', description: 'Every saved draft signed off and queued, in a spreadsheet view.' },
 ];
 
 function readCreativeSub(raw: string | null): CreativeSub {
@@ -1783,17 +1783,18 @@ function CreativeDraftsPanel() {
   );
 }
 
-// ── Creative > Ready to go ───────────────────────────────────────────
+// ── Creative > Approved posts ────────────────────────────────────────
 //
-// List view of every SavedDraft that's been flagged ready: true.
-// Mirrors the publish-flow picker on the Post tab but lives here so
-// the marketer has a dedicated "what's queued?" surface. Cards
-// summarise caption + media count + saved timestamp; primary action
-// jumps straight into the Post tab's publish flow, which is the
-// next step in the creation order (Build → Draft → Ready to go →
-// Post Now).
+// Spreadsheet-style list of every SavedDraft that's been flagged
+// ready: true. Each row carries a checkbox so the marketer can
+// multi-select; a bottom batch-action bar fades in with "Open
+// first", "Unmark ready", and "Delete" once anything's selected.
+// Mirrors the publish-flow picker on the Post tab but lives here
+// so the marketer has a dedicated "what's queued?" surface.
 function ReadyToGoPanel() {
   const [drafts, setDrafts] = useState<SavedDraft[]>([]);
+  // Selected draft ids — drives the batch-action bar at the bottom.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setDrafts(readSavedDrafts());
@@ -1802,70 +1803,206 @@ function ReadyToGoPanel() {
     return () => window.removeEventListener('storage', onChange);
   }, []);
 
-  const ready = drafts.filter((d) => d.ready);
+  const ready = useMemo(() => drafts.filter((d) => d.ready), [drafts]);
+  // Drop selections that point at drafts that no longer exist (e.g.
+  // after a parallel tab unmarks a draft).
+  useEffect(() => {
+    setSelected((prev) => {
+      const valid = new Set(ready.map((d) => d.id));
+      let changed = false;
+      const next = new Set<string>();
+      for (const id of prev) {
+        if (valid.has(id)) next.add(id);
+        else changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [ready]);
+
+  const allSelected = ready.length > 0 && selected.size === ready.length;
+  const someSelected = selected.size > 0 && !allSelected;
+  const toggleOne = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+  const toggleAll = () => {
+    if (allSelected) setSelected(new Set());
+    else setSelected(new Set(ready.map((d) => d.id)));
+  };
+
+  // Batch ops. localStorage is the source of truth; we read fresh,
+  // mutate, and write back — same pattern the per-row write uses.
+  const batchUnmark = () => {
+    const ids = selected;
+    if (ids.size === 0) return;
+    const next = readSavedDrafts().map((d) => (ids.has(d.id) ? { ...d, ready: false } : d));
+    writeSavedDrafts(next);
+    setDrafts(next);
+    setSelected(new Set());
+  };
+  const batchDelete = () => {
+    const ids = selected;
+    if (ids.size === 0) return;
+    if (!window.confirm(`Delete ${ids.size} approved post${ids.size === 1 ? '' : 's'}? This can't be undone.`)) return;
+    const next = readSavedDrafts().filter((d) => !ids.has(d.id));
+    writeSavedDrafts(next);
+    setDrafts(next);
+    setSelected(new Set());
+  };
 
   return (
-    <section className="rounded-2xl border border-black/10 bg-white/65 px-4 py-4 lg:px-6 lg:py-5">
+    <section className="rounded-2xl border border-black/10 bg-white/65 px-4 py-4 lg:px-6 lg:py-5 pb-24">
       <header className="flex items-baseline justify-between mb-3">
         <div>
           <h2 className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
-            Ready to go · {ready.length}
+            Approved posts · {ready.length}
           </h2>
           <p className="text-[11px] text-foreground/45 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-            Drafts your team has signed off on.
+            Drafts your team has signed off on. Tick rows to act in bulk.
           </p>
         </div>
       </header>
 
       {ready.length === 0 ? (
         <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
-          Nothing marked ready yet. Save a draft in Draft and tick "Mark ready to go" once it's final.
+          Nothing approved yet. Save a draft in Draft and tick &ldquo;Mark ready to go&rdquo; once it&rsquo;s final.
         </p>
       ) : (
-        <ul className="space-y-2">
-          {ready.map((d) => (
-            <li
-              key={d.id}
-              className="rounded-xl border border-emerald-200/70 bg-emerald-50/30 px-4 py-3 flex items-start gap-3"
-            >
-              <span className="mt-1 inline-block w-2 h-2 rounded-full bg-emerald-500" aria-hidden />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-baseline gap-2 mb-1">
-                  <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-emerald-700">Ready</span>
-                  <span className="text-[10.5px] text-foreground/45 tabular-nums">
-                    Saved {new Date(d.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                  </span>
-                  {d.mediaUrls.length > 0 && (
-                    <span className="text-[10.5px] text-foreground/45">· {d.mediaUrls.length} media</span>
-                  )}
-                </div>
-                <p className="text-[13px] text-foreground/85 leading-snug line-clamp-3 whitespace-pre-line" style={{ fontFamily: 'var(--font-body)' }}>
-                  {d.caption || <span className="text-foreground/40 italic">(no caption)</span>}
-                </p>
-                {d.mediaUrls.length > 0 && (
-                  <div className="mt-2 flex gap-1.5 flex-wrap">
-                    {d.mediaUrls.slice(0, 4).map((url, i) => (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img key={i} src={url} alt="" className="w-10 h-10 rounded object-cover border border-black/5" />
-                    ))}
-                    {d.mediaUrls.length > 4 && (
-                      <div className="w-10 h-10 rounded bg-warm-bg flex items-center justify-center text-[10px] font-semibold text-foreground/55">
-                        +{d.mediaUrls.length - 4}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-              <Link
-                href={`/app/social-media/drafts/${d.id}`}
-                className="shrink-0 px-2.5 py-1 rounded-md border border-black/10 bg-white text-[10px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
-                style={{ fontFamily: 'var(--font-body)' }}
+        <div className="overflow-x-auto rounded-lg border border-black/5">
+          <table className="w-full text-left text-[12.5px]" style={{ fontFamily: 'var(--font-body)' }}>
+            <thead className="bg-warm-bg/40 text-foreground/55">
+              <tr className="border-b border-black/5">
+                <th scope="col" className="px-3 py-2 w-10">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    ref={(el) => { if (el) el.indeterminate = someSelected; }}
+                    onChange={toggleAll}
+                    aria-label={allSelected ? 'Deselect all' : 'Select all approved posts'}
+                    className="w-4 h-4 rounded border-black/30 accent-primary cursor-pointer"
+                  />
+                </th>
+                <th scope="col" className="px-2 py-2 w-12 text-[9.5px] font-bold uppercase tracking-[0.14em]">Media</th>
+                <th scope="col" className="px-2 py-2 text-[9.5px] font-bold uppercase tracking-[0.14em]">Caption</th>
+                <th scope="col" className="px-2 py-2 w-32 text-[9.5px] font-bold uppercase tracking-[0.14em]">Saved</th>
+                <th scope="col" className="px-2 py-2 w-16 text-[9.5px] font-bold uppercase tracking-[0.14em] text-center">Media</th>
+                <th scope="col" className="px-2 py-2 w-20 text-[9.5px] font-bold uppercase tracking-[0.14em]"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {ready.map((d) => {
+                const isSel = selected.has(d.id);
+                const savedLabel = new Date(d.createdAt).toLocaleString(undefined, {
+                  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                });
+                return (
+                  <tr
+                    key={d.id}
+                    className={`border-t border-black/5 ${isSel ? 'bg-primary/5' : 'hover:bg-warm-bg/30'}`}
+                  >
+                    <td className="px-3 py-2 align-middle">
+                      <input
+                        type="checkbox"
+                        checked={isSel}
+                        onChange={() => toggleOne(d.id)}
+                        aria-label={`Select draft saved ${savedLabel}`}
+                        className="w-4 h-4 rounded border-black/30 accent-primary cursor-pointer"
+                      />
+                    </td>
+                    <td className="px-2 py-2 align-middle">
+                      {d.mediaUrls[0] ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={d.mediaUrls[0]}
+                          alt=""
+                          className="w-9 h-9 rounded object-cover border border-black/10"
+                        />
+                      ) : (
+                        <span className="inline-flex w-9 h-9 rounded items-center justify-center bg-warm-bg/60 text-foreground/40 text-[10px]" aria-hidden>—</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2 align-middle min-w-0">
+                      <p className="text-foreground/85 line-clamp-2 whitespace-pre-line">
+                        {d.caption || <span className="text-foreground/40 italic">(no caption)</span>}
+                      </p>
+                    </td>
+                    <td className="px-2 py-2 align-middle text-[11px] text-foreground/55 tabular-nums whitespace-nowrap">
+                      {savedLabel}
+                    </td>
+                    <td className="px-2 py-2 align-middle text-center text-[11px] text-foreground/55 tabular-nums">
+                      {d.mediaUrls.length}
+                    </td>
+                    <td className="px-2 py-2 align-middle text-right">
+                      <Link
+                        href={`/app/social-media/drafts/${d.id}`}
+                        className="inline-flex px-2.5 py-1 rounded-md border border-black/10 bg-white text-[10px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+                      >
+                        Open →
+                      </Link>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Batch-action bar — fixed bottom, fades in only when at
+          least one row is selected. Sits above other fixed footers
+          (z-40) and reserves its own horizontal padding so it
+          stays clear of the sidebar rail on desktop. */}
+      {selected.size > 0 && (
+        <div
+          role="region"
+          aria-label="Batch actions"
+          className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 supports-[backdrop-filter]:bg-white/85 backdrop-blur border-t border-black/10 shadow-[0_-8px_24px_-12px_rgba(60,48,42,0.18)]"
+        >
+          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-center justify-between gap-3 flex-wrap">
+            <p className="text-[12.5px] text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>
+              <span className="font-semibold text-foreground">{selected.size}</span>
+              {' '}selected
+              <button
+                type="button"
+                onClick={() => setSelected(new Set())}
+                className="ml-2 text-[11px] font-semibold text-foreground/45 hover:text-foreground underline decoration-dotted"
               >
-                Open →
-              </Link>
-            </li>
-          ))}
-        </ul>
+                Clear
+              </button>
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={batchUnmark}
+                className="px-3 py-1.5 rounded-md border border-black/10 bg-white text-[11.5px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+                title="Move these drafts back to Draft (not approved)."
+              >
+                Unmark ready
+              </button>
+              <button
+                type="button"
+                onClick={batchDelete}
+                className="px-3 py-1.5 rounded-md border border-rose-300 bg-white text-[11.5px] font-semibold text-rose-700 hover:bg-rose-50"
+              >
+                Delete · {selected.size}
+              </button>
+              {selected.size === 1 && (() => {
+                const firstId = Array.from(selected)[0];
+                return (
+                  <Link
+                    href={`/app/social-media/drafts/${firstId}`}
+                    className="px-3 py-1.5 rounded-md bg-primary text-white text-[11.5px] font-semibold hover:bg-primary/90"
+                  >
+                    Open
+                  </Link>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
       )}
     </section>
   );
@@ -2085,7 +2222,7 @@ function CreativeLibraryPanel() {
           className="w-full rounded-lg border border-black/15 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
         <p className="text-[11px] text-foreground/45 mt-1.5">
-          Working title only — you can edit it later. Used to find the draft in Ready to go.
+          Working title only — you can edit it later. Used to find the draft in Approved posts.
         </p>
       </div>
 
