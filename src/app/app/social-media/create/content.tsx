@@ -47,6 +47,51 @@ const ALL_PLATFORM_IDS: PlatformId[] = [
 // Mirrors the staging contract pushed by CreativeLibraryPanel.continueToAi.
 const STAGING_KEY = 'social_media_creative_staging_v1';
 
+// Surface = the social-network "place" a deliverable goes. Derived
+// off the deliverable label because PLATFORM_SPECS doesn't carry it
+// natively. Stays string-typed so adding a new label / surface
+// doesn't require updating a union. The Deliverables card groups
+// each platform's deliverable slots by surface so the user can
+// checkbox which surfaces they actually want to produce.
+type DeliverableSurface =
+  | 'post'
+  | 'story'
+  | 'reel'
+  | 'short'
+  | 'long-form'
+  | 'link'
+  | 'pin'
+  | 'thumbnail'
+  | 'document';
+
+const SURFACE_LABEL: Record<DeliverableSurface, string> = {
+  post: 'Post',
+  story: 'Story',
+  reel: 'Reel',
+  short: 'Short',
+  'long-form': 'Long-form',
+  link: 'Link preview',
+  pin: 'Pin',
+  thumbnail: 'Thumbnail',
+  document: 'Document',
+};
+
+function inferSurface(label: string): DeliverableSurface {
+  const l = label.toLowerCase();
+  // Order matters — earlier matches win. 'Story / Reel' matches
+  // 'story' first, which is the dominant Instagram use case for
+  // that combined 9:16 slot.
+  if (l.includes('story')) return 'story';
+  if (l.includes('reel')) return 'reel';
+  if (l.includes('short')) return 'short';
+  if (l.includes('long-form')) return 'long-form';
+  if (l.includes('thumbnail')) return 'thumbnail';
+  if (l.includes('link preview')) return 'link';
+  if (l.includes('pin')) return 'pin';
+  if (l.includes('document') || l.includes('pdf')) return 'document';
+  return 'post';
+}
+
 interface DeliverableRow {
   key: string;            // "${platform}|${label}"
   platform: PlatformId;
@@ -54,6 +99,7 @@ interface DeliverableRow {
   ratio: string;          // "1:1"
   size: string | undefined;
   kind: 'image' | 'video';
+  surface: DeliverableSurface;
 }
 
 function readStagedMedia(): string[] {
@@ -86,6 +132,7 @@ function buildDeliverableRows(platforms: PlatformId[]): DeliverableRow[] {
         ratio: img.ratio,
         size: img.size,
         kind: 'image',
+        surface: inferSurface(img.label),
       });
     }
     for (const vid of spec.videos) {
@@ -96,6 +143,7 @@ function buildDeliverableRows(platforms: PlatformId[]): DeliverableRow[] {
         ratio: vid.ratio,
         size: vid.size,
         kind: 'video',
+        surface: inferSurface(vid.label),
       });
     }
   }
@@ -170,16 +218,76 @@ export default function CreatePostContent() {
     return () => { cancelled = true; };
   }, []);
 
-  const rows = useMemo(
+  // All raw rows for the picked platforms, then filtered by the
+  // per-platform surface picks from the Deliverables card below.
+  const allRows = useMemo(
     () => buildDeliverableRows(Array.from(platforms).sort()),
     [platforms],
   );
+
+  // Per-platform set of surfaces the user wants to produce.
+  // Key: PlatformId. Value: Set<DeliverableSurface>.
+  // Stored as an object so it survives setState immutability
+  // without deep-cloning Sets.
+  const [enabledSurfaces, setEnabledSurfaces] = useState<Record<string, DeliverableSurface[]>>({});
+
+  // Available surfaces per selected platform — derived from the
+  // raw row set so adding a new label only requires updating
+  // platform-specs.ts.
+  const surfacesByPlatform = useMemo(() => {
+    const out = new Map<PlatformId, DeliverableSurface[]>();
+    for (const row of allRows) {
+      const list = out.get(row.platform) ?? [];
+      if (!list.includes(row.surface)) list.push(row.surface);
+      out.set(row.platform, list);
+    }
+    return out;
+  }, [allRows]);
+
+  // Default: when a platform is freshly added, enable every surface
+  // it offers. The user can then uncheck the ones they don't want.
+  useEffect(() => {
+    setEnabledSurfaces((prev) => {
+      const next: Record<string, DeliverableSurface[]> = {};
+      for (const [pid, surfaces] of surfacesByPlatform.entries()) {
+        next[pid] = prev[pid]
+          // Drop any surfaces that are no longer offered by the
+          // platform (defensive — labels shouldn't disappear in
+          // practice).
+          ? prev[pid].filter((s) => surfaces.includes(s))
+          : surfaces.slice();
+      }
+      return next;
+    });
+  }, [surfacesByPlatform]);
+
+  const rows = useMemo(() => {
+    return allRows.filter((r) => {
+      const enabled = enabledSurfaces[r.platform];
+      // Until the surfaces state has caught up with a freshly-added
+      // platform, treat everything as enabled so the user never
+      // sees an empty slots grid during the transition tick.
+      if (!enabled) return true;
+      return enabled.includes(r.surface);
+    });
+  }, [allRows, enabledSurfaces]);
 
   const togglePlatform = (pid: PlatformId) => {
     setPlatforms((prev) => {
       const next = new Set(prev);
       if (next.has(pid)) next.delete(pid); else next.add(pid);
       return next;
+    });
+  };
+
+  const toggleSurface = (pid: PlatformId, surface: DeliverableSurface) => {
+    setEnabledSurfaces((prev) => {
+      const list = prev[pid] ?? [];
+      const has = list.includes(surface);
+      const nextList = has
+        ? list.filter((s) => s !== surface)
+        : [...list, surface];
+      return { ...prev, [pid]: nextList };
     });
   };
 
@@ -349,6 +457,67 @@ export default function CreatePostContent() {
           })}
         </div>
       </section>
+
+      {/* Deliverables · per-platform checklist of surfaces
+          (Post / Story / Reel / etc). Each selected platform gets
+          a row; the surfaces it offers come from the inferred
+          DeliverableSurface attached to each row in
+          platform-specs.ts. Toggling a surface off filters its
+          slots out of the Deliverable Slots grid below. Defaults:
+          every surface enabled the moment a platform is picked. */}
+      {platforms.size > 0 && surfacesByPlatform.size > 0 && (
+        <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
+          <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">
+            Deliverables
+          </p>
+          <p className="text-[11.5px] text-foreground/50 mb-3" style={{ fontFamily: 'var(--font-body)' }}>
+            Pick which surfaces each network gets. Uncheck the ones you don&rsquo;t want to produce a crop for.
+          </p>
+          <ul className="divide-y divide-black/5">
+            {ALL_PLATFORM_IDS.filter((pid) => platforms.has(pid)).map((pid) => {
+              const surfaces = surfacesByPlatform.get(pid) ?? [];
+              if (surfaces.length === 0) return null;
+              const enabled = enabledSurfaces[pid] ?? surfaces;
+              return (
+                <li key={pid} className="py-2 flex items-center gap-3 flex-wrap">
+                  <span className="inline-flex items-center gap-1.5 min-w-[6.5rem]">
+                    <span className="inline-flex items-center justify-center w-4 h-4 text-foreground/70">
+                      <PlatformIcon platform={pid} size={14} />
+                    </span>
+                    <span className="text-[12.5px] font-semibold text-foreground/85">
+                      {PLATFORM_LABELS[pid] ?? pid}
+                    </span>
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {surfaces.map((surface) => {
+                      const on = enabled.includes(surface);
+                      return (
+                        <label
+                          key={surface}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11.5px] font-semibold cursor-pointer transition-colors ${
+                            on
+                              ? 'bg-primary/10 text-primary border-primary/40'
+                              : 'bg-white text-foreground/55 border-black/10 hover:bg-warm-bg/60'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={on}
+                            onChange={() => toggleSurface(pid, surface)}
+                            className="w-3 h-3 accent-primary"
+                            aria-label={`${SURFACE_LABEL[surface]} for ${PLATFORM_LABELS[pid] ?? pid}`}
+                          />
+                          {SURFACE_LABEL[surface]}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
 
       {/* Deliverable upload slots */}
       <section className="rounded-2xl border border-black/10 bg-white p-4 mb-5">
