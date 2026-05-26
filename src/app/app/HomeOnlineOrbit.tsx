@@ -425,15 +425,15 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
           one fans out to 680px. `w-full` still clamps to the viewport
           on phones, so the px-4 padding keeps mobile avatars off the
           screen edges without needing a hard breakpoint cap. */}
-      {/* pt-32 reserves vertical clearance above the orbit's
-          aspect-square box so the alumni ring (inset -30%, ie
-          overhangs ~30% above the container) doesn't poke into
-          the title block sitting just above. Matching pb-20
-          guarantees the bottom alumni avatars don't clip into
-          whatever block follows. Also adds px-12 sm:px-16 so the
-          left/right alumni avatars stay visible inside the
-          viewport rather than colliding with the sidebar rail. */}
-      <div className="w-full flex justify-center px-12 sm:px-16 pt-32 pb-20">
+      {/* Reserve vertical clearance above the orbit's aspect-square
+          box so the outer alumni ring (inset -30%, overhangs ~30%
+          above the container) doesn't poke into the title block
+          sitting just above. pt-16 is the smallest gap that keeps
+          the alumni avatars off the title text — earlier we had
+          pt-32 which pushed the title block above the viewport on
+          desktop, since the whole orbit section is vertically
+          centered with translate-y-1/2 by the home page wrapper. */}
+      <div className="w-full flex justify-center px-12 sm:px-16 pt-16 pb-12">
         <div
           className="relative w-full aspect-square"
           style={{ maxWidth: `${idealDiameter}px` }}
