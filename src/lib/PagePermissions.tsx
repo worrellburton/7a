@@ -110,6 +110,12 @@ const defaultPages: PageConfig[] = [
   // to /app, and every /api/kaizen/* route enforces super-admin
   // server-side via requireSuperAdmin.
   { path: '/app/kaizen', label: 'Kaizen', adminOnly: true, section: 'nav', sort_order: 90, allowedDepartments: [], departmentId: null },
+  // HIPAA technical-safeguards audit. Super-admin-gated at the
+  // route level (the page itself renders a locked panel for
+  // non-super-admins), and the /api/hipaa/scan endpoint enforces
+  // the same. Sits in popup (not nav) so it's reachable when
+  // needed without claiming a permanent rail slot.
+  { path: '/app/hipaa', label: 'HIPAA audit', adminOnly: true, section: 'popup', sort_order: 8, allowedDepartments: [], departmentId: null },
   // Chat — open to all staff + alumni. PageGuard's per-user override
   // for guests still applies (a guest sees Chat only when a super
   // admin grants /app/chat in their allow-list).

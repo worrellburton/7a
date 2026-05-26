@@ -177,6 +177,13 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M5 16l.6 1.8L7.4 18.4l-1.8.6L5 20.8l-.6-1.8L2.6 18.4l1.8-.6z" />
     </svg>
   ),
+  // HIPAA audit · shield + check glyph, the compliance metaphor.
+  '/app/hipaa': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2L4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5l-8-3z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  ),
   // Daily touchpoint logs — a stack of horizontal logs (🪵), to
   // echo the wood-stack metaphor the page itself uses for each
   // recorded contact.
