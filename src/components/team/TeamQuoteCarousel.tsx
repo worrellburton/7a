@@ -100,10 +100,10 @@ export default function TeamQuoteCarousel({ team, intervalMs = 7000 }: Props) {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
         <p className="section-label justify-center mb-5">In their words</p>
 
-        {/* Stage — fixed min-height so the auto-advance doesn't reflow
-            the page beneath it. Flanked by prev/next arrows on sm+
-            screens; mobile puts them below the dots. */}
-        <div className="relative min-h-[260px] sm:min-h-[220px] flex flex-col items-center justify-center">
+        {/* Stage — min-height grown so long quotes (the auto-scaled
+            tiers below max out around ~17 mobile lines at 15px)
+            don't overflow into the figcaption underneath. */}
+        <div className="relative min-h-[360px] sm:min-h-[260px] flex flex-col items-center justify-center">
           {slides.map((m, i) => {
             const active = i === index;
             return (
@@ -129,8 +129,20 @@ export default function TeamQuoteCarousel({ team, intervalMs = 7000 }: Props) {
                   className="text-foreground leading-snug italic max-w-2xl"
                   style={{
                     fontFamily: 'var(--font-display)',
-                    fontSize: 'clamp(1.3rem, 2.4vw, 1.8rem)',
-                    lineHeight: 1.3,
+                    // Auto-scale to keep long quotes from dominating
+                    // the mobile viewport. The screenshot case
+                    // (>400 chars) was rendering at clamp 1.3-1.8rem
+                    // and eating the whole screen; tier the
+                    // clamp by character count so short quotes
+                    // still read big.
+                    fontSize: (() => {
+                      const len = (m.favorite_seven_arrows || '').length;
+                      if (len > 280) return 'clamp(0.95rem, 1.6vw, 1.2rem)';
+                      if (len > 160) return 'clamp(1.05rem, 1.9vw, 1.4rem)';
+                      if (len > 90)  return 'clamp(1.15rem, 2.1vw, 1.6rem)';
+                      return 'clamp(1.3rem, 2.4vw, 1.8rem)';
+                    })(),
+                    lineHeight: 1.35,
                   }}
                 >
                   &ldquo;{stripOuterQuotes(m.favorite_seven_arrows || '')}&rdquo;
