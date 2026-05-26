@@ -5,12 +5,16 @@ import { runKaizenScan } from '@/lib/kaizen-scan';
 
 // GET /api/cron/kaizen/scan
 //
-// Daily 6 AM Phoenix kaizen scan. Vercel cron fires it; we accept
+// Daily 6 AM ET kaizen scan. Vercel cron fires it; we accept
 // the Vercel-signed header or a CRON_SECRET bearer/query token so
 // admins can trigger it manually for debugging.
 //
-// Cron schedule in vercel.json: '0 13 * * *' — 13:00 UTC = 06:00
-// MST (Phoenix is UTC-7 year-round, no DST).
+// Cron schedule in vercel.json: '0 10 * * *' — 10:00 UTC. That's
+// 06:00 EDT (UTC-4) during the ~8 months of daylight saving time
+// and 05:00 EST the rest of the year. Vercel cron doesn't track
+// DST, and we'd rather land slightly EARLIER than "6 AM" in
+// winter than slightly later — the recommendations are meant to
+// be waiting when admins start the day, not still being generated.
 
 export const dynamic = 'force-dynamic';
 // Default Vercel serverless timeout (10s on Hobby, 60s on Pro) is
