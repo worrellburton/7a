@@ -6,7 +6,6 @@ import Footer from '@/components/Footer';
 import BeforeFooterCTA from '@/components/BeforeFooterCTA';
 import InsuranceVerification from '@/components/InsuranceVerification';
 import BottomTicker from '@/components/BottomTickerServer';
-import GoogleReviewsBadge from '@/components/GoogleReviewsBadge';
 import FloatingContactCTA from '@/components/FloatingContactCTA';
 import StickyMobileCTA from '@/components/StickyMobileCTA';
 
@@ -54,10 +53,11 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       <InsuranceVerification />
       <Footer />
       <BottomTicker />
-      <GoogleReviewsBadge />
       <FloatingContactCTA />
-      {/* Mobile-only floating call pill, rendered globally so the
-          phone number is always one tap away on every inner page. */}
+      {/* Mobile-only sticky phone-call ribbon pinned to the
+          bottom of every inner page. GoogleReviewsBadge was
+          previously stacked below this; removed to keep the
+          ribbon a single clean row. */}
       <StickyMobileCTA />
     </>
   );
