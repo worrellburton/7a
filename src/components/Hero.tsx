@@ -473,15 +473,15 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
                 }}
               >
                 <Link
-                  href="/admissions#verify"
+                  href="/who-we-are"
                   className="inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark text-white rounded-full px-8 py-4 text-base font-semibold shadow-[0_20px_60px_-20px_rgba(0,0,0,0.7)] transition-all"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                    <path d="M9 12l2 2 4-4" />
+                    <circle cx="12" cy="8" r="4" />
+                    <path d="M4 21v-1a8 8 0 0 1 16 0v1" />
                   </svg>
-                  Verify My Insurance
+                  About us
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                     <line x1="5" y1="12" x2="19" y2="12" />
                     <polyline points="12 5 19 12 12 19" />
