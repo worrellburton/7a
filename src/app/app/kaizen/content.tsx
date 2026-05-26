@@ -12,7 +12,7 @@
 //
 // First-visit behavior: if no scan has ever run, the page kicks
 // one off so the super admin doesn't see an empty surface. The
-// daily 6 AM Phoenix cron handles subsequent days automatically.
+// daily 6 AM ET cron handles subsequent days automatically.
 
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -286,7 +286,7 @@ export default function KaizenContent() {
             Kaizen <em className="not-italic text-primary">scan</em>
           </h1>
           <p className="mt-1 text-[12.5px] text-foreground/55 max-w-2xl">
-            Daily Claude-driven scan of the codebase. Every morning at 6&nbsp;AM Phoenix, 10
+            Daily Claude-driven scan of the codebase. Every morning at 6&nbsp;AM ET, 10
             opinionated recommendations land here — 5 for the Website, 5 for Feather — across
             features, codebase, growth, UX, and performance. Each card has a one-tap copy
             button that drops a ready-to-paste prompt into Claude Code.
