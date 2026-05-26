@@ -1685,11 +1685,12 @@ function CreativeDraftsPanel() {
       <div className="flex items-baseline justify-between flex-wrap gap-3 mb-3">
         <div>
           <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">
-            Drafts · {inProgress.length}
+            Drafts in progress · {inProgress.length}
           </h2>
           <p className="text-[11px] text-foreground/45 mt-0.5">
-            Posts in progress. Mark one ready to go to publish or schedule it.
-            {ready.length > 0 && <> {ready.length} already marked ready.</>}
+            Posts your team is still working on — not yet approved. Tick &ldquo;Mark approved&rdquo; on any one to move it to{' '}
+            <strong>Approved posts</strong>.
+            {ready.length > 0 && <> {ready.length} already approved.</>}
           </p>
         </div>
         <button
@@ -1707,7 +1708,10 @@ function CreativeDraftsPanel() {
       ) : inProgress.length === 0 ? (
         <div className="rounded-xl border border-dashed border-black/10 bg-warm-bg/30 px-5 py-10 text-center">
           <p className="text-sm text-foreground/55 max-w-md mx-auto">
-            No drafts in progress. Build one in <strong>Build</strong>, or start from a template.
+            No drafts in progress.{' '}
+            {ready.length > 0
+              ? <>The {ready.length} approved post{ready.length === 1 ? '' : 's'} sit{ready.length === 1 ? 's' : ''} under <strong>Approved posts</strong>.</>
+              : <>Build one in <strong>Build</strong>, or start from a template.</>}
           </p>
           <button
             type="button"

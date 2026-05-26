@@ -7,6 +7,7 @@ import { useModal } from '@/lib/ModalProvider';
 import { supabase } from '@/lib/supabase';
 import { compressForSeo, compressImage } from '@/lib/upload';
 import { logActivity } from '@/lib/activity';
+import { touchMedia } from '@/lib/touchMedia';
 
 interface SiteImage {
   id: string;
@@ -34,6 +35,9 @@ interface SiteImage {
   ai_provider?: string | null;
   ai_prompt?: string | null;
   source_blog_id?: string | null;
+  // Recency: bumped whenever a user picks this image in any
+  // surface — drives the library ordering across the app.
+  last_used_at?: string | null;
 }
 
 type ImageTab = 'all' | 'real' | 'ai';
@@ -175,6 +179,32 @@ export default function ImagesContent() {
         showToast('Could not copy — select the URL manually');
       }
       document.body.removeChild(ta);
+    }
+  }
+
+  // Pull the image bytes through fetch + Blob so the browser
+  // actually downloads them (rather than navigating to the URL)
+  // and uses the stored filename instead of whatever filename
+  // the CDN tacks onto the public_url.
+  async function downloadImage(img: SiteImage) {
+    try {
+      const res = await fetch(img.public_url, { mode: 'cors' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = img.filename || 'image';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Revoke on the next tick so the click has a chance to
+      // resolve before the URL is invalidated.
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 0);
+    } catch {
+      // CORS or network failure → fall back to a plain new-tab
+      // navigation. The user can right-click → save from there.
+      window.open(img.public_url, '_blank', 'noopener,noreferrer');
     }
   }
 
@@ -709,9 +739,24 @@ export default function ImagesContent() {
             <div key={img.id} className="group bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 hover:shadow-lg transition-shadow">
               <button
                 type="button"
-                onClick={() => copyUrl(img.public_url)}
+                onClick={() => {
+                  copyUrl(img.public_url);
+                  // Bump this image to the top of the library order
+                  // across every surface in the app + this very page
+                  // on next reload.
+                  touchMedia('image', img.id);
+                  // Optimistically reorder the local list so the click
+                  // visibly floats the tile to position #1 without
+                  // waiting for the server round-trip / next reload.
+                  setImages((prev) => {
+                    const hit = prev.find((p) => p.id === img.id);
+                    if (!hit) return prev;
+                    const rest = prev.filter((p) => p.id !== img.id);
+                    return [{ ...hit, last_used_at: new Date().toISOString() }, ...rest];
+                  });
+                }}
                 className="relative aspect-square w-full block bg-warm-bg overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                title="Click to copy URL"
+                title="Click to copy URL + bump to top"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -840,6 +885,19 @@ export default function ImagesContent() {
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                         <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void downloadImage(img)}
+                      className="p-1.5 rounded-md text-foreground/40 hover:text-foreground hover:bg-warm-bg transition-colors"
+                      title="Download"
+                      aria-label="Download image"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
                       </svg>
                     </button>
                     <button
