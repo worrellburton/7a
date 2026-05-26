@@ -22,6 +22,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
+import { touchMedia } from '@/lib/touchMedia';
 import { BuildProgress } from '../BuildProgress';
 import { SITE_PAGES, SITE_PAGE_GROUPS, findSitePage, type SitePage } from '@/lib/site-pages';
 import { Toggle, ModalShell } from '@/components/ui';
@@ -213,6 +214,9 @@ export default function NewEmailCampaignContent() {
       const [imagesRes, episodesRes, usersRes, horsesRes] = await Promise.all([
         supabase.from('site_images')
           .select('id, public_url, filename')
+          // Recently-used assets bubble to the top across every
+          // surface that picks images.
+          .order('last_used_at', { ascending: false, nullsFirst: false })
           .order('created_at', { ascending: false })
           .limit(200),
         fetch('/api/episodes/list', { credentials: 'include', cache: 'no-store' }),
@@ -397,6 +401,12 @@ export default function NewEmailCampaignContent() {
   const toggleImage = (url: string) => {
     setDraft((prev) => {
       const has = prev.imageUrls.includes(url);
+      if (!has) {
+        // Recency bump on PICK only — find the id from the loaded
+        // library so the server endpoint gets a real uuid.
+        const hit = libraryAssets.find((a) => a.url === url);
+        if (hit?.id) touchMedia('image', hit.id);
+      }
       return {
         ...prev,
         imageUrls: has ? prev.imageUrls.filter((u) => u !== url) : [...prev.imageUrls, url],

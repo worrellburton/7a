@@ -145,10 +145,14 @@ export default function CreatePostContent() {
       const [imagesRes, videosRes] = await Promise.all([
         supabase.from('site_images')
           .select('id, public_url, filename')
+          // Recently-used assets bubble to the top across every
+          // surface that picks media.
+          .order('last_used_at', { ascending: false, nullsFirst: false })
           .order('created_at', { ascending: false })
           .limit(200),
         supabase.from('site_videos')
           .select('id, video_url, thumbnail_url, filename')
+          .order('last_used_at', { ascending: false, nullsFirst: false })
           .order('created_at', { ascending: false })
           .limit(80),
       ]);

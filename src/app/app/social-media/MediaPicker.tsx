@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { touchMedia } from '@/lib/touchMedia';
 
 // Picker that lets the Social Media composer select image and video
 // assets that already live in the 7A app — public.site_images +
@@ -72,6 +73,9 @@ export function MediaPicker({
       const { data, error: err } = await supabase
         .from('site_images')
         .select('id, public_url, filename, alt, width, height, created_at')
+        // Recently-used assets float to the top across every
+        // surface; created_at is the chronological fallback.
+        .order('last_used_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false })
         .limit(200);
       if (err) throw err;
@@ -95,6 +99,7 @@ export function MediaPicker({
         // generations would 404 if Ayrshare tried to fetch them.
         .eq('status', 'completed')
         .not('video_url', 'is', null)
+        .order('last_used_at', { ascending: false, nullsFirst: false })
         .order('created_at', { ascending: false })
         .limit(200);
       if (err) throw err;
@@ -153,6 +158,9 @@ export function MediaPicker({
         label: img.alt || img.filename || 'Image',
         kind: 'image',
       });
+      // Recency bump only on PICK — bubbles this asset to the top
+      // of every library query across the app.
+      touchMedia('image', img.id);
     }
     onChange(next);
   };
@@ -173,6 +181,7 @@ export function MediaPicker({
         label: vid.alt || vid.filename || vid.prompt?.slice(0, 60) || 'Video',
         kind: 'video',
       });
+      touchMedia('video', vid.id);
     }
     onChange(next);
   };

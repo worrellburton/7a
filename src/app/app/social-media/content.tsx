@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
+import { touchMedia } from '@/lib/touchMedia';
 import { PlatformIcon, type PlatformId } from './PlatformIcon';
 import { MediaPicker, type PickedMedia } from './MediaPicker';
 import { PostStatusToast, type PostStatus, type PerPlatformResult } from './PostStatusToast';
@@ -38,7 +39,7 @@ function pushComposeDraft(draft: ComposeDraft) {
 // path doesn't accidentally drop it. The AI panel reads this on
 // mount to pre-populate its media context; saving to drafts copies
 // the urls into the draft payload and then this stash is cleared.
-interface CreativeStaging { mediaUrls: string[] }
+interface CreativeStaging { mediaUrls: string[]; title?: string | null }
 const STAGING_KEY = 'social_media_creative_staging_v1';
 function pushCreativeStaging(s: CreativeStaging) {
   try { sessionStorage.setItem(STAGING_KEY, JSON.stringify(s)); } catch { /* no-op */ }
@@ -1888,10 +1889,20 @@ interface LibraryAsset {
   filename: string | null;
   alt: string | null;
   created_at: string;
+  last_used_at: string | null;
   kind: 'image' | 'video';
 }
 
 type LibraryFilter = 'all' | 'photos' | 'videos';
+
+// Cap on visible library tiles; the rest hides behind a Show-all
+// reveal so the page doesn't feel like an infinite scroll.
+const LIBRARY_VISIBLE_DEFAULT = 24;
+
+// sessionStorage key for the working post title — survives the
+// Continue jump into AI / Compose so the marketer's typed name
+// carries through every step.
+const POST_TITLE_KEY = 'sa-social-build-title';
 
 function CreativeLibraryPanel() {
   const router = useRouter();
@@ -1902,6 +1913,19 @@ function CreativeLibraryPanel() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<LibraryFilter>('all');
+  const [showAll, setShowAll] = useState(false);
+  // Working post name — persisted to sessionStorage so it carries
+  // across the Continue handoff into Draft / Compose.
+  const [postName, setPostName] = useState('');
+  useEffect(() => {
+    try {
+      const stored = sessionStorage.getItem(POST_TITLE_KEY);
+      if (stored) setPostName(stored);
+    } catch { /* sessionStorage unavailable */ }
+  }, []);
+  useEffect(() => {
+    try { sessionStorage.setItem(POST_TITLE_KEY, postName); } catch { /* */ }
+  }, [postName]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1909,17 +1933,20 @@ function CreativeLibraryPanel() {
       setLoading(true);
       try {
         // Pull photos + videos in parallel; merge into a single
-        // chronological list so the filter is a pure client-side
-        // toggle once data lands.
+        // list ordered first by last_used_at (most-recently-picked
+        // bubbles to the top across every surface) then by
+        // created_at as the historical baseline.
         const [imagesRes, videosRes] = await Promise.all([
           supabase
             .from('site_images')
-            .select('id, public_url, filename, alt, created_at')
+            .select('id, public_url, filename, alt, created_at, last_used_at')
+            .order('last_used_at', { ascending: false, nullsFirst: false })
             .order('created_at', { ascending: false })
             .limit(200),
           supabase
             .from('site_videos')
-            .select('id, video_url, thumbnail_url, filename, alt, created_at')
+            .select('id, video_url, thumbnail_url, filename, alt, created_at, last_used_at')
+            .order('last_used_at', { ascending: false, nullsFirst: false })
             .order('created_at', { ascending: false })
             .limit(80),
         ]);
@@ -1927,11 +1954,11 @@ function CreativeLibraryPanel() {
         if (imagesRes.error) throw imagesRes.error;
         const imageRows = (imagesRes.data ?? []) as Array<{
           id: string; public_url: string; filename: string | null;
-          alt: string | null; created_at: string;
+          alt: string | null; created_at: string; last_used_at: string | null;
         }>;
         const videoRows = (videosRes.error ? [] : (videosRes.data ?? [])) as Array<{
           id: string; video_url: string | null; thumbnail_url: string | null;
-          filename: string | null; alt: string | null; created_at: string;
+          filename: string | null; alt: string | null; created_at: string; last_used_at: string | null;
         }>;
         const merged: LibraryAsset[] = [
           ...imageRows.map<LibraryAsset>((r) => ({
@@ -1941,6 +1968,7 @@ function CreativeLibraryPanel() {
             filename: r.filename,
             alt: r.alt,
             created_at: r.created_at,
+            last_used_at: r.last_used_at,
             kind: 'image',
           })),
           ...videoRows
@@ -1952,9 +1980,19 @@ function CreativeLibraryPanel() {
               filename: r.filename,
               alt: r.alt,
               created_at: r.created_at,
+              last_used_at: r.last_used_at,
               kind: 'video',
             })),
-        ].sort((a, b) => (a.created_at > b.created_at ? -1 : 1));
+        ].sort((a, b) => {
+          // Most-recently-picked first; falls back to created_at so
+          // assets that have never been touched still slot in
+          // chronologically below the recency band.
+          const aKey = a.last_used_at ?? a.created_at;
+          const bKey = b.last_used_at ?? b.created_at;
+          if (a.last_used_at && !b.last_used_at) return -1;
+          if (!a.last_used_at && b.last_used_at) return 1;
+          return aKey > bKey ? -1 : aKey < bKey ? 1 : 0;
+        });
         setAssets(merged);
         setError(null);
       } catch (e) {
@@ -1981,8 +2019,18 @@ function CreativeLibraryPanel() {
   const toggle = (id: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      const wasSelected = next.has(id);
+      if (wasSelected) {
+        next.delete(id);
+      } else {
+        next.add(id);
+        // Fire the recency bump only on PICKS (not deselects).
+        // Strip the local namespace prefix so the server endpoint
+        // gets the real uuid.
+        const kind: 'image' | 'video' = id.startsWith('vid:') ? 'video' : 'image';
+        const rawId = id.replace(/^(img|vid):/, '');
+        touchMedia(kind, rawId);
+      }
       return next;
     });
   };
@@ -1993,7 +2041,7 @@ function CreativeLibraryPanel() {
       .map((row) => row.url)
       .filter((u): u is string => Boolean(u));
     if (urls.length === 0) return;
-    pushCreativeStaging({ mediaUrls: urls });
+    pushCreativeStaging({ mediaUrls: urls, title: postName.trim() || null });
     // Continue now lands on the dedicated Create page — caption +
     // platform pills + a deliverable upload slot for every crop
     // across the targeted networks, and a "Save and ready to go"
@@ -2010,20 +2058,52 @@ function CreativeLibraryPanel() {
     return { photos, videos, all: photos + videos };
   }, [assets]);
 
+  // Cap the visible tiles; Show all expands to the full list. Lets
+  // the page feel tight on first paint while still giving access to
+  // older assets when the marketer needs them.
+  const visibleAssets = showAll ? filtered : filtered.slice(0, LIBRARY_VISIBLE_DEFAULT);
+  const hiddenCount = Math.max(0, filtered.length - visibleAssets.length);
+
   return (
     <>
-    <section className="rounded-2xl border border-black/10 bg-white p-5 pb-24">
-      <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
-        <div>
-          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Library</h2>
-          <p className="text-[11px] text-foreground/45 mt-0.5">
-            Pick the media you want a post built around. Continue takes you to AI for caption generation.
-          </p>
+    <section className="rounded-2xl border border-black/10 bg-white p-5 pb-24 space-y-5">
+
+      {/* STEP 1 · name the post. Lands at the top so the marketer
+          declares intent before scrolling through media. The typed
+          name persists into sessionStorage and carries forward into
+          Draft / Compose. */}
+      <div>
+        <div className="flex items-baseline gap-2 mb-2">
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-foreground text-white text-[10px] font-bold tabular-nums">1</span>
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Name this post</h2>
+        </div>
+        <input
+          type="text"
+          value={postName}
+          onChange={(e) => setPostName(e.target.value)}
+          placeholder="e.g. 'Sunset over the herd' or 'Equine therapy day 12'"
+          className="w-full rounded-lg border border-black/15 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+        <p className="text-[11px] text-foreground/45 mt-1.5">
+          Working title only — you can edit it later. Used to find the draft in Ready to go.
+        </p>
+      </div>
+
+      {/* STEP 2 · pick media. */}
+      <div className="flex items-baseline justify-between gap-3 flex-wrap pt-1 border-t border-black/5">
+        <div className="flex items-baseline gap-2 pt-4">
+          <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-foreground text-white text-[10px] font-bold tabular-nums">2</span>
+          <div>
+            <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Library</h2>
+            <p className="text-[11px] text-foreground/45 mt-0.5">
+              Pick the media you want a post built around. Continue takes you to AI for caption generation.
+            </p>
+          </div>
         </div>
         <input
           type="search"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => { setQuery(e.target.value); setShowAll(true); }}
           placeholder="Search filename or alt"
           className="rounded-lg border border-black/10 px-3 py-1.5 text-xs w-56 max-w-full focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
@@ -2064,8 +2144,8 @@ function CreativeLibraryPanel() {
       ) : filtered.length === 0 ? (
         <p className="text-sm text-foreground/55 italic">No media matches.</p>
       ) : (
-        <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-          {filtered.map((row) => {
+        <ul className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-8 gap-1.5">
+          {visibleAssets.map((row) => {
             const isSelected = selected.has(row.id);
             const label = row.alt || row.filename || (row.kind === 'video' ? 'Video' : 'Image');
             return (
@@ -2135,6 +2215,22 @@ function CreativeLibraryPanel() {
             );
           })}
         </ul>
+      )}
+
+      {/* Show-all reveal — pages with >24 assets hide the rest
+          behind a single button so the panel doesn't read as an
+          endless scroll. Search auto-expands the cap so query
+          results aren't accidentally hidden. */}
+      {!loading && hiddenCount > 0 && (
+        <div className="pt-2 text-center">
+          <button
+            type="button"
+            onClick={() => setShowAll(true)}
+            className="text-[11.5px] font-semibold uppercase tracking-wider text-primary hover:underline"
+          >
+            Show all {filtered.length} ↓
+          </button>
+        </div>
       )}
 
     </section>

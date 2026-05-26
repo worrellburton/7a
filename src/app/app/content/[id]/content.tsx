@@ -1291,6 +1291,9 @@ function LibraryTab({
         const { data, error } = await supabase
           .from('site_images')
           .select('id, public_url, filename, alt, width, height, seo_title, seo_description')
+          // Recently-used assets float to the top across every
+          // surface that picks images.
+          .order('last_used_at', { ascending: false, nullsFirst: false })
           .order('created_at', { ascending: false })
           .limit(200);
         if (cancelled) return;
@@ -1330,6 +1333,14 @@ function LibraryTab({
   async function importImage(siteImageId: string) {
     if (!token) return;
     setImporting(siteImageId); setErr(null);
+    // Recency bump — float this image to the top of every library
+    // query across the app on the next read.
+    void fetch('/api/media/touch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'image', id: siteImageId }),
+      keepalive: true,
+    }).catch(() => { /* non-fatal */ });
     try {
       const res = await fetch(`/api/content/${blogId}/library-image`, {
         method: 'POST',
