@@ -10,6 +10,7 @@
 // flips status='sent' on the campaign row.
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
@@ -74,6 +75,13 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
   const [building, setBuilding] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Schedule-send modal state. Mirrors the picker on the recipients
+  // page so a marketer who's already on Review and Send doesn't have
+  // to step backward to queue a later send time.
+  const router = useRouter();
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduleDateTime, setScheduleDateTime] = useState('');
+  const [scheduling, setScheduling] = useState(false);
   const buildControllerRef = useRef<AbortController | null>(null);
   const onCancelBuild = () => {
     buildControllerRef.current?.abort();
@@ -247,6 +255,40 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setSending(false);
+    }
+  };
+
+  // Schedule send · validates the picked datetime, then POSTs to
+  // /api/email-campaigns/schedule. On success routes to the
+  // Sending schedule view with a banner.
+  const onConfirmSchedule = async () => {
+    if (!session?.access_token || scheduling) return;
+    if (!scheduleDateTime) { setError('Pick a date and time.'); return; }
+    const sendAt = new Date(scheduleDateTime);
+    if (Number.isNaN(sendAt.getTime())) { setError('That date is not valid.'); return; }
+    if (sendAt.getTime() < Date.now()) { setError('Schedule time must be in the future.'); return; }
+    setError(null);
+    setScheduling(true);
+    try {
+      const res = await fetch('/api/email-campaigns/schedule', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ campaignId, sendAt: sendAt.toISOString() }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || json.ok === false) {
+        setError(json.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      setScheduleOpen(false);
+      router.push(`/app/email-campaigns/scheduled?scheduledFor=${encodeURIComponent(sendAt.toISOString())}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setScheduling(false);
     }
   };
 
@@ -540,6 +582,27 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
           </Link>
           <button
             type="button"
+            onClick={() => {
+              setError(null);
+              // Default the picker to ~1 hour from now in the local
+              // timezone so 'Done' on first interaction always lands
+              // a valid future slot.
+              if (!scheduleDateTime) {
+                const d = new Date(Date.now() + 60 * 60 * 1000);
+                const pad = (n: number) => String(n).padStart(2, '0');
+                setScheduleDateTime(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`);
+              }
+              setScheduleOpen(true);
+            }}
+            disabled={sending || scheduling || recipients.length === 0 || !canSend}
+            title={!canSend ? 'Only admins can schedule email campaigns.' : 'Pick a date and time to send this campaign automatically.'}
+            className="px-4 py-2 rounded-md border border-primary/40 bg-white text-primary text-[12px] font-semibold uppercase tracking-wider hover:bg-primary/5 disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Schedule send →
+          </button>
+          <button
+            type="button"
             onClick={onSend}
             disabled={sending || recipients.length === 0 || !canSend}
             title={!canSend ? 'Only admins can send email campaigns.' : undefined}
@@ -552,6 +615,69 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
               ? 'Send (admins only)'
               : `Send to ${recipients.length}`}
           </button>
+        </div>
+      )}
+
+      {/* Schedule-send picker · centered modal mirroring the
+          recipients-page version so the picker UI reads the same
+          across the funnel. Native datetime-local picks up the
+          OS calendar / wheel UI. */}
+      {scheduleOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Schedule send">
+          <div className="w-full max-w-md rounded-2xl bg-white shadow-[0_30px_60px_-20px_rgba(0,0,0,0.4)] overflow-hidden" style={{ fontFamily: 'var(--font-body)' }}>
+            <header className="px-5 py-4 border-b border-black/5 flex items-baseline justify-between gap-2">
+              <div>
+                <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">When should this send?</p>
+                <h2 className="mt-0.5 text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+                  Schedule send
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => { if (!scheduling) setScheduleOpen(false); }}
+                className="text-foreground/50 hover:text-foreground text-xl leading-none"
+                aria-label="Cancel"
+                disabled={scheduling}
+              >
+                ×
+              </button>
+            </header>
+            <div className="px-5 py-4 space-y-3">
+              <label className="block">
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-foreground/55">Date &amp; time</span>
+                <input
+                  type="datetime-local"
+                  value={scheduleDateTime}
+                  onChange={(e) => setScheduleDateTime(e.target.value)}
+                  className="mt-1 w-full px-3 py-2 rounded-md border border-black/15 text-[14px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+                />
+                <span className="mt-1 block text-[11px] text-foreground/55">
+                  Your message will go out at this time. Times are in your local timezone.
+                </span>
+              </label>
+              {error && (
+                <p className="text-[12px] text-rose-700" role="alert">{error}</p>
+              )}
+            </div>
+            <footer className="px-5 py-3 border-t border-black/5 flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => { if (!scheduling) setScheduleOpen(false); }}
+                disabled={scheduling}
+                className="px-3.5 py-2 rounded-md border border-black/10 bg-white text-[11.5px] font-semibold text-foreground/70 hover:bg-warm-bg/60 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void onConfirmSchedule()}
+                disabled={scheduling || !scheduleDateTime}
+                className="px-4 py-2 rounded-md bg-primary text-white text-[11.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50"
+              >
+                {scheduling ? 'Scheduling…' : 'Done'}
+              </button>
+            </footer>
+          </div>
         </div>
       )}
     </div>
