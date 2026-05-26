@@ -141,8 +141,9 @@ export default function HipaaContent() {
                 {result.tech_score}<span className="text-2xl text-foreground/45">/100</span>
               </p>
               <p className="mt-2 text-[11.5px] text-foreground/55 max-w-md">
-                Weighted ratio of <span className="text-emerald-700 font-semibold">pass</span> vs <span className="text-rose-700 font-semibold">fail</span> checks.{' '}
-                <strong>Manual checks do not count toward this score</strong> — they appear in the roadmap below as next steps that require a human.
+                Weighted ratio of verified-<span className="text-emerald-700 font-semibold">pass</span> checks against the FULL audit (pass + fail + manual).{' '}
+                <strong>Unverified manual checks earn zero credit</strong> — until a human confirms the BAA / policy / training, the score reflects an unknown as a gap.
+                Use <em>Add context</em> on any check to upload a note + URL + expiry; verified items flip to pass on the next scan.
               </p>
             </div>
             <div className="flex items-center gap-4 text-[11.5px]">
@@ -174,7 +175,13 @@ export default function HipaaContent() {
                   </p>
                 </header>
                 <ul className="space-y-2.5">
-                  {items.map((c) => <CheckRow key={c.id} c={c} />)}
+                  {items.map((c) => (
+                    <CheckRow
+                      key={c.id}
+                      c={c}
+                      onAfterEvidence={() => void runScan()}
+                    />
+                  ))}
                 </ul>
               </section>
             );
@@ -229,7 +236,9 @@ function Pill({ label, count, tone }: { label: string; count: number; tone: 'eme
   );
 }
 
-function CheckRow({ c }: { c: HipaaCheck }) {
+function CheckRow({ c, onAfterEvidence }: { c: HipaaCheck; onAfterEvidence?: () => void }) {
+  const { session } = useAuth();
+  const [openEvidence, setOpenEvidence] = useState(false);
   const statusClass =
     c.status === 'pass' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
     c.status === 'fail' ? 'bg-rose-50 text-rose-800 border-rose-200' :
@@ -242,6 +251,13 @@ function CheckRow({ c }: { c: HipaaCheck }) {
         </span>
         <span className="text-[10px] font-semibold text-foreground/45 tabular-nums">{c.ref}</span>
         <span className="text-[10px] text-foreground/40">weight {c.weight}/5</span>
+        <button
+          type="button"
+          onClick={() => setOpenEvidence((v) => !v)}
+          className="ml-auto text-[10.5px] font-semibold text-primary hover:underline"
+        >
+          {openEvidence ? 'Close' : 'Add context →'}
+        </button>
       </div>
       <p className="text-[13.5px] font-semibold text-foreground">{c.question}</p>
       <p className="mt-1 text-[12px] text-foreground/65">
@@ -250,7 +266,137 @@ function CheckRow({ c }: { c: HipaaCheck }) {
       <p className="mt-0.5 text-[12px] text-foreground/65">
         <span className="font-semibold text-foreground/55">{c.status === 'pass' ? 'Stay-passing action' : 'Next step'}:</span> {c.remediation}
       </p>
+      {openEvidence && (
+        <EvidenceForm
+          checkId={c.id}
+          token={session?.access_token ?? null}
+          onSaved={() => { setOpenEvidence(false); onAfterEvidence?.(); }}
+        />
+      )}
     </li>
+  );
+}
+
+// Inline evidence form · upserts a row in hipaa_check_evidence
+// and re-runs the scan so the new status is reflected.
+function EvidenceForm({ checkId, token, onSaved }: {
+  checkId: string;
+  token: string | null;
+  onSaved: () => void;
+}) {
+  const [status, setStatus] = useState<'pass' | 'fail' | 'clear'>('pass');
+  const [note, setNote] = useState('');
+  const [url, setUrl] = useState('');
+  const [expires, setExpires] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const save = async () => {
+    if (!token || saving) return;
+    setSaving(true);
+    setErr(null);
+    try {
+      if (status === 'clear') {
+        const res = await fetch(`/api/hipaa/evidence?check_id=${encodeURIComponent(checkId)}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.error ?? `HTTP ${res.status}`);
+        }
+      } else {
+        const res = await fetch('/api/hipaa/evidence', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            check_id: checkId,
+            status_override: status,
+            note: note.trim() || null,
+            evidence_url: url.trim() || null,
+            expires_at: expires || null,
+          }),
+        });
+        if (!res.ok) {
+          const j = await res.json().catch(() => ({}));
+          throw new Error(j.error ?? `HTTP ${res.status}`);
+        }
+      }
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 rounded-md border border-primary/20 bg-primary/[0.03] p-3 space-y-2.5">
+      <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-primary">Evidence + override</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        <label className="block">
+          <span className="block text-[10.5px] font-semibold uppercase tracking-[0.16em] text-foreground/55 mb-1">Set status to</span>
+          <select
+            value={status}
+            onChange={(e) => setStatus(e.target.value as 'pass' | 'fail' | 'clear')}
+            className="w-full rounded-md border border-black/15 bg-white px-2.5 py-1.5 text-[12.5px]"
+          >
+            <option value="pass">Pass (verified-compliant)</option>
+            <option value="fail">Fail (confirmed gap)</option>
+            <option value="clear">Clear override (revert to auto)</option>
+          </select>
+        </label>
+        <label className="block">
+          <span className="block text-[10.5px] font-semibold uppercase tracking-[0.16em] text-foreground/55 mb-1">
+            Expires (optional)
+          </span>
+          <input
+            type="date"
+            value={expires}
+            onChange={(e) => setExpires(e.target.value)}
+            disabled={status === 'clear'}
+            className="w-full rounded-md border border-black/15 bg-white px-2.5 py-1.5 text-[12.5px] disabled:bg-warm-bg/40"
+          />
+        </label>
+      </div>
+      <label className="block">
+        <span className="block text-[10.5px] font-semibold uppercase tracking-[0.16em] text-foreground/55 mb-1">
+          Note · what proves this?
+        </span>
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          disabled={status === 'clear'}
+          rows={2}
+          placeholder="e.g. 'Supabase HIPAA add-on enabled May 2026, BAA #SA-2026-04 on file with Lindsay.'"
+          className="w-full rounded-md border border-black/15 bg-white px-2.5 py-1.5 text-[12.5px] resize-y disabled:bg-warm-bg/40"
+        />
+      </label>
+      <label className="block">
+        <span className="block text-[10.5px] font-semibold uppercase tracking-[0.16em] text-foreground/55 mb-1">
+          Evidence URL (optional)
+        </span>
+        <input
+          type="url"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          disabled={status === 'clear'}
+          placeholder="https://drive.google.com/… or https://… (where the BAA / cert lives)"
+          className="w-full rounded-md border border-black/15 bg-white px-2.5 py-1.5 text-[12.5px] disabled:bg-warm-bg/40"
+        />
+      </label>
+      {err && <p className="text-[11.5px] text-rose-700">{err}</p>}
+      <div className="flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving}
+          className="px-3.5 py-1.5 rounded-md bg-primary text-white text-[11.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50"
+        >
+          {saving ? 'Saving…' : status === 'clear' ? 'Clear override' : 'Save + rescan'}
+        </button>
+      </div>
+    </div>
   );
 }
 

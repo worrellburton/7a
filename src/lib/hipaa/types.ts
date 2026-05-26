@@ -48,9 +48,11 @@ export interface HipaaCheck {
 
 export interface HipaaScanResult {
   ran_at: string;
-  /** 0–100. Computed off PASS / FAIL weighted by check.weight.
-   *  Manual checks are EXCLUDED from the denominator — they're a
-   *  separate column in the UI labelled 'needs human verify'. */
+  /** 0–100. Weighted ratio of PASS checks vs the FULL universe of
+   *  checks (pass + fail + manual). Manual = unverified =
+   *  earns ZERO credit until a human confirms it, but it still
+   *  counts in the denominator — an unverified BAA is just as
+   *  risky as a missing one until proven otherwise. */
   tech_score: number;
   pass_count: number;
   fail_count: number;
@@ -58,13 +60,14 @@ export interface HipaaScanResult {
   checks: HipaaCheck[];
 }
 
-// Weighted score. Manual checks are not counted in either side
-// (they're 'unknown', not 'pass' and not 'fail'). Returns 0..100.
+// Weighted score. Manual checks earn 0 credit (we can't claim
+// compliance for something we haven't verified) but still count
+// against the denominator (the work isn't done). PASS earns full
+// weight; FAIL earns nothing. Returns 0..100.
 export function scoreOf(checks: HipaaCheck[]): number {
   let earned = 0;
   let possible = 0;
   for (const c of checks) {
-    if (c.status === 'manual') continue;
     possible += c.weight;
     if (c.status === 'pass') earned += c.weight;
   }

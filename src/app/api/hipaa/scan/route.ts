@@ -11,6 +11,7 @@ import {
   adminChecks,
 } from '@/lib/hipaa/checks';
 import { scoreOf } from '@/lib/hipaa/types';
+import { applyEvidenceOverrides } from '@/lib/hipaa/evidence';
 
 // POST /api/hipaa/scan
 //
@@ -40,7 +41,12 @@ export async function POST() {
     baaChecks(),
     adminChecks(),
   ]);
-  const checks = groups.flat();
+  const rawChecks = groups.flat();
+  // Apply per-check evidence overrides — a super admin can mark
+  // a manual check as PASS (with a note + optional URL +
+  // optional expiry) via /api/hipaa/evidence. Expired evidence
+  // is ignored so the scanner re-flags items that need renewal.
+  const { merged: checks } = await applyEvidenceOverrides(rawChecks);
 
   const tech_score = scoreOf(checks);
   const pass_count = checks.filter((c) => c.status === 'pass').length;
