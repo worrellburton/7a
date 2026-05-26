@@ -1367,7 +1367,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     return (
                       <span
                         aria-label={labelOnly ? 'alumni-only page' : 'alumni page'}
-                        className={`inline-flex items-center px-1.5 py-0.5 rounded-md text-[8.5px] font-bold uppercase tracking-[0.14em] whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 ${
+                        className={`inline-flex items-center px-1 py-0.5 rounded text-[7.5px] font-bold uppercase tracking-[0.08em] whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 ${
                           labelOnly
                             ? 'bg-violet-500/15 text-violet-700 border border-violet-500/30'
                             : 'bg-violet-500/8 text-violet-700/80 border border-violet-500/15'
