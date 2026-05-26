@@ -207,9 +207,20 @@ export async function POST(req: NextRequest) {
       campaignId,
       subject: campaign.generated_subject,
     });
-    const html = taggedHtml.includes('</body>')
-      ? taggedHtml.replace('</body>', `${footerHtml}\n</body>`)
-      : `${taggedHtml}\n${footerHtml}`;
+    // Defensive rewrite for icons that have been yanked from a CDN
+    // after the campaign was generated. Simple Icons removed the
+    // LinkedIn glyph after a trademark request; any campaign whose
+    // generated_html was baked before we swapped to a self-hosted
+    // SVG would still render the broken cdn.simpleicons.org URL.
+    // We rewrite at send time so already-built campaigns still
+    // arrive with a working icon when re-sent or paced over
+    // multiple cron ticks.
+    const patchedHtml = taggedHtml
+      .replace(/https:\/\/cdn\.simpleicons\.org\/linkedin\/ffffff/g, 'https://sevenarrowsrecoveryarizona.com/icons/linkedin-white.svg')
+      .replace(/https:\/\/cdn\.simpleicons\.org\/linkedin\/1a1a1a/g, 'https://sevenarrowsrecoveryarizona.com/icons/linkedin-ink.svg');
+    const html = patchedHtml.includes('</body>')
+      ? patchedHtml.replace('</body>', `${footerHtml}\n</body>`)
+      : `${patchedHtml}\n${footerHtml}`;
     return fetch(RESEND_URL, {
       method: 'POST',
       headers: {
