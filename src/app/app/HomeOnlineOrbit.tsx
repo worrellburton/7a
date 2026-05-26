@@ -371,16 +371,15 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
   // with a slightly larger orbit-slot radius via negative inset
   // below). The radius in arc-length terms is ~1.18× the staff
   // radius, so we back-solve a comfort minimum from there too.
-  const usersNeeded = (users.length * 64) / Math.PI;
-  const horsesNeeded = (horses.length * 40) / (0.6 * Math.PI);
-  // Alumni ring now sits at inset -30%, so its arc radius is
-  // about 1.6× the staff radius. Back-solve the comfort minimum
-  // diameter using that multiplier so a packed alumni roster
-  // fans out instead of clumping.
-  const alumniNeeded = (alumni.length * 56) / (1.6 * Math.PI);
+  // Back-solve uses the SMALLER avatar dimensions now (40px staff,
+  // 28px horse + alumni) so the orbit packs tighter on first paint
+  // and doesn't bloat past the 460px max.
+  const usersNeeded = (users.length * 52) / Math.PI;
+  const horsesNeeded = (horses.length * 32) / (0.6 * Math.PI);
+  const alumniNeeded = (alumni.length * 44) / (1.6 * Math.PI);
   const idealDiameter = Math.max(
     240,
-    Math.min(560, Math.round(Math.max(usersNeeded, horsesNeeded, alumniNeeded))),
+    Math.min(460, Math.round(Math.max(usersNeeded, horsesNeeded, alumniNeeded))),
   );
 
   return (
@@ -433,7 +432,7 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
           pt-32 which pushed the title block above the viewport on
           desktop, since the whole orbit section is vertically
           centered with translate-y-1/2 by the home page wrapper. */}
-      <div className="w-full flex justify-center px-12 sm:px-16 pt-16 pb-12">
+      <div className="w-full flex justify-center px-8 sm:px-12 pt-12 pb-8">
         <div
           className="relative w-full aspect-square"
           style={{ maxWidth: `${idealDiameter}px` }}
@@ -548,10 +547,10 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                               width={36}
                               height={36}
                               decoding="async"
-                              className="block w-7 h-7 sm:w-9 sm:h-9 rounded-full object-cover border-2 border-white shadow-md transition-transform duration-300 group-hover:scale-110"
+                              className="block w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover border-2 border-white shadow-md transition-transform duration-300 group-hover:scale-110"
                             />
                           ) : (
-                            <span className="flex w-7 h-7 sm:w-9 sm:h-9 rounded-full items-center justify-center text-xs font-semibold border-2 border-white bg-warm-bg text-foreground/55 shadow-md transition-transform duration-300 group-hover:scale-110">
+                            <span className="flex w-6 h-6 sm:w-7 sm:h-7 rounded-full items-center justify-center text-xs font-semibold border-2 border-white bg-warm-bg text-foreground/55 shadow-md transition-transform duration-300 group-hover:scale-110">
                               {h.name.charAt(0)}
                             </span>
                           )}
@@ -644,7 +643,7 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                             width={48}
                             height={48}
                             decoding="async"
-                            className={`block w-9 h-9 sm:w-12 sm:h-12 rounded-full object-cover border-2 transition-transform duration-300 group-hover:scale-110 ${
+                            className={`block w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border-2 transition-transform duration-300 group-hover:scale-110 ${
                               onFire
                                 ? 'border-orange-400 shadow-[0_0_18px_rgba(251,146,60,0.7)]'
                                 : online
@@ -654,7 +653,7 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                           />
                         ) : (
                           <span
-                            className={`flex w-9 h-9 sm:w-12 sm:h-12 rounded-full items-center justify-center text-sm font-bold border-2 transition-transform duration-300 group-hover:scale-110 ${
+                            className={`flex w-8 h-8 sm:w-10 sm:h-10 rounded-full items-center justify-center text-sm font-bold border-2 transition-transform duration-300 group-hover:scale-110 ${
                               onFire
                                 ? 'border-orange-400 shadow-[0_0_18px_rgba(251,146,60,0.7)] bg-primary text-white'
                                 : online
@@ -771,7 +770,7 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                               width={40}
                               height={40}
                               decoding="async"
-                              className={`block w-7 h-7 sm:w-9 sm:h-9 rounded-full object-cover border-2 ${
+                              className={`block w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover border-2 ${
                                 online
                                   ? 'border-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.55)]'
                                   : 'border-violet-200/70 shadow-sm'
@@ -779,7 +778,7 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                             />
                           ) : (
                             <span
-                              className={`flex w-7 h-7 sm:w-9 sm:h-9 rounded-full items-center justify-center text-xs font-bold border-2 bg-violet-500/85 text-white ${
+                              className={`flex w-6 h-6 sm:w-7 sm:h-7 rounded-full items-center justify-center text-xs font-bold border-2 bg-violet-500/85 text-white ${
                                 online ? 'border-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.55)]' : 'border-violet-200/70'
                               }`}
                             >
