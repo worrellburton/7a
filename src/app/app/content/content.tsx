@@ -397,21 +397,26 @@ function BlogRow({
 }) {
   const initial = (creatorName ?? '').trim().charAt(0).toUpperCase() || '?';
   return (
-    <div className="flex items-center gap-3 px-4 py-3 hover:bg-warm-bg/40 transition-colors">
+    // Mobile: stack the title block above the action cluster so the
+    // row breathes vertically instead of fighting for horizontal
+    // space (the title was truncating to 'What t...' and the
+    // status pill was overlapping the byline).
+    // sm+: keep the inline single-row layout the desktop UI expects.
+    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 py-3 hover:bg-warm-bg/40 transition-colors">
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-0.5">
+        <div className="flex items-center gap-2 mb-0.5 flex-wrap">
           {episodeLabel && (
             <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold uppercase tracking-wider bg-foreground/[0.06] text-foreground/55 border border-black/5">
               {episodeLabel}
             </span>
           )}
           {href ? (
-            <Link href={href} className="font-semibold text-foreground truncate text-[14px] hover:underline">{title}</Link>
+            <Link href={href} className="font-semibold text-foreground text-[14px] hover:underline break-words sm:truncate min-w-0">{title}</Link>
           ) : (
-            <span className="font-semibold text-foreground truncate text-[14px]">{title}</span>
+            <span className="font-semibold text-foreground text-[14px] break-words sm:truncate min-w-0">{title}</span>
           )}
         </div>
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 flex-wrap">
           {(creatorName || creatorAvatarUrl) && (
             <span className="shrink-0 inline-flex items-center gap-1 text-[11px] text-foreground/55">
               {creatorAvatarUrl ? (
@@ -427,42 +432,47 @@ function BlogRow({
           <p className={`text-[11.5px] text-foreground/55 truncate ${subtitleMono ? 'font-mono' : ''}`}>{subtitle}</p>
         </div>
       </div>
-      {statusBadge}
-      <button
-        type="button"
-        onClick={onToggleAnalytics}
-        className={`shrink-0 text-[10.5px] font-semibold border rounded-md px-2 py-1 transition-colors ${analyticsOpen ? 'bg-foreground text-white border-foreground' : 'text-foreground/65 hover:text-foreground border-black/10 hover:bg-warm-bg/60'}`}
-        aria-expanded={analyticsOpen}
-      >
-        Analytics
-      </button>
-      {externalHref && (
-        <a
-          href={externalHref}
-          target="_blank"
-          rel="noreferrer"
-          className="shrink-0 text-[10.5px] font-semibold text-foreground/65 hover:text-foreground border border-black/10 rounded-md px-2 py-1"
-        >
-          View
-        </a>
-      )}
-      <VisibilityToggle hidden={hidden} onChange={onToggleHidden} disabled={toggleDisabled} />
-      {onDelete && (
+      {/* Action cluster — wraps to multiple lines on narrow viewports
+          so the pill + Analytics + View + visibility toggle + trash
+          icon never crash into each other. */}
+      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:shrink-0 sm:justify-end">
+        {statusBadge}
         <button
           type="button"
-          onClick={onDelete}
-          className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/45 hover:text-rose-700 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors"
-          aria-label={`Delete ${title}`}
-          title="Delete this blog (cascades to revisions + generated images)"
+          onClick={onToggleAnalytics}
+          className={`shrink-0 text-[10.5px] font-semibold border rounded-md px-2 py-1 transition-colors ${analyticsOpen ? 'bg-foreground text-white border-foreground' : 'text-foreground/65 hover:text-foreground border-black/10 hover:bg-warm-bg/60'}`}
+          aria-expanded={analyticsOpen}
         >
-          <svg viewBox="0 0 16 16" width={13} height={13} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 4h10" />
-            <path d="M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1" />
-            <path d="M4.5 4l.5 8.5A1.5 1.5 0 006.5 14h3a1.5 1.5 0 001.5-1.5L11.5 4" />
-            <path d="M7 7v4M9 7v4" />
-          </svg>
+          Analytics
         </button>
-      )}
+        {externalHref && (
+          <a
+            href={externalHref}
+            target="_blank"
+            rel="noreferrer"
+            className="shrink-0 text-[10.5px] font-semibold text-foreground/65 hover:text-foreground border border-black/10 rounded-md px-2 py-1"
+          >
+            View
+          </a>
+        )}
+        <VisibilityToggle hidden={hidden} onChange={onToggleHidden} disabled={toggleDisabled} />
+        {onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/45 hover:text-rose-700 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors"
+            aria-label={`Delete ${title}`}
+            title="Delete this blog (cascades to revisions + generated images)"
+          >
+            <svg viewBox="0 0 16 16" width={13} height={13} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 4h10" />
+              <path d="M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1" />
+              <path d="M4.5 4l.5 8.5A1.5 1.5 0 006.5 14h3a1.5 1.5 0 001.5-1.5L11.5 4" />
+              <path d="M7 7v4M9 7v4" />
+            </svg>
+          </button>
+        )}
+      </div>
     </div>
   );
 }
