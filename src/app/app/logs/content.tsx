@@ -519,6 +519,9 @@ function FeedCard({
   selectedUser: LeaderboardEntry | null;
   onClearSelection: () => void;
 }) {
+  // Which row, if any, is expanded to show its detail panel.
+  // Click a row to open; click again (or another row) to swap.
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   return (
     <section className="rounded-2xl border border-black/10 bg-white/95 backdrop-blur-sm shadow-[0_18px_40px_-24px_rgba(60,48,42,0.35)] overflow-hidden">
       <header className="px-4 py-3 border-b border-black/5 flex items-baseline justify-between gap-2">
@@ -562,39 +565,102 @@ function FeedCard({
         <ol className="divide-y divide-black/5 max-h-[420px] overflow-y-auto">
           {logs.slice().reverse().map((log) => {
             const tone = methodTone(log.method);
+            const isOpen = expandedId === log.id;
+            const fullStamp = new Date(log.contactedAt).toLocaleString(undefined, {
+              weekday: 'short', month: 'short', day: 'numeric',
+              hour: 'numeric', minute: '2-digit',
+            });
             return (
-              <li key={log.id} className="flex items-start gap-2 px-3 py-2.5">
-                {log.userAvatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={log.userAvatarUrl}
-                    alt=""
-                    className="shrink-0 w-6 h-6 rounded-full object-cover border border-white shadow-sm mt-0.5"
-                  />
-                ) : (
-                  <span className="shrink-0 w-6 h-6 rounded-full bg-primary/15 text-primary text-[10px] font-bold flex items-center justify-center border border-white shadow-sm mt-0.5">
-                    {initialsOf(log.userName)}
-                  </span>
-                )}
-                <div className="min-w-0 flex-1">
-                  <p className="text-[12px] text-foreground truncate">
-                    <span className="font-semibold">{log.userName}</span>
-                    <span className="text-foreground/55"> · </span>
-                    <span className="font-medium text-foreground/80">{log.contactName}</span>
-                  </p>
-                  <p className="mt-0.5 text-[10px] text-foreground/45 tabular-nums">
-                    {isToday
-                      ? fmtTimeOfDay(log.contactedAt)
-                      : `${fmtDayMonth(log.contactedAt)} · ${fmtTimeOfDay(log.contactedAt)}`}
-                    {log.durationSeconds ? ` · ${fmtDuration(log.durationSeconds)}` : ''}
-                  </p>
-                </div>
-                {log.method && (
+              <li key={log.id} className="px-0">
+                <button
+                  type="button"
+                  onClick={() => setExpandedId((prev) => (prev === log.id ? null : log.id))}
+                  aria-expanded={isOpen}
+                  className={`w-full flex items-start gap-2 px-3 py-2.5 text-left transition-colors ${
+                    isOpen ? 'bg-warm-bg/50' : 'hover:bg-warm-bg/30'
+                  }`}
+                >
+                  {log.userAvatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={log.userAvatarUrl}
+                      alt=""
+                      className="shrink-0 w-6 h-6 rounded-full object-cover border border-white shadow-sm mt-0.5"
+                    />
+                  ) : (
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-primary/15 text-primary text-[10px] font-bold flex items-center justify-center border border-white shadow-sm mt-0.5">
+                      {initialsOf(log.userName)}
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[12px] text-foreground truncate">
+                      <span className="font-semibold">{log.userName}</span>
+                      <span className="text-foreground/55"> · </span>
+                      <span className="font-medium text-foreground/80">{log.contactName}</span>
+                    </p>
+                    <p className="mt-0.5 text-[10px] text-foreground/45 tabular-nums">
+                      {isToday
+                        ? fmtTimeOfDay(log.contactedAt)
+                        : `${fmtDayMonth(log.contactedAt)} · ${fmtTimeOfDay(log.contactedAt)}`}
+                      {log.durationSeconds ? ` · ${fmtDuration(log.durationSeconds)}` : ''}
+                    </p>
+                  </div>
+                  {log.method && (
+                    <span
+                      className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9.5px] font-semibold ring-1 whitespace-nowrap ${tone.bg} ${tone.text} ${tone.ring}`}
+                    >
+                      {log.method}
+                    </span>
+                  )}
                   <span
-                    className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9.5px] font-semibold ring-1 whitespace-nowrap ${tone.bg} ${tone.text} ${tone.ring}`}
+                    aria-hidden
+                    className={`shrink-0 text-foreground/30 text-[10px] mt-1 transition-transform ${isOpen ? 'rotate-180' : ''}`}
                   >
-                    {log.method}
+                    ▾
                   </span>
+                </button>
+                {isOpen && (
+                  <div className="px-3 pb-3 -mt-1 bg-warm-bg/30 border-t border-black/5">
+                    <dl className="grid grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1.5 text-[11.5px] pt-2.5">
+                      <dt className="text-foreground/45 font-semibold uppercase tracking-wider text-[9.5px]">When</dt>
+                      <dd className="text-foreground/85 tabular-nums">{fullStamp}</dd>
+
+                      <dt className="text-foreground/45 font-semibold uppercase tracking-wider text-[9.5px]">By</dt>
+                      <dd className="text-foreground/85">{log.userName}</dd>
+
+                      <dt className="text-foreground/45 font-semibold uppercase tracking-wider text-[9.5px]">Contact</dt>
+                      <dd className="text-foreground/85">
+                        {log.contactName}
+                        {log.contactCompany ? <span className="text-foreground/55"> · {log.contactCompany}</span> : null}
+                      </dd>
+
+                      <dt className="text-foreground/45 font-semibold uppercase tracking-wider text-[9.5px]">Method</dt>
+                      <dd className="text-foreground/85">{log.method ?? '—'}</dd>
+
+                      {log.durationSeconds ? (
+                        <>
+                          <dt className="text-foreground/45 font-semibold uppercase tracking-wider text-[9.5px]">Duration</dt>
+                          <dd className="text-foreground/85 tabular-nums">{fmtDuration(log.durationSeconds)}</dd>
+                        </>
+                      ) : null}
+                    </dl>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <a
+                        href={`/app/outreach/contacts/${log.contactId}`}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-primary/30 bg-white text-[11px] font-semibold text-primary hover:bg-primary/5"
+                      >
+                        Open contact →
+                      </a>
+                      {log.userId && (
+                        <a
+                          href={`/app/team/${log.userId}`}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+                        >
+                          See {log.userName.split(' ')[0]}&rsquo;s log →
+                        </a>
+                      )}
+                    </div>
+                  </div>
                 )}
               </li>
             );
