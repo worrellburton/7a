@@ -1333,11 +1333,17 @@ export default function ContactsContent() {
           padding instead of inflating the page's vertical rhythm.
           Hidden on sm+ because admissions on desktop has the full
           row of header actions (Add Contact / Upload CSV / etc.)
-          and doesn't need a thumb-reachable quick action. */}
+          and doesn't need a thumb-reachable quick action.
+          Also fades out while the new-log modal is open — without
+          this, the FAB sits right under the modal's Save button
+          and the two overlap on smaller phones. */}
       <button
         type="button"
         onClick={() => setShowNewLog(true)}
-        className="sm:hidden fixed inset-x-4 z-50 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-full bg-foreground text-white text-sm font-semibold uppercase tracking-wider shadow-[0_12px_28px_-8px_rgba(0,0,0,0.45)] active:scale-[0.98] transition-transform"
+        aria-hidden={showNewLog || undefined}
+        className={`sm:hidden fixed inset-x-4 z-50 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-full bg-foreground text-white text-sm font-semibold uppercase tracking-wider shadow-[0_12px_28px_-8px_rgba(0,0,0,0.45)] active:scale-[0.98] transition-all duration-200 ${
+          showNewLog ? 'opacity-0 pointer-events-none translate-y-2' : 'opacity-100'
+        }`}
         style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
       >
         <span aria-hidden className="text-base leading-none">🪵</span>
