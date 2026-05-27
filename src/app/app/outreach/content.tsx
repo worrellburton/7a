@@ -7333,14 +7333,38 @@ function HistoryEntry({
             <>
               {log.comments && (
                 log.campaign_id ? (
-                  // Click-through to the finalize view of the campaign
-                  // that generated this touchpoint, so the admin can
-                  // re-read the exact email the contact received.
+                  // Rich card for email-campaign touchpoints so the
+                  // row reads as a real email artefact (envelope
+                  // icon + subject + 'Open campaign' button) rather
+                  // than just an underlined sentence. The link still
+                  // routes to the campaign's finalize view.
                   <Link
                     href={`/app/email-campaigns/${log.campaign_id}/finalize`}
-                    className="mt-1 inline-block text-[12px] text-primary hover:text-primary/80 underline decoration-primary/30 hover:decoration-primary/60 underline-offset-2 leading-relaxed"
+                    className="group/email mt-2 flex items-start gap-2.5 rounded-lg border border-primary/25 bg-primary/[0.04] hover:border-primary/45 hover:bg-primary/[0.07] active:bg-primary/[0.09] px-3 py-2 transition-colors"
                   >
-                    {log.comments}
+                    <span
+                      aria-hidden
+                      className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md bg-primary/10 text-primary"
+                    >
+                      <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                        <polyline points="22,6 12,13 2,6" />
+                      </svg>
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[9.5px] font-bold uppercase tracking-[0.16em] text-primary/80">
+                        Email campaign
+                      </span>
+                      <span className="block mt-0.5 text-[12px] font-semibold text-foreground leading-snug">
+                        {log.comments.replace(/^Sent email campaign(?: \(simulated\))?:\s*/i, '')}
+                      </span>
+                    </span>
+                    <span
+                      aria-hidden
+                      className="shrink-0 self-center text-[10px] font-semibold uppercase tracking-wider text-primary/70 group-hover/email:text-primary translate-x-0 group-hover/email:translate-x-0.5 transition-all"
+                    >
+                      Open →
+                    </span>
                   </Link>
                 ) : (
                   <p className="mt-1 text-[12px] text-foreground/75 whitespace-pre-wrap leading-relaxed">
