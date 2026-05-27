@@ -644,22 +644,6 @@ function FeedCard({
                         </>
                       ) : null}
                     </dl>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <a
-                        href={`/app/outreach/contacts/${log.contactId}`}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-primary/30 bg-white text-[11px] font-semibold text-primary hover:bg-primary/5"
-                      >
-                        Open contact →
-                      </a>
-                      {log.userId && (
-                        <a
-                          href={`/app/team/${log.userId}`}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
-                        >
-                          See {log.userName.split(' ')[0]}&rsquo;s log →
-                        </a>
-                      )}
-                    </div>
                   </div>
                 )}
               </li>
