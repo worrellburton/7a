@@ -39,10 +39,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
+  // The byline + medical-reviewer dropdowns on /app/content/[id]
+  // now surface EVERY active staff member, not just users flagged
+  // is_blog_author / is_medical_reviewer. The flag is preserved on
+  // the row (medical reviewers still tagged for downstream JSON-LD
+  // accuracy), but the picker shows the full roster so an admin
+  // doesn't have to round-trip /app/team to toggle a flag every
+  // time they want to byline a new teammate.
   const { data: rows, error } = await admin
     .from('users')
-    .select('public_slug, full_name, job_title, credentials, bio, avatar_url, linkedin_url, is_blog_author, is_medical_reviewer')
-    .or('is_blog_author.eq.true,is_medical_reviewer.eq.true');
+    .select('public_slug, full_name, job_title, credentials, bio, avatar_url, linkedin_url, is_blog_author, is_medical_reviewer, status, user_kind')
+    .eq('status', 'active')
+    .neq('user_kind', 'alumni');
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const dbAuthors: BlogAuthorOut[] = ((rows ?? []) as Array<{
@@ -55,6 +63,8 @@ export async function GET(req: NextRequest) {
     linkedin_url: string | null;
     is_blog_author: boolean;
     is_medical_reviewer: boolean;
+    status: string | null;
+    user_kind: string | null;
   }>)
     .filter((r) => r.public_slug && r.full_name)
     .map((r) => ({
@@ -76,7 +86,14 @@ export async function GET(req: NextRequest) {
     .map((a) => ({ ...a, source: 'fallback' }));
 
   const all = [...dbAuthors, ...fallbacks].sort((a, b) => a.name.localeCompare(b.name));
-  const reviewers = all.filter((a) => a.isMedicalReviewer === true);
+  // Reviewer dropdown now shows the same full roster the author
+  // dropdown does. The downstream MedicalWebPage JSON-LD still
+  // reads the picked reviewer's credentials off the users row,
+  // so an admin who picks an uncredentialed teammate gets an
+  // accurate (if minimal) reviewer block rather than a hidden
+  // option. Keeps the picker permissive while keeping the
+  // schema honest.
+  const reviewers = all;
 
   return NextResponse.json({ authors: all, reviewers });
 }
