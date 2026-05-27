@@ -572,12 +572,16 @@ function FeedCard({
             });
             return (
               <li key={log.id} className="px-0">
+                {/* One unified clickable row. When expanded the
+                    summary text appears inline INSIDE the same row
+                    (under the title line) rather than as a
+                    separately-styled panel underneath. */}
                 <button
                   type="button"
                   onClick={() => setExpandedId((prev) => (prev === log.id ? null : log.id))}
                   aria-expanded={isOpen}
                   className={`w-full flex items-start gap-2 px-3 py-2.5 text-left transition-colors ${
-                    isOpen ? 'bg-warm-bg/50' : 'hover:bg-warm-bg/30'
+                    isOpen ? 'bg-warm-bg/40' : 'hover:bg-warm-bg/30'
                   }`}
                 >
                   {log.userAvatarUrl ? (
@@ -604,6 +608,28 @@ function FeedCard({
                         : `${fmtDayMonth(log.contactedAt)} · ${fmtTimeOfDay(log.contactedAt)}`}
                       {log.durationSeconds ? ` · ${fmtDuration(log.durationSeconds)}` : ''}
                     </p>
+                    {/* Expanded summary lives INSIDE the same flex
+                        column as the title so it reads as one row
+                        — no separate panel, no extra border. */}
+                    {isOpen && (
+                      <p className="mt-1.5 text-[11.5px] text-foreground/70 leading-snug">
+                        <span className="tabular-nums">{fullStamp}</span>
+                        <span className="text-foreground/40"> · </span>
+                        <span>{log.userName}</span>
+                        <span className="text-foreground/40"> logged </span>
+                        <span className="font-medium">{log.contactName}</span>
+                        {log.contactCompany ? <span className="text-foreground/55"> ({log.contactCompany})</span> : null}
+                        <span className="text-foreground/40"> via </span>
+                        <span className="font-medium">{log.method ?? 'unspecified'}</span>
+                        {log.durationSeconds ? (
+                          <>
+                            <span className="text-foreground/40"> for </span>
+                            <span className="font-medium tabular-nums">{fmtDuration(log.durationSeconds)}</span>
+                          </>
+                        ) : null}
+                        <span className="text-foreground/40">.</span>
+                      </p>
+                    )}
                   </div>
                   {log.method && (
                     <span
@@ -619,33 +645,6 @@ function FeedCard({
                     ▾
                   </span>
                 </button>
-                {isOpen && (
-                  <div className="px-3 pb-3 -mt-1 bg-warm-bg/30 border-t border-black/5">
-                    <dl className="grid grid-cols-[6.5rem_1fr] gap-x-3 gap-y-1.5 text-[11.5px] pt-2.5">
-                      <dt className="text-foreground/45 font-semibold uppercase tracking-wider text-[9.5px]">When</dt>
-                      <dd className="text-foreground/85 tabular-nums">{fullStamp}</dd>
-
-                      <dt className="text-foreground/45 font-semibold uppercase tracking-wider text-[9.5px]">By</dt>
-                      <dd className="text-foreground/85">{log.userName}</dd>
-
-                      <dt className="text-foreground/45 font-semibold uppercase tracking-wider text-[9.5px]">Contact</dt>
-                      <dd className="text-foreground/85">
-                        {log.contactName}
-                        {log.contactCompany ? <span className="text-foreground/55"> · {log.contactCompany}</span> : null}
-                      </dd>
-
-                      <dt className="text-foreground/45 font-semibold uppercase tracking-wider text-[9.5px]">Method</dt>
-                      <dd className="text-foreground/85">{log.method ?? '—'}</dd>
-
-                      {log.durationSeconds ? (
-                        <>
-                          <dt className="text-foreground/45 font-semibold uppercase tracking-wider text-[9.5px]">Duration</dt>
-                          <dd className="text-foreground/85 tabular-nums">{fmtDuration(log.durationSeconds)}</dd>
-                        </>
-                      ) : null}
-                    </dl>
-                  </div>
-                )}
               </li>
             );
           })}
