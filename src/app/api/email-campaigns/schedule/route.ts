@@ -69,7 +69,17 @@ export async function POST(req: NextRequest) {
 
   const { error: updErr } = await admin
     .from('email_campaigns')
-    .update({ status: 'scheduled', scheduled_send_at: sendAt.toISOString(), sent_at: null })
+    .update({
+      status: 'scheduled',
+      scheduled_send_at: sendAt.toISOString(),
+      sent_at: null,
+      // Snapshot "the recipient set was finalised now". The
+      // sync-scheduled-recipients route uses this as the cutoff for
+      // "contacts added since" so manually-managed scheduled
+      // campaigns can pick up new leads added between schedule
+      // time and send time.
+      recipients_locked_at: new Date().toISOString(),
+    })
     .eq('id', campaignId);
   if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
 
