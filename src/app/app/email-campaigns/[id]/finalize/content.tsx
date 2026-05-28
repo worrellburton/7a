@@ -365,20 +365,26 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
   // actionable banner at the top of the page instead of leaving the
   // marketer to decode an HTTP status from the per-row line.
   //
-  // Two distinct cases land here, both rooted in Resend domain
-  // verification:
-  //   (a) "domain is not verified" — the from address uses a domain
-  //       the org hasn't proven it owns yet.
-  //   (b) "validation_error" / "only send testing emails to your own
-  //       email" — Resend's sandbox mode. Until a domain is verified,
-  //       Resend lets you send TO any address but only FROM the
-  //       account owner's email; the recipient address is implicitly
-  //       restricted to the account owner.
-  // Both fixes are the same (verify a domain at resend.com/domains),
-  // so we collapse them into a single banner.
+  // Three distinct cases land here:
+  //   (a) "domain is not verified" / "validation_error" / "testing
+  //       emails to your own email" — Resend's sandbox mode (no
+  //       verified domain yet). Fix: verify a domain.
+  //   (b) "daily_quota_exceeded" — free-tier 100/day cap or paid-
+  //       tier daily limit reached. Fix: wait until the cap resets
+  //       or upgrade the Resend plan. NOT a sandbox issue and means
+  //       the account is actively sending to externals.
+  //
+  // Quota errors take precedence: if ANY recipient failed with
+  // daily_quota_exceeded the account is provably past sandbox (it
+  // accepted external sends and Resend metered them), so we suppress
+  // the sandbox banner and surface the quota banner instead. This
+  // fixes the false-positive where old validation_error rows from a
+  // pre-domain-verify send kept the sandbox banner stuck on after
+  // the domain was verified and the account hit its daily cap.
   const sendErrorJoined = recipients.map((r) => r.send_error ?? '').join('\n');
-  const resendBlockedByDomain =
-    /domain is not verified|verify.*domain|validation_error|testing emails to your own/i.test(sendErrorJoined);
+  const quotaExceeded = /daily_quota_exceeded|reached your daily email sending quota|HTTP 429/i.test(sendErrorJoined);
+  const resendBlockedByDomain = !quotaExceeded
+    && /domain is not verified|verify.*domain|validation_error|testing emails to your own/i.test(sendErrorJoined);
 
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-6xl mx-auto">
@@ -475,6 +481,39 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
           <p className="mt-3 text-[12px] text-red-900/80" style={{ fontFamily: 'var(--font-body)' }}>
             If you need to test before DNS finishes, you can leave <code className="bg-red-100 px-1 py-0.5 rounded">EMAIL_FROM</code> unset and send a test campaign to your own Resend-account email address — that bypass keeps working in sandbox mode.
           </p>
+        </div>
+      )}
+
+      {/* Daily-quota banner. Shown when Resend returned HTTP 429
+          daily_quota_exceeded for at least one recipient. This is
+          NOT a sandbox issue — it means the account is sending
+          fine but has burned through today's cap. */}
+      {quotaExceeded && (
+        <div className="mb-4 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+          <p className="text-[12.5px] font-bold uppercase tracking-[0.22em] text-amber-900 mb-1" style={{ fontFamily: 'var(--font-body)' }}>
+            Resend daily quota hit
+          </p>
+          <p className="text-[13px] text-amber-900 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+            Resend returned <code className="bg-amber-100 px-1 py-0.5 rounded">daily_quota_exceeded</code> (HTTP 429) for at least one recipient. The free tier caps you at 100 emails/day; paid plans have their own daily ceiling. The cap resets at midnight UTC.
+          </p>
+          <p className="mt-3 text-[12.5px] font-bold uppercase tracking-[0.22em] text-amber-900 mb-1" style={{ fontFamily: 'var(--font-body)' }}>
+            How to check usage
+          </p>
+          <ol className="text-[13px] text-amber-900 leading-relaxed list-decimal pl-5 space-y-1" style={{ fontFamily: 'var(--font-body)' }}>
+            <li>
+              Open{' '}
+              <a href="https://resend.com/emails" target="_blank" rel="noreferrer" className="underline font-semibold">resend.com/emails</a>{' '}
+              — every send from today shows up there. The counter at the top of the list = today&apos;s usage.
+            </li>
+            <li>
+              Open{' '}
+              <a href="https://resend.com/settings/billing" target="_blank" rel="noreferrer" className="underline font-semibold">resend.com/settings/billing</a>{' '}
+              to see your plan&apos;s daily cap and bump it (Pro starts at $20/mo for 50k/mo with a higher daily ceiling).
+            </li>
+            <li>
+              Wait until the cap resets at midnight UTC, then click <em>Reset failed to pending</em> and Send again — only the unsent rows go out.
+            </li>
+          </ol>
         </div>
       )}
 
