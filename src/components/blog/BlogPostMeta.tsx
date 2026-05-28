@@ -154,6 +154,7 @@ export function AuthorByline({
   className = '',
   suppressAuthor = false,
   suppressReviewer = false,
+  authorIsHorse = false,
 }: {
   episode: Episode;
   author?: BlogAuthor;
@@ -164,10 +165,13 @@ export function AuthorByline({
   // ship without bylines (rare; YMYL content normally needs them).
   suppressAuthor?: boolean;
   suppressReviewer?: boolean;
+  // When the author is a therapy horse, drop the /meet-our-team link
+  // (no profile page exists) and skip the credentials suffix.
+  authorIsHorse?: boolean;
 }) {
   const author = suppressAuthor ? null : (authorOverride ?? resolveAuthor(episode.authorSlug));
   const reviewer = suppressReviewer ? null : (reviewerOverride ?? resolveReviewer(episode.reviewerSlug));
-  const authorHref = author ? `/who-we-are/meet-our-team/${author.slug}` : '#';
+  const authorHref = author && !authorIsHorse ? `/who-we-are/meet-our-team/${author.slug}` : '#';
   const reviewerHref = reviewer ? `/who-we-are/meet-our-team/${reviewer.slug}` : '#';
   const lastReviewed = episode.lastReviewedAt ?? episode.publishedAt;
   // Nothing to render if both rails are suppressed.
@@ -180,19 +184,16 @@ export function AuthorByline({
     >
       {author && (
       <div className="flex flex-wrap items-center gap-3">
-        {author.avatarUrl ? (
-          <Link
-            href={authorHref}
-            className="shrink-0 rounded-full overflow-hidden ring-1 ring-black/10 hover:ring-primary/40"
-            aria-label={`More about ${author.name}`}
-          >
-            {/* Plain <img>, not next/image, so remote hosts like
-                Supabase storage work without a remotePatterns
-                whitelist. next/image was rendering a broken
-                placeholder icon for any unwhitelisted host —
-                that's what the marketers saw next to the
-                'WRITTEN BY' label. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+        {(() => {
+          const initials = author.name
+            .split(/\s+/)
+            .map((p) => p[0])
+            .slice(0, 2)
+            .join('')
+            .toUpperCase();
+          const ringHover = authorIsHorse ? '' : 'hover:ring-primary/40';
+          const avatarInner = author.avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={author.avatarUrl}
               alt={author.name}
@@ -203,35 +204,46 @@ export function AuthorByline({
               decoding="async"
               className="w-11 h-11 object-cover block"
             />
-          </Link>
-        ) : (
-          <Link
-            href={authorHref}
-            aria-label={`More about ${author.name}`}
-            className="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-full bg-warm-bg text-primary text-sm font-bold ring-1 ring-black/10 hover:ring-primary/40"
-          >
-            {author.name
-              .split(/\s+/)
-              .map((p) => p[0])
-              .slice(0, 2)
-              .join('')
-              .toUpperCase()}
-          </Link>
-        )}
+          ) : (
+            <span className="w-11 h-11 inline-flex items-center justify-center bg-warm-bg text-primary text-sm font-bold">
+              {initials}
+            </span>
+          );
+          return authorIsHorse ? (
+            <span
+              className={`shrink-0 rounded-full overflow-hidden ring-1 ring-black/10 ${ringHover}`}
+              aria-label={author.name}
+            >
+              {avatarInner}
+            </span>
+          ) : (
+            <Link
+              href={authorHref}
+              className={`shrink-0 rounded-full overflow-hidden ring-1 ring-black/10 ${ringHover}`}
+              aria-label={`More about ${author.name}`}
+            >
+              {avatarInner}
+            </Link>
+          );
+        })()}
         <div className="min-w-0">
           <p className="text-[11px] font-semibold tracking-[0.22em] uppercase text-foreground/45">
             Written by
           </p>
           <p className="text-sm text-foreground">
-            <Link
-              href={authorHref}
-              className="font-semibold text-foreground hover:text-primary"
-            >
-              {author.name}
-              {author.credentials && (
-                <span className="text-foreground/55 font-normal">, {author.credentials}</span>
-              )}
-            </Link>
+            {authorIsHorse ? (
+              <span className="font-semibold text-foreground">{author.name}</span>
+            ) : (
+              <Link
+                href={authorHref}
+                className="font-semibold text-foreground hover:text-primary"
+              >
+                {author.name}
+                {author.credentials && (
+                  <span className="text-foreground/55 font-normal">, {author.credentials}</span>
+                )}
+              </Link>
+            )}
             <span className="text-foreground/55"> · {author.title}</span>
           </p>
           <p className="text-[12px] text-foreground/50">
