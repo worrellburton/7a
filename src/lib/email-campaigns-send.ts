@@ -138,20 +138,21 @@ export async function sendCampaignBatch(opts: SendCampaignBatchOpts): Promise<Se
     return await markAllSent(supabase, recipients, campaign, actingUserId, campaignId, true, skipped);
   }
 
-  // Step 1: ensure we have an audience. Reuse the one stored on the
-  // campaign row if a previous send-attempt already created it
-  // (e.g. broadcast creation failed midway and we're retrying).
-  let audienceId = (campaign.resend_audience_id as string | null) ?? null;
-  if (!audienceId) {
-    const audName = (campaign.generated_subject as string).slice(0, 100);
-    const a = await createAudience(apiKey, `Campaign — ${audName}`);
-    if (!a.ok) {
-      await markCampaignFailed(supabase, campaignId, `Resend audience creation failed: ${a.error}`);
-      return { ok: false, error: `Resend audience creation failed: ${a.error}`, sent: 0, failed: recipients.length, skipped, simulated: false, stillPending: recipients.length };
-    }
-    audienceId = a.id;
-    await supabase.from('email_campaigns').update({ resend_audience_id: audienceId }).eq('id', campaignId);
+  // Step 1: always create a FRESH audience per send invocation. We
+  // can't reuse a prior audience because Resend Broadcasts send to
+  // every non-unsubscribed contact in the linked audience — if a
+  // first send delivered to A+B then bounced C, the audience still
+  // holds A+B+C and a retry-of-failed would re-email A+B. Fresh
+  // audience per send means it always contains exactly the rows we
+  // intend to email this trip.
+  const audName = `${(campaign.generated_subject as string).slice(0, 80)} · ${new Date().toISOString().slice(0, 19)}`;
+  const a = await createAudience(apiKey, audName);
+  if (!a.ok) {
+    await markCampaignFailed(supabase, campaignId, `Resend audience creation failed: ${a.error}`);
+    return { ok: false, error: `Resend audience creation failed: ${a.error}`, sent: 0, failed: recipients.length, skipped, simulated: false, stillPending: recipients.length };
   }
+  const audienceId = a.id;
+  await supabase.from('email_campaigns').update({ resend_audience_id: audienceId, resend_broadcast_id: null }).eq('id', campaignId);
 
   // Step 2: upsert each recipient into the audience. Duplicates are
   // a no-op (Resend's API returns 409/422 which we treat as success).
@@ -165,34 +166,31 @@ export async function sendCampaignBatch(opts: SendCampaignBatchOpts): Promise<Se
     return { ok: false, error: upsert.firstError ?? 'Resend audience upsert failed.', sent: 0, failed: recipients.length, skipped, simulated: false, stillPending: recipients.length };
   }
 
-  // Step 3: create the broadcast (or reuse if a previous attempt got
-  // this far). The body keeps existing UTM stitching for analytics
-  // and swaps in {{{RESEND_UNSUBSCRIBE_URL}}} so Resend renders the
-  // unsub link per recipient.
-  let broadcastId = (campaign.resend_broadcast_id as string | null) ?? null;
-  if (!broadcastId) {
-    const taggedHtml = addUtmsToCampaignHtml(campaign.generated_html as string, {
-      campaignId,
-      subject: campaign.generated_subject as string,
-    });
-    const patchedHtml = taggedHtml
-      .replace(/https:\/\/cdn\.simpleicons\.org\/linkedin\/ffffff/g, 'https://sevenarrowsrecoveryarizona.com/icons/linkedin-white.svg')
-      .replace(/https:\/\/cdn\.simpleicons\.org\/linkedin\/1a1a1a/g, 'https://sevenarrowsrecoveryarizona.com/icons/linkedin-ink.svg');
-    const broadcastHtml = prepareBroadcastHtml(patchedHtml);
-    const b = await createBroadcast(apiKey, audienceId, {
-      subject: campaign.generated_subject as string,
-      html: broadcastHtml,
-      from,
-      replyTo,
-      name: (campaign.generated_subject as string).slice(0, 100),
-    });
-    if (!b.ok) {
-      await markCampaignFailed(supabase, campaignId, `Resend broadcast creation failed: ${b.error}`);
-      return { ok: false, error: `Resend broadcast creation failed: ${b.error}`, sent: 0, failed: recipients.length, skipped, simulated: false, stillPending: recipients.length };
-    }
-    broadcastId = b.id;
-    await supabase.from('email_campaigns').update({ resend_broadcast_id: broadcastId }).eq('id', campaignId);
+  // Step 3: create a fresh broadcast tied to the new audience. We
+  // never reuse a prior broadcast either — the broadcast→audience
+  // binding is set on create and re-sending the same broadcast would
+  // re-target whatever Resend currently has in that audience.
+  const taggedHtml = addUtmsToCampaignHtml(campaign.generated_html as string, {
+    campaignId,
+    subject: campaign.generated_subject as string,
+  });
+  const patchedHtml = taggedHtml
+    .replace(/https:\/\/cdn\.simpleicons\.org\/linkedin\/ffffff/g, 'https://sevenarrowsrecoveryarizona.com/icons/linkedin-white.svg')
+    .replace(/https:\/\/cdn\.simpleicons\.org\/linkedin\/1a1a1a/g, 'https://sevenarrowsrecoveryarizona.com/icons/linkedin-ink.svg');
+  const broadcastHtml = prepareBroadcastHtml(patchedHtml);
+  const b = await createBroadcast(apiKey, audienceId, {
+    subject: campaign.generated_subject as string,
+    html: broadcastHtml,
+    from,
+    replyTo,
+    name: (campaign.generated_subject as string).slice(0, 100),
+  });
+  if (!b.ok) {
+    await markCampaignFailed(supabase, campaignId, `Resend broadcast creation failed: ${b.error}`);
+    return { ok: false, error: `Resend broadcast creation failed: ${b.error}`, sent: 0, failed: recipients.length, skipped, simulated: false, stillPending: recipients.length };
   }
+  const broadcastId = b.id;
+  await supabase.from('email_campaigns').update({ resend_broadcast_id: broadcastId }).eq('id', campaignId);
 
   // Step 4: fire the broadcast. Resend queues internally and the
   // events table fills in over the next minutes via the webhook.
