@@ -801,21 +801,6 @@ function AuthorPicker({
               hint="Default"
               onClick={() => { onChange(NONE_SLUG); setOpen(false); setQuery(''); }}
             />
-            <div className="my-1 border-t border-black/5" />
-            {filtered.length === 0 && filteredHorses.length === 0 && (
-              <p className="px-3 py-3 text-[12px] text-foreground/45 text-center">No matches.</p>
-            )}
-            {filtered.map((o) => (
-              <PickerRow
-                key={o.slug}
-                label={`${o.name}${o.credentials ? `, ${o.credentials}` : ''}`}
-                sublabel={o.title}
-                avatarUrl={o.avatarUrl}
-                active={value === o.slug}
-                hint={o.source === 'fallback' ? 'Seed' : undefined}
-                onClick={() => { onChange(o.slug); setOpen(false); setQuery(''); }}
-              />
-            ))}
             {filteredHorses.length > 0 && (
               <>
                 <div className="my-1 border-t border-black/5" />
@@ -835,6 +820,26 @@ function AuthorPicker({
                 ))}
               </>
             )}
+            <div className="my-1 border-t border-black/5" />
+            {(horses?.length ?? 0) > 0 && (
+              <p className="px-3 pt-2 pb-1 text-[9.5px] font-bold tracking-[0.22em] uppercase text-foreground/45">
+                Team
+              </p>
+            )}
+            {filtered.length === 0 && filteredHorses.length === 0 && (
+              <p className="px-3 py-3 text-[12px] text-foreground/45 text-center">No matches.</p>
+            )}
+            {filtered.map((o) => (
+              <PickerRow
+                key={o.slug}
+                label={`${o.name}${o.credentials ? `, ${o.credentials}` : ''}`}
+                sublabel={o.title}
+                avatarUrl={o.avatarUrl}
+                active={value === o.slug}
+                hint={o.source === 'fallback' ? 'Seed' : undefined}
+                onClick={() => { onChange(o.slug); setOpen(false); setQuery(''); }}
+              />
+            ))}
           </div>
         </div>
       )}
