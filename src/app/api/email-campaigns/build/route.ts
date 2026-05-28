@@ -273,6 +273,31 @@ export async function POST(req: NextRequest) {
     );
   }
   ctxLines.push(`IMAGES (${imageUrls.length}):\n${imageUrls.length === 0 ? '(none)' : imageUrls.map((u, i) => `  ${i + 1}. ${u}`).join('\n')}`);
+  // Multi-image layout directive. Without this the model places
+  // each image at a different spot in the body, which reads as
+  // unrelated random photos. When the marketer selects ≥2 images
+  // we want them rendered as ONE cohesive gallery block.
+  if (imageUrls.length >= 2) {
+    const layoutHint =
+      imageUrls.length === 2 ? '2 cells side-by-side (50/50 split)'
+      : imageUrls.length === 3 ? '3 cells in one row, equal width'
+      : imageUrls.length === 4 ? 'a 2×2 grid (2 rows of 2)'
+      : imageUrls.length <= 6 ? `a 3-column grid (${imageUrls.length === 5 ? '2 rows: 3 + 2 centered' : '2 rows of 3'})`
+      : `a 3-column grid (${Math.ceil(imageUrls.length / 3)} rows of up to 3, last row left-aligned)`;
+    ctxLines.push(
+      `MULTI-IMAGE GALLERY: ${imageUrls.length} images selected. Render them as a SINGLE cohesive gallery block — never scatter individual images through the body copy. Layout: ${layoutHint}.
+
+Email-safe HTML rules for the gallery (Outlook + Apple Mail + Gmail web/native + iOS):
+  • Outer <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"> as the row wrapper.
+  • One <tr> per row of cells. Each <tr> holds <td> cells of equal width with a fixed horizontal gutter (8-12px) implemented via cellpadding on the td OR a thin spacer <td>.
+  • Each <img> sits inside its <td> at width="100%" + height="auto" + style="display:block;border:0;outline:none;text-decoration:none;height:auto;width:100%;border-radius:6px;". DO NOT use object-fit (not supported in Outlook).
+  • DO NOT use CSS grid or flexbox — Outlook strips them.
+  • Add a small uppercase Copper eyebrow above the gallery ("FROM THE RANCH", "RECENT MOMENTS", "GALLERY", or a contextually-fitting 1-2 word phrase — pick the one that matches the campaign body). Eyebrow style matches the rest of the email: 10.5px, letter-spacing 0.22em, Copper, centered.
+  • Place the gallery as ONE block in a natural narrative position (e.g., after an introductory paragraph that sets up what the photos show, before the CTA). Never split it across the body.
+  • All image alt attributes should be brief and descriptive ("Sunset over the herd", "Group at the ranch firepit") — not the file name. Use neutral fallbacks if the surrounding copy doesn't make it obvious.
+  • Mobile reflow: in the <td> width attribute use a fixed pixel width that totals ~600px for the whole row at desktop. On mobile, the email client's auto-stacking will collapse each <td> to full width naturally — let it; do not add @media query overrides that fight it.`,
+    );
+  }
   if (blog) {
     ctxLines.push(
       `FEATURED BLOG:\n  title: ${blog.title}\n  url: ${blogUrl ?? '(no public slug yet, describe in text only, no link)'}\n  summary: ${blogSummary}`,
