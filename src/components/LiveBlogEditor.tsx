@@ -308,10 +308,24 @@ function ProseEditable({
         className="w-full px-3 py-3 rounded-lg border-0 text-[15px] sm:text-[16px] leading-[1.7] focus:outline-none resize-none font-body"
         style={{ fontFamily: 'var(--font-body)', minHeight: '6rem' }}
       />
-      <div className="flex items-center justify-between px-3 py-2 border-t border-black/5 bg-warm-bg/30 rounded-b-lg">
-        <p className="text-[10px] uppercase tracking-[0.18em] text-foreground/45 font-bold">
-          Markdown · ⌘↩ to commit · esc to cancel
-        </p>
+      <div className="flex items-center justify-between gap-2 px-3 py-2 border-t border-black/5 bg-warm-bg/30 rounded-b-lg">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => insertLink(taRef, value, setValue)}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-black/10 text-[10.5px] font-semibold uppercase tracking-wider text-foreground/65 hover:text-foreground hover:bg-white"
+            title="Highlight text first, then click to wrap it in a markdown link"
+          >
+            <svg viewBox="0 0 16 16" width={11} height={11} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M7 9a3 3 0 004.243 0l2-2a3 3 0 10-4.243-4.243l-1 1" />
+              <path d="M9 7a3 3 0 00-4.243 0l-2 2a3 3 0 104.243 4.243l1-1" />
+            </svg>
+            + Link
+          </button>
+          <p className="hidden sm:block text-[10px] uppercase tracking-[0.18em] text-foreground/45 font-bold">
+            Markdown · ⌘↩ to commit · esc to cancel
+          </p>
+        </div>
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -331,4 +345,43 @@ function ProseEditable({
       </div>
     </div>
   );
+}
+
+// Highlight-and-wrap markdown link insert. Mirrors the "+ Link"
+// affordance in src/components/EditableBlogPreview.tsx so both
+// surfaces feel like one editor. If no selection exists, prompts for
+// link text first. Bare hostnames get https://; paths / mailto: /
+// tel: / fragments pass through untouched.
+function insertLink(
+  taRef: React.RefObject<HTMLTextAreaElement | null>,
+  value: string,
+  setValue: (v: string) => void,
+) {
+  const ta = taRef.current;
+  if (!ta) return;
+  const start = ta.selectionStart ?? 0;
+  const end = ta.selectionEnd ?? 0;
+  const selected = value.slice(start, end);
+  let linkText = selected.trim();
+  if (!linkText) {
+    const promptedText = window.prompt('Link text');
+    if (promptedText === null) return;
+    linkText = promptedText.trim();
+    if (!linkText) return;
+  }
+  const promptedUrl = window.prompt('Link URL (e.g. https://… or /our-program)', 'https://');
+  if (promptedUrl === null) return;
+  const raw = promptedUrl.trim();
+  if (!raw) return;
+  const url = /^(https?:\/\/|mailto:|tel:|\/|#)/i.test(raw) ? raw : `https://${raw}`;
+  const replacement = `[${linkText}](${url})`;
+  const next = value.slice(0, start) + replacement + value.slice(end);
+  setValue(next);
+  requestAnimationFrame(() => {
+    const el = taRef.current;
+    if (!el) return;
+    el.focus();
+    const caret = start + replacement.length;
+    el.setSelectionRange(caret, caret);
+  });
 }
