@@ -360,6 +360,11 @@ export default function ContentLanding() {
                     subtitle={`src/app/(site)${path.startsWith('/who-we-are/blog/') ? path : path}/content.tsx`}
                     subtitleMono
                     episodeLabel={`Episode ${ep.number}`}
+                    // The title now routes into the parallel dashboard
+                    // for hand-coded posts (byline editor + schema
+                    // viewer + analytics) so static posts have the
+                    // same editing surface as the AI-pipeline ones.
+                    href={`/app/content/static/${ep.slug}`}
                     externalHref={path}
                     hidden={hidden}
                     onToggleHidden={() => void toggleHidden(ep.slug, !hidden)}

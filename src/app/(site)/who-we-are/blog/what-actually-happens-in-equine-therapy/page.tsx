@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 };
 
 import PageContent from './content';
-import { BlogPostJsonLd } from '@/components/blog/BlogPostMeta';
+import StaticBlogStructuredData from '@/components/blog/StaticBlogStructuredData';
 import { EPISODES } from '@/lib/episodes';
 
 const episode = EPISODES.find((e) => e.slug === 'what-actually-happens-in-equine-therapy')!;
@@ -23,7 +23,7 @@ const episode = EPISODES.find((e) => e.slug === 'what-actually-happens-in-equine
 export default function Page() {
   return (
     <>
-      <BlogPostJsonLd episode={episode} />
+      <StaticBlogStructuredData episode={episode} />
       <PageContent />
     </>
   );
