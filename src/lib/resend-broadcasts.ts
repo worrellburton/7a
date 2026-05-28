@@ -23,6 +23,18 @@
 
 const RESEND_API = 'https://api.resend.com';
 
+// Marketing/Broadcasts API calls need a Full-access Resend API key
+// (Audiences + Broadcasts endpoints are gated). We keep that key on
+// its own env var so the send-only RESEND_API_KEY used for
+// transactional email (password resets, VOB delivery, log reports)
+// can stay locked-down — if either leaks the blast radius is small.
+// Falls back to RESEND_API_KEY for deploys that haven't split them
+// yet (which will fail at audience creation with restricted_api_key
+// and surface as a clear error on the finalize page).
+export function getBroadcastsApiKey(): string | undefined {
+  return process.env.RESEND_API_KEY_BROADCASTS || process.env.RESEND_API_KEY;
+}
+
 export interface ResendBroadcastContact {
   email: string;
   firstName?: string;
