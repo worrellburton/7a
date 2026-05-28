@@ -34,6 +34,28 @@ function timeAgo(iso: string): string {
   return `${days}d ago`;
 }
 
+// Same threshold the Home orbit uses (HomeOnlineOrbit.tsx). >10
+// activity_log rows in the current Phoenix day → user is "on fire".
+const ON_FIRE_THRESHOLD = 10;
+
+// Today's start in Phoenix time, returned as an ISO string. Used to
+// gate which rows count toward on-fire. The site is hosted in
+// America/Phoenix and the Home orbit uses the same boundary.
+function startOfPhoenixDayIso(): string {
+  const now = new Date();
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Phoenix',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(now).map((p) => [p.type, p.value])) as Record<string, string>;
+  // Phoenix is UTC-7 year-round (no DST). Reconstruct midnight Phoenix
+  // as UTC by subtracting 7 hours.
+  const y = parts.year, m = parts.month, d = parts.day;
+  return new Date(`${y}-${m}-${d}T00:00:00-07:00`).toISOString();
+}
+
 function describe(row: ActivityRow): { verb: string; accent: string } {
   switch (row.type) {
     case 'jd.signed':
@@ -131,6 +153,21 @@ export default function ActivityContent() {
     return m;
   }, [users]);
 
+  // Per-user count of TODAY's activity_log rows. Drives the on-fire
+  // 🔥 badge in the feed. Recomputed every time the rows poll picks
+  // up new activity so the badge appears the moment a teammate
+  // crosses the threshold.
+  const actionsToday = useMemo(() => {
+    const startIso = startOfPhoenixDayIso();
+    const counts: Record<string, number> = {};
+    for (const r of rows) {
+      if (!r.user_id) continue;
+      if (r.created_at < startIso) continue;
+      counts[r.user_id] = (counts[r.user_id] ?? 0) + 1;
+    }
+    return counts;
+  }, [rows]);
+
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
     if (!q) return rows;
@@ -182,6 +219,8 @@ export default function ActivityContent() {
               const { verb, accent } = describe(row);
               const clickable = !!row.target_path;
               const Wrapper: 'button' | 'div' = clickable ? 'button' : 'div';
+              const userActions = row.user_id ? actionsToday[row.user_id] ?? 0 : 0;
+              const onFire = userActions > ON_FIRE_THRESHOLD;
               return (
                 <Wrapper
                   key={row.id}
@@ -189,17 +228,40 @@ export default function ActivityContent() {
                   className={`w-full text-left flex items-center gap-3 px-3 py-3 border-b border-gray-100 transition-colors ${clickable ? 'hover:bg-warm-bg/50 cursor-pointer' : ''}`}
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
-                  {u?.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={u.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0 ring-1 ring-gray-100" />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full shrink-0 bg-primary text-white flex items-center justify-center text-xs font-bold">
-                      {(u?.full_name || u?.email || '?').charAt(0).toUpperCase()}
-                    </div>
-                  )}
+                  <div className="relative shrink-0">
+                    {u?.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={u.avatar_url}
+                        alt=""
+                        className={`w-8 h-8 rounded-full object-cover ring-1 ${onFire ? 'ring-2 ring-amber-400 shadow-[0_0_10px_rgba(251,146,60,0.55)]' : 'ring-gray-100'}`}
+                      />
+                    ) : (
+                      <div className={`w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold ${onFire ? 'ring-2 ring-amber-400 shadow-[0_0_10px_rgba(251,146,60,0.55)]' : ''}`}>
+                        {(u?.full_name || u?.email || '?').charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    {onFire && (
+                      <span
+                        aria-label={`On a streak — ${userActions} actions today`}
+                        title={`On a streak — ${userActions} actions today`}
+                        className="absolute -bottom-1 -right-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-white text-[10px] leading-none shadow"
+                      >
+                        🔥
+                      </span>
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-foreground truncate">
                       <span className="font-semibold">{u?.full_name || u?.email || 'Someone'}</span>
+                      {onFire && (
+                        <span
+                          className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold uppercase tracking-wider align-middle"
+                          title={`${userActions} actions today`}
+                        >
+                          🔥 {userActions}
+                        </span>
+                      )}
                       <span className={`ml-1 font-medium ${accent}`}>{verb}</span>
                       {row.target_label && (
                         <span className="ml-1 text-foreground/80">&quot;{row.target_label}&quot;</span>
