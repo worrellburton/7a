@@ -78,6 +78,12 @@ interface Contact {
   last_contact_by_name?: string | null;
   last_contact_by_avatar_url?: string | null;
   follow_up_at: string | null;
+  /** Set when the contact clicked the unsubscribe link in any
+   *  campaign email. The campaign send pipeline filters these out
+   *  before they hit Resend, and the list UI flags them inline so a
+   *  rep can see they've opted out before reaching out. */
+  unsubscribed_at: string | null;
+  unsubscribed_source: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -3711,6 +3717,14 @@ function ContactCell({
             {isNew && (
               <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full bg-primary text-white text-[9px] font-bold uppercase tracking-wider">
                 New
+              </span>
+            )}
+            {contact.unsubscribed_at && (
+              <span
+                className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-[9px] font-bold uppercase tracking-wider"
+                title={`Unsubscribed ${new Date(contact.unsubscribed_at).toLocaleDateString()}${contact.unsubscribed_source ? ` (${contact.unsubscribed_source})` : ''}. Excluded from future email campaigns.`}
+              >
+                <span aria-hidden>✕</span> Unsubscribed
               </span>
             )}
           </div>
