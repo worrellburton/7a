@@ -38,7 +38,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   const { id } = await ctx.params;
 
-  let body: { method?: string; comments?: string; transcript?: string; duration_seconds?: unknown } = {};
+  let body: { method?: string; comments?: string; transcript?: string; duration_seconds?: unknown; follow_up_days?: number | null } = {};
   try { body = await req.json(); } catch { /* allow empty */ }
 
   const method = typeof body.method === 'string' ? body.method.trim() : '';
@@ -61,6 +61,24 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: 'duration_seconds is required (0–43200)' }, { status: 400 });
   }
   const duration_seconds = Math.round(durRaw);
+
+  // Optional follow-up scheduling. null/undefined leaves
+  // follow_up_at untouched on the contacts row; a positive integer
+  // (capped at 365) writes now() + days. Mirrors the contract on
+  // /api/partnerships/[id]/log-contact.
+  let followUpAt: string | null | undefined = undefined;
+  if (body.follow_up_days === null) {
+    followUpAt = null;
+  } else if (typeof body.follow_up_days === 'number' && Number.isFinite(body.follow_up_days)) {
+    const days = Math.floor(body.follow_up_days);
+    if (days > 0 && days <= 365) {
+      followUpAt = new Date(Date.now() + days * 86400000).toISOString();
+    } else if (days === 0) {
+      followUpAt = null;
+    } else {
+      return NextResponse.json({ error: 'follow_up_days must be between 1 and 365' }, { status: 400 });
+    }
+  }
 
   const admin = getAdminSupabase();
   const now = new Date().toISOString();
@@ -98,14 +116,17 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     }
   }
 
+  const update: Record<string, unknown> = {
+    last_contact_at: now,
+    last_contact_by: user.id,
+    last_contact_method: method,
+    last_contact_comments: comments,
+  };
+  if (followUpAt !== undefined) update.follow_up_at = followUpAt;
+
   const { data, error: updErr } = await admin
     .from('contacts')
-    .update({
-      last_contact_at: now,
-      last_contact_by: user.id,
-      last_contact_method: method,
-      last_contact_comments: comments,
-    })
+    .update(update)
     .eq('id', id)
     .select('*')
     .maybeSingle();
