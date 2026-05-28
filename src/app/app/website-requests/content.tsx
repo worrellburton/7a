@@ -2000,6 +2000,52 @@ function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
   const { respond, busyId } = useRespond('contact');
   const { remove, busyId: deletingId } = useDelete('contact');
   const { markSpam, busyId: spamId } = useMarkSpam();
+  // Status toggle (new → seen → closed). closeTarget holds the row
+  // the user is about to delete-on-close so the confirm modal shows
+  // the submitter's name.
+  const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
+  const [closeTarget, setCloseTarget] = useState<FormRow | null>(null);
+  const [closeBusy, setCloseBusy] = useState(false);
+
+  async function handleStatusCycle(id: string, next: 'new' | 'seen') {
+    setStatusBusyId(id);
+    try {
+      const res = await fetch('/api/website-requests/forms-status', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, status: next }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status: next } : r)));
+    } catch (e) {
+      console.error('status update failed', e);
+    } finally {
+      setStatusBusyId(null);
+    }
+  }
+
+  async function confirmClose() {
+    if (!closeTarget) return;
+    setCloseBusy(true);
+    try {
+      // Flip status to 'closed' first (so the audit trail / activity
+      // feed records the transition), then delete. Both calls
+      // tolerate failures of the other — delete works even if the
+      // closed write loses, and vice versa.
+      await fetch('/api/website-requests/forms-status', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: closeTarget.id, status: 'closed' }),
+      }).catch(() => null);
+      const ok = await remove(closeTarget.id);
+      if (ok) setRows((prev) => prev.filter((r) => r.id !== closeTarget.id));
+      setCloseTarget(null);
+    } finally {
+      setCloseBusy(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -2174,7 +2220,14 @@ function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
                         </p>
                       )}
                     </Td>
-                    <Td><StatusChip status={r.status} /></Td>
+                    <Td>
+                      <FormStatusToggle
+                        status={r.status}
+                        busy={statusBusyId === r.id || deletingId === r.id}
+                        onCycle={(next) => void handleStatusCycle(r.id, next)}
+                        onClose={() => setCloseTarget(r)}
+                      />
+                    </Td>
                     <Td>
                       <span className="text-xs text-foreground/60 whitespace-nowrap">
                         {new Date(r.created_at).toLocaleString('en-US', {
@@ -2212,6 +2265,13 @@ function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
           </table>
         </div>
       )}
+      <CloseConfirmModal
+        open={!!closeTarget}
+        name={[closeTarget?.first_name, closeTarget?.last_name].filter(Boolean).join(' ') || closeTarget?.email || ''}
+        busy={closeBusy}
+        onCancel={() => setCloseTarget(null)}
+        onConfirm={() => void confirmClose()}
+      />
     </Section>
   );
 }
@@ -2375,6 +2435,8 @@ function Td({ children, className = '' }: { children: React.ReactNode; className
 function StatusChip({ status }: { status: string }) {
   const tone = status === 'new'
     ? 'bg-blue-50 text-blue-700 border-blue-200'
+    : status === 'seen'
+    ? 'bg-amber-50 text-amber-800 border-amber-200'
     : status === 'contacted' || status === 'verified'
     ? 'bg-amber-50 text-amber-800 border-amber-200'
     : 'bg-gray-50 text-gray-600 border-gray-200';
@@ -2382,6 +2444,110 @@ function StatusChip({ status }: { status: string }) {
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wider border ${tone}`}>
       {status}
     </span>
+  );
+}
+
+// Toggling form-status chip used by the /app/website-requests Forms
+// panel. The status cycles New → Seen → Closed; the Closed transition
+// opens a confirmation modal and, on confirm, deletes the submission
+// because a closed lead doesn't need to keep cluttering the table.
+//
+// Statuses other than these three (legacy 'contacted', 'archived')
+// render as a plain non-clickable chip — admins who land on a
+// legacy row can still see the value but won't accidentally cycle
+// through it.
+function FormStatusToggle({
+  status,
+  onCycle,
+  onClose,
+  busy,
+}: {
+  status: string;
+  onCycle: (next: 'new' | 'seen') => void;
+  onClose: () => void;
+  busy: boolean;
+}) {
+  const cyclable = status === 'new' || status === 'seen';
+  if (!cyclable) return <StatusChip status={status} />;
+  const tone = status === 'new'
+    ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+    : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100';
+  const nextLabel = status === 'new' ? 'Mark seen →' : 'Close + delete →';
+  const onClick = () => {
+    if (busy) return;
+    if (status === 'new') onCycle('seen');
+    else onClose();
+  };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      title={nextLabel}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider border transition-colors disabled:opacity-50 ${tone}`}
+    >
+      <span>{busy ? '…' : status}</span>
+      <span aria-hidden className="opacity-60">›</span>
+    </button>
+  );
+}
+
+// Centred modal asking "Close + delete this submission?" before we
+// drop the row. Keep it dependency-free + tiny — this only ships
+// inside the Forms panel.
+function CloseConfirmModal({
+  open,
+  name,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  name: string;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 p-5"
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45 mb-1">Close + delete</p>
+        <h3 className="text-lg font-semibold text-foreground mb-2" style={{ fontFamily: 'var(--font-display)' }}>
+          Close this submission?
+        </h3>
+        <p className="text-[12.5px] text-foreground/70 leading-relaxed">
+          {name || 'This submission'} will be marked closed and removed from the list. This can&apos;t be undone.
+        </p>
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="px-3 py-1.5 rounded-md text-[12px] font-semibold text-foreground/65 hover:text-foreground hover:bg-warm-bg/60 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            className="px-3 py-1.5 rounded-md bg-rose-600 text-white text-[12px] font-semibold hover:bg-rose-700 disabled:opacity-60"
+          >
+            {busy ? 'Closing…' : 'Close + delete'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

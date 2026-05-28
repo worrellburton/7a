@@ -2062,7 +2062,7 @@ function PublishedDashboard({
         onChange={onChange}
       />
       <ImagesGridCard blog={blog} images={images} token={token} onChange={onChange} />
-      <SchemaCard blogId={blog.id} token={token} onChange={onChange} />
+      <SchemaCard blogId={blog.id} slug={blog.slug} token={token} onChange={onChange} />
       <AnalyticsCard slug={blog.slug} token={token} />
       <PipelineToolsCollapsed
         blog={blog}
@@ -2270,37 +2270,92 @@ function ImagesGridCard({ blog, images }: { blog: DbBlog; images: DbImage[]; tok
   );
 }
 
-function SchemaCard({ blogId, token, onChange }: { blogId: string; token: string | null; onChange: () => void }) {
+// Short human-readable one-liner per JSON-LD block — what's pinned
+// next to the type pill in the SchemaCard collapse. Keeps the
+// collapsed list scannable: editors can spot a missing reviewer or
+// a too-short headline without having to open every block.
+function schemaSummary(json: unknown): string {
+  const obj = (typeof json === 'object' && json !== null ? json : {}) as Record<string, unknown>;
+  const type = String(obj['@type'] ?? '');
+  if (type === 'FAQPage') {
+    const entities = Array.isArray(obj.mainEntity) ? obj.mainEntity : [];
+    return `${entities.length} question${entities.length === 1 ? '' : 's'}`;
+  }
+  if (type === 'BlogPosting' || type === 'Article') {
+    return typeof obj.headline === 'string' ? obj.headline.slice(0, 90) : '(no headline)';
+  }
+  if (type === 'MedicalWebPage') {
+    const author = (obj.author as { name?: unknown } | undefined)?.name;
+    const reviewer = (obj.reviewedBy as { name?: unknown } | undefined)?.name;
+    const parts: string[] = [];
+    if (typeof author === 'string') parts.push(`by ${author}`);
+    if (typeof reviewer === 'string') parts.push(`reviewed by ${reviewer}`);
+    if (parts.length === 0) parts.push('no author / reviewer');
+    return parts.join(' · ');
+  }
+  if (typeof obj.headline === 'string') return obj.headline.slice(0, 90);
+  if (typeof obj.name === 'string') return obj.name.slice(0, 90);
+  return '';
+}
+
+function SchemaCard({ blogId, slug, token, onChange }: { blogId: string; slug: string; token: string | null; onChange: () => void }) {
   const [meta, setMeta] = useState<{ generatedAt: string | null; faqCount: number } | null>(null);
+  const [blocks, setBlocks] = useState<{ type: string; json: unknown }[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [loadingMeta, setLoadingMeta] = useState(true);
+  const [openBlocks, setOpenBlocks] = useState<Set<number>>(new Set());
 
   const load = useCallback(async () => {
-    if (!token) return;
     setLoadingMeta(true);
     try {
-      // Reuse GET /api/content/[id]/generate-schema (we'll get the
-      // current schema state through the main blog read instead).
-      // For now, simplest: ask the main /api/content/[id] endpoint —
-      // it returns the schema_json column via select('*').
-      const res = await fetch(`/api/content/${blogId}`, {
-        headers: { Authorization: `Bearer ${token}` },
-        cache: 'no-store',
-      });
-      const json = await res.json().catch(() => ({}));
-      const schema = (json.blog as { schema_json?: { faq?: unknown[] }; schema_generated_at?: string } | undefined);
-      const faqCount = Array.isArray(schema?.schema_json?.faq) ? schema.schema_json.faq.length : 0;
-      setMeta({
-        generatedAt: schema?.schema_generated_at ?? null,
-        faqCount,
-      });
+      // Fetch the live page HTML and extract every
+      // <script type="application/ld+json"> block. That way the
+      // editor sees EXACTLY what Google sees, not what we think
+      // we emit. Public page → no auth header needed.
+      const res = await fetch(`/who-we-are/blog/${slug}`, { cache: 'no-store' });
+      const html = await res.text();
+      const re = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+      const found: { type: string; json: unknown }[] = [];
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(html)) !== null) {
+        try {
+          const parsed = JSON.parse(m[1].trim()) as { '@type'?: string };
+          const t = typeof parsed['@type'] === 'string' ? parsed['@type'] : 'Unknown';
+          found.push({ type: t, json: parsed });
+        } catch {
+          // skip malformed JSON-LD
+        }
+      }
+      setBlocks(found);
+      const faqBlock = found.find((b) => b.type === 'FAQPage') as
+        | { type: string; json: { mainEntity?: unknown[] } }
+        | undefined;
+      const faqCount = Array.isArray(faqBlock?.json?.mainEntity) ? faqBlock!.json.mainEntity!.length : 0;
+      // Also load schema_generated_at from the blog row for
+      // freshness display — the live HTML alone doesn't carry it.
+      if (token) {
+        try {
+          const r2 = await fetch(`/api/content/${blogId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: 'no-store',
+          });
+          const j2 = await r2.json().catch(() => ({}));
+          const generatedAt = (j2.blog as { schema_generated_at?: string } | undefined)?.schema_generated_at ?? null;
+          setMeta({ generatedAt, faqCount });
+        } catch {
+          setMeta({ generatedAt: null, faqCount });
+        }
+      } else {
+        setMeta({ generatedAt: null, faqCount });
+      }
     } catch {
       setMeta({ generatedAt: null, faqCount: 0 });
+      setBlocks([]);
     } finally {
       setLoadingMeta(false);
     }
-  }, [blogId, token]);
+  }, [blogId, slug, token]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -2324,49 +2379,116 @@ function SchemaCard({ blogId, token, onChange }: { blogId: string; token: string
     }
   }
 
+  function toggleBlock(idx: number) {
+    setOpenBlocks((cur) => {
+      const next = new Set(cur);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  }
+
+  const liveUrl = `https://sevenarrowsrecoveryarizona.com/who-we-are/blog/${slug}`;
+  const richResultsUrl = `https://search.google.com/test/rich-results?url=${encodeURIComponent(liveUrl)}`;
+
   return (
     <section className="rounded-2xl border border-black/10 bg-white p-4 sm:p-5">
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/45">Search schema</p>
-          <h3 className="text-base font-semibold text-foreground">FAQ + Article JSON-LD</h3>
+          <h3 className="text-base font-semibold text-foreground">JSON-LD on the live page</h3>
         </div>
+        <a
+          href={richResultsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[11px] font-semibold text-primary hover:text-primary/85"
+          title="Open Google's Rich Results Test against the live page so you can spot warnings + errors."
+        >
+          Test in Google Rich Results ↗
+        </a>
       </div>
       {loadingMeta ? (
-        <p className="text-[12px] text-foreground/55">Checking…</p>
-      ) : meta && meta.generatedAt ? (
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <p className="text-[12.5px] text-foreground/80">
-              <span className="font-semibold">{meta.faqCount}</span> FAQ entrie{meta.faqCount === 1 ? '' : 's'} + Article block emitted on the live page.
-            </p>
-            <p className="text-[11px] text-foreground/45 mt-0.5">
-              Generated {new Date(meta.generatedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void regenerate()}
-            disabled={busy}
-            className="px-3 py-2 rounded-md border border-black/15 bg-white text-foreground/80 text-[11.5px] font-semibold hover:bg-warm-bg/60 disabled:opacity-50"
-          >
-            {busy ? 'Regenerating…' : 'Regenerate'}
-          </button>
-        </div>
+        <p className="text-[12px] text-foreground/55">Reading live page…</p>
       ) : (
-        <div className="flex items-center justify-between gap-3 flex-wrap">
-          <p className="text-[12.5px] text-foreground/65">
-            No FAQ / Article schema yet — generate one so search engines and AI overviews surface this post.
-          </p>
-          <button
-            type="button"
-            onClick={() => void regenerate()}
-            disabled={busy}
-            className="px-3 py-2 rounded-md bg-foreground text-white text-[11.5px] font-semibold disabled:opacity-50"
-          >
-            {busy ? 'Generating…' : 'Generate schema'}
-          </button>
-        </div>
+        <>
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+            <div>
+              <p className="text-[12.5px] text-foreground/80">
+                <span className="font-semibold">{blocks.length}</span> JSON-LD block{blocks.length === 1 ? '' : 's'} emitted
+                {blocks.length > 0 && (
+                  <>
+                    {' '}· {blocks.map((b) => b.type).join(' · ')}
+                  </>
+                )}
+              </p>
+              {meta?.generatedAt && (
+                <p className="text-[11px] text-foreground/45 mt-0.5">
+                  AI schema last generated {new Date(meta.generatedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                  {meta.faqCount > 0 && ` · ${meta.faqCount} FAQ entries`}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => void regenerate()}
+              disabled={busy}
+              className="px-3 py-2 rounded-md border border-black/15 bg-white text-foreground/80 text-[11.5px] font-semibold hover:bg-warm-bg/60 disabled:opacity-50"
+            >
+              {busy ? 'Regenerating…' : (meta?.generatedAt ? 'Regenerate FAQ + Article' : 'Generate FAQ + Article')}
+            </button>
+          </div>
+          {blocks.length === 0 ? (
+            <p className="text-[12px] text-foreground/55 italic">
+              No JSON-LD detected on the live page yet. Try regenerating, then reload.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {blocks.map((b, i) => (
+                <li key={i} className="rounded-lg border border-black/10 bg-warm-bg/20">
+                  <button
+                    type="button"
+                    onClick={() => toggleBlock(i)}
+                    className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left"
+                    aria-expanded={openBlocks.has(i)}
+                  >
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold uppercase tracking-wider bg-foreground/[0.06] text-foreground/65 border border-black/5">
+                        {b.type}
+                      </span>
+                      <span className="text-[11px] text-foreground/55 truncate">
+                        {schemaSummary(b.json)}
+                      </span>
+                    </span>
+                    <span
+                      className={`shrink-0 inline-flex items-center justify-center w-5 h-5 rounded border transition-transform ${openBlocks.has(i) ? 'rotate-180 bg-foreground text-white border-foreground' : 'bg-white text-foreground/55 border-black/10'}`}
+                      aria-hidden
+                    >
+                      <svg viewBox="0 0 16 16" width={9} height={9} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 6l4 4 4-4" />
+                      </svg>
+                    </span>
+                  </button>
+                  {openBlocks.has(i) && (
+                    <div className="border-t border-black/5 bg-white/60 p-2">
+                      <div className="flex items-center justify-end gap-2 mb-1.5">
+                        <button
+                          type="button"
+                          onClick={() => navigator.clipboard.writeText(JSON.stringify(b.json, null, 2))}
+                          className="text-[10.5px] font-semibold px-2 py-0.5 rounded border border-black/10 bg-white text-foreground/65 hover:text-foreground hover:bg-warm-bg/60"
+                        >
+                          Copy JSON
+                        </button>
+                      </div>
+                      <pre className="text-[11px] leading-relaxed font-mono text-foreground/85 max-h-[360px] overflow-auto whitespace-pre-wrap break-all bg-warm-bg/30 rounded-md p-2">
+{JSON.stringify(b.json, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
       {err && <p className="mt-2 text-[11.5px] text-red-700">{err}</p>}
     </section>
