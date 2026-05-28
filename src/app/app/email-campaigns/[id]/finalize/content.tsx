@@ -222,11 +222,20 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
       setError('No recipients selected.');
       return;
     }
+    const pendingNow = recipients.filter((r) => r.send_status === 'pending').length;
+    const sentAlready = recipients.filter((r) => r.send_status === 'sent').length;
+    if (pendingNow === 0) {
+      setError('Nothing pending to send. Reset failed to pending if you want to retry.');
+      return;
+    }
     if (!campaign.generated_subject || campaign.generated_subject.trim().length === 0) {
       setError('Subject line is empty.');
       return;
     }
-    const ok = window.confirm(`Send this email to ${recipients.length} recipient${recipients.length === 1 ? '' : 's'}?`);
+    const confirmMsg = sentAlready > 0
+      ? `Send this email to the ${pendingNow} pending recipient${pendingNow === 1 ? '' : 's'}? The ${sentAlready} already-sent ${sentAlready === 1 ? 'row is' : 'rows are'} skipped.`
+      : `Send this email to ${pendingNow} recipient${pendingNow === 1 ? '' : 's'}?`;
+    const ok = window.confirm(confirmMsg);
     if (!ok) return;
     setError(null);
     setSending(true);
