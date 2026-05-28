@@ -6,7 +6,7 @@ import DbBlogRenderer from '@/components/DbBlogRenderer';
 import LiveBlogEditor from '@/components/LiveBlogEditor';
 import { AuthorByline, BlogPostJsonLd } from '@/components/blog/BlogPostMeta';
 import type { Episode } from '@/lib/episodes';
-import { resolveAuthorAsync, resolveReviewerAsync } from '@/lib/blogAuthors';
+import { isNoneSlug, resolveAuthorAsync, resolveReviewerAsync } from '@/lib/blogAuthors';
 
 // Public renderer for DB-backed blog posts. Static folders under
 // /who-we-are/blog/<slug>/ take precedence (Next.js routes static
@@ -217,9 +217,25 @@ export default async function DbBlogPage({
       }
     : null;
 
+  // Editor-selected "None" suppresses the visible byline and the
+  // structured-data Person nodes. We still emit the MedicalWebPage
+  // block in BlogPostJsonLd (it just renders without author/reviewer
+  // when both are null) so Google can still classify the page.
+  const authorSuppressed = isNoneSlug(row.author_slug);
+  const reviewerSuppressed = isNoneSlug(row.reviewer_slug);
+  const renderedAuthor = authorSuppressed ? null : author;
+  const renderedReviewer = reviewerSuppressed ? null : reviewer;
+  const showByline = !authorSuppressed || !reviewerSuppressed;
+
   return (
     <>
-      <BlogPostJsonLd episode={episode} author={author} reviewer={reviewer} />
+      <BlogPostJsonLd
+        episode={episode}
+        author={renderedAuthor ?? undefined}
+        reviewer={renderedReviewer ?? undefined}
+        suppressAuthor={authorSuppressed}
+        suppressReviewer={reviewerSuppressed}
+      />
       {faqJsonLd && (
         <script
           type="application/ld+json"
@@ -241,12 +257,28 @@ export default async function DbBlogPage({
         <LiveBlogEditor
           blogId={row.id}
           initialLayout={reconciledLayout}
-          byline={<AuthorByline episode={episode} author={author} reviewer={reviewer} />}
+          byline={showByline ? (
+            <AuthorByline
+              episode={episode}
+              author={renderedAuthor ?? undefined}
+              reviewer={renderedReviewer ?? undefined}
+              suppressAuthor={authorSuppressed}
+              suppressReviewer={reviewerSuppressed}
+            />
+          ) : undefined}
         />
       ) : (
         <DbBlogRenderer
           layout={reconciledLayout}
-          byline={<AuthorByline episode={episode} author={author} reviewer={reviewer} />}
+          byline={showByline ? (
+            <AuthorByline
+              episode={episode}
+              author={renderedAuthor ?? undefined}
+              reviewer={renderedReviewer ?? undefined}
+              suppressAuthor={authorSuppressed}
+              suppressReviewer={reviewerSuppressed}
+            />
+          ) : undefined}
         />
       )}
     </>

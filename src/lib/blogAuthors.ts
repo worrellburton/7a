@@ -96,6 +96,15 @@ export function findReviewerBySlug(slug: string | null | undefined): BlogAuthor 
 export const DEFAULT_AUTHOR_SLUG = 'lindsay-rothschild';
 export const DEFAULT_REVIEWER_SLUG = 'lindsay-rothschild';
 
+// Sentinel stored in blogs.author_slug / blogs.reviewer_slug when
+// the editor explicitly selected "None" in the Byline picker. The
+// live page reads it as "skip this byline entirely" — distinct from
+// null (which still falls back to the seeded default).
+export const NONE_SLUG = '__none__';
+export function isNoneSlug(slug: string | null | undefined): boolean {
+  return slug === NONE_SLUG;
+}
+
 // Resolver helpers that fall back to the defaults — call these
 // from render-time code so a missing `authorSlug` / `reviewerSlug`
 // still produces a valid Person node.

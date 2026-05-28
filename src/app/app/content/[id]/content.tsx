@@ -520,9 +520,16 @@ interface AuthorOption {
   title: string;
   credentials?: string;
   bio?: string;
+  avatarUrl?: string;
   isMedicalReviewer?: boolean;
   source?: 'db' | 'fallback';
 }
+
+// Sentinel slug meaning "this post has no byline at all" — distinct
+// from null (which means "use the resolver's default"). Stored as-is
+// in blogs.author_slug / blogs.reviewer_slug; the live page resolver
+// + renderer treat it as "skip the author/reviewer node entirely".
+const NONE_SLUG = '__none__';
 
 function BylinePanel({
   blogId,
@@ -621,56 +628,42 @@ function BylinePanel({
           "— Use default —" while the live byline carried Lindsay
           Rothschild, and editors thought the field was broken. */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <label className="block">
+        <div>
           <span className="block text-[10px] font-bold uppercase tracking-wider text-foreground/45 mb-1">Written by</span>
-          <select
-            value={authorSlug ?? ''}
-            onChange={(e) => void patch('author_slug', e.target.value || null)}
-            disabled={saving === 'author'}
-            className="w-full rounded-md border border-black/10 px-2 py-1.5 text-[12.5px] bg-white"
-          >
-            <option value="">
-              {saving === 'author'
-                ? 'Saving…'
-                : `— Default · ${effectiveAuthor.name}${effectiveAuthor.credentials ? `, ${effectiveAuthor.credentials}` : ''} —`}
-            </option>
-            {authorOptions.map((a) => (
-              <option key={a.slug} value={a.slug}>
-                {a.name}{a.credentials ? `, ${a.credentials}` : ''} · {a.title}
-              </option>
-            ))}
-          </select>
+          <AuthorPicker
+            value={authorSlug}
+            options={authorOptions}
+            effectiveDefault={effectiveAuthor}
+            saving={saving === 'author'}
+            onChange={(next) => void patch('author_slug', next)}
+            label="Written by"
+          />
           <p className="mt-1 text-[10.5px] text-foreground/55 truncate">
-            {authorSlug
-              ? (author?.bio ?? author?.title ?? '')
-              : `Currently showing on the live post: ${effectiveAuthor.name}.`}
+            {authorSlug === NONE_SLUG
+              ? 'No byline will appear on the live post.'
+              : authorSlug
+                ? (author?.bio ?? author?.title ?? '')
+                : `Currently showing on the live post: ${effectiveAuthor.name}.`}
           </p>
-        </label>
-        <label className="block">
+        </div>
+        <div>
           <span className="block text-[10px] font-bold uppercase tracking-wider text-foreground/45 mb-1">Medically reviewed by</span>
-          <select
-            value={reviewerSlug ?? ''}
-            onChange={(e) => void patch('reviewer_slug', e.target.value || null)}
-            disabled={saving === 'reviewer'}
-            className="w-full rounded-md border border-black/10 px-2 py-1.5 text-[12.5px] bg-white"
-          >
-            <option value="">
-              {saving === 'reviewer'
-                ? 'Saving…'
-                : `— Default · ${effectiveReviewer.name}${effectiveReviewer.credentials ? `, ${effectiveReviewer.credentials}` : ''} —`}
-            </option>
-            {reviewerOptions.map((r) => (
-              <option key={r.slug} value={r.slug}>
-                {r.name}{r.credentials ? `, ${r.credentials}` : ''} · {r.title}
-              </option>
-            ))}
-          </select>
+          <AuthorPicker
+            value={reviewerSlug}
+            options={reviewerOptions}
+            effectiveDefault={effectiveReviewer}
+            saving={saving === 'reviewer'}
+            onChange={(next) => void patch('reviewer_slug', next)}
+            label="Medically reviewed by"
+          />
           <p className="mt-1 text-[10.5px] text-foreground/55 truncate">
-            {reviewerSlug
-              ? 'Credentialed clinician — drives MedicalWebPage.reviewedBy.'
-              : `Currently showing on the live post: ${effectiveReviewer.name}.`}
+            {reviewerSlug === NONE_SLUG
+              ? 'No medical-reviewer block will appear on the live post.'
+              : reviewerSlug
+                ? 'Credentialed clinician — drives MedicalWebPage.reviewedBy.'
+                : `Currently showing on the live post: ${effectiveReviewer.name}.`}
           </p>
-        </label>
+        </div>
         <div>
           <span className="block text-[10px] font-bold uppercase tracking-wider text-foreground/45 mb-1">Last reviewed</span>
           <p className="text-[12.5px] text-foreground/85 mb-1">
@@ -691,6 +684,206 @@ function BylinePanel({
       </div>
       {err && <p className="mt-2 text-[11.5px] text-rose-700">{err}</p>}
     </Panel>
+  );
+}
+
+// Custom picker for the Written by / Medically reviewed by fields.
+// Replaces the native <select> so we can render the team-member
+// avatar + name + credentials + title inline (a native <option>
+// can't carry images). Three pinned rows at the top:
+//   1. "Default" — falls back to the resolver's pick (null in DB)
+//   2. "None" — explicit no-byline (sentinel NONE_SLUG in DB)
+//   3. A divider, then every option sorted by name.
+//
+// `value === null`        → Default
+// `value === NONE_SLUG`   → None
+// `value === '<slug>'`    → that team member
+function AuthorPicker({
+  value,
+  options,
+  effectiveDefault,
+  saving,
+  onChange,
+  label,
+}: {
+  value: string | null;
+  options: AuthorOption[];
+  effectiveDefault: AuthorOption;
+  saving: boolean;
+  onChange: (next: string | null) => void;
+  label: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (triggerRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const selected = value && value !== NONE_SLUG ? options.find((o) => o.slug === value) : null;
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((o) =>
+      o.name.toLowerCase().includes(q)
+      || (o.title ?? '').toLowerCase().includes(q)
+      || (o.credentials ?? '').toLowerCase().includes(q)
+    );
+  }, [options, query]);
+
+  const triggerLabel = (() => {
+    if (saving) return 'Saving…';
+    if (value === NONE_SLUG) return '— None (no byline) —';
+    if (selected) return `${selected.name}${selected.credentials ? `, ${selected.credentials}` : ''}`;
+    return `— Default · ${effectiveDefault.name}${effectiveDefault.credentials ? `, ${effectiveDefault.credentials}` : ''} —`;
+  })();
+  const triggerAvatar = selected?.avatarUrl ?? (value === null ? effectiveDefault.avatarUrl : undefined);
+  const triggerInitial = (selected?.name ?? (value === null ? effectiveDefault.name : '?')).trim().charAt(0).toUpperCase() || '?';
+
+  return (
+    <div className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        disabled={saving}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`${label} picker`}
+        className="w-full flex items-center gap-2 rounded-md border border-black/10 bg-white px-2 py-1.5 text-left hover:bg-warm-bg/40 focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+      >
+        {value === NONE_SLUG ? (
+          <span className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full border border-dashed border-foreground/20 text-foreground/35 text-[10px]" aria-hidden>∅</span>
+        ) : triggerAvatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={triggerAvatar} alt="" className="shrink-0 w-6 h-6 rounded-full object-cover bg-warm-bg" />
+        ) : (
+          <span className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full bg-warm-bg text-foreground/60 text-[10px] font-semibold" aria-hidden>{triggerInitial}</span>
+        )}
+        <span className="flex-1 min-w-0 truncate text-[12.5px] text-foreground">{triggerLabel}</span>
+        <svg className="shrink-0 w-3 h-3 text-foreground/50" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M4 6l4 4 4-4" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          ref={panelRef}
+          role="listbox"
+          className="absolute left-0 right-0 top-full mt-1 z-40 max-h-[360px] overflow-hidden rounded-lg border border-black/10 bg-white shadow-xl ring-1 ring-black/5 flex flex-col"
+        >
+          <div className="px-2 py-1.5 border-b border-black/5">
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search team…"
+              className="w-full rounded-md border border-black/10 bg-white px-2 py-1 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+          <div className="flex-1 overflow-y-auto py-1">
+            <PickerRow
+              label={`Default · ${effectiveDefault.name}${effectiveDefault.credentials ? `, ${effectiveDefault.credentials}` : ''}`}
+              sublabel={effectiveDefault.title}
+              avatarUrl={effectiveDefault.avatarUrl}
+              active={value === null}
+              hint="Resolver fallback"
+              onClick={() => { onChange(null); setOpen(false); setQuery(''); }}
+            />
+            <PickerRow
+              label="None (no byline)"
+              sublabel="Skips the author / reviewer block on the live post"
+              none
+              active={value === NONE_SLUG}
+              hint="Sentinel"
+              onClick={() => { onChange(NONE_SLUG); setOpen(false); setQuery(''); }}
+            />
+            <div className="my-1 border-t border-black/5" />
+            {filtered.length === 0 && (
+              <p className="px-3 py-3 text-[12px] text-foreground/45 text-center">No matches.</p>
+            )}
+            {filtered.map((o) => (
+              <PickerRow
+                key={o.slug}
+                label={`${o.name}${o.credentials ? `, ${o.credentials}` : ''}`}
+                sublabel={o.title}
+                avatarUrl={o.avatarUrl}
+                active={value === o.slug}
+                hint={o.source === 'fallback' ? 'Seed' : undefined}
+                onClick={() => { onChange(o.slug); setOpen(false); setQuery(''); }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PickerRow({
+  label,
+  sublabel,
+  avatarUrl,
+  none,
+  active,
+  hint,
+  onClick,
+}: {
+  label: string;
+  sublabel?: string;
+  avatarUrl?: string;
+  none?: boolean;
+  active: boolean;
+  hint?: string;
+  onClick: () => void;
+}) {
+  const initial = label.trim().charAt(0).toUpperCase() || '?';
+  return (
+    <button
+      type="button"
+      role="option"
+      aria-selected={active}
+      onClick={onClick}
+      className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-warm-bg/60 transition-colors ${active ? 'bg-warm-bg/40' : ''}`}
+    >
+      {none ? (
+        <span className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-full border border-dashed border-foreground/25 text-foreground/35 text-[12px]" aria-hidden>∅</span>
+      ) : avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={avatarUrl} alt="" className="shrink-0 w-8 h-8 rounded-full object-cover bg-warm-bg" />
+      ) : (
+        <span className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-full bg-warm-bg text-foreground/65 text-[11px] font-semibold" aria-hidden>{initial}</span>
+      )}
+      <span className="flex-1 min-w-0">
+        <span className="block text-[12.5px] font-semibold text-foreground truncate">{label}</span>
+        {sublabel && <span className="block text-[11px] text-foreground/55 truncate">{sublabel}</span>}
+      </span>
+      {hint && (
+        <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-foreground/[0.06] text-foreground/55 border border-black/5">
+          {hint}
+        </span>
+      )}
+      {active && (
+        <svg className="shrink-0 w-3.5 h-3.5 text-primary" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M3 8l3 3 7-7" />
+        </svg>
+      )}
+    </button>
   );
 }
 
