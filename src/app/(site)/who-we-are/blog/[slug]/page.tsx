@@ -217,12 +217,15 @@ export default async function DbBlogPage({
       }
     : null;
 
-  // Editor-selected "None" suppresses the visible byline and the
-  // structured-data Person nodes. We still emit the MedicalWebPage
-  // block in BlogPostJsonLd (it just renders without author/reviewer
-  // when both are null) so Google can still classify the page.
-  const authorSuppressed = isNoneSlug(row.author_slug);
-  const reviewerSuppressed = isNoneSlug(row.reviewer_slug);
+  // null author_slug now also means "no byline" — the resolver default
+  // is None, not Lindsay, so an unset slug suppresses the byline +
+  // Person JSON-LD just like the explicit None sentinel does. Horse
+  // bylines (`horse-<uuid>`) are picker-only for now and also suppress
+  // here — the live page treats them as "no byline" until we wire a
+  // proper horse byline renderer.
+  const isHorseSlug = (s: string | null) => !!s && s.startsWith('horse-');
+  const authorSuppressed = !row.author_slug || isNoneSlug(row.author_slug) || isHorseSlug(row.author_slug);
+  const reviewerSuppressed = !row.reviewer_slug || isNoneSlug(row.reviewer_slug) || isHorseSlug(row.reviewer_slug);
   const renderedAuthor = authorSuppressed ? null : author;
   const renderedReviewer = reviewerSuppressed ? null : reviewer;
   const showByline = !authorSuppressed || !reviewerSuppressed;
