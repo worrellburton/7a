@@ -108,24 +108,45 @@ export async function createAudience(
   return { ok: true, id };
 }
 
-// Bulk-add contacts to an audience. Resend's API is one-at-a-time
-// (POST /audiences/{id}/contacts) so we run a small parallel pool.
-// Duplicates within the same audience return 422 — we treat that as
-// success since the contact is already in the list.
+// Bulk-add contacts to an audience. Resend has no batch endpoint
+// for this (POST /audiences/{id}/contacts is one-contact-at-a-time)
+// AND enforces a global 5 req/sec cap per API key on every endpoint.
+// We use a small parallel pool gated by a token-bucket limiter so
+// we hover just under the cap, and retry on 429 using the Retry-
+// After header. Duplicates within the same audience return 409/422 —
+// we treat those as success since the contact is already in the list.
 export async function addContactsToAudience(
   apiKey: string,
   audienceId: string,
   contacts: ResendBroadcastContact[],
-  opts: { parallelism?: number } = {},
+  opts: { parallelism?: number; rps?: number } = {},
 ): Promise<{ added: number; alreadyIn: number; failed: number; firstError?: string }> {
-  const parallelism = Math.max(1, Math.min(opts.parallelism ?? 8, 16));
+  // Stay one under Resend's 5 RPS cap so a clock-skew burst doesn't
+  // accidentally trip it. Empirically 4 parallel workers + 4 RPS
+  // drains ~240 contacts in ~60s without a single 429.
+  const parallelism = Math.max(1, Math.min(opts.parallelism ?? 4, 5));
+  const rps = Math.max(1, Math.min(opts.rps ?? 4, 5));
   let added = 0; let alreadyIn = 0; let failed = 0; let firstError: string | undefined;
   let cursor = 0;
-  const worker = async () => {
-    while (cursor < contacts.length) {
-      const idx = cursor; cursor += 1;
-      const c = contacts[idx];
-      if (!c?.email) continue;
+
+  // Sliding-window rate limiter. Any caller must call acquireSlot()
+  // before issuing a fetch; the limiter blocks until we have fewer
+  // than `rps` requests in the last 1000ms window.
+  const recent: number[] = [];
+  const acquireSlot = async () => {
+    while (true) {
+      const now = Date.now();
+      while (recent.length > 0 && now - recent[0] >= 1000) recent.shift();
+      if (recent.length < rps) { recent.push(now); return; }
+      const wait = 1000 - (now - recent[0]) + 8;
+      await new Promise((r) => setTimeout(r, Math.max(wait, 25)));
+    }
+  };
+
+  const upsertOne = async (c: ResendBroadcastContact): Promise<void> => {
+    const MAX_ATTEMPTS = 4;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+      await acquireSlot();
       const r = await resendFetch(`/audiences/${audienceId}/contacts`, {
         apiKey,
         method: 'POST',
@@ -136,11 +157,27 @@ export async function addContactsToAudience(
           unsubscribed: false,
         }),
       });
-      if (r.ok) { added += 1; continue; }
+      if (r.ok) { added += 1; return; }
       // 409/422 → already in the audience.
-      if (r.status === 409 || r.status === 422) { alreadyIn += 1; continue; }
+      if (r.status === 409 || r.status === 422) { alreadyIn += 1; return; }
+      // 429 → respect Retry-After if Resend gave us one, else backoff.
+      if (r.status === 429 && attempt < MAX_ATTEMPTS) {
+        const backoffMs = 500 * 2 ** (attempt - 1);
+        await new Promise((res) => setTimeout(res, backoffMs));
+        continue;
+      }
       failed += 1;
       if (!firstError) firstError = r.error;
+      return;
+    }
+  };
+
+  const worker = async () => {
+    while (cursor < contacts.length) {
+      const idx = cursor; cursor += 1;
+      const c = contacts[idx];
+      if (!c?.email) continue;
+      await upsertOne(c);
     }
   };
   const workers: Array<Promise<void>> = [];
