@@ -194,7 +194,7 @@ export async function POST(req: NextRequest) {
       target_kind: 'contact',
       target_id: data.id,
       target_label: data.name,
-      target_path: '/app/outreach',
+      target_path: '/app/contacts',
       metadata: { company: data.company ?? null },
     });
   }

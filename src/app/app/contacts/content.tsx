@@ -77,6 +77,7 @@ interface Contact {
   last_contact_comments: string | null;
   last_contact_by_name?: string | null;
   last_contact_by_avatar_url?: string | null;
+  follow_up_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -127,6 +128,10 @@ const ALL_COLUMNS: ColumnDef[] = [
   { key: 'location', label: 'Location' },
   { key: 'notes', label: 'Notes' },
   { key: 'role', label: 'Role / Relation' },
+  // "Follow up" mirrors partnerships.follow_up_at — the date the
+  // user scheduled in the Log-contact modal. Pills render overdue /
+  // today / in-Nd with the same tones as the partners grid.
+  { key: 'follow_up', label: 'Follow up', width: '130px' },
 ];
 
 // Site → Company → Type → Specialty/Focus render as one visual identity
@@ -271,6 +276,8 @@ function sortValue(c: Contact, key: string): string | number | null {
     case 'last_contact_summary':
       return c.last_contact_at ? new Date(c.last_contact_at).getTime() : null;
     case 'last_contact_by_name': return c.last_contact_by_name || null;
+    case 'follow_up':
+      return c.follow_up_at ? new Date(c.follow_up_at).getTime() : null;
     // Default sort: any activity on the row (field edit, log-a-contact,
     // notes update) bumps updated_at, so sorting desc on this puts the
     // most-recently-touched row at the top of the grid.
@@ -841,11 +848,15 @@ export default function ContactsContent() {
     setShowAdd(false);
   }
 
-  async function handleLogContact(target: Contact, method: ContactMethod, comments: string, transcript: string, durationSeconds: number) {
+  async function handleLogContact(target: Contact, method: ContactMethod, comments: string, transcript: string, durationSeconds: number, followUpDays: number | null) {
     if (!session?.access_token) return;
     // Optimistic UI — bump the row before the request resolves so
     // the grid reflects the action immediately.
     const optimisticAt = new Date().toISOString();
+    const optimisticFollowUp =
+      followUpDays != null && followUpDays > 0
+        ? new Date(Date.now() + followUpDays * 86400000).toISOString()
+        : target.follow_up_at;
     setRows((prev) =>
       prev.map((r) =>
         r.id === target.id
@@ -859,6 +870,7 @@ export default function ContactsContent() {
                 (user?.user_metadata?.full_name as string | undefined) ?? r.last_contact_by_name ?? null,
               last_contact_by_avatar_url:
                 (user?.user_metadata?.avatar_url as string | undefined) ?? r.last_contact_by_avatar_url ?? null,
+              follow_up_at: optimisticFollowUp,
             }
           : r,
       ),
@@ -867,7 +879,7 @@ export default function ContactsContent() {
     const res = await fetch(`/api/contacts/${target.id}/log-contact`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ method, comments, transcript, duration_seconds: durationSeconds }),
+      body: JSON.stringify({ method, comments, transcript, duration_seconds: durationSeconds, follow_up_days: followUpDays }),
     });
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
@@ -909,7 +921,7 @@ export default function ContactsContent() {
       setRows((prev) => [target as Contact, ...prev]);
     }
     setShowNewLog(false);
-    await handleLogContact(target, method, comments, '', durationSeconds);
+    await handleLogContact(target, method, comments, '', durationSeconds, null);
   }
 
   async function handleUpgrade(target: Contact, partnerPayload: Record<string, unknown>) {
@@ -1374,7 +1386,7 @@ export default function ContactsContent() {
         <LogContactModal
           contact={logTarget}
           onClose={() => setLogTarget(null)}
-          onSubmit={(method, comments, transcript, durationSeconds) => handleLogContact(logTarget, method, comments, transcript, durationSeconds)}
+          onSubmit={(method, comments, transcript, durationSeconds, followUpDays) => handleLogContact(logTarget, method, comments, transcript, durationSeconds, followUpDays)}
         />
       )}
       {upgradeTarget && (
@@ -3804,9 +3816,48 @@ function ContactCell({
       return contact.notes
         ? <span className="text-foreground/75 truncate block max-w-[420px]" title={contact.notes}>{contact.notes}</span>
         : <Em />;
+    case 'follow_up':
+      return <FollowUpCell at={contact.follow_up_at} />;
     default:
       return null;
   }
+}
+
+// Renders a contacts.follow_up_at as a compact pill — "in N days" /
+// "today" / "tomorrow" / "overdue Nd" / "—". Same tones as the
+// partners grid so a contact promoted into a partner keeps the
+// visual identity.
+function FollowUpCell({ at }: { at: string | null }) {
+  if (!at) return <Em />;
+  const ms = new Date(at).getTime();
+  if (Number.isNaN(ms)) return <Em />;
+  const dayMs = 86400000;
+  const diffDays = Math.round((ms - Date.now()) / dayMs);
+  let label: string;
+  let tone: string;
+  if (diffDays < 0) {
+    label = `Overdue ${Math.abs(diffDays)}d`;
+    tone = 'bg-rose-50 text-rose-700 border-rose-200';
+  } else if (diffDays === 0) {
+    label = 'Today';
+    tone = 'bg-amber-50 text-amber-800 border-amber-200';
+  } else if (diffDays === 1) {
+    label = 'Tomorrow';
+    tone = 'bg-amber-50 text-amber-800 border-amber-200';
+  } else {
+    label = `In ${diffDays}d`;
+    tone = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  }
+  const title = new Date(at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${tone}`} title={title}>
+      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <path d="M16 2v4M8 2v4M3 10h18" />
+      </svg>
+      {label}
+    </span>
+  );
 }
 
 // Inline single-line editor used by the editable text columns. Click to
@@ -6701,12 +6752,15 @@ function LogContactModal({
 }: {
   contact: Contact;
   onClose: () => void;
-  onSubmit: (method: ContactMethod, comments: string, transcript: string, durationSeconds: number) => Promise<void> | void;
+  onSubmit: (method: ContactMethod, comments: string, transcript: string, durationSeconds: number, followUpDays: number | null) => Promise<void> | void;
 }) {
   const [method, setMethod] = useState<ContactMethod>('Phone');
   const [comments, setComments] = useState('');
   const [transcript, setTranscript] = useState('');
   const [showTranscript, setShowTranscript] = useState(false);
+  const [followUpDays, setFollowUpDays] = useState<number | null>(null);
+  const [customDays, setCustomDays] = useState<string>('');
+  const FOLLOW_UP_PICKS = [3, 7, 14, 30];
   // Duration captured as a single whole-minute count — reps were
   // round-tripping every entry to the nearest minute anyway and the
   // dual MIN+SEC field added a tab-stop with no real reporting value.
@@ -6734,7 +6788,7 @@ function LogContactModal({
           if (!durationValid) return;
           setSubmitting(true);
           try {
-            await onSubmit(method, comments.trim(), transcript.trim(), totalSeconds);
+            await onSubmit(method, comments.trim(), transcript.trim(), totalSeconds, followUpDays);
           } finally {
             setSubmitting(false);
           }
@@ -6768,6 +6822,64 @@ function LogContactModal({
               className="modal-input resize-none"
               placeholder="They mentioned a referral coming next week — follow up on Tuesday."
             />
+          </ModalField>
+
+          <ModalField label="Schedule follow up">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {FOLLOW_UP_PICKS.map((days) => {
+                const active = followUpDays === days;
+                return (
+                  <button
+                    key={days}
+                    type="button"
+                    onClick={() => { setFollowUpDays(days); setCustomDays(''); }}
+                    className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition-colors ${
+                      active
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-white text-foreground/75 border-black/10 hover:border-foreground/30 hover:text-foreground'
+                    }`}
+                  >
+                    In {days}d
+                  </button>
+                );
+              })}
+              <div className="inline-flex items-center rounded-lg border border-black/10 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-primary/40">
+                <span className="px-2 text-[11px] font-semibold text-foreground/45">In</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={customDays}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setCustomDays(v);
+                    const n = parseInt(v, 10);
+                    if (Number.isFinite(n) && n > 0) setFollowUpDays(n);
+                    else if (v === '') setFollowUpDays(null);
+                  }}
+                  placeholder="—"
+                  className="w-12 py-1.5 text-center text-[12px] font-semibold text-foreground bg-transparent focus:outline-none"
+                />
+                <span className="pr-2 text-[11px] font-semibold text-foreground/45">d</span>
+              </div>
+              {followUpDays != null && (
+                <button
+                  type="button"
+                  onClick={() => { setFollowUpDays(null); setCustomDays(''); }}
+                  className="px-2.5 py-1.5 rounded-lg text-[12px] font-semibold text-foreground/55 hover:text-foreground hover:bg-warm-bg/60"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            {followUpDays != null && followUpDays > 0 && (
+              <p className="mt-1.5 text-[11px] text-foreground/55">
+                Follow up on{' '}
+                <span className="font-semibold text-foreground/75">
+                  {new Date(Date.now() + followUpDays * 86400000).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                </span>
+              </p>
+            )}
           </ModalField>
 
           {/* Optional: paste a call / meeting transcript. We stash the

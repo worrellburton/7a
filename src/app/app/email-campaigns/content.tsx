@@ -13,7 +13,7 @@
 // based on campaign status.
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
 
@@ -47,6 +47,16 @@ interface RecipientAnalytics {
   opened: boolean;
   clicked: boolean;
   bounced: boolean;
+}
+
+interface AutopilotActivity {
+  id: string;
+  contactId: string | null;
+  contactName: string | null;
+  contactEmail: string | null;
+  campaignCount: number;
+  campaigns: Array<{ id: string; label: string }>;
+  createdAt: string;
 }
 
 interface AnalyticsResponse {
@@ -220,6 +230,8 @@ export default function EmailCampaignsContent() {
         </p>
       )}
 
+      <AutopilotPanel canManage={canManage} />
+
       <section className="rounded-2xl border border-black/10 bg-white">
         <header className="px-4 py-3 border-b border-black/5 flex items-baseline justify-between">
           <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
@@ -267,6 +279,173 @@ export default function EmailCampaignsContent() {
         )}
       </section>
     </div>
+  );
+}
+
+// Always-on autopilot indicator + activity feed. The actual work
+// happens in a Postgres trigger (contacts_autopilot_scheduled): every
+// new contact with a valid, non-unsubscribed email is added to every
+// currently-scheduled campaign whose recipients were locked before the
+// contact existed, and the event is written to
+// email_campaign_autopilot_log. This panel just surfaces that it's on
+// and shows the recent log. The "Catch up now" affordance re-runs the
+// historical sweep for contacts that predate the trigger.
+function AutopilotPanel({ canManage }: { canManage: boolean }) {
+  const { session } = useAuth();
+  const [items, setItems] = useState<AutopilotActivity[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [syncState, setSyncState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+
+  const loadActivity = useCallback(async () => {
+    if (!session?.access_token) return;
+    try {
+      const res = await fetch('/api/email-campaigns/autopilot-activity?limit=25', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        cache: 'no-store',
+      });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok) setItems(((json as { items?: AutopilotActivity[] }).items ?? []));
+    } finally {
+      setLoading(false);
+    }
+  }, [session?.access_token]);
+
+  useEffect(() => { void loadActivity(); }, [loadActivity]);
+
+  // Historical sweep for contacts that were created BEFORE the trigger
+  // existed (or before a campaign was scheduled). The trigger handles
+  // everything from here forward; this is the one-shot backfill.
+  async function runCatchUp() {
+    if (!session?.access_token) return;
+    if (!confirm(
+      'Add every existing contact created since each scheduled campaign was locked to that campaign\'s recipient list?\n\n' +
+      'Going forward this happens automatically — this only backfills contacts that predate autopilot. Unsubscribed contacts and contacts already on the list are skipped.'
+    )) return;
+    setSyncState('running');
+    setSyncMessage(null);
+    try {
+      const res = await fetch('/api/email-campaigns/sync-scheduled-recipients', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as { error?: string }).error || `HTTP ${res.status}`);
+      const j = json as { scheduledCampaigns?: number; totalAdded?: number };
+      setSyncState('done');
+      setSyncMessage(
+        `Caught up ${j.scheduledCampaigns ?? 0} scheduled campaign${(j.scheduledCampaigns ?? 0) === 1 ? '' : 's'} · added ${j.totalAdded ?? 0} recipient${(j.totalAdded ?? 0) === 1 ? '' : 's'}.`,
+      );
+      void loadActivity();
+    } catch (e) {
+      setSyncState('error');
+      setSyncMessage(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  return (
+    <section className="mb-5 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50/70 via-white to-white overflow-hidden">
+      <header className="px-4 py-3 border-b border-emerald-100/80 flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3 min-w-0">
+          {/* Glowing "on" pill — pulsing halo + ping dot signal it's live. */}
+          <div className="relative inline-flex shrink-0">
+            <span aria-hidden className="absolute -inset-1 rounded-full bg-emerald-400/30 blur-md animate-pulse" />
+            <span
+              className="relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-emerald-400 bg-emerald-50 text-emerald-900 text-[11px] font-bold uppercase tracking-[0.14em] shadow-[0_0_14px_rgba(16,185,129,0.45)]"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75 animate-ping" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              Autopilot · On
+            </span>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-emerald-800/70" style={{ fontFamily: 'var(--font-body)' }}>
+              New contacts → scheduled campaigns
+            </p>
+            <p className="text-[12px] text-foreground/60 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+              Every new contact is automatically added to each scheduled campaign whose recipients were locked before they existed.
+            </p>
+          </div>
+        </div>
+        {canManage && (
+          <button
+            type="button"
+            onClick={runCatchUp}
+            disabled={syncState === 'running'}
+            className="shrink-0 px-3 py-1.5 rounded-md border border-emerald-300 bg-white text-emerald-800 text-[11px] font-semibold uppercase tracking-wider hover:bg-emerald-50 disabled:opacity-50"
+            style={{ fontFamily: 'var(--font-body)' }}
+            title="One-shot backfill for contacts created before autopilot existed. New contacts are already handled automatically."
+          >
+            {syncState === 'running' ? 'Catching up…' : 'Catch up now'}
+          </button>
+        )}
+      </header>
+
+      {syncMessage && (
+        <p
+          className={`px-4 pt-3 text-[11.5px] ${syncState === 'error' ? 'text-red-700' : 'text-emerald-800'}`}
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          {syncMessage}
+        </p>
+      )}
+
+      <div className="px-4 py-3">
+        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45 mb-2" style={{ fontFamily: 'var(--font-body)' }}>
+          Recent activity
+        </p>
+        {loading ? (
+          <p className="text-[12px] text-foreground/50 italic" style={{ fontFamily: 'var(--font-body)' }}>
+            Loading…
+          </p>
+        ) : items.length === 0 ? (
+          <p className="text-[12px] text-foreground/50 italic" style={{ fontFamily: 'var(--font-body)' }}>
+            No contacts added yet. As new contacts come in, they&apos;ll show up here automatically.
+          </p>
+        ) : (
+          <ul className="space-y-1.5">
+            {items.map((it) => (
+              <li
+                key={it.id}
+                className="flex items-start gap-2.5 rounded-lg border border-black/5 bg-white/70 px-3 py-2"
+              >
+                <span aria-hidden className="mt-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] shrink-0">
+                  +
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[12.5px] text-foreground" style={{ fontFamily: 'var(--font-body)' }}>
+                    <span className="font-semibold">{it.contactName || it.contactEmail || 'New contact'}</span>
+                    {' '}added to{' '}
+                    <span className="font-semibold">{it.campaignCount}</span>
+                    {' '}scheduled campaign{it.campaignCount === 1 ? '' : 's'}
+                  </p>
+                  {it.campaigns.length > 0 && (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {it.campaigns.map((c) => (
+                        <span
+                          key={c.id}
+                          className="inline-block max-w-[220px] truncate px-1.5 py-0.5 rounded border border-emerald-200 bg-emerald-50/60 text-emerald-800 text-[10.5px]"
+                          style={{ fontFamily: 'var(--font-body)' }}
+                          title={c.label}
+                        >
+                          {c.label}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <span className="shrink-0 text-[11px] text-foreground/45 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
+                  {formatRelative(it.createdAt)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </section>
   );
 }
 

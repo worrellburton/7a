@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthProvider';
 import EditableBlogPreview from '@/components/EditableBlogPreview';
+import PageAnalyticsPanel from '@/components/PageAnalyticsPanel';
 import { usePagePermissions } from '@/lib/PagePermissions';
 import type { Layout } from '@/lib/content-claude';
 import {
@@ -11,6 +12,8 @@ import {
   BLOG_REVIEWERS,
   findAuthorBySlug,
   findReviewerBySlug,
+  resolveAuthor,
+  resolveReviewer,
 } from '@/lib/blogAuthors';
 
 // One screen, six panels stacked vertically. Each panel light-greys
@@ -160,129 +163,94 @@ export default function BlogEditor({ id }: { id: string }) {
         <p className="mt-1 text-[12px] text-foreground/50 font-mono">slug: {blog.slug} · status: {blog.status}</p>
       </header>
 
-      {/* Published blogs land here from the content list — but the
-          pipeline editor below is for shepherding a draft TO
-          publication. Once published, the marketer's primary need
-          is to tweak the live copy / swap images. Surface that as
-          the page's hero action so they don't have to scroll past
-          the pipeline accordions. Live edit mode on the rendered
-          post is gated by ?edit=1 + super-admin (see the public
-          blog page). */}
-      {reachedPublish && (
-        <section
-          className="mb-6 rounded-2xl border-2 border-primary/30 bg-gradient-to-r from-primary/5 via-warm-bg/40 to-white p-5 lg:p-6"
-        >
-          <div className="flex items-start gap-4 flex-wrap">
-            <div className="flex-1 min-w-[260px]">
-              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary mb-1.5">Live post</p>
-              <h2 className="text-lg font-bold text-foreground leading-tight">
-                Edit the published copy + photos
-              </h2>
-              <p className="text-[13px] text-foreground/65 leading-relaxed mt-1">
-                Opens the live rendered post in edit mode — change headlines, body text, and swap any photo right on the page.
-                Saves write straight back to this post.
-              </p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-              <Link
-                href={`/who-we-are/blog/${blog.slug}?edit=1`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-primary text-white text-[12.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 transition-colors shadow-[0_10px_28px_-10px_rgba(188,107,74,0.55)]"
-              >
-                Edit live post
-                <span aria-hidden="true">→</span>
-              </Link>
-              <Link
-                href={`/who-we-are/blog/${blog.slug}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg border border-foreground/15 bg-white text-foreground/75 text-[12.5px] font-semibold hover:bg-warm-bg/60 transition-colors"
-              >
-                View as visitor
-              </Link>
-              <GenerateSchemaButton blog={blog} />
-            </div>
-          </div>
-          <p className="mt-3 text-[11px] text-foreground/45 font-mono">
-            /who-we-are/blog/{blog.slug}
-          </p>
-        </section>
-      )}
-
       {error && (
         <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-800">{error}</div>
       )}
 
-      <PromptPanel
-        blogId={blog.id}
-        prompt={blog.prompt ?? ''}
-        token={token}
-        onChange={() => void load()}
-      />
-
-      <BylinePanel
-        blogId={blog.id}
-        authorSlug={blog.author_slug ?? null}
-        reviewerSlug={blog.reviewer_slug ?? null}
-        lastReviewedAt={blog.last_reviewed_at ?? null}
-        token={token}
-        onChange={() => void load()}
-      />
-
-      <GeneratePanel
-        blog={blog}
-        token={token}
-        onComplete={() => void load()}
-      />
-
-      {reachedReview && (
-        <ReviewPanel
+      {/* Published blogs see a live-edit dashboard instead of the
+          linear pipeline. The pipeline (regenerate body, pick
+          images, build, etc.) drops to a collapsed accordion at
+          the bottom — kept around for emergency rebuilds but out
+          of the way of the daily edit flow. */}
+      {reachedPublish ? (
+        <PublishedDashboard
           blog={blog}
-          token={token}
+          images={images}
           revisions={revisions}
-          onChange={() => void load()}
+          token={token}
+          approving={approving}
           onStartApprove={() => setApproving(true)}
           onFinishApprove={() => setApproving(false)}
-        />
-      )}
-
-      {reachedReview && (
-        <ImagesPanel
-          blog={blog}
-          images={images}
-          token={token}
-          onChange={() => void load()}
-          approving={approving}
-        />
-      )}
-
-      {reachedSelect && images.length > 0 && (
-        <BuildPanel
-          blog={blog}
-          images={images}
-          token={token}
           onChange={() => void load()}
         />
-      )}
+      ) : (
+        <>
+          <PromptPanel
+            blogId={blog.id}
+            prompt={blog.prompt ?? ''}
+            token={token}
+            onChange={() => void load()}
+          />
 
-      {reachedBuild && blog.layout && (
-        <PreviewPanel
-          blogId={blog.id}
-          layout={blog.layout}
-          images={images}
-          token={token}
-          onSaved={() => void load()}
-        />
-      )}
+          <BylinePanel
+            blogId={blog.id}
+            authorSlug={blog.author_slug ?? null}
+            reviewerSlug={blog.reviewer_slug ?? null}
+            lastReviewedAt={blog.last_reviewed_at ?? null}
+            token={token}
+            onChange={() => void load()}
+          />
 
-      {reachedBuild && (
-        <PublishPanel blog={blog} token={token} onChange={() => void load()} />
-      )}
-      {reachedPublish && (
-        <p className="mt-4 text-[12px] text-foreground/55">
-          Live at <Link href={`/who-we-are/blog/${blog.slug}`} target="_blank" className="text-primary underline">/who-we-are/blog/{blog.slug}</Link>
-        </p>
+          <GeneratePanel
+            blog={blog}
+            token={token}
+            onComplete={() => void load()}
+          />
+
+          {reachedReview && (
+            <ReviewPanel
+              blog={blog}
+              token={token}
+              revisions={revisions}
+              onChange={() => void load()}
+              onStartApprove={() => setApproving(true)}
+              onFinishApprove={() => setApproving(false)}
+            />
+          )}
+
+          {reachedReview && (
+            <ImagesPanel
+              blog={blog}
+              images={images}
+              token={token}
+              onChange={() => void load()}
+              approving={approving}
+            />
+          )}
+
+          {reachedSelect && images.length > 0 && (
+            <BuildPanel
+              blog={blog}
+              images={images}
+              token={token}
+              onChange={() => void load()}
+            />
+          )}
+
+          {reachedBuild && blog.layout && (
+            <PreviewPanel
+              blogId={blog.id}
+              layout={blog.layout}
+              images={images}
+              token={token}
+              onSaved={() => void load()}
+            />
+          )}
+
+          {reachedBuild && (
+            <PublishPanel blog={blog} token={token} onChange={() => void load()} />
+          )}
+        </>
       )}
     </div>
   );
@@ -552,9 +520,16 @@ interface AuthorOption {
   title: string;
   credentials?: string;
   bio?: string;
+  avatarUrl?: string;
   isMedicalReviewer?: boolean;
   source?: 'db' | 'fallback';
 }
+
+// Sentinel slug meaning "this post has no byline at all" — distinct
+// from null (which means "use the resolver's default"). Stored as-is
+// in blogs.author_slug / blogs.reviewer_slug; the live page resolver
+// + renderer treat it as "skip the author/reviewer node entirely".
+const NONE_SLUG = '__none__';
 
 function BylinePanel({
   blogId,
@@ -597,6 +572,25 @@ function BylinePanel({
 
   const author = authorOptions.find((a) => a.slug === authorSlug) ?? findAuthorBySlug(authorSlug);
   const reviewer = reviewerOptions.find((a) => a.slug === reviewerSlug) ?? findReviewerBySlug(reviewerSlug);
+  // The "effective" identity is what the live page actually renders
+  // when this slug is in the DB — i.e. the resolver's result. Used
+  // to label the "— Use default —" placeholder so the dropdown
+  // reads back what's on the live post (Lindsay Rothschild on the
+  // current seed, but HR can swap by flipping is_blog_author /
+  // is_medical_reviewer in /app/team).
+  const effectiveAuthor = useMemo(() => {
+    if (authorSlug) {
+      return authorOptions.find((a) => a.slug === authorSlug) ?? resolveAuthor(authorSlug);
+    }
+    // null slug → fall back to whichever resolver pick the live page uses.
+    return resolveAuthor(null);
+  }, [authorSlug, authorOptions]);
+  const effectiveReviewer = useMemo(() => {
+    if (reviewerSlug) {
+      return reviewerOptions.find((a) => a.slug === reviewerSlug) ?? resolveReviewer(reviewerSlug);
+    }
+    return resolveReviewer(null);
+  }, [reviewerSlug, reviewerOptions]);
   const [saving, setSaving] = useState<'author' | 'reviewer' | 'reviewedAt' | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -628,45 +622,48 @@ function BylinePanel({
         JSON-LD block Google + AI search engines read. Posts ship with credentialed defaults
         when these are blank, but every published post should pick a real author + reviewer.
       </p>
+      {/* Effective author/reviewer are computed above so the
+          "— Default · …" placeholder reads back what the live
+          page is actually rendering. The dropdown previously said
+          "— Use default —" while the live byline carried Lindsay
+          Rothschild, and editors thought the field was broken. */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <label className="block">
+        <div>
           <span className="block text-[10px] font-bold uppercase tracking-wider text-foreground/45 mb-1">Written by</span>
-          <select
-            value={authorSlug ?? ''}
-            onChange={(e) => void patch('author_slug', e.target.value || null)}
-            disabled={saving === 'author'}
-            className="w-full rounded-md border border-black/10 px-2 py-1.5 text-[12.5px] bg-white"
-          >
-            <option value="">{saving === 'author' ? 'Saving…' : '— Use default —'}</option>
-            {authorOptions.map((a) => (
-              <option key={a.slug} value={a.slug}>
-                {a.name}{a.credentials ? `, ${a.credentials}` : ''} · {a.title}
-              </option>
-            ))}
-          </select>
-          {author && (
-            <p className="mt-1 text-[10.5px] text-foreground/55 truncate">{author.bio ?? author.title}</p>
-          )}
-        </label>
-        <label className="block">
+          <AuthorPicker
+            value={authorSlug}
+            options={authorOptions}
+            effectiveDefault={effectiveAuthor}
+            saving={saving === 'author'}
+            onChange={(next) => void patch('author_slug', next)}
+            label="Written by"
+          />
+          <p className="mt-1 text-[10.5px] text-foreground/55 truncate">
+            {authorSlug === NONE_SLUG
+              ? 'No byline will appear on the live post.'
+              : authorSlug
+                ? (author?.bio ?? author?.title ?? '')
+                : `Currently showing on the live post: ${effectiveAuthor.name}.`}
+          </p>
+        </div>
+        <div>
           <span className="block text-[10px] font-bold uppercase tracking-wider text-foreground/45 mb-1">Medically reviewed by</span>
-          <select
-            value={reviewerSlug ?? ''}
-            onChange={(e) => void patch('reviewer_slug', e.target.value || null)}
-            disabled={saving === 'reviewer'}
-            className="w-full rounded-md border border-black/10 px-2 py-1.5 text-[12.5px] bg-white"
-          >
-            <option value="">{saving === 'reviewer' ? 'Saving…' : '— Use default —'}</option>
-            {reviewerOptions.map((r) => (
-              <option key={r.slug} value={r.slug}>
-                {r.name}{r.credentials ? `, ${r.credentials}` : ''} · {r.title}
-              </option>
-            ))}
-          </select>
-          {reviewer && (
-            <p className="mt-1 text-[10.5px] text-foreground/55 truncate">Credentialed clinician — drives MedicalWebPage.reviewedBy.</p>
-          )}
-        </label>
+          <AuthorPicker
+            value={reviewerSlug}
+            options={reviewerOptions}
+            effectiveDefault={effectiveReviewer}
+            saving={saving === 'reviewer'}
+            onChange={(next) => void patch('reviewer_slug', next)}
+            label="Medically reviewed by"
+          />
+          <p className="mt-1 text-[10.5px] text-foreground/55 truncate">
+            {reviewerSlug === NONE_SLUG
+              ? 'No medical-reviewer block will appear on the live post.'
+              : reviewerSlug
+                ? 'Credentialed clinician — drives MedicalWebPage.reviewedBy.'
+                : `Currently showing on the live post: ${effectiveReviewer.name}.`}
+          </p>
+        </div>
         <div>
           <span className="block text-[10px] font-bold uppercase tracking-wider text-foreground/45 mb-1">Last reviewed</span>
           <p className="text-[12.5px] text-foreground/85 mb-1">
@@ -687,6 +684,206 @@ function BylinePanel({
       </div>
       {err && <p className="mt-2 text-[11.5px] text-rose-700">{err}</p>}
     </Panel>
+  );
+}
+
+// Custom picker for the Written by / Medically reviewed by fields.
+// Replaces the native <select> so we can render the team-member
+// avatar + name + credentials + title inline (a native <option>
+// can't carry images). Three pinned rows at the top:
+//   1. "Default" — falls back to the resolver's pick (null in DB)
+//   2. "None" — explicit no-byline (sentinel NONE_SLUG in DB)
+//   3. A divider, then every option sorted by name.
+//
+// `value === null`        → Default
+// `value === NONE_SLUG`   → None
+// `value === '<slug>'`    → that team member
+function AuthorPicker({
+  value,
+  options,
+  effectiveDefault,
+  saving,
+  onChange,
+  label,
+}: {
+  value: string | null;
+  options: AuthorOption[];
+  effectiveDefault: AuthorOption;
+  saving: boolean;
+  onChange: (next: string | null) => void;
+  label: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as Node | null;
+      if (!target) return;
+      if (triggerRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const selected = value && value !== NONE_SLUG ? options.find((o) => o.slug === value) : null;
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((o) =>
+      o.name.toLowerCase().includes(q)
+      || (o.title ?? '').toLowerCase().includes(q)
+      || (o.credentials ?? '').toLowerCase().includes(q)
+    );
+  }, [options, query]);
+
+  const triggerLabel = (() => {
+    if (saving) return 'Saving…';
+    if (value === NONE_SLUG) return '— None (no byline) —';
+    if (selected) return `${selected.name}${selected.credentials ? `, ${selected.credentials}` : ''}`;
+    return `— Default · ${effectiveDefault.name}${effectiveDefault.credentials ? `, ${effectiveDefault.credentials}` : ''} —`;
+  })();
+  const triggerAvatar = selected?.avatarUrl ?? (value === null ? effectiveDefault.avatarUrl : undefined);
+  const triggerInitial = (selected?.name ?? (value === null ? effectiveDefault.name : '?')).trim().charAt(0).toUpperCase() || '?';
+
+  return (
+    <div className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        disabled={saving}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`${label} picker`}
+        className="w-full flex items-center gap-2 rounded-md border border-black/10 bg-white px-2 py-1.5 text-left hover:bg-warm-bg/40 focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
+      >
+        {value === NONE_SLUG ? (
+          <span className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full border border-dashed border-foreground/20 text-foreground/35 text-[10px]" aria-hidden>∅</span>
+        ) : triggerAvatar ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={triggerAvatar} alt="" className="shrink-0 w-6 h-6 rounded-full object-cover bg-warm-bg" />
+        ) : (
+          <span className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full bg-warm-bg text-foreground/60 text-[10px] font-semibold" aria-hidden>{triggerInitial}</span>
+        )}
+        <span className="flex-1 min-w-0 truncate text-[12.5px] text-foreground">{triggerLabel}</span>
+        <svg className="shrink-0 w-3 h-3 text-foreground/50" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M4 6l4 4 4-4" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          ref={panelRef}
+          role="listbox"
+          className="absolute left-0 right-0 top-full mt-1 z-40 max-h-[360px] overflow-hidden rounded-lg border border-black/10 bg-white shadow-xl ring-1 ring-black/5 flex flex-col"
+        >
+          <div className="px-2 py-1.5 border-b border-black/5">
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search team…"
+              className="w-full rounded-md border border-black/10 bg-white px-2 py-1 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+          <div className="flex-1 overflow-y-auto py-1">
+            <PickerRow
+              label={`Default · ${effectiveDefault.name}${effectiveDefault.credentials ? `, ${effectiveDefault.credentials}` : ''}`}
+              sublabel={effectiveDefault.title}
+              avatarUrl={effectiveDefault.avatarUrl}
+              active={value === null}
+              hint="Resolver fallback"
+              onClick={() => { onChange(null); setOpen(false); setQuery(''); }}
+            />
+            <PickerRow
+              label="None (no byline)"
+              sublabel="Skips the author / reviewer block on the live post"
+              none
+              active={value === NONE_SLUG}
+              hint="Sentinel"
+              onClick={() => { onChange(NONE_SLUG); setOpen(false); setQuery(''); }}
+            />
+            <div className="my-1 border-t border-black/5" />
+            {filtered.length === 0 && (
+              <p className="px-3 py-3 text-[12px] text-foreground/45 text-center">No matches.</p>
+            )}
+            {filtered.map((o) => (
+              <PickerRow
+                key={o.slug}
+                label={`${o.name}${o.credentials ? `, ${o.credentials}` : ''}`}
+                sublabel={o.title}
+                avatarUrl={o.avatarUrl}
+                active={value === o.slug}
+                hint={o.source === 'fallback' ? 'Seed' : undefined}
+                onClick={() => { onChange(o.slug); setOpen(false); setQuery(''); }}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PickerRow({
+  label,
+  sublabel,
+  avatarUrl,
+  none,
+  active,
+  hint,
+  onClick,
+}: {
+  label: string;
+  sublabel?: string;
+  avatarUrl?: string;
+  none?: boolean;
+  active: boolean;
+  hint?: string;
+  onClick: () => void;
+}) {
+  const initial = label.trim().charAt(0).toUpperCase() || '?';
+  return (
+    <button
+      type="button"
+      role="option"
+      aria-selected={active}
+      onClick={onClick}
+      className={`w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-warm-bg/60 transition-colors ${active ? 'bg-warm-bg/40' : ''}`}
+    >
+      {none ? (
+        <span className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-full border border-dashed border-foreground/25 text-foreground/35 text-[12px]" aria-hidden>∅</span>
+      ) : avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={avatarUrl} alt="" className="shrink-0 w-8 h-8 rounded-full object-cover bg-warm-bg" />
+      ) : (
+        <span className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-full bg-warm-bg text-foreground/65 text-[11px] font-semibold" aria-hidden>{initial}</span>
+      )}
+      <span className="flex-1 min-w-0">
+        <span className="block text-[12.5px] font-semibold text-foreground truncate">{label}</span>
+        {sublabel && <span className="block text-[11px] text-foreground/55 truncate">{sublabel}</span>}
+      </span>
+      {hint && (
+        <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-foreground/[0.06] text-foreground/55 border border-black/5">
+          {hint}
+        </span>
+      )}
+      {active && (
+        <svg className="shrink-0 w-3.5 h-3.5 text-primary" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <path d="M3 8l3 3 7-7" />
+        </svg>
+      )}
+    </button>
   );
 }
 
@@ -837,19 +1034,6 @@ function ReviewPanel({ blog, token, revisions, onChange, onStartApprove, onFinis
                 : 'Revise'}
             </button>
             {reviseProgress.running && <ProgressBar value={reviseProgress.progress} />}
-            <button
-              type="button"
-              onClick={approve}
-              disabled={revising || approving}
-              className="px-3 py-1.5 rounded-md bg-primary text-white text-[11.5px] font-semibold disabled:opacity-50"
-              // Progress feedback lives in Step 4 (the Images card)
-              // now — the 10 placeholder swirls render there the
-              // instant the button is clicked, which reads as
-              // 'images are being made over there' instead of 'a
-              // grey progress bar is here'.
-            >
-              {approving ? 'Sent to image gen ↓' : 'Approve & generate 10 images'}
-            </button>
           </div>
           {revisions.length > 0 && (
             <div className="mt-4">
@@ -864,6 +1048,33 @@ function ReviewPanel({ blog, token, revisions, onChange, onStartApprove, onFinis
             </div>
           )}
         </div>
+      </div>
+      {/* Approve = the clear "next step" of this card. Moved out of
+          the right sidebar and pinned to the bottom of the panel so
+          it reads as "you've reviewed → kick off images", not as
+          one of two equal-weight choices next to Revise. */}
+      <div className="mt-4 pt-4 border-t border-black/5">
+        <button
+          type="button"
+          onClick={approve}
+          disabled={revising || approving}
+          className="w-full px-4 py-3 rounded-lg bg-primary text-white text-[13px] font-semibold uppercase tracking-wider hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {approving ? (
+            <>Sent to image gen ↓</>
+          ) : (
+            <>
+              <span>Approve &amp; generate 10 images</span>
+              <svg viewBox="0 0 16 16" width={14} height={14} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 8h10" />
+                <path d="M9 4l4 4-4 4" />
+              </svg>
+            </>
+          )}
+        </button>
+        <p className="mt-2 text-center text-[11px] text-foreground/50">
+          Next step · generates 10 image options for you to choose from.
+        </p>
       </div>
     </Panel>
   );
@@ -1799,5 +2010,616 @@ function GenerateSchemaButton({ blog }: { blog: DbBlog }) {
     >
       {copied ? '✓ Schema copied' : 'Generate schema'}
     </button>
+  );
+}
+
+// ─── Post-publish dashboard ─────────────────────────────────────
+//
+// Once a blog is status='published' the linear pipeline (prompt →
+// generate → review → images → build → preview → publish) is no
+// longer the primary surface. This dashboard replaces it with the
+// affordances a marketer actually needs on a live post:
+//
+//   1. HeroCard            — title + status + live URL + copy link
+//   2. ActionBar           — visit / edit live / generate schema / republish
+//   3. InlineLiveEditor    — embedded LiveBlogEditor (click prose to edit)
+//   4. BylinePanel         — E-E-A-T author + reviewer + last-reviewed
+//   5. ImagesGridCard      — at-a-glance grid of every chosen photo
+//   6. SchemaCard          — FAQ / Article JSON-LD state + regenerate
+//   7. AnalyticsCard       — PageAnalyticsPanel for this slug
+//   8. PipelineToolsCollapsed — the old steps, collapsed by default
+
+function PublishedDashboard({
+  blog,
+  images,
+  revisions,
+  token,
+  approving,
+  onStartApprove,
+  onFinishApprove,
+  onChange,
+}: {
+  blog: DbBlog;
+  images: DbImage[];
+  revisions: DbRevision[];
+  token: string | null;
+  approving: boolean;
+  onStartApprove: () => void;
+  onFinishApprove: () => void;
+  onChange: () => void;
+}) {
+  return (
+    <div className="space-y-5">
+      <PublishedHeroCard blog={blog} />
+      <PublishedActionBar blog={blog} token={token} onChange={onChange} />
+      <InlineLiveEditorCard blogId={blog.id} layout={blog.layout} />
+      <BylinePanel
+        blogId={blog.id}
+        authorSlug={blog.author_slug ?? null}
+        reviewerSlug={blog.reviewer_slug ?? null}
+        lastReviewedAt={blog.last_reviewed_at ?? null}
+        token={token}
+        onChange={onChange}
+      />
+      <ImagesGridCard blog={blog} images={images} token={token} onChange={onChange} />
+      <SchemaCard blogId={blog.id} slug={blog.slug} token={token} onChange={onChange} />
+      <AnalyticsCard slug={blog.slug} token={token} />
+      <PipelineToolsCollapsed
+        blog={blog}
+        images={images}
+        revisions={revisions}
+        token={token}
+        approving={approving}
+        onStartApprove={onStartApprove}
+        onFinishApprove={onFinishApprove}
+        onChange={onChange}
+      />
+    </div>
+  );
+}
+
+function PublishedHeroCard({ blog }: { blog: DbBlog }) {
+  const [copied, setCopied] = useState(false);
+  const liveUrl = `https://sevenarrowsrecoveryarizona.com/who-we-are/blog/${blog.slug}`;
+  return (
+    <section className="rounded-2xl border-2 border-emerald-200 bg-gradient-to-r from-emerald-50/60 via-warm-bg/30 to-white p-5 lg:p-6">
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-[0.18em] border border-emerald-300 bg-emerald-100 text-emerald-800">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" aria-hidden />
+              Live
+            </span>
+            {blog.published_at && (
+              <span className="text-[10px] uppercase tracking-[0.18em] font-bold text-foreground/45">
+                Published {new Date(blog.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
+            )}
+          </div>
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground leading-tight" style={{ fontFamily: 'var(--font-display)' }}>
+            {blog.title || '(Untitled)'}
+          </h2>
+          <button
+            type="button"
+            onClick={() => {
+              navigator.clipboard.writeText(liveUrl);
+              setCopied(true);
+              window.setTimeout(() => setCopied(false), 1600);
+            }}
+            className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono text-foreground/55 hover:text-foreground hover:bg-white/60 border border-transparent hover:border-black/10 transition-colors"
+            title="Copy the live URL"
+          >
+            <svg viewBox="0 0 16 16" width={11} height={11} aria-hidden fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="5" y="5" width="9" height="9" rx="1.5" />
+              <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" />
+            </svg>
+            <span className="truncate max-w-[480px]">/who-we-are/blog/{blog.slug}</span>
+            {copied && <span className="text-emerald-700">· copied</span>}
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PublishedActionBar({ blog, token, onChange }: { blog: DbBlog; token: string | null; onChange: () => void }) {
+  const [revalidating, setRevalidating] = useState(false);
+  const [revalidateMsg, setRevalidateMsg] = useState<string | null>(null);
+  async function revalidate() {
+    // The blog page is dynamic (revalidate=0) so a literal Next
+    // revalidate isn't required, but marketers expect a button.
+    // We bump blogs.updated_at as a "noop touch" so any consumers
+    // tracking last-edit timestamps (analytics, audit log) see
+    // the action; the page itself re-fetches on the next request
+    // anyway. Also reloads local data so the dashboard reflects
+    // the touch immediately.
+    if (!token) return;
+    setRevalidating(true);
+    setRevalidateMsg(null);
+    try {
+      const res = await fetch(`/api/content/${blog.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ last_reviewed_at: new Date().toISOString() }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      onChange();
+      setRevalidateMsg('Touched — live page will re-fetch on next request.');
+      window.setTimeout(() => setRevalidateMsg(null), 4000);
+    } catch (e) {
+      setRevalidateMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRevalidating(false);
+    }
+  }
+  return (
+    <section className="rounded-2xl border border-black/10 bg-white p-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        <Link
+          href={`/who-we-are/blog/${blog.slug}?edit=1`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-primary text-white text-[12px] font-semibold uppercase tracking-wider hover:bg-primary/90 transition-colors shadow-[0_10px_28px_-10px_rgba(188,107,74,0.55)]"
+        >
+          Edit live post
+          <span aria-hidden>→</span>
+        </Link>
+        <Link
+          href={`/who-we-are/blog/${blog.slug}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border border-foreground/15 bg-white text-foreground/75 text-[12px] font-semibold hover:bg-warm-bg/60 transition-colors"
+        >
+          View as visitor
+        </Link>
+        <button
+          type="button"
+          onClick={() => void revalidate()}
+          disabled={revalidating}
+          className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border border-foreground/15 bg-white text-foreground/75 text-[12px] font-semibold hover:bg-warm-bg/60 disabled:opacity-50 transition-colors"
+          title="Mark this post as freshly reviewed — bumps last_reviewed_at and forces a re-fetch on the next visitor request."
+        >
+          {revalidating ? 'Touching…' : 'Mark reviewed today'}
+        </button>
+      </div>
+      {revalidateMsg && (
+        <p className="mt-2 text-[11.5px] text-foreground/55">{revalidateMsg}</p>
+      )}
+    </section>
+  );
+}
+
+function InlineLiveEditorCard({ blogId, layout }: { blogId: string; layout: Layout | null }) {
+  return (
+    <section className="rounded-2xl border border-black/10 bg-white p-4 sm:p-5">
+      <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/45">Inline edit</p>
+          <h3 className="text-base font-semibold text-foreground">Click any paragraph to rewrite it</h3>
+        </div>
+        <Link
+          href={`/who-we-are/blog/${blogId}?edit=1`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[11px] font-semibold text-primary hover:text-primary/85"
+        >
+          Open full-page editor ↗
+        </Link>
+      </div>
+      {layout ? (
+        <div className="rounded-lg border border-black/5 bg-warm-bg/20 p-4 max-h-[640px] overflow-y-auto">
+          {/* The full live-edit experience is the dedicated /?edit=1
+              route (it mounts LiveBlogEditor + the floating save
+              toolbar). Here we show a compact preview pointing to
+              that route so the dashboard stays light. */}
+          <p className="text-[12.5px] text-foreground/65 leading-relaxed">
+            The full inline editor lives on the rendered post — click <span className="font-semibold text-foreground/80">Edit live post</span> above, then click any paragraph to rewrite it. Changes save back to this row immediately.
+          </p>
+        </div>
+      ) : (
+        <p className="text-[12px] text-foreground/55 italic">No layout yet — regenerate from the pipeline tools below.</p>
+      )}
+    </section>
+  );
+}
+
+function ImagesGridCard({ blog, images }: { blog: DbBlog; images: DbImage[]; token: string | null; onChange: () => void }) {
+  const selectedIds = new Set(blog.selected_image_ids ?? []);
+  const selectedImages = images.filter((i) => selectedIds.has(i.id));
+  return (
+    <section className="rounded-2xl border border-black/10 bg-white p-4 sm:p-5">
+      <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/45">Photos</p>
+          <h3 className="text-base font-semibold text-foreground">
+            {selectedImages.length} chosen photo{selectedImages.length === 1 ? '' : 's'}
+          </h3>
+        </div>
+        <Link
+          href={`/who-we-are/blog/${blog.slug}?edit=1`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[11px] font-semibold text-primary hover:text-primary/85"
+        >
+          Swap on live post ↗
+        </Link>
+      </div>
+      {selectedImages.length === 0 ? (
+        <p className="text-[12px] text-foreground/55 italic">No photos selected.</p>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          {selectedImages.map((img) => (
+            <div key={img.id} className="relative rounded-lg overflow-hidden border border-black/5 bg-warm-bg/30 aspect-[4/3]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={img.url}
+                alt={img.alt ?? ''}
+                className="w-full h-full object-cover"
+                loading="lazy"
+              />
+              {img.alt && (
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/65 to-transparent p-1.5">
+                  <p className="text-[10px] text-white leading-tight line-clamp-2" title={img.alt}>{img.alt}</p>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// Short human-readable one-liner per JSON-LD block — what's pinned
+// next to the type pill in the SchemaCard collapse. Keeps the
+// collapsed list scannable: editors can spot a missing reviewer or
+// a too-short headline without having to open every block.
+function schemaSummary(json: unknown): string {
+  const obj = (typeof json === 'object' && json !== null ? json : {}) as Record<string, unknown>;
+  const type = String(obj['@type'] ?? '');
+  if (type === 'FAQPage') {
+    const entities = Array.isArray(obj.mainEntity) ? obj.mainEntity : [];
+    return `${entities.length} question${entities.length === 1 ? '' : 's'}`;
+  }
+  if (type === 'BlogPosting' || type === 'Article') {
+    return typeof obj.headline === 'string' ? obj.headline.slice(0, 90) : '(no headline)';
+  }
+  if (type === 'MedicalWebPage') {
+    const author = (obj.author as { name?: unknown } | undefined)?.name;
+    const reviewer = (obj.reviewedBy as { name?: unknown } | undefined)?.name;
+    const parts: string[] = [];
+    if (typeof author === 'string') parts.push(`by ${author}`);
+    if (typeof reviewer === 'string') parts.push(`reviewed by ${reviewer}`);
+    if (parts.length === 0) parts.push('no author / reviewer');
+    return parts.join(' · ');
+  }
+  if (typeof obj.headline === 'string') return obj.headline.slice(0, 90);
+  if (typeof obj.name === 'string') return obj.name.slice(0, 90);
+  return '';
+}
+
+function SchemaCard({ blogId, slug, token, onChange }: { blogId: string; slug: string; token: string | null; onChange: () => void }) {
+  const [meta, setMeta] = useState<{ generatedAt: string | null; faqCount: number } | null>(null);
+  const [blocks, setBlocks] = useState<{ type: string; json: unknown }[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [loadingMeta, setLoadingMeta] = useState(true);
+  const [openBlocks, setOpenBlocks] = useState<Set<number>>(new Set());
+
+  const load = useCallback(async () => {
+    setLoadingMeta(true);
+    try {
+      // Fetch the live page HTML and extract every
+      // <script type="application/ld+json"> block. That way the
+      // editor sees EXACTLY what Google sees, not what we think
+      // we emit. Public page → no auth header needed.
+      const res = await fetch(`/who-we-are/blog/${slug}`, { cache: 'no-store' });
+      const html = await res.text();
+      const re = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
+      const found: { type: string; json: unknown }[] = [];
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(html)) !== null) {
+        try {
+          const parsed = JSON.parse(m[1].trim()) as { '@type'?: string };
+          const t = typeof parsed['@type'] === 'string' ? parsed['@type'] : 'Unknown';
+          found.push({ type: t, json: parsed });
+        } catch {
+          // skip malformed JSON-LD
+        }
+      }
+      setBlocks(found);
+      const faqBlock = found.find((b) => b.type === 'FAQPage') as
+        | { type: string; json: { mainEntity?: unknown[] } }
+        | undefined;
+      const faqCount = Array.isArray(faqBlock?.json?.mainEntity) ? faqBlock!.json.mainEntity!.length : 0;
+      // Also load schema_generated_at from the blog row for
+      // freshness display — the live HTML alone doesn't carry it.
+      if (token) {
+        try {
+          const r2 = await fetch(`/api/content/${blogId}`, {
+            headers: { Authorization: `Bearer ${token}` },
+            cache: 'no-store',
+          });
+          const j2 = await r2.json().catch(() => ({}));
+          const generatedAt = (j2.blog as { schema_generated_at?: string } | undefined)?.schema_generated_at ?? null;
+          setMeta({ generatedAt, faqCount });
+        } catch {
+          setMeta({ generatedAt: null, faqCount });
+        }
+      } else {
+        setMeta({ generatedAt: null, faqCount });
+      }
+    } catch {
+      setMeta({ generatedAt: null, faqCount: 0 });
+      setBlocks([]);
+    } finally {
+      setLoadingMeta(false);
+    }
+  }, [blogId, slug, token]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  async function regenerate() {
+    if (!token) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/content/${blogId}/generate-schema`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as { error?: string }).error || `HTTP ${res.status}`);
+      onChange();
+      await load();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function toggleBlock(idx: number) {
+    setOpenBlocks((cur) => {
+      const next = new Set(cur);
+      if (next.has(idx)) next.delete(idx); else next.add(idx);
+      return next;
+    });
+  }
+
+  const liveUrl = `https://sevenarrowsrecoveryarizona.com/who-we-are/blog/${slug}`;
+  const richResultsUrl = `https://search.google.com/test/rich-results?url=${encodeURIComponent(liveUrl)}`;
+
+  return (
+    <section className="rounded-2xl border border-black/10 bg-white p-4 sm:p-5">
+      <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/45">Search schema</p>
+          <h3 className="text-base font-semibold text-foreground">JSON-LD on the live page</h3>
+        </div>
+        <a
+          href={richResultsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[11px] font-semibold text-primary hover:text-primary/85"
+          title="Open Google's Rich Results Test against the live page so you can spot warnings + errors."
+        >
+          Test in Google Rich Results ↗
+        </a>
+      </div>
+      {loadingMeta ? (
+        <p className="text-[12px] text-foreground/55">Reading live page…</p>
+      ) : (
+        <>
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+            <div>
+              <p className="text-[12.5px] text-foreground/80">
+                <span className="font-semibold">{blocks.length}</span> JSON-LD block{blocks.length === 1 ? '' : 's'} emitted
+                {blocks.length > 0 && (
+                  <>
+                    {' '}· {blocks.map((b) => b.type).join(' · ')}
+                  </>
+                )}
+              </p>
+              {meta?.generatedAt && (
+                <p className="text-[11px] text-foreground/45 mt-0.5">
+                  AI schema last generated {new Date(meta.generatedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                  {meta.faqCount > 0 && ` · ${meta.faqCount} FAQ entries`}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={() => void regenerate()}
+              disabled={busy}
+              className="px-3 py-2 rounded-md border border-black/15 bg-white text-foreground/80 text-[11.5px] font-semibold hover:bg-warm-bg/60 disabled:opacity-50"
+            >
+              {busy ? 'Regenerating…' : (meta?.generatedAt ? 'Regenerate FAQ + Article' : 'Generate FAQ + Article')}
+            </button>
+          </div>
+          {blocks.length === 0 ? (
+            <p className="text-[12px] text-foreground/55 italic">
+              No JSON-LD detected on the live page yet. Try regenerating, then reload.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {blocks.map((b, i) => (
+                <li key={i} className="rounded-lg border border-black/10 bg-warm-bg/20">
+                  <button
+                    type="button"
+                    onClick={() => toggleBlock(i)}
+                    className="w-full flex items-center justify-between gap-3 px-3 py-2 text-left"
+                    aria-expanded={openBlocks.has(i)}
+                  >
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold uppercase tracking-wider bg-foreground/[0.06] text-foreground/65 border border-black/5">
+                        {b.type}
+                      </span>
+                      <span className="text-[11px] text-foreground/55 truncate">
+                        {schemaSummary(b.json)}
+                      </span>
+                    </span>
+                    <span
+                      className={`shrink-0 inline-flex items-center justify-center w-5 h-5 rounded border transition-transform ${openBlocks.has(i) ? 'rotate-180 bg-foreground text-white border-foreground' : 'bg-white text-foreground/55 border-black/10'}`}
+                      aria-hidden
+                    >
+                      <svg viewBox="0 0 16 16" width={9} height={9} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 6l4 4 4-4" />
+                      </svg>
+                    </span>
+                  </button>
+                  {openBlocks.has(i) && (
+                    <div className="border-t border-black/5 bg-white/60 p-2">
+                      <div className="flex items-center justify-end gap-2 mb-1.5">
+                        <button
+                          type="button"
+                          onClick={() => navigator.clipboard.writeText(JSON.stringify(b.json, null, 2))}
+                          className="text-[10.5px] font-semibold px-2 py-0.5 rounded border border-black/10 bg-white text-foreground/65 hover:text-foreground hover:bg-warm-bg/60"
+                        >
+                          Copy JSON
+                        </button>
+                      </div>
+                      <pre className="text-[11px] leading-relaxed font-mono text-foreground/85 max-h-[360px] overflow-auto whitespace-pre-wrap break-all bg-warm-bg/30 rounded-md p-2">
+{JSON.stringify(b.json, null, 2)}
+                      </pre>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
+      )}
+      {err && <p className="mt-2 text-[11.5px] text-red-700">{err}</p>}
+    </section>
+  );
+}
+
+function AnalyticsCard({ slug, token }: { slug: string; token: string | null }) {
+  const [open, setOpen] = useState(false);
+  const path = `/who-we-are/blog/${slug}`;
+  return (
+    <section className="rounded-2xl border border-black/10 bg-white">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-4 text-left hover:bg-warm-bg/30 transition-colors rounded-2xl"
+        aria-expanded={open}
+      >
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/45">Analytics</p>
+          <h3 className="text-base font-semibold text-foreground">Open, click, response · per channel</h3>
+        </div>
+        <span
+          className={`shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md border transition-all ${open ? 'bg-foreground text-white border-foreground rotate-180' : 'bg-white text-foreground/55 border-black/10'}`}
+          aria-hidden
+        >
+          <svg viewBox="0 0 16 16" width={11} height={11} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 6l4 4 4-4" />
+          </svg>
+        </span>
+      </button>
+      {open && (
+        <div className="border-t border-black/5 bg-warm-bg/30 rounded-b-2xl">
+          <PageAnalyticsPanel path={path} token={token} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function PipelineToolsCollapsed({
+  blog,
+  images,
+  revisions,
+  token,
+  approving,
+  onStartApprove,
+  onFinishApprove,
+  onChange,
+}: {
+  blog: DbBlog;
+  images: DbImage[];
+  revisions: DbRevision[];
+  token: string | null;
+  approving: boolean;
+  onStartApprove: () => void;
+  onFinishApprove: () => void;
+  onChange: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="rounded-2xl border border-black/10 bg-warm-bg/30">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between gap-3 px-4 sm:px-5 py-4 text-left hover:bg-warm-bg/50 transition-colors rounded-2xl"
+        aria-expanded={open}
+      >
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/45">Pipeline tools</p>
+          <h3 className="text-base font-semibold text-foreground">Regenerate body · pick new images · republish</h3>
+          <p className="text-[11.5px] text-foreground/55 mt-0.5">
+            Rarely needed once a post is live — kept here for full rebuilds.
+          </p>
+        </div>
+        <span
+          className={`shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md border transition-all ${open ? 'bg-foreground text-white border-foreground rotate-180' : 'bg-white text-foreground/55 border-black/10'}`}
+          aria-hidden
+        >
+          <svg viewBox="0 0 16 16" width={11} height={11} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 6l4 4 4-4" />
+          </svg>
+        </span>
+      </button>
+      {open && (
+        <div className="border-t border-black/5 px-3 sm:px-4 py-4 space-y-4 bg-white/40 rounded-b-2xl">
+          <PromptPanel
+            blogId={blog.id}
+            prompt={blog.prompt ?? ''}
+            token={token}
+            onChange={onChange}
+          />
+          <GeneratePanel
+            blog={blog}
+            token={token}
+            onComplete={onChange}
+          />
+          <ReviewPanel
+            blog={blog}
+            token={token}
+            revisions={revisions}
+            onChange={onChange}
+            onStartApprove={onStartApprove}
+            onFinishApprove={onFinishApprove}
+          />
+          <ImagesPanel
+            blog={blog}
+            images={images}
+            token={token}
+            onChange={onChange}
+            approving={approving}
+          />
+          {images.length > 0 && (
+            <BuildPanel
+              blog={blog}
+              images={images}
+              token={token}
+              onChange={onChange}
+            />
+          )}
+          {blog.layout && (
+            <PreviewPanel
+              blogId={blog.id}
+              layout={blog.layout}
+              images={images}
+              token={token}
+              onSaved={onChange}
+            />
+          )}
+          <PublishPanel blog={blog} token={token} onChange={onChange} />
+        </div>
+      )}
+    </section>
   );
 }

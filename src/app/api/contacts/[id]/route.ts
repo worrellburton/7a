@@ -126,7 +126,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
           target_kind: 'contact',
           target_id: id,
           target_label: contactName,
-          target_path: '/app/outreach',
+          target_path: '/app/contacts',
           metadata: { field: f.key, label: f.label },
         })),
       );

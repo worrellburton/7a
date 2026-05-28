@@ -334,7 +334,7 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M5 7l-1.5-1.5M19 7l1.5-1.5M5 17l-1.5 1.5M19 17l1.5 1.5" />
     </svg>
   ),
-  '/app/outreach': (
+  '/app/contacts': (
     // Marketing (formerly Outreach) — megaphone glyph for broadcasting
     // to referrers, leads, and downgraded partners.
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">

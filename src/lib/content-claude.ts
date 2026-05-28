@@ -464,3 +464,99 @@ export async function generateImageConcepts(bodyMarkdown: string, title: string)
   }
   return normalised.slice(0, 10);
 }
+
+// ── Structured-data (JSON-LD) generation ─────────────────────────
+//
+// The public blog page already emits a schema.org/MedicalWebPage
+// node (author, reviewer, publisher = Seven Arrows org). This adds
+// the two schemas that benefit from per-post AI analysis:
+//   1. FAQPage — 4-8 Q&As pulled from the body the post actually
+//      answers, so Google's "People also ask" can cite them.
+//   2. BlogPosting (Article subtype) — headline, summary, word
+//      count, key topics. Useful for AI search engines that prefer
+//      Article-typed nodes over MedicalWebPage.
+// Stored in blogs.schema_json as { faq, article, generatedAt }.
+
+export interface GeneratedSchema {
+  faq: { question: string; answer: string }[];
+  article: {
+    headline: string;
+    description: string;
+    keywords: string[];
+    wordCount: number;
+    articleSection: string;
+  };
+}
+
+const SCHEMA_SYSTEM = [
+  'You are an SEO structured-data specialist. You read a published',
+  'addiction-recovery blog post and output strict JSON-LD source data',
+  'for schema.org enrichment. Your output is consumed by code, never',
+  'shown to a human, so it MUST be valid JSON and nothing else.',
+  '',
+  'Output exactly one JSON object with this shape:',
+  '{',
+  '  "faq": [',
+  '    { "question": "…", "answer": "…" },',
+  '    …',
+  '  ],',
+  '  "article": {',
+  '    "headline": "…",',
+  '    "description": "…",',
+  '    "keywords": ["…", "…"],',
+  '    "wordCount": 0,',
+  '    "articleSection": "…"',
+  '  }',
+  '}',
+  '',
+  'Rules:',
+  '- 4 to 8 FAQs. Each question must be one the post actually answers.',
+  '- Answer length: 40 to 90 words. Plain prose, no markdown, no lists.',
+  '- description: a 140-180 character meta description for the post.',
+  '- keywords: 5 to 10 short noun-phrase keywords this post targets.',
+  '- articleSection: a 1-3 word topic category (e.g. "Recovery Roadmap",',
+  '  "Family Support", "Detox & Withdrawal").',
+  '- Output strict JSON only. No code fences, no commentary, no preamble.',
+].join('\n');
+
+export async function generateBlogSchema(args: {
+  title: string;
+  bodyMarkdown: string;
+}): Promise<GeneratedSchema> {
+  const userMsg = [
+    `Title: ${args.title}`,
+    '',
+    'Body:',
+    '---',
+    args.bodyMarkdown.trim().slice(0, 12000),
+    '---',
+    '',
+    'Return the JSON.',
+  ].join('\n');
+  const raw = await callClaude({ system: SCHEMA_SYSTEM, user: userMsg, maxTokens: 2500 });
+  const cleaned = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+  const parsed = JSON.parse(cleaned) as Partial<GeneratedSchema>;
+  const faqIn = Array.isArray(parsed.faq) ? parsed.faq : [];
+  const faq = faqIn
+    .filter((f): f is { question: string; answer: string } =>
+      !!f && typeof f.question === 'string' && typeof f.answer === 'string')
+    .map((f) => ({ question: f.question.trim(), answer: f.answer.trim() }))
+    .filter((f) => f.question.length > 0 && f.answer.length > 0)
+    .slice(0, 8);
+  if (faq.length === 0) throw new Error('Claude returned 0 FAQs');
+  const articleIn = (parsed.article ?? {}) as Partial<GeneratedSchema['article']>;
+  const article: GeneratedSchema['article'] = {
+    headline: typeof articleIn.headline === 'string' ? articleIn.headline.trim() : args.title.trim(),
+    description: typeof articleIn.description === 'string' ? articleIn.description.trim().slice(0, 220) : '',
+    keywords: Array.isArray(articleIn.keywords)
+      ? articleIn.keywords.filter((k): k is string => typeof k === 'string').map((k) => k.trim()).filter((k) => k.length > 0).slice(0, 12)
+      : [],
+    wordCount: typeof articleIn.wordCount === 'number' && articleIn.wordCount > 0
+      ? Math.floor(articleIn.wordCount)
+      : args.bodyMarkdown.trim().split(/\s+/).length,
+    articleSection: typeof articleIn.articleSection === 'string' && articleIn.articleSection.trim().length > 0
+      ? articleIn.articleSection.trim()
+      : 'Recovery Roadmap',
+  };
+  return { faq, article };
+}

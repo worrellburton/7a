@@ -182,6 +182,35 @@ export default function ContentLanding() {
   // episode-number memo above re-runs to renumber the remaining
   // published posts. Hand-coded posts have no Delete affordance —
   // they're .tsx files, not DB rows.
+  // Per-row in-flight tracker for "Generate schema". Stays scoped to
+  // the row so a second row can fire while the first is still running.
+  const [schemaBusy, setSchemaBusy] = useState<Set<string>>(new Set());
+
+  const generateSchema = useCallback(async (id: string, title: string) => {
+    if (!session?.access_token) return;
+    setSchemaBusy((cur) => new Set(cur).add(id));
+    setError(null);
+    try {
+      const res = await fetch(`/api/content/${id}/generate-schema`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as { error?: string }).error ?? `HTTP ${res.status}`);
+      const faqs = ((json as { schema?: { faq?: unknown[] } }).schema?.faq ?? []).length;
+      setError(null);
+      alert(`Schema generated for "${title}" — ${faqs} FAQ${faqs === 1 ? '' : 's'} + Article block live on next page revalidation.`);
+    } catch (e) {
+      setError(`Couldn't generate schema for "${title}": ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setSchemaBusy((cur) => {
+        const next = new Set(cur);
+        next.delete(id);
+        return next;
+      });
+    }
+  }, [session?.access_token]);
+
   const deleteBlog = useCallback(async (id: string, title: string) => {
     if (!session?.access_token) return;
     if (!confirm(`Delete "${title}"? This also removes its revisions and generated images. Cannot be undone.`)) return;
@@ -254,101 +283,188 @@ export default function ContentLanding() {
         <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-800">{error}</div>
       )}
 
-      <section className="mb-8">
-        <h2 className="text-xs uppercase tracking-[0.18em] text-foreground/55 font-bold mb-2">AI-pipeline posts</h2>
-        <div className="rounded-2xl border border-black/10 bg-white overflow-hidden">
-          {loading ? (
-            <div className="px-4 py-6 text-[13px] text-foreground/50">Loading…</div>
-          ) : rows.length === 0 ? (
-            <div className="px-4 py-8 text-center text-[13px] text-foreground/50">
-              No AI-pipeline posts yet. Click <strong>New blog</strong> to start one.
-            </div>
-          ) : (
-            <ul className="divide-y divide-black/5">
-              {rows.map((r) => {
-                const path = `/who-we-are/blog/${r.slug}`;
-                const epNum = aiEpisodeNumber.get(r.id);
-                const hidden = !!visibility[r.slug];
-                const expanded = analyticsFor === r.id;
-                return (
-                  <li key={r.id}>
-                    <BlogRow
-                      title={r.title || '(Untitled)'}
-                      subtitle={`${r.slug} · updated ${new Date(r.updated_at).toLocaleDateString()}`}
-                      episodeLabel={epNum ? `Episode ${epNum}` : null}
-                      href={`/app/content/${r.id}`}
-                      // Only published posts have a live URL worth
-                      // opening — drafts / reviewing / image-select
-                      // would 404. Mirror the hand-coded-posts row
-                      // which always has externalHref because every
-                      // .tsx-based post is live by definition.
-                      externalHref={r.status === 'published' ? `/who-we-are/blog/${r.slug}` : undefined}
-                      statusBadge={(
-                        <span className={`shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${STATUS_TONES[r.status]}`}>
-                          {STATUS_LABELS[r.status]}
-                        </span>
-                      )}
-                      hidden={hidden}
-                      onToggleHidden={() => void toggleHidden(r.slug, !hidden)}
-                      toggleDisabled={r.status !== 'published'}
-                      analyticsOpen={expanded}
-                      onToggleAnalytics={() => setAnalyticsFor(expanded ? null : r.id)}
-                      onDelete={() => void deleteBlog(r.id, r.title || '(Untitled)')}
-                      creatorName={r.creator_name ?? null}
-                      creatorAvatarUrl={r.creator_avatar_url ?? null}
-                    />
-                    {expanded && (
-                      <div className="border-t border-black/5 bg-warm-bg/30">
-                        <PageAnalyticsPanel
-                          path={path}
-                          token={session?.access_token ?? null}
+      {/* In development = every AI-pipeline row whose status is not
+          yet 'published'. Hand-coded posts are live-by-definition,
+          so they never land here. */}
+      {(() => {
+        const draftRows = rows.filter((r) => r.status !== 'published');
+        return (
+          <section className="mb-8">
+            <h2 className="text-xs uppercase tracking-[0.18em] text-foreground/55 font-bold mb-2">
+              In development
+              {!loading && draftRows.length > 0 && (
+                <span className="ml-2 text-foreground/35">· {draftRows.length}</span>
+              )}
+            </h2>
+            <p className="text-[11.5px] text-foreground/50 mb-2">
+              Drafts on the AI pipeline — prompt → generate → review → images → build → publish. Hidden from the public site until you hit publish.
+            </p>
+            <div className="rounded-2xl border border-black/10 bg-white overflow-hidden">
+              {loading ? (
+                <div className="px-4 py-6 text-[13px] text-foreground/50">Loading…</div>
+              ) : draftRows.length === 0 ? (
+                <div className="px-4 py-8 text-center text-[13px] text-foreground/50">
+                  Nothing in development. Click <strong>New blog</strong> to start one.
+                </div>
+              ) : (
+                <ul className="divide-y divide-black/5">
+                  {draftRows.map((r) => {
+                    const path = `/who-we-are/blog/${r.slug}`;
+                    const hidden = !!visibility[r.slug];
+                    const expanded = analyticsFor === r.id;
+                    return (
+                      <li key={r.id}>
+                        <BlogRow
+                          title={r.title || '(Untitled)'}
+                          subtitle={`${r.slug} · updated ${new Date(r.updated_at).toLocaleDateString()}`}
+                          episodeLabel={null}
+                          href={`/app/content/${r.id}`}
+                          externalHref={undefined}
+                          statusBadge={(
+                            <span className={`shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${STATUS_TONES[r.status]}`}>
+                              {STATUS_LABELS[r.status]}
+                            </span>
+                          )}
+                          hidden={hidden}
+                          onToggleHidden={() => void toggleHidden(r.slug, !hidden)}
+                          toggleDisabled
+                          analyticsOpen={expanded}
+                          onToggleAnalytics={() => setAnalyticsFor(expanded ? null : r.id)}
+                          onDelete={() => void deleteBlog(r.id, r.title || '(Untitled)')}
+                          onGenerateSchema={() => void generateSchema(r.id, r.title || '(Untitled)')}
+                          generatingSchema={schemaBusy.has(r.id)}
+                          creatorName={r.creator_name ?? null}
+                          creatorAvatarUrl={r.creator_avatar_url ?? null}
                         />
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-      </section>
+                        {expanded && (
+                          <div className="border-t border-black/5 bg-warm-bg/30">
+                            <PageAnalyticsPanel
+                              path={path}
+                              token={session?.access_token ?? null}
+                            />
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </section>
+        );
+      })()}
 
-      <section>
-        <h2 className="text-xs uppercase tracking-[0.18em] text-foreground/55 font-bold mb-2">Hand-coded posts</h2>
-        <p className="text-[11.5px] text-foreground/50 mb-2">These predate the AI pipeline. Body text is edited via the source files; the visibility toggle and analytics work the same as AI posts.</p>
-        <div className="rounded-2xl border border-black/10 bg-white overflow-hidden">
-          <ul className="divide-y divide-black/5">
-            {EPISODES.map((ep) => {
-              const path = episodeHref(ep.slug);
-              const hidden = !!visibility[ep.slug];
-              const expanded = analyticsFor === `static:${ep.slug}`;
-              return (
-                <li key={ep.slug}>
-                  <BlogRow
-                    title={ep.title}
-                    subtitle={`src/app/(site)${path.startsWith('/who-we-are/blog/') ? path : path}/content.tsx`}
-                    subtitleMono
-                    episodeLabel={`Episode ${ep.number}`}
-                    externalHref={path}
-                    hidden={hidden}
-                    onToggleHidden={() => void toggleHidden(ep.slug, !hidden)}
-                    analyticsOpen={expanded}
-                    onToggleAnalytics={() => setAnalyticsFor(expanded ? null : `static:${ep.slug}`)}
-                  />
-                  {expanded && (
-                    <div className="border-t border-black/5 bg-warm-bg/30">
-                      <PageAnalyticsPanel
-                        path={path}
-                        token={session?.access_token ?? null}
+      {/* Published = AI-pipeline rows with status='published' AND
+          every hand-coded episode (always live). Sorted newest-first
+          by published_at / episode.publishedAt so the section reads
+          as a single chronological feed regardless of origin. */}
+      {(() => {
+        type PublishedItem =
+          | { kind: 'ai'; row: DbBlog; epNum: number | undefined; sortKey: number }
+          | { kind: 'static'; ep: typeof EPISODES[number]; sortKey: number };
+        const aiPublished = rows
+          .filter((r) => r.status === 'published')
+          .map<PublishedItem>((r) => ({
+            kind: 'ai',
+            row: r,
+            epNum: aiEpisodeNumber.get(r.id),
+            sortKey: r.published_at ? new Date(r.published_at).getTime() : new Date(r.updated_at).getTime(),
+          }));
+        const staticPublished = EPISODES.map<PublishedItem>((ep) => ({
+          kind: 'static',
+          ep,
+          sortKey: new Date(ep.publishedAt).getTime(),
+        }));
+        const items: PublishedItem[] = [...aiPublished, ...staticPublished].sort((a, b) => b.sortKey - a.sortKey);
+        return (
+          <section>
+            <h2 className="text-xs uppercase tracking-[0.18em] text-foreground/55 font-bold mb-2">
+              Published
+              {!loading && items.length > 0 && (
+                <span className="ml-2 text-foreground/35">· {items.length}</span>
+              )}
+            </h2>
+            <p className="text-[11.5px] text-foreground/50 mb-2">
+              Live on the site. Hand-coded posts (the earlier .tsx-backed ones) and AI-pipeline posts share one feed here, sorted newest first.
+            </p>
+            <div className="rounded-2xl border border-black/10 bg-white overflow-hidden">
+              <ul className="divide-y divide-black/5">
+                {items.map((item) => {
+                  if (item.kind === 'ai') {
+                    const r = item.row;
+                    const epNum = item.epNum;
+                    const path = `/who-we-are/blog/${r.slug}`;
+                    const hidden = !!visibility[r.slug];
+                    const expanded = analyticsFor === r.id;
+                    return (
+                      <li key={r.id}>
+                        <BlogRow
+                          title={r.title || '(Untitled)'}
+                          subtitle={`${r.slug} · updated ${new Date(r.updated_at).toLocaleDateString()}`}
+                          episodeLabel={epNum ? `Episode ${epNum}` : null}
+                          href={`/app/content/${r.id}`}
+                          externalHref={`/who-we-are/blog/${r.slug}`}
+                          statusBadge={(
+                            <span className={`shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${STATUS_TONES[r.status]}`}>
+                              {STATUS_LABELS[r.status]}
+                            </span>
+                          )}
+                          hidden={hidden}
+                          onToggleHidden={() => void toggleHidden(r.slug, !hidden)}
+                          toggleDisabled={false}
+                          analyticsOpen={expanded}
+                          onToggleAnalytics={() => setAnalyticsFor(expanded ? null : r.id)}
+                          onDelete={() => void deleteBlog(r.id, r.title || '(Untitled)')}
+                          onGenerateSchema={() => void generateSchema(r.id, r.title || '(Untitled)')}
+                          generatingSchema={schemaBusy.has(r.id)}
+                          creatorName={r.creator_name ?? null}
+                          creatorAvatarUrl={r.creator_avatar_url ?? null}
+                        />
+                        {expanded && (
+                          <div className="border-t border-black/5 bg-warm-bg/30">
+                            <PageAnalyticsPanel
+                              path={path}
+                              token={session?.access_token ?? null}
+                            />
+                          </div>
+                        )}
+                      </li>
+                    );
+                  }
+                  const ep = item.ep;
+                  const path = episodeHref(ep.slug);
+                  const hidden = !!visibility[ep.slug];
+                  const expanded = analyticsFor === `static:${ep.slug}`;
+                  return (
+                    <li key={`static-${ep.slug}`}>
+                      <BlogRow
+                        title={ep.title}
+                        subtitle={`src/app/(site)${path.startsWith('/who-we-are/blog/') ? path : path}/content.tsx`}
+                        subtitleMono
+                        episodeLabel={`Episode ${ep.number}`}
+                        href={`/app/content/static/${ep.slug}`}
+                        externalHref={path}
+                        hidden={hidden}
+                        onToggleHidden={() => void toggleHidden(ep.slug, !hidden)}
+                        analyticsOpen={expanded}
+                        onToggleAnalytics={() => setAnalyticsFor(expanded ? null : `static:${ep.slug}`)}
                       />
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      </section>
+                      {expanded && (
+                        <div className="border-t border-black/5 bg-warm-bg/30">
+                          <PageAnalyticsPanel
+                            path={path}
+                            token={session?.access_token ?? null}
+                          />
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </section>
+        );
+      })()}
     </div>
   );
 }
@@ -367,6 +483,8 @@ function BlogRow({
   analyticsOpen,
   onToggleAnalytics,
   onDelete,
+  onGenerateSchema,
+  generatingSchema = false,
   creatorName,
   creatorAvatarUrl,
 }: {
@@ -390,6 +508,12 @@ function BlogRow({
   // are .tsx files and live outside the DB, so onDelete is undefined
   // for those rows and the button doesn't render.
   onDelete?: () => void;
+  // AI-pipeline rows expose a "Generate schema" action — Claude reads
+  // the post body and writes FAQPage + Article JSON-LD into
+  // blogs.schema_json so the live page emits richer structured data.
+  // Hand-coded rows skip this; they ship their own static JSON-LD.
+  onGenerateSchema?: () => void;
+  generatingSchema?: boolean;
   // Author byline. Hand-coded rows don't carry these so the avatar
   // tile is skipped — the row stays in the same shape as before.
   creatorName?: string | null;
@@ -432,47 +556,194 @@ function BlogRow({
           <p className={`text-[11.5px] text-foreground/55 truncate ${subtitleMono ? 'font-mono' : ''}`}>{subtitle}</p>
         </div>
       </div>
-      {/* Action cluster — wraps to multiple lines on narrow viewports
-          so the pill + Analytics + View + visibility toggle + trash
-          icon never crash into each other. */}
-      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap sm:shrink-0 sm:justify-end">
+      {/* Right-side cluster — status pill stays visible; everything
+          else folds into a 3-dot menu so the row stays calm even
+          when six affordances are technically available. */}
+      <div className="flex items-center gap-2 shrink-0 sm:justify-end">
         {statusBadge}
-        <button
-          type="button"
-          onClick={onToggleAnalytics}
-          className={`shrink-0 text-[10.5px] font-semibold border rounded-md px-2 py-1 transition-colors ${analyticsOpen ? 'bg-foreground text-white border-foreground' : 'text-foreground/65 hover:text-foreground border-black/10 hover:bg-warm-bg/60'}`}
-          aria-expanded={analyticsOpen}
+        <RowActionsMenu
+          title={title}
+          analyticsOpen={analyticsOpen}
+          onToggleAnalytics={onToggleAnalytics}
+          externalHref={externalHref}
+          hidden={hidden}
+          onToggleHidden={onToggleHidden}
+          toggleDisabled={toggleDisabled}
+          onDelete={onDelete}
+          onGenerateSchema={onGenerateSchema}
+          generatingSchema={generatingSchema}
+        />
+      </div>
+    </div>
+  );
+}
+
+// 3-dot dropdown that consolidates Analytics / View / Visibility /
+// Generate schema / Delete into one trigger. Closes on outside click
+// or Escape. Anchored to the trigger via absolute positioning so it
+// stays inside the row card and reads top-down on mobile too.
+function RowActionsMenu({
+  title,
+  analyticsOpen,
+  onToggleAnalytics,
+  externalHref,
+  hidden,
+  onToggleHidden,
+  toggleDisabled,
+  onDelete,
+  onGenerateSchema,
+  generatingSchema,
+}: {
+  title: string;
+  analyticsOpen: boolean;
+  onToggleAnalytics: () => void;
+  externalHref?: string;
+  hidden: boolean;
+  onToggleHidden: () => void;
+  toggleDisabled: boolean;
+  onDelete?: () => void;
+  onGenerateSchema?: () => void;
+  generatingSchema: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target?.closest('[data-row-menu]')) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const visible = !hidden && !toggleDisabled;
+
+  return (
+    <div className="relative" data-row-menu>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Actions for ${title}`}
+        className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-black/10 bg-white text-foreground/65 hover:text-foreground hover:bg-warm-bg/60 transition-colors"
+      >
+        <svg viewBox="0 0 16 16" width={14} height={14} aria-hidden="true" fill="currentColor">
+          <circle cx="3" cy="8" r="1.4" />
+          <circle cx="8" cy="8" r="1.4" />
+          <circle cx="13" cy="8" r="1.4" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 top-full mt-1 z-30 w-56 rounded-lg border border-black/10 bg-white shadow-lg ring-1 ring-black/5 py-1 text-[13px]"
+          style={{ fontFamily: 'var(--font-body)' }}
         >
-          Analytics
-        </button>
-        {externalHref && (
-          <a
-            href={externalHref}
-            target="_blank"
-            rel="noreferrer"
-            className="shrink-0 text-[10.5px] font-semibold text-foreground/65 hover:text-foreground border border-black/10 rounded-md px-2 py-1"
-          >
-            View
-          </a>
-        )}
-        <VisibilityToggle hidden={hidden} onChange={onToggleHidden} disabled={toggleDisabled} />
-        {onDelete && (
           <button
             type="button"
-            onClick={onDelete}
-            className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/45 hover:text-rose-700 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition-colors"
-            aria-label={`Delete ${title}`}
-            title="Delete this blog (cascades to revisions + generated images)"
+            role="menuitem"
+            onClick={() => { onToggleAnalytics(); setOpen(false); }}
+            className="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-warm-bg/60 text-foreground/80"
           >
-            <svg viewBox="0 0 16 16" width={13} height={13} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 4h10" />
-              <path d="M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1" />
-              <path d="M4.5 4l.5 8.5A1.5 1.5 0 006.5 14h3a1.5 1.5 0 001.5-1.5L11.5 4" />
-              <path d="M7 7v4M9 7v4" />
+            <svg viewBox="0 0 16 16" width={13} height={13} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 13V7" />
+              <path d="M8 13V3" />
+              <path d="M13 13V9" />
+              <path d="M1.5 13.5h13" />
             </svg>
+            <span className="flex-1">{analyticsOpen ? 'Hide analytics' : 'Analytics'}</span>
           </button>
-        )}
-      </div>
+          {externalHref && (
+            <a
+              href={externalHref}
+              target="_blank"
+              rel="noreferrer"
+              role="menuitem"
+              onClick={() => setOpen(false)}
+              className="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-warm-bg/60 text-foreground/80"
+            >
+              <svg viewBox="0 0 16 16" width={13} height={13} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 2h4v4" />
+                <path d="M14 2L6 10" />
+                <path d="M13 9v4a1 1 0 01-1 1H3a1 1 0 01-1-1V4a1 1 0 011-1h4" />
+              </svg>
+              <span className="flex-1">View on site</span>
+            </a>
+          )}
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => { if (!toggleDisabled) { onToggleHidden(); setOpen(false); } }}
+            disabled={toggleDisabled}
+            title={
+              toggleDisabled
+                ? 'Publish this post first — visibility only matters once it has a live URL'
+                : visible
+                  ? 'Visible on the public site — click to hide'
+                  : 'Hidden from public listings — click to show'
+            }
+            className="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-warm-bg/60 text-foreground/80 disabled:text-foreground/35 disabled:hover:bg-transparent"
+          >
+            <span
+              aria-hidden
+              className={`shrink-0 relative inline-flex items-center h-4 w-7 rounded-full transition-colors ${
+                toggleDisabled ? 'bg-foreground/10' : visible ? 'bg-emerald-500' : 'bg-foreground/20'
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 inline-block h-3 w-3 rounded-full bg-white shadow-sm transition-transform ${
+                  visible ? 'translate-x-[14px]' : 'translate-x-0.5'
+                }`}
+              />
+            </span>
+            <span className="flex-1">
+              {toggleDisabled ? 'Visibility (publish first)' : visible ? 'Hide from site' : 'Show on site'}
+            </span>
+          </button>
+          {onGenerateSchema && (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => { onGenerateSchema(); setOpen(false); }}
+              disabled={generatingSchema}
+              className="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-warm-bg/60 text-foreground/80 disabled:opacity-60"
+              title="Use Claude to generate FAQPage + Article JSON-LD from the post body"
+            >
+              <svg viewBox="0 0 16 16" width={13} height={13} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M2.5 3.5h11v9h-11z" />
+                <path d="M5 6h6M5 8h6M5 10h4" />
+              </svg>
+              <span className="flex-1">{generatingSchema ? 'Generating schema…' : 'Generate schema'}</span>
+            </button>
+          )}
+          {onDelete && (
+            <>
+              <div className="my-1 border-t border-black/5" />
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => { onDelete(); setOpen(false); }}
+                className="w-full text-left px-3 py-2 flex items-center gap-2 hover:bg-rose-50 text-rose-700"
+                title="Delete this blog (cascades to revisions + generated images)"
+              >
+                <svg viewBox="0 0 16 16" width={13} height={13} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 4h10" />
+                  <path d="M6 4V3a1 1 0 011-1h2a1 1 0 011 1v1" />
+                  <path d="M4.5 4l.5 8.5A1.5 1.5 0 006.5 14h3a1.5 1.5 0 001.5-1.5L11.5 4" />
+                  <path d="M7 7v4M9 7v4" />
+                </svg>
+                <span className="flex-1">Delete blog</span>
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

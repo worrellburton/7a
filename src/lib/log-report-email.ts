@@ -405,7 +405,7 @@ function topContactsTable(data: LogReportData): string {
 
 function cta(data: LogReportData): string {
   const origin = data.appOrigin || SITE_ORIGIN_FALLBACK;
-  const href = `${origin}/app/outreach`;
+  const href = `${origin}/app/contacts`;
   return `
     <tr>
       <td style="padding:8px 40px 48px 40px;background:${BONE};text-align:center;">
