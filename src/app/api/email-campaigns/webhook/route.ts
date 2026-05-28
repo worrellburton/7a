@@ -175,5 +175,37 @@ export async function POST(req: NextRequest) {
       .eq('id', sendRow.recipient_id);
   }
 
+  // Auto-prune dead addresses. On a HARD bounce (Resend bounce.type
+  // == "Permanent" — the mailbox doesn't exist / the domain rejects
+  // it for good), clear the email off the underlying contact so it's
+  // never emailed again. We deliberately skip transient/undetermined
+  // bounces (full inbox, server hiccup) since those can recover, and
+  // we only clear when the contact's email still matches the address
+  // that bounced so a since-corrected email isn't wiped. Wrapped so a
+  // failure here can never 500 the webhook (which would make Resend
+  // retry the delivery forever).
+  if (shortType === 'bounced' && sendRow?.recipient_id) {
+    const bounce = (data?.bounce ?? null) as { type?: string } | null;
+    const isHardBounce = (bounce?.type ?? '').toLowerCase() === 'permanent';
+    if (isHardBounce) {
+      try {
+        const { data: rec } = await admin
+          .from('email_campaign_recipients')
+          .select('contact_id, email')
+          .eq('id', sendRow.recipient_id)
+          .maybeSingle();
+        if (rec?.contact_id && rec.email) {
+          await admin
+            .from('contacts')
+            .update({ email: null })
+            .eq('id', rec.contact_id)
+            .eq('email', rec.email);
+        }
+      } catch (e) {
+        console.error('[resend webhook] hard-bounce email prune failed', e);
+      }
+    }
+  }
+
   return NextResponse.json({ ok: true });
 }
