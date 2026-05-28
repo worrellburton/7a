@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase } from '@/lib/supabase-server';
 import { withCronLogging } from '@/lib/cron-observability';
+import { sendCampaignBatch } from '@/lib/email-campaigns-send';
 
 // GET /api/cron/email-campaigns/scheduled-send
 //
@@ -91,15 +92,14 @@ export async function GET(req: NextRequest) {
     if (!claimErr && updated) claimedDue.push(r);
   }
 
-  const origin = req.nextUrl.origin;
-  const sendUrl = `${origin}/api/email-campaigns/send`;
   let fired = 0;
   let failed = 0;
 
-  // Send a paced batch for one campaign. The batch size is
-  // computed off the campaign's CURRENT pending count, divided by
-  // the configured send window, so a 236-recipient campaign with
-  // window=10 burns through 24 per tick.
+  // Send a paced batch for one campaign. Computed off the campaign's
+  // CURRENT pending count, divided by the configured send window, so
+  // a 236-recipient campaign with window=10 burns through 24 per
+  // tick. We call sendCampaignBatch directly (no HTTP round-trip) so
+  // a transient header / auth mismatch can't stall the queue.
   const sendBatch = async (campaignId: string, createdBy: string | null) => {
     const { count: pending } = await admin
       .from('email_campaign_recipients')
@@ -108,9 +108,6 @@ export async function GET(req: NextRequest) {
       .eq('send_status', 'pending');
     const remaining = pending ?? 0;
     if (remaining === 0) {
-      // Nothing left to send — flip the campaign to 'sent' so it
-      // stops appearing as in-progress. Per-row failure status
-      // is preserved on each email_campaign_recipients row.
       await admin
         .from('email_campaigns')
         .update({ status: 'sent', sent_at: new Date().toISOString() })
@@ -119,17 +116,15 @@ export async function GET(req: NextRequest) {
     }
     const batchSize = Math.max(MIN_BATCH, Math.ceil(remaining / SEND_WINDOW_MINUTES));
     try {
-      const res = await fetch(sendUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-cron-secret': cronSecret ?? '',
-          'x-vercel-cron': '1',
-        },
-        body: JSON.stringify({ campaignId, actingUserId: createdBy ?? null, batchSize }),
+      const result = await sendCampaignBatch({
+        supabase: admin,
+        campaignId,
+        actingUserId: createdBy ?? null,
+        batchSize,
       });
-      return res.ok;
-    } catch {
+      return result.ok;
+    } catch (e) {
+      console.error('[cron scheduled-send] sendCampaignBatch threw', e);
       return false;
     }
   };
