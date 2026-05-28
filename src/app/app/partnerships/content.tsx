@@ -186,6 +186,7 @@ export default function PartnershipsContent() {
   const [filterInsurance, setFilterInsurance] = useState<string>('');
   const [showCreate, setShowCreate] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [tierGuideOpen, setTierGuideOpen] = useState(false);
   const [showCols, setShowCols] = useState(false);
   const [editing, setEditing] = useState<Partner | null>(null);
   const [downgradeTarget, setDowngradeTarget] = useState<Partner | null>(null);
@@ -513,7 +514,7 @@ export default function PartnershipsContent() {
       </div>
       <header className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-foreground tracking-tight">Contacts and Partners</h1>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight">Partners</h1>
           <p className="text-sm text-foreground/55 mt-0.5">
             Clinical partners and referral sources, grouped by specialty.
             {rows.length > 0 && (
@@ -547,6 +548,19 @@ export default function PartnershipsContent() {
               <path d="M7 15l4-6 4 4 5-9" />
             </svg>
             Insights
+          </button>
+          <button
+            type="button"
+            onClick={() => setTierGuideOpen(true)}
+            title="Open the tier framework: who counts as Tier 1 / 2 / 3 and how to work each"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2 rounded-lg border border-black/10 bg-white text-foreground/70 text-xs font-semibold uppercase tracking-wider hover:border-foreground/30 hover:text-foreground transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 3h6l3 3 3-3h6v14H2z" />
+              <path d="M8 9h4" />
+              <path d="M8 13h4" />
+            </svg>
+            Tier guide
           </button>
           <button
             type="button"
@@ -679,7 +693,7 @@ export default function PartnershipsContent() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-3 border-b border-black/10 shrink-0">
-              <h2 className="text-base font-semibold text-foreground">Contacts and Partners insights</h2>
+              <h2 className="text-base font-semibold text-foreground">Partners insights</h2>
               <button
                 type="button"
                 onClick={() => setInsightsOpen(false)}
@@ -725,6 +739,9 @@ export default function PartnershipsContent() {
           onCancel={() => setDowngradeTarget(null)}
           onConfirm={confirmDowngrade}
         />
+      )}
+      {tierGuideOpen && (
+        <TierGuideModal onClose={() => setTierGuideOpen(false)} />
       )}
       {logTarget && (
         <LogContactModal
@@ -2490,4 +2507,192 @@ function CheckIcon() {
 }
 function CloseIcon() {
   return <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>;
+}
+
+// ── Partnership Tier Guide ─────────────────────────────────────────
+// Reference doc the BD team works from. Lives behind a modal on
+// /app/partnerships so it's never more than two clicks from a row
+// whose tier the user is deciding. Three tier sections, each with:
+//   - tier color + chip
+//   - one-line position description
+//   - role cards (small grid)
+//   - outreach cadence ribbon
+// Closes the loop with a 'key reminders' band at the bottom.
+
+interface TierRole { name: string; desc: string }
+interface TierBlock {
+  tier: 1 | 2 | 3;
+  title: string;
+  headline: string;
+  blurb: string;
+  roles: TierRole[];
+  cadence: string;
+  accent: string; // tailwind tone for chip / accent strip
+  badgeBg: string;
+}
+
+const TIER_BLOCKS: TierBlock[] = [
+  {
+    tier: 1,
+    title: 'Highest priority',
+    headline: 'Direct referral sources',
+    blurb: 'High-trust contacts who refer clients with private pay or commercial insurance. Fastest path to census.',
+    roles: [
+      { name: 'Interventionists', desc: 'ARISE, ARISE-certified, or independent. Refer urgently and repeatedly.' },
+      { name: 'Executive / concierge MDs', desc: 'Internists and psychiatrists serving upper-income patients.' },
+      { name: 'Private therapists & LCSWs', desc: 'Outpatient therapists treating high-functioning individuals with SUD.' },
+      { name: 'Employee Assistance Programs', desc: 'Corporate EAP coordinators at mid-to-large employers.' },
+      { name: 'Alumni & families', desc: 'Past clients and family members who experienced the program firsthand.' },
+      { name: 'Recovery coaches & sober companions', desc: 'High-end coaches working with affluent clients in crisis.' },
+    ],
+    cadence: 'Monthly personal outreach · Invite to facility tours and events · Send clinical updates and outcomes',
+    accent: 'border-emerald-300 bg-emerald-50',
+    badgeBg: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  },
+  {
+    tier: 2,
+    title: 'Strong pipeline',
+    headline: 'Professional & institutional referrers',
+    blurb: 'Relationships that take longer to cultivate but generate steady, qualified referrals over time.',
+    roles: [
+      { name: 'Psychiatrists & addiction MDs', desc: 'Physicians managing dual-diagnosis clients needing a higher level of care.' },
+      { name: 'Outpatient programs (IOPs/PHPs)', desc: 'Programs looking to step clients up to residential or receive step-downs.' },
+      { name: 'Luxury detox centers', desc: 'Facilities that need a residential partner after medical clearance.' },
+      { name: 'Estate & family law attorneys', desc: 'Handling divorces, custody, or estate matters where SUD is a factor.' },
+      { name: 'Wealth managers & financial advisors', desc: "Trusted advisors who see addiction's financial toll on HNW families." },
+      { name: 'Hospital social workers', desc: 'Discharge planners at hospitals serving higher-income catchments.' },
+    ],
+    cadence: 'Quarterly in-person visits · CE lunch & learns · Bi-monthly email touchpoints',
+    accent: 'border-amber-300 bg-amber-50',
+    badgeBg: 'bg-amber-100 text-amber-900 border-amber-300',
+  },
+  {
+    tier: 3,
+    title: 'Long-term cultivation',
+    headline: 'Community & awareness partners',
+    blurb: 'Brand-building relationships that increase visibility with your target demographic. Lower near-term ROI, important for the referral ecosystem.',
+    roles: [
+      { name: 'Concierge medical practices', desc: 'Boutique primary care serving affluent memberships — not yet referrers.' },
+      { name: 'Life coaches & wellness practitioners', desc: 'Holistic providers whose clientele overlaps with yours.' },
+      { name: 'Private schools & universities', desc: 'Student wellness offices and counselors with family connections.' },
+      { name: 'Country clubs & social orgs', desc: 'Discreet community access for awareness and word of mouth.' },
+      { name: 'Faith leaders & chaplains', desc: 'Trusted advisors where stigma prevents direct help-seeking.' },
+      { name: 'HR directors at large employers', desc: 'Awareness-level; may escalate to Tier 2 if EAP is involved.' },
+    ],
+    cadence: 'Quarterly newsletter · Community events & panels · LinkedIn presence and content',
+    accent: 'border-sky-300 bg-sky-50',
+    badgeBg: 'bg-sky-100 text-sky-900 border-sky-300',
+  },
+];
+
+function TierGuideModal({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Partnership Tier Guide"
+      onClick={onClose}
+      style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+    >
+      <div
+        className="w-full max-w-3xl max-h-[90svh] rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        <header className="px-6 py-4 border-b border-black/5 flex items-start justify-between gap-3 shrink-0 bg-warm-bg/40">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary mb-1">Internal use only</p>
+            <h2 className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+              Partnership Tier Guide
+            </h2>
+            <p className="mt-1 text-[12px] text-foreground/60">
+              Seven Arrows Recovery · 20-bed OON residential · holistic · Elfrida, AZ
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/45 hover:text-foreground hover:bg-warm-bg/60 transition-colors"
+          >
+            <CloseIcon />
+          </button>
+        </header>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+          {TIER_BLOCKS.map((block) => (
+            <section
+              key={block.tier}
+              className={`rounded-xl border ${block.accent} p-4`}
+            >
+              <header className="flex items-baseline gap-2 mb-2 flex-wrap">
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10.5px] font-bold uppercase tracking-[0.16em] border ${block.badgeBg}`}
+                >
+                  Tier {block.tier} · {block.title}
+                </span>
+              </header>
+              <h3 className="text-[15px] font-bold text-foreground mb-1" style={{ fontFamily: 'var(--font-display)' }}>
+                {block.headline}
+              </h3>
+              <p className="text-[12.5px] text-foreground/70 leading-relaxed mb-3">{block.blurb}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-3">
+                {block.roles.map((role) => (
+                  <div
+                    key={role.name}
+                    className="rounded-lg bg-white/85 border border-black/5 px-3 py-2"
+                  >
+                    <p className="text-[12.5px] font-semibold text-foreground">{role.name}</p>
+                    <p className="mt-0.5 text-[11.5px] text-foreground/60 leading-snug">{role.desc}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground/55">
+                Outreach cadence
+              </p>
+              <p className="mt-1 text-[12.5px] text-foreground/75 leading-relaxed">{block.cadence}</p>
+            </section>
+          ))}
+
+          <section className="rounded-xl border border-primary/30 bg-primary/[0.04] p-4">
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.22em] text-primary mb-1">Key reminders</p>
+            <ul className="space-y-1.5 text-[12.5px] text-foreground/75 leading-relaxed list-disc ml-4">
+              <li>
+                Seven Arrows&rsquo; OON status means partners need to understand private pay and bridge-financing options.
+              </li>
+              <li>
+                Always lead with holistic differentiators (integrative care, setting, small census) when speaking to Tier 1 &amp; 2 contacts.
+              </li>
+              <li>
+                Bump a Tier 3 contact to Tier 2 the moment they make a warm referral or express clinical interest.
+              </li>
+            </ul>
+          </section>
+        </div>
+
+        <footer className="px-6 py-3 border-t border-black/5 flex items-center justify-between text-[10.5px] text-foreground/45 shrink-0">
+          <span>Internal use only · Seven Arrows Recovery · Elfrida, AZ</span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-md bg-foreground text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-foreground/85"
+          >
+            Got it
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
 }

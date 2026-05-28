@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 
 /**
  * In-page nav strip used at the top of the Admissions-department
- * pages (Marketing, Contacts and Partners) so users can hop between
+ * pages (Contacts, Partners) so users can hop between
  * sibling surfaces without rounding back through the sidebar.
  * Mirrors the sidebar's icon-then-label affordance. Admissions and
  * Donations were removed from this strip; they're still reachable
@@ -15,7 +15,7 @@ import { usePathname } from 'next/navigation';
 const ITEMS: { path: string; label: string; icon: React.ReactNode }[] = [
   {
     path: '/app/outreach',
-    label: 'Marketing',
+    label: 'Contacts',
     icon: (
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z" />
@@ -26,7 +26,7 @@ const ITEMS: { path: string; label: string; icon: React.ReactNode }[] = [
   },
   {
     path: '/app/partnerships',
-    label: 'Contacts and Partners',
+    label: 'Partners',
     icon: (
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="7" cy="12" r="3" />

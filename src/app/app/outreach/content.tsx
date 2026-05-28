@@ -1053,7 +1053,7 @@ export default function ContactsContent() {
       </div>
       <header className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-base font-semibold text-foreground tracking-tight">Marketing</h1>
+          <h1 className="text-base font-semibold text-foreground tracking-tight">Contacts</h1>
           <p className="text-[13px] text-foreground/55 mt-0.5">
             Marketing tracker for referrers, leads, and downgraded partners.
             {rows.length > 0 && (
