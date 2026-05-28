@@ -96,6 +96,8 @@ export default function EmailCampaignsContent() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [backfillState, setBackfillState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
   const [backfillMessage, setBackfillMessage] = useState<string | null>(null);
+  const [syncState, setSyncState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -159,6 +161,44 @@ export default function EmailCampaignsContent() {
     }
   }
 
+  // Sweeps contacts added since each scheduled campaign was locked
+  // and adds them to that campaign's recipient list. Confirms first
+  // because the action mutates outbound sends — the marketer should
+  // see the count before fanning out.
+  async function runSyncScheduledRecipients() {
+    if (!session?.access_token) return;
+    if (!confirm(
+      'Add every contact created since each scheduled campaign was locked to that campaign\'s recipient list?\n\n' +
+      'This only touches campaigns currently in "scheduled" status. Unsubscribed contacts and contacts already on the list are skipped.'
+    )) return;
+    setSyncState('running');
+    setSyncMessage(null);
+    try {
+      const res = await fetch('/api/email-campaigns/sync-scheduled-recipients', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as { error?: string }).error || `HTTP ${res.status}`);
+      const j = json as {
+        scheduledCampaigns?: number;
+        totalAdded?: number;
+        report?: Array<{ campaignId: string; prompt: string | null; added: number; newContactsConsidered: number }>;
+      };
+      setSyncState('done');
+      const perCampaign = (j.report ?? [])
+        .filter((r) => r.added > 0)
+        .map((r) => `${(r.prompt ?? r.campaignId).slice(0, 38)} (+${r.added})`)
+        .join(' · ');
+      setSyncMessage(
+        `Synced ${j.scheduledCampaigns ?? 0} scheduled campaign${(j.scheduledCampaigns ?? 0) === 1 ? '' : 's'} · added ${j.totalAdded ?? 0} recipient${(j.totalAdded ?? 0) === 1 ? '' : 's'}${perCampaign ? ` · ${perCampaign}` : ''}.`,
+      );
+    } catch (e) {
+      setSyncState('error');
+      setSyncMessage(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-6xl mx-auto">
       <header className="mb-5 flex items-baseline justify-between flex-wrap gap-3">
@@ -193,6 +233,18 @@ export default function EmailCampaignsContent() {
           {canManage && (
             <button
               type="button"
+              onClick={runSyncScheduledRecipients}
+              disabled={syncState === 'running'}
+              className="px-3 py-2 rounded-md border border-emerald-300 bg-emerald-50 text-emerald-900 text-[11px] font-semibold uppercase tracking-wider hover:bg-emerald-100 disabled:opacity-50"
+              style={{ fontFamily: 'var(--font-body)' }}
+              title="Find contacts added since each scheduled campaign was locked and append them to that campaign's recipient list. Skips unsubscribes + duplicates."
+            >
+              {syncState === 'running' ? 'Adding…' : '+ Add new contacts to scheduled'}
+            </button>
+          )}
+          {canManage && (
+            <button
+              type="button"
               onClick={runBackfill}
               disabled={backfillState === 'running'}
               className="px-3 py-2 rounded-md border border-black/15 bg-white text-foreground/75 text-[11px] font-semibold uppercase tracking-wider hover:bg-warm-bg/60 disabled:opacity-50"
@@ -217,6 +269,14 @@ export default function EmailCampaignsContent() {
           style={{ fontFamily: 'var(--font-body)' }}
         >
           {backfillMessage}
+        </p>
+      )}
+      {syncMessage && (
+        <p
+          className={`mb-3 text-[11.5px] ${syncState === 'error' ? 'text-red-700' : 'text-emerald-800'}`}
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          {syncMessage}
         </p>
       )}
 
