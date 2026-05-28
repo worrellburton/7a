@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { getAdminSupabase } from '@/lib/supabase-server';
 import type { Layout } from '@/lib/content-claude';
 import DbBlogRenderer from '@/components/DbBlogRenderer';
+import LiveBlogEditor from '@/components/LiveBlogEditor';
 import { AuthorByline, BlogPostJsonLd } from '@/components/blog/BlogPostMeta';
 import type { Episode } from '@/lib/episodes';
 import { resolveAuthorAsync, resolveReviewerAsync } from '@/lib/blogAuthors';
@@ -151,8 +152,16 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   };
 }
 
-export default async function DbBlogPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function DbBlogPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ edit?: string }>;
+}) {
   const { slug } = await params;
+  const { edit } = await searchParams;
+  const editMode = edit === '1';
   const row = await loadPublished(slug);
   if (!row || !row.layout) notFound();
 
@@ -228,10 +237,18 @@ export default async function DbBlogPage({ params }: { params: Promise<{ slug: s
           order is Hero → Title → Byline → Content. The renderer
           splices the byline in right after the first hero block;
           posts without a hero get it at the very top. */}
-      <DbBlogRenderer
-        layout={reconciledLayout}
-        byline={<AuthorByline episode={episode} author={author} reviewer={reviewer} />}
-      />
+      {editMode ? (
+        <LiveBlogEditor
+          blogId={row.id}
+          initialLayout={reconciledLayout}
+          byline={<AuthorByline episode={episode} author={author} reviewer={reviewer} />}
+        />
+      ) : (
+        <DbBlogRenderer
+          layout={reconciledLayout}
+          byline={<AuthorByline episode={episode} author={author} reviewer={reviewer} />}
+        />
+      )}
     </>
   );
 }
