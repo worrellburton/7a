@@ -643,8 +643,16 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
           <button
             type="button"
             onClick={onSend}
-            disabled={sending || recipients.length === 0 || !canSend}
-            title={!canSend ? 'Only admins can send email campaigns.' : undefined}
+            disabled={sending || pendingCount === 0 || !canSend}
+            title={
+              !canSend
+                ? 'Only admins can send email campaigns.'
+                : pendingCount === 0
+                  ? 'Nothing pending to send. Reset failed to pending if you want to retry.'
+                  : sentCount > 0
+                    ? `Sends only to the ${pendingCount} pending recipient${pendingCount === 1 ? '' : 's'}. The ${sentCount} already-sent rows are skipped.`
+                    : undefined
+            }
             className="px-5 py-2.5 rounded-md bg-primary text-white text-[12.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
@@ -652,7 +660,11 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
               ? 'Sending…'
               : !canSend
               ? 'Send (admins only)'
-              : `Send to ${recipients.length}`}
+              : pendingCount === 0
+                ? 'Nothing pending'
+                : sentCount > 0
+                  ? `Send to ${pendingCount} pending`
+                  : `Send to ${pendingCount}`}
           </button>
         </div>
       )}
