@@ -283,108 +283,188 @@ export default function ContentLanding() {
         <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-800">{error}</div>
       )}
 
-      <section className="mb-8">
-        <h2 className="text-xs uppercase tracking-[0.18em] text-foreground/55 font-bold mb-2">AI-pipeline posts</h2>
-        <div className="rounded-2xl border border-black/10 bg-white overflow-hidden">
-          {loading ? (
-            <div className="px-4 py-6 text-[13px] text-foreground/50">Loading…</div>
-          ) : rows.length === 0 ? (
-            <div className="px-4 py-8 text-center text-[13px] text-foreground/50">
-              No AI-pipeline posts yet. Click <strong>New blog</strong> to start one.
-            </div>
-          ) : (
-            <ul className="divide-y divide-black/5">
-              {rows.map((r) => {
-                const path = `/who-we-are/blog/${r.slug}`;
-                const epNum = aiEpisodeNumber.get(r.id);
-                const hidden = !!visibility[r.slug];
-                const expanded = analyticsFor === r.id;
-                return (
-                  <li key={r.id}>
-                    <BlogRow
-                      title={r.title || '(Untitled)'}
-                      subtitle={`${r.slug} · updated ${new Date(r.updated_at).toLocaleDateString()}`}
-                      episodeLabel={epNum ? `Episode ${epNum}` : null}
-                      href={`/app/content/${r.id}`}
-                      // Only published posts have a live URL worth
-                      // opening — drafts / reviewing / image-select
-                      // would 404. Mirror the hand-coded-posts row
-                      // which always has externalHref because every
-                      // .tsx-based post is live by definition.
-                      externalHref={r.status === 'published' ? `/who-we-are/blog/${r.slug}` : undefined}
-                      statusBadge={(
-                        <span className={`shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${STATUS_TONES[r.status]}`}>
-                          {STATUS_LABELS[r.status]}
-                        </span>
-                      )}
-                      hidden={hidden}
-                      onToggleHidden={() => void toggleHidden(r.slug, !hidden)}
-                      toggleDisabled={r.status !== 'published'}
-                      analyticsOpen={expanded}
-                      onToggleAnalytics={() => setAnalyticsFor(expanded ? null : r.id)}
-                      onDelete={() => void deleteBlog(r.id, r.title || '(Untitled)')}
-                      onGenerateSchema={() => void generateSchema(r.id, r.title || '(Untitled)')}
-                      generatingSchema={schemaBusy.has(r.id)}
-                      creatorName={r.creator_name ?? null}
-                      creatorAvatarUrl={r.creator_avatar_url ?? null}
-                    />
-                    {expanded && (
-                      <div className="border-t border-black/5 bg-warm-bg/30">
-                        <PageAnalyticsPanel
-                          path={path}
-                          token={session?.access_token ?? null}
+      {/* In development = every AI-pipeline row whose status is not
+          yet 'published'. Hand-coded posts are live-by-definition,
+          so they never land here. */}
+      {(() => {
+        const draftRows = rows.filter((r) => r.status !== 'published');
+        return (
+          <section className="mb-8">
+            <h2 className="text-xs uppercase tracking-[0.18em] text-foreground/55 font-bold mb-2">
+              In development
+              {!loading && draftRows.length > 0 && (
+                <span className="ml-2 text-foreground/35">· {draftRows.length}</span>
+              )}
+            </h2>
+            <p className="text-[11.5px] text-foreground/50 mb-2">
+              Drafts on the AI pipeline — prompt → generate → review → images → build → publish. Hidden from the public site until you hit publish.
+            </p>
+            <div className="rounded-2xl border border-black/10 bg-white overflow-hidden">
+              {loading ? (
+                <div className="px-4 py-6 text-[13px] text-foreground/50">Loading…</div>
+              ) : draftRows.length === 0 ? (
+                <div className="px-4 py-8 text-center text-[13px] text-foreground/50">
+                  Nothing in development. Click <strong>New blog</strong> to start one.
+                </div>
+              ) : (
+                <ul className="divide-y divide-black/5">
+                  {draftRows.map((r) => {
+                    const path = `/who-we-are/blog/${r.slug}`;
+                    const hidden = !!visibility[r.slug];
+                    const expanded = analyticsFor === r.id;
+                    return (
+                      <li key={r.id}>
+                        <BlogRow
+                          title={r.title || '(Untitled)'}
+                          subtitle={`${r.slug} · updated ${new Date(r.updated_at).toLocaleDateString()}`}
+                          episodeLabel={null}
+                          href={`/app/content/${r.id}`}
+                          externalHref={undefined}
+                          statusBadge={(
+                            <span className={`shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${STATUS_TONES[r.status]}`}>
+                              {STATUS_LABELS[r.status]}
+                            </span>
+                          )}
+                          hidden={hidden}
+                          onToggleHidden={() => void toggleHidden(r.slug, !hidden)}
+                          toggleDisabled
+                          analyticsOpen={expanded}
+                          onToggleAnalytics={() => setAnalyticsFor(expanded ? null : r.id)}
+                          onDelete={() => void deleteBlog(r.id, r.title || '(Untitled)')}
+                          onGenerateSchema={() => void generateSchema(r.id, r.title || '(Untitled)')}
+                          generatingSchema={schemaBusy.has(r.id)}
+                          creatorName={r.creator_name ?? null}
+                          creatorAvatarUrl={r.creator_avatar_url ?? null}
                         />
-                      </div>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </div>
-      </section>
+                        {expanded && (
+                          <div className="border-t border-black/5 bg-warm-bg/30">
+                            <PageAnalyticsPanel
+                              path={path}
+                              token={session?.access_token ?? null}
+                            />
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          </section>
+        );
+      })()}
 
-      <section>
-        <h2 className="text-xs uppercase tracking-[0.18em] text-foreground/55 font-bold mb-2">Hand-coded posts</h2>
-        <p className="text-[11.5px] text-foreground/50 mb-2">These predate the AI pipeline. Body text is edited via the source files; the visibility toggle and analytics work the same as AI posts.</p>
-        <div className="rounded-2xl border border-black/10 bg-white overflow-hidden">
-          <ul className="divide-y divide-black/5">
-            {EPISODES.map((ep) => {
-              const path = episodeHref(ep.slug);
-              const hidden = !!visibility[ep.slug];
-              const expanded = analyticsFor === `static:${ep.slug}`;
-              return (
-                <li key={ep.slug}>
-                  <BlogRow
-                    title={ep.title}
-                    subtitle={`src/app/(site)${path.startsWith('/who-we-are/blog/') ? path : path}/content.tsx`}
-                    subtitleMono
-                    episodeLabel={`Episode ${ep.number}`}
-                    // The title now routes into the parallel dashboard
-                    // for hand-coded posts (byline editor + schema
-                    // viewer + analytics) so static posts have the
-                    // same editing surface as the AI-pipeline ones.
-                    href={`/app/content/static/${ep.slug}`}
-                    externalHref={path}
-                    hidden={hidden}
-                    onToggleHidden={() => void toggleHidden(ep.slug, !hidden)}
-                    analyticsOpen={expanded}
-                    onToggleAnalytics={() => setAnalyticsFor(expanded ? null : `static:${ep.slug}`)}
-                  />
-                  {expanded && (
-                    <div className="border-t border-black/5 bg-warm-bg/30">
-                      <PageAnalyticsPanel
-                        path={path}
-                        token={session?.access_token ?? null}
+      {/* Published = AI-pipeline rows with status='published' AND
+          every hand-coded episode (always live). Sorted newest-first
+          by published_at / episode.publishedAt so the section reads
+          as a single chronological feed regardless of origin. */}
+      {(() => {
+        type PublishedItem =
+          | { kind: 'ai'; row: DbBlog; epNum: number | undefined; sortKey: number }
+          | { kind: 'static'; ep: typeof EPISODES[number]; sortKey: number };
+        const aiPublished = rows
+          .filter((r) => r.status === 'published')
+          .map<PublishedItem>((r) => ({
+            kind: 'ai',
+            row: r,
+            epNum: aiEpisodeNumber.get(r.id),
+            sortKey: r.published_at ? new Date(r.published_at).getTime() : new Date(r.updated_at).getTime(),
+          }));
+        const staticPublished = EPISODES.map<PublishedItem>((ep) => ({
+          kind: 'static',
+          ep,
+          sortKey: new Date(ep.publishedAt).getTime(),
+        }));
+        const items: PublishedItem[] = [...aiPublished, ...staticPublished].sort((a, b) => b.sortKey - a.sortKey);
+        return (
+          <section>
+            <h2 className="text-xs uppercase tracking-[0.18em] text-foreground/55 font-bold mb-2">
+              Published
+              {!loading && items.length > 0 && (
+                <span className="ml-2 text-foreground/35">· {items.length}</span>
+              )}
+            </h2>
+            <p className="text-[11.5px] text-foreground/50 mb-2">
+              Live on the site. Hand-coded posts (the earlier .tsx-backed ones) and AI-pipeline posts share one feed here, sorted newest first.
+            </p>
+            <div className="rounded-2xl border border-black/10 bg-white overflow-hidden">
+              <ul className="divide-y divide-black/5">
+                {items.map((item) => {
+                  if (item.kind === 'ai') {
+                    const r = item.row;
+                    const epNum = item.epNum;
+                    const path = `/who-we-are/blog/${r.slug}`;
+                    const hidden = !!visibility[r.slug];
+                    const expanded = analyticsFor === r.id;
+                    return (
+                      <li key={r.id}>
+                        <BlogRow
+                          title={r.title || '(Untitled)'}
+                          subtitle={`${r.slug} · updated ${new Date(r.updated_at).toLocaleDateString()}`}
+                          episodeLabel={epNum ? `Episode ${epNum}` : null}
+                          href={`/app/content/${r.id}`}
+                          externalHref={`/who-we-are/blog/${r.slug}`}
+                          statusBadge={(
+                            <span className={`shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${STATUS_TONES[r.status]}`}>
+                              {STATUS_LABELS[r.status]}
+                            </span>
+                          )}
+                          hidden={hidden}
+                          onToggleHidden={() => void toggleHidden(r.slug, !hidden)}
+                          toggleDisabled={false}
+                          analyticsOpen={expanded}
+                          onToggleAnalytics={() => setAnalyticsFor(expanded ? null : r.id)}
+                          onDelete={() => void deleteBlog(r.id, r.title || '(Untitled)')}
+                          onGenerateSchema={() => void generateSchema(r.id, r.title || '(Untitled)')}
+                          generatingSchema={schemaBusy.has(r.id)}
+                          creatorName={r.creator_name ?? null}
+                          creatorAvatarUrl={r.creator_avatar_url ?? null}
+                        />
+                        {expanded && (
+                          <div className="border-t border-black/5 bg-warm-bg/30">
+                            <PageAnalyticsPanel
+                              path={path}
+                              token={session?.access_token ?? null}
+                            />
+                          </div>
+                        )}
+                      </li>
+                    );
+                  }
+                  const ep = item.ep;
+                  const path = episodeHref(ep.slug);
+                  const hidden = !!visibility[ep.slug];
+                  const expanded = analyticsFor === `static:${ep.slug}`;
+                  return (
+                    <li key={`static-${ep.slug}`}>
+                      <BlogRow
+                        title={ep.title}
+                        subtitle={`src/app/(site)${path.startsWith('/who-we-are/blog/') ? path : path}/content.tsx`}
+                        subtitleMono
+                        episodeLabel={`Episode ${ep.number}`}
+                        href={`/app/content/static/${ep.slug}`}
+                        externalHref={path}
+                        hidden={hidden}
+                        onToggleHidden={() => void toggleHidden(ep.slug, !hidden)}
+                        analyticsOpen={expanded}
+                        onToggleAnalytics={() => setAnalyticsFor(expanded ? null : `static:${ep.slug}`)}
                       />
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      </section>
+                      {expanded && (
+                        <div className="border-t border-black/5 bg-warm-bg/30">
+                          <PageAnalyticsPanel
+                            path={path}
+                            token={session?.access_token ?? null}
+                          />
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </section>
+        );
+      })()}
     </div>
   );
 }
