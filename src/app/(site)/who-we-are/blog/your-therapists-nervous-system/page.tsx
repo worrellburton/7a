@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { EPISODES, episodeImage } from '@/lib/episodes';
 import { findAuthorBySlug } from '@/lib/blogAuthors';
-import { BlogPostJsonLd } from '@/components/blog/BlogPostMeta';
+import StaticBlogStructuredData from '@/components/blog/StaticBlogStructuredData';
 import PageContent from './content';
 
 const SLUG = 'your-therapists-nervous-system';
@@ -68,7 +68,7 @@ const breadcrumbJsonLd = {
 export default function Page() {
   return (
     <>
-      <BlogPostJsonLd episode={ep} />
+      <StaticBlogStructuredData episode={ep} />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
