@@ -4,6 +4,7 @@ import {
   addContactsToAudience,
   createAudience,
   createBroadcast,
+  getBroadcastsApiKey,
   prepareBroadcastHtml,
   sendBroadcast,
 } from './resend-broadcasts';
@@ -124,7 +125,7 @@ export async function sendCampaignBatch(opts: SendCampaignBatchOpts): Promise<Se
 
   await supabase.from('email_campaigns').update({ status: 'sending' }).eq('id', campaignId);
 
-  const apiKey = process.env.RESEND_API_KEY;
+  const apiKey = getBroadcastsApiKey();
   const from = normalizeFrom(process.env.RESEND_FROM || process.env.EMAIL_FROM || DEFAULT_FROM);
   const replyToRaw = process.env.RESEND_REPLY_TO || process.env.EMAIL_REPLY_TO;
   const replyTo = replyToRaw ? stripDisplayName(replyToRaw) : stripDisplayName(from);

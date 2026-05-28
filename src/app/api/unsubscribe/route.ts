@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase } from '@/lib/supabase-server';
 import { verifyUnsubscribeToken } from '@/lib/unsubscribe';
-import { markUnsubscribedOnAudience } from '@/lib/resend-broadcasts';
+import { getBroadcastsApiKey, markUnsubscribedOnAudience } from '@/lib/resend-broadcasts';
 
 // POST /api/unsubscribe?token=<HMAC token>
 //
@@ -58,7 +58,7 @@ async function unsubscribe(token: string | null, source: string) {
   // send pipeline already filters unsubscribed contacts upfront.
   if (existing.email) {
     try {
-      const apiKey = process.env.RESEND_API_KEY;
+      const apiKey = getBroadcastsApiKey();
       if (apiKey) {
         const { data: campaignRows } = await admin
           .from('email_campaign_recipients')
