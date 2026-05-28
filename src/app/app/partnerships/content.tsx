@@ -939,7 +939,7 @@ function PartnersGrid({
                 </th>
               );
             })}
-            <th className="px-3 py-2 w-10" />
+            <th className="sticky right-0 z-10 bg-warm-bg/50 backdrop-blur-md px-3 py-2 w-[88px] text-right">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-black/5">
@@ -961,17 +961,28 @@ function PartnersGrid({
                     <CellRenderer column={c} partner={row} priority={priority} onEdit={onEdit} specialties={specialties} onInlineSpecialty={onInlineSpecialty} />
                   </td>
                 ))}
-                <td className="px-2 py-0 h-12 text-right relative align-middle">
-                  <button
-                    type="button"
-                    onClick={() => setActionMenuFor(actionMenuFor === row.id ? null : row.id)}
-                    className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/45 hover:text-foreground hover:bg-warm-bg"
-                    aria-label="Actions"
-                    aria-haspopup="menu"
-                    aria-expanded={actionMenuFor === row.id}
-                  >
-                    <DotsIcon />
-                  </button>
+                <td className="sticky right-0 z-10 backdrop-blur-md backdrop-saturate-150 bg-white/75 hover:bg-warm-bg/40 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-2 py-0 h-12 text-right relative align-middle">
+                  <div className="flex items-center justify-end gap-1">
+                    <button
+                      type="button"
+                      onClick={() => onLogContact(row)}
+                      aria-label="Log a contact"
+                      title="Log a contact"
+                      className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md bg-primary/10 text-primary text-[15px] leading-none border border-primary/20 hover:bg-primary/15 transition-colors"
+                    >
+                      <span aria-hidden>🪵</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActionMenuFor(actionMenuFor === row.id ? null : row.id)}
+                      className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/45 hover:text-foreground hover:bg-warm-bg"
+                      aria-label="Actions"
+                      aria-haspopup="menu"
+                      aria-expanded={actionMenuFor === row.id}
+                    >
+                      <DotsIcon />
+                    </button>
+                  </div>
                   {actionMenuFor === row.id && (
                     <div
                       role="menu"
