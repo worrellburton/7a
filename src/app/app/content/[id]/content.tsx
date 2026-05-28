@@ -12,8 +12,6 @@ import {
   BLOG_REVIEWERS,
   findAuthorBySlug,
   findReviewerBySlug,
-  resolveAuthor,
-  resolveReviewer,
 } from '@/lib/blogAuthors';
 
 // One screen, six panels stacked vertically. Each panel light-greys
@@ -552,6 +550,7 @@ function BylinePanel({
   // BLOG_AUTHORS seed in /lib/blogAuthors.ts. DB rows win.
   const [allAuthors, setAllAuthors] = useState<AuthorOption[]>([]);
   const [allReviewers, setAllReviewers] = useState<AuthorOption[]>([]);
+  const [horses, setHorses] = useState<AuthorOption[]>([]);
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
@@ -561,6 +560,8 @@ function BylinePanel({
         if (cancelled || !j) return;
         setAllAuthors((j.authors ?? []) as AuthorOption[]);
         setAllReviewers((j.reviewers ?? []) as AuthorOption[]);
+        setHorses(((j.horses ?? []) as Array<{ slug: string; name: string; title: string; avatarUrl?: string }>)
+          .map((h) => ({ ...h, source: 'db' as const })));
       })
       .catch(() => { /* fall back to seed */ });
     return () => { cancelled = true; };
@@ -574,23 +575,6 @@ function BylinePanel({
   const reviewer = reviewerOptions.find((a) => a.slug === reviewerSlug) ?? findReviewerBySlug(reviewerSlug);
   // The "effective" identity is what the live page actually renders
   // when this slug is in the DB — i.e. the resolver's result. Used
-  // to label the "— Use default —" placeholder so the dropdown
-  // reads back what's on the live post (Lindsay Rothschild on the
-  // current seed, but HR can swap by flipping is_blog_author /
-  // is_medical_reviewer in /app/team).
-  const effectiveAuthor = useMemo(() => {
-    if (authorSlug) {
-      return authorOptions.find((a) => a.slug === authorSlug) ?? resolveAuthor(authorSlug);
-    }
-    // null slug → fall back to whichever resolver pick the live page uses.
-    return resolveAuthor(null);
-  }, [authorSlug, authorOptions]);
-  const effectiveReviewer = useMemo(() => {
-    if (reviewerSlug) {
-      return reviewerOptions.find((a) => a.slug === reviewerSlug) ?? resolveReviewer(reviewerSlug);
-    }
-    return resolveReviewer(null);
-  }, [reviewerSlug, reviewerOptions]);
   const [saving, setSaving] = useState<'author' | 'reviewer' | 'reviewedAt' | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -633,17 +617,17 @@ function BylinePanel({
           <AuthorPicker
             value={authorSlug}
             options={authorOptions}
-            effectiveDefault={effectiveAuthor}
+            horses={horses}
             saving={saving === 'author'}
             onChange={(next) => void patch('author_slug', next)}
             label="Written by"
           />
           <p className="mt-1 text-[10.5px] text-foreground/55 truncate">
-            {authorSlug === NONE_SLUG
+            {authorSlug === NONE_SLUG || authorSlug === null
               ? 'No byline will appear on the live post.'
-              : authorSlug
-                ? (author?.bio ?? author?.title ?? '')
-                : `Currently showing on the live post: ${effectiveAuthor.name}.`}
+              : authorSlug?.startsWith('horse-')
+                ? `Horse byline — ${horses.find((h) => h.slug === authorSlug)?.name ?? 'horse'} will appear, but no JSON-LD Person.`
+                : (author?.bio ?? author?.title ?? '')}
           </p>
         </div>
         <div>
@@ -651,17 +635,14 @@ function BylinePanel({
           <AuthorPicker
             value={reviewerSlug}
             options={reviewerOptions}
-            effectiveDefault={effectiveReviewer}
             saving={saving === 'reviewer'}
             onChange={(next) => void patch('reviewer_slug', next)}
             label="Medically reviewed by"
           />
           <p className="mt-1 text-[10.5px] text-foreground/55 truncate">
-            {reviewerSlug === NONE_SLUG
+            {reviewerSlug === NONE_SLUG || reviewerSlug === null
               ? 'No medical-reviewer block will appear on the live post.'
-              : reviewerSlug
-                ? 'Credentialed clinician — drives MedicalWebPage.reviewedBy.'
-                : `Currently showing on the live post: ${effectiveReviewer.name}.`}
+              : 'Credentialed clinician — drives MedicalWebPage.reviewedBy.'}
           </p>
         </div>
         <div>
@@ -690,25 +671,24 @@ function BylinePanel({
 // Custom picker for the Written by / Medically reviewed by fields.
 // Replaces the native <select> so we can render the team-member
 // avatar + name + credentials + title inline (a native <option>
-// can't carry images). Three pinned rows at the top:
-//   1. "Default" — falls back to the resolver's pick (null in DB)
-//   2. "None" — explicit no-byline (sentinel NONE_SLUG in DB)
-//   3. A divider, then every option sorted by name.
-//
-// `value === null`        → Default
-// `value === NONE_SLUG`   → None
-// `value === '<slug>'`    → that team member
+// can't carry images). Layout:
+//   1. "None (no byline)" — the resolver default. Both null and
+//      NONE_SLUG land here so an unset author = no byline.
+//   2. Divider, then every team option sorted by name.
+//   3. (Author picker only) Divider + "Horses" section so a
+//      horse-led story can byline the actual horse with its photo.
 function AuthorPicker({
   value,
   options,
-  effectiveDefault,
+  horses,
   saving,
   onChange,
   label,
 }: {
   value: string | null;
   options: AuthorOption[];
-  effectiveDefault: AuthorOption;
+  /** Optional horse options. Only the Written-by picker passes them. */
+  horses?: AuthorOption[];
   saving: boolean;
   onChange: (next: string | null) => void;
   label: string;
@@ -736,7 +716,14 @@ function AuthorPicker({
     };
   }, [open]);
 
-  const selected = value && value !== NONE_SLUG ? options.find((o) => o.slug === value) : null;
+  // Null and NONE_SLUG both render as "None" — null is the unset state
+  // (resolver falls back to no byline) and NONE_SLUG is the explicit
+  // pick of the same thing. Either way the live page suppresses the
+  // byline, so they're collapsed in the UI.
+  const isNoneValue = value === null || value === NONE_SLUG;
+  const selected = value && value !== NONE_SLUG
+    ? (options.find((o) => o.slug === value) ?? horses?.find((o) => o.slug === value) ?? null)
+    : null;
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return options;
@@ -746,15 +733,24 @@ function AuthorPicker({
       || (o.credentials ?? '').toLowerCase().includes(q)
     );
   }, [options, query]);
+  const filteredHorses = useMemo(() => {
+    if (!horses || horses.length === 0) return [];
+    const q = query.trim().toLowerCase();
+    if (!q) return horses;
+    return horses.filter((o) =>
+      o.name.toLowerCase().includes(q)
+      || (o.title ?? '').toLowerCase().includes(q)
+    );
+  }, [horses, query]);
 
   const triggerLabel = (() => {
     if (saving) return 'Saving…';
-    if (value === NONE_SLUG) return '— None (no byline) —';
+    if (isNoneValue) return '— None (no byline) —';
     if (selected) return `${selected.name}${selected.credentials ? `, ${selected.credentials}` : ''}`;
-    return `— Default · ${effectiveDefault.name}${effectiveDefault.credentials ? `, ${effectiveDefault.credentials}` : ''} —`;
+    return '— Pick a byline —';
   })();
-  const triggerAvatar = selected?.avatarUrl ?? (value === null ? effectiveDefault.avatarUrl : undefined);
-  const triggerInitial = (selected?.name ?? (value === null ? effectiveDefault.name : '?')).trim().charAt(0).toUpperCase() || '?';
+  const triggerAvatar = selected?.avatarUrl;
+  const triggerInitial = (selected?.name ?? '?').trim().charAt(0).toUpperCase() || '?';
 
   return (
     <div className="relative">
@@ -768,7 +764,7 @@ function AuthorPicker({
         aria-label={`${label} picker`}
         className="w-full flex items-center gap-2 rounded-md border border-black/10 bg-white px-2 py-1.5 text-left hover:bg-warm-bg/40 focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
       >
-        {value === NONE_SLUG ? (
+        {isNoneValue ? (
           <span className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-full border border-dashed border-foreground/20 text-foreground/35 text-[10px]" aria-hidden>∅</span>
         ) : triggerAvatar ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -798,23 +794,15 @@ function AuthorPicker({
           </div>
           <div className="flex-1 overflow-y-auto py-1">
             <PickerRow
-              label={`Default · ${effectiveDefault.name}${effectiveDefault.credentials ? `, ${effectiveDefault.credentials}` : ''}`}
-              sublabel={effectiveDefault.title}
-              avatarUrl={effectiveDefault.avatarUrl}
-              active={value === null}
-              hint="Resolver fallback"
-              onClick={() => { onChange(null); setOpen(false); setQuery(''); }}
-            />
-            <PickerRow
               label="None (no byline)"
-              sublabel="Skips the author / reviewer block on the live post"
+              sublabel="Skips the author block on the live post — the resolver default."
               none
-              active={value === NONE_SLUG}
-              hint="Sentinel"
+              active={isNoneValue}
+              hint="Default"
               onClick={() => { onChange(NONE_SLUG); setOpen(false); setQuery(''); }}
             />
             <div className="my-1 border-t border-black/5" />
-            {filtered.length === 0 && (
+            {filtered.length === 0 && filteredHorses.length === 0 && (
               <p className="px-3 py-3 text-[12px] text-foreground/45 text-center">No matches.</p>
             )}
             {filtered.map((o) => (
@@ -828,6 +816,25 @@ function AuthorPicker({
                 onClick={() => { onChange(o.slug); setOpen(false); setQuery(''); }}
               />
             ))}
+            {filteredHorses.length > 0 && (
+              <>
+                <div className="my-1 border-t border-black/5" />
+                <p className="px-3 pt-2 pb-1 text-[9.5px] font-bold tracking-[0.22em] uppercase text-foreground/45">
+                  Horses
+                </p>
+                {filteredHorses.map((h) => (
+                  <PickerRow
+                    key={h.slug}
+                    label={h.name}
+                    sublabel={h.title}
+                    avatarUrl={h.avatarUrl}
+                    active={value === h.slug}
+                    hint="Horse"
+                    onClick={() => { onChange(h.slug); setOpen(false); setQuery(''); }}
+                  />
+                ))}
+              </>
+            )}
           </div>
         </div>
       )}
