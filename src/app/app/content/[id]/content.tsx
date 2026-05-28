@@ -12,6 +12,8 @@ import {
   BLOG_REVIEWERS,
   findAuthorBySlug,
   findReviewerBySlug,
+  resolveAuthor,
+  resolveReviewer,
 } from '@/lib/blogAuthors';
 
 // One screen, six panels stacked vertically. Each panel light-greys
@@ -563,6 +565,25 @@ function BylinePanel({
 
   const author = authorOptions.find((a) => a.slug === authorSlug) ?? findAuthorBySlug(authorSlug);
   const reviewer = reviewerOptions.find((a) => a.slug === reviewerSlug) ?? findReviewerBySlug(reviewerSlug);
+  // The "effective" identity is what the live page actually renders
+  // when this slug is in the DB — i.e. the resolver's result. Used
+  // to label the "— Use default —" placeholder so the dropdown
+  // reads back what's on the live post (Lindsay Rothschild on the
+  // current seed, but HR can swap by flipping is_blog_author /
+  // is_medical_reviewer in /app/team).
+  const effectiveAuthor = useMemo(() => {
+    if (authorSlug) {
+      return authorOptions.find((a) => a.slug === authorSlug) ?? resolveAuthor(authorSlug);
+    }
+    // null slug → fall back to whichever resolver pick the live page uses.
+    return resolveAuthor(null);
+  }, [authorSlug, authorOptions]);
+  const effectiveReviewer = useMemo(() => {
+    if (reviewerSlug) {
+      return reviewerOptions.find((a) => a.slug === reviewerSlug) ?? resolveReviewer(reviewerSlug);
+    }
+    return resolveReviewer(null);
+  }, [reviewerSlug, reviewerOptions]);
   const [saving, setSaving] = useState<'author' | 'reviewer' | 'reviewedAt' | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -594,6 +615,11 @@ function BylinePanel({
         JSON-LD block Google + AI search engines read. Posts ship with credentialed defaults
         when these are blank, but every published post should pick a real author + reviewer.
       </p>
+      {/* Effective author/reviewer are computed above so the
+          "— Default · …" placeholder reads back what the live
+          page is actually rendering. The dropdown previously said
+          "— Use default —" while the live byline carried Lindsay
+          Rothschild, and editors thought the field was broken. */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <label className="block">
           <span className="block text-[10px] font-bold uppercase tracking-wider text-foreground/45 mb-1">Written by</span>
@@ -603,16 +629,22 @@ function BylinePanel({
             disabled={saving === 'author'}
             className="w-full rounded-md border border-black/10 px-2 py-1.5 text-[12.5px] bg-white"
           >
-            <option value="">{saving === 'author' ? 'Saving…' : '— Use default —'}</option>
+            <option value="">
+              {saving === 'author'
+                ? 'Saving…'
+                : `— Default · ${effectiveAuthor.name}${effectiveAuthor.credentials ? `, ${effectiveAuthor.credentials}` : ''} —`}
+            </option>
             {authorOptions.map((a) => (
               <option key={a.slug} value={a.slug}>
                 {a.name}{a.credentials ? `, ${a.credentials}` : ''} · {a.title}
               </option>
             ))}
           </select>
-          {author && (
-            <p className="mt-1 text-[10.5px] text-foreground/55 truncate">{author.bio ?? author.title}</p>
-          )}
+          <p className="mt-1 text-[10.5px] text-foreground/55 truncate">
+            {authorSlug
+              ? (author?.bio ?? author?.title ?? '')
+              : `Currently showing on the live post: ${effectiveAuthor.name}.`}
+          </p>
         </label>
         <label className="block">
           <span className="block text-[10px] font-bold uppercase tracking-wider text-foreground/45 mb-1">Medically reviewed by</span>
@@ -622,16 +654,22 @@ function BylinePanel({
             disabled={saving === 'reviewer'}
             className="w-full rounded-md border border-black/10 px-2 py-1.5 text-[12.5px] bg-white"
           >
-            <option value="">{saving === 'reviewer' ? 'Saving…' : '— Use default —'}</option>
+            <option value="">
+              {saving === 'reviewer'
+                ? 'Saving…'
+                : `— Default · ${effectiveReviewer.name}${effectiveReviewer.credentials ? `, ${effectiveReviewer.credentials}` : ''} —`}
+            </option>
             {reviewerOptions.map((r) => (
               <option key={r.slug} value={r.slug}>
                 {r.name}{r.credentials ? `, ${r.credentials}` : ''} · {r.title}
               </option>
             ))}
           </select>
-          {reviewer && (
-            <p className="mt-1 text-[10.5px] text-foreground/55 truncate">Credentialed clinician — drives MedicalWebPage.reviewedBy.</p>
-          )}
+          <p className="mt-1 text-[10.5px] text-foreground/55 truncate">
+            {reviewerSlug
+              ? 'Credentialed clinician — drives MedicalWebPage.reviewedBy.'
+              : `Currently showing on the live post: ${effectiveReviewer.name}.`}
+          </p>
         </label>
         <div>
           <span className="block text-[10px] font-bold uppercase tracking-wider text-foreground/45 mb-1">Last reviewed</span>
