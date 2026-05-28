@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { getAdminSupabase } from '@/lib/supabase-server';
 import { requireSuperAdmin } from '@/lib/content-server';
 
@@ -92,6 +93,21 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     .select('*')
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Invalidate the live blog page so byline / body / layout edits
+  // ship without waiting for the next render. The page already
+  // declares `export const revalidate = 0` (no ISR cache), but the
+  // route-level cache and any per-page Data Cache entry can still
+  // hold a stale render — revalidatePath drops both. Also bust the
+  // index/listing so the title + last-updated stamp refresh too.
+  if (data?.slug) {
+    try {
+      revalidatePath(`/who-we-are/blog/${data.slug}`);
+      revalidatePath('/who-we-are/blog');
+    } catch {
+      /* revalidate is best-effort */
+    }
+  }
 
   // If selected_image_ids was part of this PATCH, promote any newly-
   // selected AI images into the shared /app/images library so the

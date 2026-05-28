@@ -169,7 +169,7 @@ export default async function DbBlogPage({
   // Pre-resolve author + reviewer from the DB so an HR-edited
   // users row (linkedin_url, credentials, bio) wins over the
   // BLOG_AUTHORS seed at render time.
-  const [author, reviewer, blogImages] = await Promise.all([
+  const [author, reviewer, blogImages, horseAuthor] = await Promise.all([
     resolveAuthorAsync(row.author_slug),
     resolveReviewerAsync(row.reviewer_slug),
     // Pull the live blog_images list so we can heal stale URLs in
@@ -183,6 +183,28 @@ export default async function DbBlogPage({
         .select('url, alt')
         .eq('blog_id', row.id);
       return (data ?? []) as Array<{ url: string; alt: string | null }>;
+    })(),
+    // If author_slug is a horse slug (`horse-<uuid>`), resolve it
+    // against the equine table so the byline can render the horse's
+    // name + image. We synthesize a BlogAuthor-shaped object so the
+    // existing AuthorByline component works with no special-case
+    // branching beyond suppressing the profile link.
+    (async () => {
+      if (!row.author_slug || !row.author_slug.startsWith('horse-')) return null;
+      const horseId = row.author_slug.slice('horse-'.length);
+      const admin = getAdminSupabase();
+      const { data: h } = await admin
+        .from('equine')
+        .select('id, name, image_url, works_in')
+        .eq('id', horseId)
+        .maybeSingle();
+      if (!h?.name) return null;
+      return {
+        slug: row.author_slug,
+        name: h.name as string,
+        title: ((h.works_in as string | null)?.trim()) || 'Therapy horse',
+        avatarUrl: (h.image_url as string | null) ?? undefined,
+      };
     })(),
   ]);
   const reconciledLayout = reconcileLayoutImages(row.layout, blogImages);
@@ -217,25 +239,37 @@ export default async function DbBlogPage({
       }
     : null;
 
-  // null author_slug now also means "no byline" — the resolver default
-  // is None, not Lindsay, so an unset slug suppresses the byline +
-  // Person JSON-LD just like the explicit None sentinel does. Horse
-  // bylines (`horse-<uuid>`) are picker-only for now and also suppress
-  // here — the live page treats them as "no byline" until we wire a
-  // proper horse byline renderer.
+  // Byline / JSON-LD suppression rules:
+  //   - null author_slug → no byline (resolver default is None).
+  //   - NONE_SLUG → no byline (explicit pick).
+  //   - horse-<uuid> → render the horse byline visibly (horseAuthor
+  //     populates it), but keep Person JSON-LD suppressed — a horse
+  //     isn't a schema.org Person and we don't want to dilute the
+  //     post's E-E-A-T author authority with a non-Person entity.
   const isHorseSlug = (s: string | null) => !!s && s.startsWith('horse-');
+  const horseAuthorActive = isHorseSlug(row.author_slug) && !!horseAuthor;
+  const horseReviewerActive = isHorseSlug(row.reviewer_slug);
+  // JSON-LD side. Person nodes never render for horse picks.
   const authorSuppressed = !row.author_slug || isNoneSlug(row.author_slug) || isHorseSlug(row.author_slug);
-  const reviewerSuppressed = !row.reviewer_slug || isNoneSlug(row.reviewer_slug) || isHorseSlug(row.reviewer_slug);
-  const renderedAuthor = authorSuppressed ? null : author;
-  const renderedReviewer = reviewerSuppressed ? null : reviewer;
-  const showByline = !authorSuppressed || !reviewerSuppressed;
+  const reviewerSuppressed = !row.reviewer_slug || isNoneSlug(row.reviewer_slug) || horseReviewerActive;
+  const jsonLdAuthor = authorSuppressed ? null : author;
+  const jsonLdReviewer = reviewerSuppressed ? null : reviewer;
+  // Visible-byline side. Horses render visually; only null + NONE
+  // hide it.
+  const visualAuthor = (!row.author_slug || isNoneSlug(row.author_slug))
+    ? null
+    : horseAuthorActive
+      ? horseAuthor
+      : author;
+  const visualReviewer = (!row.reviewer_slug || isNoneSlug(row.reviewer_slug)) ? null : reviewer;
+  const showByline = visualAuthor !== null || visualReviewer !== null;
 
   return (
     <>
       <BlogPostJsonLd
         episode={episode}
-        author={renderedAuthor ?? undefined}
-        reviewer={renderedReviewer ?? undefined}
+        author={jsonLdAuthor ?? undefined}
+        reviewer={jsonLdReviewer ?? undefined}
         suppressAuthor={authorSuppressed}
         suppressReviewer={reviewerSuppressed}
       />
@@ -263,10 +297,11 @@ export default async function DbBlogPage({
           byline={showByline ? (
             <AuthorByline
               episode={episode}
-              author={renderedAuthor ?? undefined}
-              reviewer={renderedReviewer ?? undefined}
-              suppressAuthor={authorSuppressed}
-              suppressReviewer={reviewerSuppressed}
+              author={visualAuthor ?? undefined}
+              reviewer={visualReviewer ?? undefined}
+              suppressAuthor={visualAuthor === null}
+              suppressReviewer={visualReviewer === null}
+              authorIsHorse={horseAuthorActive}
             />
           ) : undefined}
         />
@@ -276,10 +311,11 @@ export default async function DbBlogPage({
           byline={showByline ? (
             <AuthorByline
               episode={episode}
-              author={renderedAuthor ?? undefined}
-              reviewer={renderedReviewer ?? undefined}
-              suppressAuthor={authorSuppressed}
-              suppressReviewer={reviewerSuppressed}
+              author={visualAuthor ?? undefined}
+              reviewer={visualReviewer ?? undefined}
+              suppressAuthor={visualAuthor === null}
+              suppressReviewer={visualReviewer === null}
+              authorIsHorse={horseAuthorActive}
             />
           ) : undefined}
         />
