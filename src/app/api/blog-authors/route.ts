@@ -95,5 +95,30 @@ export async function GET(req: NextRequest) {
   // schema honest.
   const reviewers = all;
 
-  return NextResponse.json({ authors: all, reviewers });
+  // Therapy horses are now first-class byline options too. The live
+  // blog can opt to render them differently (no JSON-LD Person, no
+  // profile link), but the editor surface includes them with their
+  // image + name so an admin can pick "Adali Longnecker, Equine
+  // Assistant" as the byline on a horse-led story.
+  // Slugs are namespaced `horse-<uuid>` so they never collide with
+  // human public_slug values.
+  let horses: Array<{ slug: string; name: string; title: string; avatarUrl?: string }> = [];
+  try {
+    const { data: horseRows } = await admin
+      .from('equine')
+      .select('id, name, image_url, works_in')
+      .order('name', { ascending: true });
+    horses = ((horseRows ?? []) as Array<{ id: string; name: string | null; image_url: string | null; works_in: string | null }>)
+      .filter((h) => h.id && h.name)
+      .map((h) => ({
+        slug: `horse-${h.id}`,
+        name: h.name as string,
+        title: h.works_in?.trim() || 'Therapy horse',
+        avatarUrl: h.image_url ?? undefined,
+      }));
+  } catch {
+    /* equine table unreachable — ship without horses */
+  }
+
+  return NextResponse.json({ authors: all, reviewers, horses });
 }
