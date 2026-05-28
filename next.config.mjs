@@ -196,6 +196,12 @@ const nextConfig = {
       { source: '/private-rehabs-in-arizona', destination: '/', statusCode: 301 },
       { source: '/privacy-policy-2', destination: '/', statusCode: 301 },
       { source: '/thank-you', destination: '/contact', statusCode: 301 },
+
+      // ── Phase 11: Internal app routes renamed ───────────────────
+      // /app/outreach → /app/contacts (the dir was renamed; this
+      // catches old bookmarks, activity-feed deep links, and any
+      // external dashboards that linked into the old surface).
+      { source: '/app/outreach', destination: '/app/contacts', statusCode: 308 },
     ];
   },
 

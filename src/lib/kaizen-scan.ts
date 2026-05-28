@@ -117,7 +117,7 @@ TARGET_KIND + TARGET_PATH + TARGET_LABEL (where the change lands):
                 that is currently routable. Real examples on this
                 codebase: "/", "/admissions", "/our-program",
                 "/contact", "/who-we-are", "/who-we-are/team",
-                "/who-we-are/blog", "/app", "/app/outreach",
+                "/who-we-are/blog", "/app", "/app/contacts",
                 "/app/calls", "/app/content", "/app/calendar",
                 "/app/equine", "/app/team", "/app/social-media",
                 "/app/email-campaigns". Do NOT invent sub-routes
@@ -168,7 +168,7 @@ no markdown fences, no extra text. Each object has the keys:
     "risk_score": 1-5,
     "value_score": 1-5,
     "target_kind": "existing"|"new"|"global",
-    "target_path": "/admissions"|"/app/outreach"|"/app/content"|null,
+    "target_path": "/admissions"|"/app/contacts"|"/app/content"|null,
     "target_label": "Admissions hero"|null,
     "design_preview_html": "..."  // only when category=design
   }

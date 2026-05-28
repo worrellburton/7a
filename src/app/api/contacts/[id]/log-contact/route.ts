@@ -141,7 +141,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     target_kind: 'contact',
     target_id: id,
     target_label: data?.name ?? null,
-    target_path: '/app/outreach',
+    target_path: '/app/contacts',
     metadata: { method, duration_seconds, comments: comments ?? null },
   });
 
