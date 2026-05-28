@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
   const admin = getAdminSupabase();
   const { data, error } = await admin
     .from('contacts')
-    .select('id, name, company, company_website, type, specialty, rating, role, phone, phone_cell, phone_office, email, location, formatted_address, place_id, tz, lat, lng, notes, source, source_partner_id, last_contact_at, last_contact_by, last_contact_method, last_contact_comments, created_at, updated_at')
+    .select('id, name, company, company_website, type, specialty, rating, role, phone, phone_cell, phone_office, email, location, formatted_address, place_id, tz, lat, lng, notes, source, source_partner_id, last_contact_at, last_contact_by, last_contact_method, last_contact_comments, unsubscribed_at, unsubscribed_source, created_at, updated_at')
     .order('last_contact_at', { ascending: false, nullsFirst: false })
     .order('name', { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -91,6 +91,8 @@ export async function GET(req: NextRequest) {
     last_contact_by: string | null;
     last_contact_method: string | null;
     last_contact_comments: string | null;
+    unsubscribed_at: string | null;
+    unsubscribed_source: string | null;
     created_at: string;
     updated_at: string;
   };

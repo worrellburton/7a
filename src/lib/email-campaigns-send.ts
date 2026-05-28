@@ -1,25 +1,35 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { buildUnsubscribeUrl } from './unsubscribe';
 import { addUtmsToCampaignHtml } from './utm';
+import {
+  addContactsToAudience,
+  createAudience,
+  createBroadcast,
+  prepareBroadcastHtml,
+  sendBroadcast,
+} from './resend-broadcasts';
 
 // Shared send-loop used by both the POST /api/email-campaigns/send
 // handler (admin click-through send) and the cron at
-// /api/cron/email-campaigns/scheduled-send (paced batch drain).
+// /api/cron/email-campaigns/scheduled-send.
 //
-// Pulled out of the route file so the cron can call it as a function
-// rather than HTTP-round-tripping to itself. The HTTP indirection
-// was the source of the "SENDING…" stall: Vercel strips the
-// x-vercel-cron header on internal calls, so the send handler was
-// 401-ing every cron tick and the inflight campaign never drained.
+// Implementation note: this used to loop the recipient list and POST
+// one transactional email per row. That path burned the Resend Free
+// transactional quota (100/day) and had to be paced across cron
+// ticks. The new path creates a Resend audience + broadcast per
+// campaign and Resend fans it out server-side — a single API trip
+// no matter how big the list, and it counts against the Marketing
+// quota instead of Transactional. See ./resend-broadcasts.ts for
+// the wrapper.
 
-const RESEND_URL = 'https://api.resend.com/emails';
 const DEFAULT_FROM = 'Seven Arrows Recovery <onboarding@resend.dev>';
 
 export interface SendCampaignBatchOpts {
   supabase: SupabaseClient;
   campaignId: string;
   actingUserId: string | null;
-  /** Drain only this many pending rows; undefined = drain all. */
+  /** Retained for API compatibility with the old transactional path,
+   *  but the Broadcasts path sends the whole list in one call so this
+   *  is effectively ignored. */
   batchSize?: number;
 }
 
@@ -35,11 +45,11 @@ export interface SendCampaignBatchResult {
 }
 
 export async function sendCampaignBatch(opts: SendCampaignBatchOpts): Promise<SendCampaignBatchResult> {
-  const { supabase, campaignId, actingUserId, batchSize } = opts;
+  const { supabase, campaignId, actingUserId } = opts;
 
   const { data: campaign, error: campErr } = await supabase
     .from('email_campaigns')
-    .select('id, generated_html, generated_subject, status')
+    .select('id, generated_html, generated_subject, status, resend_audience_id, resend_broadcast_id')
     .eq('id', campaignId)
     .maybeSingle();
   if (campErr || !campaign) {
@@ -49,19 +59,23 @@ export async function sendCampaignBatch(opts: SendCampaignBatchOpts): Promise<Se
     return { ok: false, error: 'Campaign is missing body or subject.', sent: 0, failed: 0, skipped: 0, simulated: false, stillPending: 0 };
   }
 
+  // Pull every pending recipient — Broadcasts sends in one shot, so
+  // there's no batching to do. We still respect send_status so a
+  // resend-failed click on /finalize only re-targets the failed rows
+  // that were just reset to pending.
   const { data: recipientRows, error: recErr } = await supabase
     .from('email_campaign_recipients')
     .select('id, email, send_status, contact_id')
     .eq('campaign_id', campaignId)
     .eq('send_status', 'pending')
     .order('id', { ascending: true })
-    .limit(batchSize != null && batchSize > 0 ? Math.floor(batchSize) : 10000);
+    .limit(10000);
   if (recErr) {
     return { ok: false, error: recErr.message, sent: 0, failed: 0, skipped: 0, simulated: false, stillPending: 0 };
   }
   const allPending = (recipientRows ?? []) as Array<{ id: string; email: string; send_status: string; contact_id: string }>;
 
-  // Drop unsubscribed contacts before we hit Resend.
+  // Drop unsubscribed contacts before we even hit Resend.
   let recipients = allPending;
   let skipped = 0;
   if (allPending.length > 0) {
@@ -83,21 +97,29 @@ export async function sendCampaignBatch(opts: SendCampaignBatchOpts): Promise<Se
     recipients = allPending.filter((r) => !unsubSet.has(r.contact_id));
   }
   if (recipients.length === 0) {
-    // No work this tick. If the whole campaign is drained, flip
-    // status to 'sent' so it stops sitting in the inflight queue.
-    const { count: stillPending } = await supabase
-      .from('email_campaign_recipients')
-      .select('id', { count: 'exact', head: true })
-      .eq('campaign_id', campaignId)
-      .eq('send_status', 'pending');
-    const remaining = stillPending ?? 0;
-    if (remaining === 0) {
-      await supabase
-        .from('email_campaigns')
-        .update({ status: 'sent', sent_at: new Date().toISOString() })
-        .eq('id', campaignId);
+    await supabase
+      .from('email_campaigns')
+      .update({ status: 'sent', sent_at: new Date().toISOString() })
+      .eq('id', campaignId);
+    return { ok: true, sent: 0, failed: 0, skipped, simulated: false, stillPending: 0, note: 'No pending recipients.' };
+  }
+
+  // Hydrate names off the contacts so the audience entries carry
+  // first/last name (Resend stores them; useful for the marketing
+  // dashboard and any future personalization).
+  const contactIds = Array.from(new Set(recipients.map((r) => r.contact_id).filter((v): v is string => !!v)));
+  const nameById = new Map<string, { first?: string; last?: string }>();
+  if (contactIds.length > 0) {
+    const { data: nameRows } = await supabase
+      .from('contacts')
+      .select('id, name')
+      .in('id', contactIds);
+    for (const r of (nameRows ?? []) as Array<{ id: string; name: string | null }>) {
+      const n = (r.name ?? '').trim();
+      if (!n) { nameById.set(r.id, {}); continue; }
+      const parts = n.split(/\s+/);
+      nameById.set(r.id, { first: parts[0], last: parts.slice(1).join(' ') || undefined });
     }
-    return { ok: true, sent: 0, failed: 0, skipped, simulated: false, stillPending: remaining, note: 'No pending recipients.' };
   }
 
   await supabase.from('email_campaigns').update({ status: 'sending' }).eq('id', campaignId);
@@ -108,202 +130,181 @@ export async function sendCampaignBatch(opts: SendCampaignBatchOpts): Promise<Se
   const replyTo = replyToRaw ? stripDisplayName(replyToRaw) : stripDisplayName(from);
   const simulated = !apiKey;
 
-  let sent = 0;
-  let failed = 0;
+  if (simulated) {
+    // No-Resend dev path: pretend everything sent so the rest of the
+    // pipeline (recipient rows, contact_logs, status flip) exercises
+    // end-to-end.
+    return await markAllSent(supabase, recipients, campaign, actingUserId, campaignId, true, skipped);
+  }
 
-  const MAX_PARALLEL = 4;
-  const RESEND_RPS = 4;
-  const RESEND_WINDOW_MS = 1000;
-  const recentSends: number[] = [];
-  const acquireResendSlot = async () => {
-    while (true) {
-      const now = Date.now();
-      while (recentSends.length > 0 && now - recentSends[0] >= RESEND_WINDOW_MS) {
-        recentSends.shift();
-      }
-      if (recentSends.length < RESEND_RPS) {
-        recentSends.push(now);
-        return;
-      }
-      const wait = RESEND_WINDOW_MS - (now - recentSends[0]) + 5;
-      await new Promise((r) => setTimeout(r, Math.max(wait, 25)));
+  // Step 1: ensure we have an audience. Reuse the one stored on the
+  // campaign row if a previous send-attempt already created it
+  // (e.g. broadcast creation failed midway and we're retrying).
+  let audienceId = (campaign.resend_audience_id as string | null) ?? null;
+  if (!audienceId) {
+    const audName = (campaign.generated_subject as string).slice(0, 100);
+    const a = await createAudience(apiKey, `Campaign — ${audName}`);
+    if (!a.ok) {
+      await markCampaignFailed(supabase, campaignId, `Resend audience creation failed: ${a.error}`);
+      return { ok: false, error: `Resend audience creation failed: ${a.error}`, sent: 0, failed: recipients.length, skipped, simulated: false, stillPending: recipients.length };
     }
-  };
+    audienceId = a.id;
+    await supabase.from('email_campaigns').update({ resend_audience_id: audienceId }).eq('id', campaignId);
+  }
 
-  const sendViaResend = async (toEmail: string, contactId: string): Promise<Response> => {
-    await acquireResendSlot();
-    const unsubUrl = buildUnsubscribeUrl(contactId);
-    const footerHtml = `
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#faf6f1;">
-  <tr>
-    <td align="center" style="padding:24px 16px 32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;color:#8a7a6c;letter-spacing:0.04em;line-height:1.6;">
-      You're receiving this because you've worked with Seven Arrows Recovery.<br />
-      <a href="${unsubUrl}" style="color:#b87333;text-decoration:underline;font-weight:600;">Unsubscribe from these emails</a>
-    </td>
-  </tr>
-</table>`;
-    const taggedHtml = addUtmsToCampaignHtml(campaign.generated_html ?? '', {
+  // Step 2: upsert each recipient into the audience. Duplicates are
+  // a no-op (Resend's API returns 409/422 which we treat as success).
+  const contactsForAudience = recipients.map((r) => {
+    const n = nameById.get(r.contact_id) ?? {};
+    return { email: r.email, firstName: n.first, lastName: n.last };
+  });
+  const upsert = await addContactsToAudience(apiKey, audienceId, contactsForAudience);
+  if (upsert.failed > 0 && upsert.added + upsert.alreadyIn === 0) {
+    await markCampaignFailed(supabase, campaignId, `Resend audience upsert failed: ${upsert.firstError ?? 'unknown'}`);
+    return { ok: false, error: upsert.firstError ?? 'Resend audience upsert failed.', sent: 0, failed: recipients.length, skipped, simulated: false, stillPending: recipients.length };
+  }
+
+  // Step 3: create the broadcast (or reuse if a previous attempt got
+  // this far). The body keeps existing UTM stitching for analytics
+  // and swaps in {{{RESEND_UNSUBSCRIBE_URL}}} so Resend renders the
+  // unsub link per recipient.
+  let broadcastId = (campaign.resend_broadcast_id as string | null) ?? null;
+  if (!broadcastId) {
+    const taggedHtml = addUtmsToCampaignHtml(campaign.generated_html as string, {
       campaignId,
-      subject: campaign.generated_subject,
+      subject: campaign.generated_subject as string,
     });
     const patchedHtml = taggedHtml
       .replace(/https:\/\/cdn\.simpleicons\.org\/linkedin\/ffffff/g, 'https://sevenarrowsrecoveryarizona.com/icons/linkedin-white.svg')
       .replace(/https:\/\/cdn\.simpleicons\.org\/linkedin\/1a1a1a/g, 'https://sevenarrowsrecoveryarizona.com/icons/linkedin-ink.svg');
-    const html = patchedHtml.includes('</body>')
-      ? patchedHtml.replace('</body>', `${footerHtml}\n</body>`)
-      : `${patchedHtml}\n${footerHtml}`;
-    return fetch(RESEND_URL, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from,
-        to: [toEmail],
-        subject: campaign.generated_subject,
-        html,
-        reply_to: replyTo,
-        headers: {
-          'List-Unsubscribe': `<${unsubUrl}>`,
-          'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-        },
-      }),
+    const broadcastHtml = prepareBroadcastHtml(patchedHtml);
+    const b = await createBroadcast(apiKey, audienceId, {
+      subject: campaign.generated_subject as string,
+      html: broadcastHtml,
+      from,
+      replyTo,
+      name: (campaign.generated_subject as string).slice(0, 100),
     });
-  };
-
-  let cursor = 0;
-  const handleOne = async (r: typeof recipients[number]) => {
-    let ok = false;
-    let statusCode: number | null = null;
-    let providerId: string | null = null;
-    let responseText = '';
-    let errText: string | null = null;
-
-    if (simulated) {
-      ok = true;
-      responseText = 'simulated — RESEND_API_KEY not configured';
-    } else {
-      const MAX_ATTEMPTS = 4;
-      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-        try {
-          const res = await sendViaResend(r.email, r.contact_id);
-          statusCode = res.status;
-          const txt = await res.text();
-          responseText = txt.slice(0, 2000);
-          if (res.ok) {
-            ok = true;
-            errText = null;
-            try {
-              const parsed = JSON.parse(txt) as { id?: string };
-              providerId = parsed.id ?? null;
-            } catch { /* non-JSON body */ }
-            break;
-          }
-          errText = `HTTP ${res.status}: ${txt.slice(0, 4000)}`;
-          if (res.status !== 429 || attempt === MAX_ATTEMPTS) break;
-          const retryAfterHdr = res.headers.get('retry-after');
-          const retryAfterSec = retryAfterHdr ? Number(retryAfterHdr) : NaN;
-          const backoffMs = Number.isFinite(retryAfterSec) && retryAfterSec > 0
-            ? Math.min(retryAfterSec * 1000, 5000)
-            : 500 * 2 ** (attempt - 1);
-          await new Promise((res2) => setTimeout(res2, backoffMs));
-        } catch (err) {
-          errText = err instanceof Error ? err.message : String(err);
-          responseText = errText;
-          if (attempt === MAX_ATTEMPTS) break;
-          await new Promise((res2) => setTimeout(res2, 500 * 2 ** (attempt - 1)));
-        }
-      }
+    if (!b.ok) {
+      await markCampaignFailed(supabase, campaignId, `Resend broadcast creation failed: ${b.error}`);
+      return { ok: false, error: `Resend broadcast creation failed: ${b.error}`, sent: 0, failed: recipients.length, skipped, simulated: false, stillPending: recipients.length };
     }
+    broadcastId = b.id;
+    await supabase.from('email_campaigns').update({ resend_broadcast_id: broadcastId }).eq('id', campaignId);
+  }
 
-    if (ok) sent += 1; else failed += 1;
+  // Step 4: fire the broadcast. Resend queues internally and the
+  // events table fills in over the next minutes via the webhook.
+  const sendRes = await sendBroadcast(apiKey, broadcastId);
+  if (!sendRes.ok) {
+    await markCampaignFailed(supabase, campaignId, `Resend broadcast send failed: ${sendRes.error}`);
+    return { ok: false, error: sendRes.error, sent: 0, failed: recipients.length, skipped, simulated: false, stillPending: recipients.length };
+  }
 
-    const nowIso = new Date().toISOString();
-    await supabase.from('email_campaign_recipients')
-      .update({
-        send_status: ok ? 'sent' : 'failed',
-        send_error: errText,
-        sent_at: ok ? nowIso : null,
-      })
-      .eq('id', r.id);
+  // Step 5: flip recipient rows to 'sent' optimistically. The
+  // webhook will overwrite to 'failed' / 'bounced' as terminal
+  // events arrive. We also write the contact_logs touchpoint here
+  // because we already have actingUserId in scope.
+  return await markAllSent(supabase, recipients, campaign, actingUserId, campaignId, false, skipped);
+}
 
-    await supabase.from('email_campaign_sends').insert({
-      campaign_id: campaignId,
-      recipient_id: r.id,
-      provider: simulated ? 'simulated' : 'resend',
-      provider_message_id: providerId,
-      ok,
-      status_code: statusCode,
-      response: responseText,
-    });
+// Optimistic post-send bookkeeping shared between the simulated dev
+// path and the live broadcast path. Webhook events will refine the
+// per-recipient state (failed/bounced) as they arrive.
+async function markAllSent(
+  supabase: SupabaseClient,
+  recipients: Array<{ id: string; email: string; contact_id: string }>,
+  campaign: { generated_subject: string | null },
+  actingUserId: string | null,
+  campaignId: string,
+  simulated: boolean,
+  skipped: number,
+): Promise<SendCampaignBatchResult> {
+  const nowIso = new Date().toISOString();
+  // Bulk-update recipient status. Postgrest doesn't support a single
+  // UPDATE with WHERE id IN (...) returning per-row data, but we
+  // don't need per-row data here.
+  await supabase
+    .from('email_campaign_recipients')
+    .update({ send_status: 'sent', send_error: null, sent_at: nowIso })
+    .in('id', recipients.map((r) => r.id));
 
-    if (ok) {
-      const comment = simulated
-        ? `Sent email campaign (simulated): ${campaign.generated_subject}`
-        : `Sent email campaign: ${campaign.generated_subject}`;
-      await supabase.from('contact_logs').insert({
+  // Insert the send-log + contact-log rows in bulk. These power the
+  // per-rep leaderboard + the contact's recent touchpoints list.
+  const comment = simulated
+    ? `Sent email campaign (simulated): ${campaign.generated_subject ?? ''}`
+    : `Sent email campaign: ${campaign.generated_subject ?? ''}`;
+  if (recipients.length > 0) {
+    await supabase.from('email_campaign_sends').insert(
+      recipients.map((r) => ({
+        campaign_id: campaignId,
+        recipient_id: r.id,
+        provider: simulated ? 'simulated' : 'resend',
+        provider_message_id: null,
+        ok: true,
+        status_code: simulated ? 0 : 200,
+        response: simulated ? 'simulated' : 'broadcast queued',
+      })),
+    );
+    await supabase.from('contact_logs').insert(
+      recipients.map((r) => ({
         contact_id: r.contact_id,
         method: 'Email Campaign',
         comments: comment,
         contacted_by: actingUserId,
         contacted_at: nowIso,
-      });
-      await supabase.from('contacts')
+      })),
+    );
+    // last_contact_* is denormalised onto contacts for the cards on
+    // /app/contacts. Bulk-update one contact_id at a time isn't
+    // possible in a single PostgREST call, so we batch with .in() —
+    // the last_contact_comments will be the same for every row in
+    // this campaign which is the desired UX.
+    const contactIds = Array.from(new Set(recipients.map((r) => r.contact_id).filter((v): v is string => !!v)));
+    if (contactIds.length > 0) {
+      await supabase
+        .from('contacts')
         .update({
           last_contact_at: nowIso,
           last_contact_by: actingUserId,
           last_contact_method: 'Email Campaign',
           last_contact_comments: comment,
         })
-        .eq('id', r.contact_id);
+        .in('id', contactIds);
     }
-  };
-
-  const worker = async () => {
-    while (cursor < recipients.length) {
-      const idx = cursor;
-      cursor += 1;
-      const r = recipients[idx];
-      if (!r) continue;
-      await handleOne(r);
-    }
-  };
-  const workers: Array<Promise<void>> = [];
-  for (let i = 0; i < Math.min(MAX_PARALLEL, recipients.length); i += 1) workers.push(worker());
-  await Promise.all(workers);
-
-  const { count: stillPending } = await supabase
-    .from('email_campaign_recipients')
-    .select('id', { count: 'exact', head: true })
-    .eq('campaign_id', campaignId)
-    .eq('send_status', 'pending');
-  const havePending = (stillPending ?? 0) > 0;
-
-  if (havePending) {
-    await supabase
-      .from('email_campaigns')
-      .update({ status: 'sending' })
-      .eq('id', campaignId);
-  } else {
-    const finalStatus = failed === 0 ? 'sent' : sent > 0 ? 'sent' : 'failed';
-    await supabase
-      .from('email_campaigns')
-      .update({
-        status: finalStatus,
-        sent_at: new Date().toISOString(),
-      })
-      .eq('id', campaignId);
   }
+
+  await supabase
+    .from('email_campaigns')
+    .update({ status: 'sent', sent_at: nowIso })
+    .eq('id', campaignId);
 
   return {
     ok: true,
-    sent,
-    failed,
+    sent: recipients.length,
+    failed: 0,
     skipped,
     simulated,
-    stillPending: stillPending ?? 0,
+    stillPending: 0,
   };
+}
+
+async function markCampaignFailed(supabase: SupabaseClient, campaignId: string, error: string): Promise<void> {
+  // Flip status back to 'failed' so the UI surfaces an actionable
+  // error and so the cron stops retrying every minute. The send
+  // route's per-recipient send_error stays untouched — the campaign-
+  // level error sits on the toast / banner.
+  await supabase
+    .from('email_campaigns')
+    .update({ status: 'failed' })
+    .eq('id', campaignId);
+  // Best-effort tag every still-pending row with the broadcast error
+  // so the per-row analytics view can render the cause.
+  await supabase
+    .from('email_campaign_recipients')
+    .update({ send_status: 'failed', send_error: error.slice(0, 1000) })
+    .eq('campaign_id', campaignId)
+    .eq('send_status', 'pending');
 }
 
 function normalizeFrom(raw: string): string {
