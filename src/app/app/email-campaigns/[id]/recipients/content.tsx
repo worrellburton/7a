@@ -550,7 +550,7 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
         ) : filtered.length === 0 ? (
           <p className="px-4 py-10 text-[12.5px] text-foreground/55 italic text-center" style={{ fontFamily: 'var(--font-body)' }}>
             {contacts.length === 0
-              ? 'No contacts have email addresses yet. Add one from /app/outreach.'
+              ? 'No contacts have email addresses yet. Add one from /app/contacts.'
               : typeFilter.size > 0 && !query
                 ? `No contacts match ${Array.from(typeFilter).join(' · ')}.`
                 : 'No contacts match that filter.'}
