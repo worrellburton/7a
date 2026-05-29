@@ -16,10 +16,12 @@ import { isNoneSlug, resolveAuthorAsync, resolveReviewerAsync } from '@/lib/blog
 
 // Always render against the latest DB state so post-publish edits to
 // byline (author / reviewer / last-reviewed-at), generated schema,
-// or layout reach the live page without redeploying. Without this,
-// Next.js can serve a cached HTML snapshot from build time and the
-// editor's E-E-A-T panel feels broken even though the PATCH saved.
-export const revalidate = 0;
+// or layout reach the live page without redeploying. We hold a 5-minute
+// ISR cache instead of revalidate=0 (which paid full DB latency on every
+// crawler / share hit) — the content/[id] editor calls revalidatePath
+// on every save so editor edits land immediately regardless of the
+// per-page revalidate window.
+export const revalidate = 300;
 
 interface GeneratedSchema {
   faq: { question: string; answer: string }[];

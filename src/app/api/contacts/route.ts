@@ -98,27 +98,26 @@ export async function GET(req: NextRequest) {
   };
   const rows = (data ?? []) as Row[];
   const ids = Array.from(new Set(rows.map((r) => r.last_contact_by).filter((v): v is string => !!v)));
+  const contactIds = rows.map((r) => r.id);
+  // Fan out the two follow-up lookups in parallel and scope partners
+  // to only the contacts in the current page so the response doesn't
+  // shape with every partner row in the org.
+  const [usrsRes, partnerLinksRes] = await Promise.all([
+    ids.length > 0
+      ? admin.from('users').select('id, full_name, avatar_url').in('id', ids)
+      : Promise.resolve({ data: [] as Array<{ id: string; full_name: string | null; avatar_url: string | null }> }),
+    contactIds.length > 0
+      ? admin.from('partners').select('id, contact_id').in('contact_id', contactIds)
+      : Promise.resolve({ data: [] as Array<{ id: string; contact_id: string }> }),
+  ]);
   const userMap = new Map<string, { full_name: string | null; avatar_url: string | null }>();
-  if (ids.length > 0) {
-    const { data: usrs } = await admin
-      .from('users')
-      .select('id, full_name, avatar_url')
-      .in('id', ids);
-    for (const u of usrs ?? []) {
-      userMap.set(u.id as string, {
-        full_name: (u.full_name as string | null) ?? null,
-        avatar_url: (u.avatar_url as string | null) ?? null,
-      });
-    }
+  for (const u of usrsRes.data ?? []) {
+    userMap.set(u.id as string, {
+      full_name: (u.full_name as string | null) ?? null,
+      avatar_url: (u.avatar_url as string | null) ?? null,
+    });
   }
-  // Pull every partner.contact_id so the outreach grid knows which
-  // contacts already have a linked partner. Drives the "Add partner"
-  // vs. "View partner" affordance in the action menu — and lets us
-  // render a small badge in the row without a second round-trip.
-  const { data: partnerLinks } = await admin
-    .from('partners')
-    .select('id, contact_id')
-    .not('contact_id', 'is', null);
+  const partnerLinks = partnerLinksRes.data;
   const partnerByContact = new Map<string, string>();
   for (const p of (partnerLinks ?? []) as Array<{ id: string; contact_id: string }>) {
     if (p.contact_id) partnerByContact.set(p.contact_id, p.id);

@@ -2,8 +2,9 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 interface ActivityRow {
   id: string;
@@ -113,6 +114,12 @@ export default function ActivityContent() {
     }
   }, [session, isAdmin, router]);
 
+  // Cursor for incremental polls. After the initial full pull we
+  // only ask Supabase for rows created since the newest row we
+  // already hold — usually 0-2 rows per tick instead of the whole
+  // table.
+  const newestSeenRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!session?.access_token) return;
 
@@ -127,20 +134,59 @@ export default function ActivityContent() {
       setUsers(data as UserLite[]);
     }
 
-    async function loadActivity() {
-      const data = await db({
-        action: 'select',
-        table: 'activity_log',
-        order: { column: 'created_at', ascending: false },
-      }).catch(() => []);
-      if (cancelled || !Array.isArray(data)) return;
-      setRows((data as ActivityRow[]).filter((r) => r.type !== 'user.signed_in').slice(0, 500));
+    // Initial load: pull the most recent 500 rows server-side
+    // (used to pull the entire table then slice client-side, which
+    // grew unbounded with activity_log).
+    async function loadActivityInitial() {
+      const { data } = await supabase
+        .from('activity_log')
+        .select('id, user_id, type, target_kind, target_id, target_label, target_path, metadata, created_at')
+        .neq('type', 'user.signed_in')
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (cancelled || !data) return;
+      const rows = data as ActivityRow[];
+      setRows(rows);
+      if (rows[0]?.created_at) newestSeenRef.current = rows[0].created_at;
       setLoading(false);
     }
 
+    // Incremental tick: only ask for rows newer than what we have,
+    // and pause entirely when the tab isn't visible.
+    async function loadActivityIncremental() {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      const since = newestSeenRef.current;
+      if (!since) return loadActivityInitial();
+      const { data } = await supabase
+        .from('activity_log')
+        .select('id, user_id, type, target_kind, target_id, target_label, target_path, metadata, created_at')
+        .neq('type', 'user.signed_in')
+        .gt('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (cancelled || !data || data.length === 0) return;
+      const fresh = data as ActivityRow[];
+      newestSeenRef.current = fresh[0].created_at;
+      setRows((prev) => {
+        // Keep the most recent 500 across new + existing.
+        const merged = [...fresh, ...prev];
+        const seen = new Set<string>();
+        const deduped: ActivityRow[] = [];
+        for (const r of merged) {
+          if (seen.has(r.id)) continue;
+          seen.add(r.id);
+          deduped.push(r);
+          if (deduped.length >= 500) break;
+        }
+        return deduped;
+      });
+    }
+
     loadUsers();
-    loadActivity();
-    const interval = setInterval(loadActivity, 5 * 1000);
+    loadActivityInitial();
+    // 15s instead of 5s — incremental polls are cheap but a 5s
+    // cadence is overkill for a feed that humans read.
+    const interval = setInterval(loadActivityIncremental, 15 * 1000);
     return () => {
       cancelled = true;
       clearInterval(interval);
