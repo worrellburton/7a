@@ -3443,21 +3443,42 @@ function FloatingScrollbar({ tableRef }: { tableRef: React.RefObject<HTMLDivElem
       const maxScroll = t.scrollWidth - t.clientWidth;
       const pct = maxScroll > 0 ? t.scrollLeft / maxScroll : 0;
       const thumbLeft = pct * (trackW - thumbW);
-      setLayout({ left: rect.left, width: trackW, thumbLeft, thumbWidth: thumbW, visible: true, pct });
+      // Skip the state update when nothing measurable changed — a
+      // capture-phase scroll listener fires on every scrollable
+      // container, so most ticks produce identical geometry and a
+      // bare setLayout({...}) would re-render the portal every time.
+      setLayout((prev) =>
+        prev.visible
+        && prev.left === rect.left
+        && prev.width === trackW
+        && prev.thumbLeft === thumbLeft
+        && prev.thumbWidth === thumbW
+        && prev.pct === pct
+          ? prev
+          : { left: rect.left, width: trackW, thumbLeft, thumbWidth: thumbW, visible: true, pct },
+      );
       setCurrentLabel(pickLabel(t));
+    }
+    // Coalesce the high-frequency scroll/resize/ResizeObserver firings
+    // into at most one measure() per animation frame.
+    let rafId: number | null = null;
+    function scheduleMeasure() {
+      if (rafId != null) return;
+      rafId = requestAnimationFrame(() => { rafId = null; measure(); });
     }
     measure();
     const t = tableRef.current;
     if (!t) return;
-    const ro = new ResizeObserver(measure);
+    const ro = new ResizeObserver(scheduleMeasure);
     ro.observe(t);
     Array.from(t.children).forEach((c) => ro.observe(c as Element));
-    document.addEventListener('scroll', measure, { capture: true, passive: true });
-    window.addEventListener('resize', measure);
+    document.addEventListener('scroll', scheduleMeasure, { capture: true, passive: true });
+    window.addEventListener('resize', scheduleMeasure);
     return () => {
       ro.disconnect();
-      document.removeEventListener('scroll', measure, { capture: true } as AddEventListenerOptions);
-      window.removeEventListener('resize', measure);
+      document.removeEventListener('scroll', scheduleMeasure, { capture: true } as AddEventListenerOptions);
+      window.removeEventListener('resize', scheduleMeasure);
+      if (rafId != null) cancelAnimationFrame(rafId);
     };
   }, [mounted, tableRef]);
 
