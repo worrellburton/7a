@@ -340,11 +340,17 @@ export default function ContactsContent() {
   // shipping a separate "geocode now" button. Capped to 100 rows /
   // call server-side so this is safe to fire eagerly.
   const geocodedThisSessionRef = useRef(false);
+  // Hold the latest rows in a ref so the geocode effect can read the
+  // "pending rows exist" condition without listing `rows` as a dep.
+  // Listing `rows` re-fired the effect on every realtime update
+  // (rows.length identical, new array reference); the ref breaks that.
+  const rowsRef = useRef(rows);
+  useEffect(() => { rowsRef.current = rows; }, [rows]);
   useEffect(() => {
     if (viewMode !== 'map') return;
     if (geocodedThisSessionRef.current) return;
     if (!session?.access_token) return;
-    const pending = rows.some((r) => r.location && (r.lat == null || r.lng == null));
+    const pending = rowsRef.current.some((r) => r.location && (r.lat == null || r.lng == null));
     if (!pending) return;
     geocodedThisSessionRef.current = true;
     void fetch('/api/outreach/geocode', {
@@ -368,7 +374,7 @@ export default function ContactsContent() {
         setRows((list as { rows: Contact[] }).rows);
       }
     }).catch(() => { /* silent — map will just show fewer pins */ });
-  }, [viewMode, session?.access_token, rows]);
+  }, [viewMode, session?.access_token]);
   const [showAdd, setShowAdd] = useState(false);
   // Single + dropdown that consolidates Add-with-Claude / Upload CSV /
   // Add contact. Replaces the three-button row that lived in the header.
