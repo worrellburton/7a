@@ -1564,7 +1564,7 @@ const CREATIVE_SUBS: { id: CreativeSub; label: string; description: string }[] =
   // etc.) keep working without a separate migration.
   { id: 'library', label: 'Build', description: 'Browse uploaded photos and videos.' },
   { id: 'templates', label: 'Draft', description: 'Reusable post drafts with placeholders, plus AI assist.' },
-  { id: 'ai', label: 'Approved posts', description: 'Every saved draft signed off and queued, in a spreadsheet view.' },
+  { id: 'ai', label: 'Ready to go', description: 'Every saved draft signed off and queued, in a spreadsheet view.' },
 ];
 
 function readCreativeSub(raw: string | null): CreativeSub {
@@ -1689,7 +1689,7 @@ function CreativeDraftsPanel() {
           </h2>
           <p className="text-[11px] text-foreground/45 mt-0.5">
             Posts your team is still working on — not yet approved. Tick &ldquo;Mark approved&rdquo; on any one to move it to{' '}
-            <strong>Approved posts</strong>.
+            <strong>Ready to go</strong>.
             {ready.length > 0 && <> {ready.length} already approved.</>}
           </p>
         </div>
@@ -1710,7 +1710,7 @@ function CreativeDraftsPanel() {
           <p className="text-sm text-foreground/55 max-w-md mx-auto">
             No drafts in progress.{' '}
             {ready.length > 0
-              ? <>The {ready.length} approved post{ready.length === 1 ? '' : 's'} sit{ready.length === 1 ? 's' : ''} under <strong>Approved posts</strong>.</>
+              ? <>The {ready.length} approved post{ready.length === 1 ? '' : 's'} sit{ready.length === 1 ? 's' : ''} under <strong>Ready to go</strong>.</>
               : <>Build one in <strong>Build</strong>, or start from a template.</>}
           </p>
           <button
@@ -1787,7 +1787,7 @@ function CreativeDraftsPanel() {
   );
 }
 
-// ── Creative > Approved posts ────────────────────────────────────────
+// ── Creative > Ready to go ────────────────────────────────────────
 //
 // Spreadsheet-style list of every SavedDraft that's been flagged
 // ready: true. Each row carries a checkbox so the marketer can
@@ -1862,7 +1862,7 @@ function ReadyToGoPanel() {
       <header className="flex items-baseline justify-between mb-3">
         <div>
           <h2 className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
-            Approved posts · {ready.length}
+            Ready to go · {ready.length}
           </h2>
           <p className="text-[11px] text-foreground/45 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
             Drafts your team has signed off on. Tick rows to act in bulk.
@@ -2226,7 +2226,7 @@ function CreativeLibraryPanel() {
           className="w-full rounded-lg border border-black/15 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
         />
         <p className="text-[11px] text-foreground/45 mt-1.5">
-          Working title only — you can edit it later. Used to find the draft in Approved posts.
+          Working title only — you can edit it later. Used to find the draft in Ready to go.
         </p>
       </div>
 
