@@ -310,22 +310,11 @@ export default function SeoContent() {
         </div>
         <div className="flex items-center gap-2">
           <SyncSerpApiButton onDone={refreshHistory} />
-          {/* Public download of the deployed next.config.mjs. The
-              endpoint serves the live file (refreshed daily by a 6 AM
-              cron) and is intentionally public — the file carries no
-              secrets. */}
-          <a
-            href="/api/seo/next-config"
-            download="next.config.mjs"
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md border border-black/15 bg-white text-foreground/75 text-[11px] font-semibold uppercase tracking-wider hover:bg-warm-bg/60"
-            title="Download the current next.config.mjs. Public link, refreshed every morning at 6 AM."
-          >
-            <span aria-hidden>⬇</span> next.config.mjs
-          </a>
           {/* Image + video sync moved off the Overview header — both
               flows now live inside the Media tab where they belong.
               Date range chooser is in its own analytics-style card
-              below. */}
+              below. The next.config.mjs download lives on the Sitemap
+              tab alongside the other downloadable site files. */}
         </div>
       </div>
 
