@@ -17,7 +17,7 @@
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
-import { Fragment, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { DepartmentPageNav } from '../DepartmentPageNav';
 import { SearchSelectCell } from '@/components/SearchSelectCell';
@@ -963,7 +963,10 @@ export default function ContactsContent() {
   // grid reflects the saved text immediately. The realtime postgres
   // subscription will reconcile if the server pushes back something
   // different.
-  async function handleSaveField(id: string, field: 'name' | 'company' | 'role' | 'phone' | 'phone_cell' | 'phone_office' | 'email' | 'location' | 'notes', value: string) {
+  // useCallback so the reference is stable across renders — this is
+  // what lets React.memo(ContactCell) actually skip unchanged cells
+  // (the grid passes this straight down to every cell).
+  const handleSaveField = useCallback(async (id: string, field: 'name' | 'company' | 'role' | 'phone' | 'phone_cell' | 'phone_office' | 'email' | 'location' | 'notes', value: string) => {
     if (!session?.access_token) return;
     const trimmed = value.trim();
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, [field]: trimmed || null } : r)));
@@ -979,7 +982,7 @@ export default function ContactsContent() {
       const json = await res.json().catch(() => ({}));
       alert(`Couldn't save: ${json.error ?? res.status}`);
     }
-  }
+  }, [session?.access_token]);
 
   // Multi-field save used by interactions that touch more than one
   // column at once: the PlaceAutocomplete dropdown stores location +
@@ -987,7 +990,7 @@ export default function ContactsContent() {
   // the Company cell saves company_website alongside company. Same
   // optimistic-update + PATCH pattern as handleSaveField, just with
   // a generic patch object.
-  async function handleSavePatch(id: string, patch: Partial<Contact>) {
+  const handleSavePatch = useCallback(async (id: string, patch: Partial<Contact>) => {
     if (!session?.access_token) return;
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
     const res = await fetch(`/api/contacts/${id}`, {
@@ -1002,18 +1005,18 @@ export default function ContactsContent() {
       const json = await res.json().catch(() => ({}));
       alert(`Couldn't save: ${json.error ?? res.status}`);
     }
-  }
+  }, [session?.access_token]);
 
-  async function handleSaveNotes(id: string, notes: string) {
+  const handleSaveNotes = useCallback(async (id: string, notes: string) => {
     return handleSaveField(id, 'notes', notes);
-  }
+  }, [handleSaveField]);
 
   // Rename / delete a dropdown option across every row at once.
   // `to: null` means delete (clear the value on every row that held
   // it). Hits the server-side bulk endpoint, then applies the same
   // transform locally so the grid + options list update before the
   // realtime channel echoes back.
-  async function handleBulkRenameOption(column: 'company' | 'role' | 'specialty' | 'type', from: string, to: string | null) {
+  const handleBulkRenameOption = useCallback(async (column: 'company' | 'role' | 'specialty' | 'type', from: string, to: string | null) => {
     if (!session?.access_token) return;
     const res = await fetch('/api/contacts/rename-value', {
       method: 'POST',
@@ -1054,7 +1057,7 @@ export default function ContactsContent() {
       }
       return r;
     }));
-  }
+  }, [session?.access_token]);
 
   async function handleDelete(target: Contact) {
     if (!session?.access_token) return;
@@ -3705,7 +3708,14 @@ function SortIndicator({ active, dir }: { active: boolean; dir: 'asc' | 'desc' }
   );
 }
 
-function ContactCell({
+// Memoized so a render of the parent grid (e.g. the deferred search
+// recompute, or any unrelated state change) only re-renders cells
+// whose contact object actually changed. Row updates are immutable
+// ({ ...r, ...patch }), so a changed row gets a fresh reference and
+// its cells re-render; unchanged rows keep their reference and skip.
+// The handler + option-array props are stabilized (useCallback /
+// useMemo) in the parent so the shallow prop compare holds.
+const ContactCell = memo(function ContactCell({
   column,
   contact,
   onSaveField,
@@ -3868,7 +3878,7 @@ function ContactCell({
     default:
       return null;
   }
-}
+});
 
 // Renders a contacts.follow_up_at as a compact pill — "in N days" /
 // "today" / "tomorrow" / "overdue Nd" / "—". Same tones as the
