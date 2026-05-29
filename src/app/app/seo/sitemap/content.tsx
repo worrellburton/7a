@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthProvider';
 import SeoSubNav from '../SeoSubNav';
@@ -128,6 +129,7 @@ export default function SitemapContent() {
           <p className="text-[11.5px] text-foreground/55 mt-0.5">
             Download the deployed config (redirects, headers, image + Sentry setup). Public link, refreshed every morning at 6 AM.
           </p>
+          <NextConfigLastUpdated />
         </div>
         <a
           href="/api/seo/next-config"
@@ -327,6 +329,68 @@ export default function SitemapContent() {
       )}
     </div>
   );
+}
+
+// Reads the most recent seo_config_snapshots row to show when the
+// 6 AM cron last refreshed the downloadable next.config.mjs. RLS on
+// the table already permits authenticated reads, so this is a single
+// indexed query on mount.
+function NextConfigLastUpdated() {
+  const [stamp, setStamp] = useState<{ at: string; bytes: number } | null>(null);
+  const [missing, setMissing] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from('seo_config_snapshots')
+        .select('captured_at, byte_size')
+        .order('captured_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (cancelled) return;
+      if (data) {
+        setStamp({ at: data.captured_at as string, bytes: (data.byte_size as number) ?? 0 });
+      } else {
+        setMissing(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  if (missing) {
+    return (
+      <p className="mt-1 text-[11px] text-foreground/45 italic">
+        No snapshot yet — the next 6 AM cron will write the first one.
+      </p>
+    );
+  }
+  if (!stamp) return null;
+  const date = new Date(stamp.at);
+  const exact = date.toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return (
+    <p className="mt-1 text-[11px] text-foreground/55 tabular-nums">
+      <span className="font-semibold text-foreground/70">Last updated</span>
+      <span aria-hidden className="mx-1.5 text-foreground/30">·</span>
+      <span title={date.toISOString()}>{exact}</span>
+      <span aria-hidden className="mx-1.5 text-foreground/30">·</span>
+      <span>{relativeFromNow(date.getTime())}</span>
+      <span aria-hidden className="mx-1.5 text-foreground/30">·</span>
+      <span className="text-foreground/45">{(stamp.bytes / 1024).toFixed(1)} KB</span>
+    </p>
+  );
+}
+
+function relativeFromNow(t: number): string {
+  const diffMs = Date.now() - t;
+  const m = Math.round(diffMs / 60_000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h ago`;
+  const d = Math.round(h / 24);
+  if (d < 30) return `${d}d ago`;
+  return `${Math.round(d / 30)}mo ago`;
 }
 
 function SummaryCard({
