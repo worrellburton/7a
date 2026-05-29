@@ -33,8 +33,50 @@ interface AlumniPin {
   email_for_alumni: string | null;
   phone_visible: boolean;
   email_visible: boolean;
+  text_ok: boolean;
   lat: number | null;
   lng: number | null;
+}
+
+// Pretty-print a 10-digit US phone as (858) 201-6210; leave anything
+// else untouched so international / extension formats survive.
+function formatPhone(raw: string): string {
+  const d = raw.replace(/\D/g, '');
+  if (d.length === 10) return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+  if (d.length === 11 && d[0] === '1') return `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
+  return raw;
+}
+
+// Glowing tap-to-call phone card — the shared "call me" affordance
+// across the alumni map + peer-support surfaces.
+function PhoneCard({ phone, size = 'md' }: { phone: string; size?: 'sm' | 'md' }) {
+  const pad = size === 'sm' ? 'px-3 py-1.5 text-[12.5px]' : 'px-4 py-2 text-[14px]';
+  return (
+    <a
+      href={`tel:${phone.replace(/[^\d+]/g, '')}`}
+      onClick={(e) => e.stopPropagation()}
+      className={`group/phone inline-flex items-center gap-2 rounded-xl border border-primary/40 bg-gradient-to-br from-primary/15 via-primary/5 to-white font-bold text-primary tabular-nums shadow-[0_0_16px_-4px_rgba(188,107,74,0.55)] hover:shadow-[0_0_24px_-2px_rgba(188,107,74,0.8)] hover:border-primary/70 transition-all ${pad}`}
+      title={`Call ${formatPhone(phone)}`}
+    >
+      <span aria-hidden className="text-[1.05em] leading-none transition-transform group-hover/phone:scale-110">📞</span>
+      <span>{formatPhone(phone)}</span>
+    </a>
+  );
+}
+
+// "Text anytime" affordance — only shown when the alum opted into
+// text_ok AND their phone is public. One-tap sms: deep link.
+function TextAnytime({ phone }: { phone: string }) {
+  return (
+    <a
+      href={`sms:${phone.replace(/[^\d+]/g, '')}`}
+      onClick={(e) => e.stopPropagation()}
+      className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700 hover:bg-emerald-100 transition-colors"
+      title={`Text ${formatPhone(phone)} — open to texts anytime`}
+    >
+      <span aria-hidden>💬</span> Text anytime
+    </a>
+  );
 }
 
 export default function AlumniMapContent() {
@@ -50,6 +92,8 @@ export default function AlumniMapContent() {
   // flipping the toggle "on" needs to open the editor so they can
   // set a city before they can land a pin.
   const [hasProfile, setHasProfile] = useState(false);
+  // Which list row is expanded to its full detail dropdown.
+  const [expandedPin, setExpandedPin] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -57,7 +101,7 @@ export default function AlumniMapContent() {
     // a join — the map markers ARE their profile photos.
     const { data } = await supabase
       .from('alumni_profiles')
-      .select('user_id, city, state, bio, interests, available_for, phone, email_for_alumni, phone_visible, email_visible, lat, lng, users:user_id(full_name, avatar_url)')
+      .select('user_id, city, state, bio, interests, available_for, phone, email_for_alumni, phone_visible, email_visible, text_ok, lat, lng, users:user_id(full_name, avatar_url)')
       .eq('on_map', true)
       .order('state', { ascending: true })
       .order('city', { ascending: true });
@@ -76,6 +120,7 @@ export default function AlumniMapContent() {
         email_for_alumni: (row.email_for_alumni as string | null) ?? null,
         phone_visible: !!row.phone_visible,
         email_visible: !!row.email_visible,
+        text_ok: !!row.text_ok,
         lat: (row.lat as number | null) ?? null,
         lng: (row.lng as number | null) ?? null,
       };
@@ -212,6 +257,7 @@ export default function AlumniMapContent() {
                 email_for_alumni: p.email_for_alumni,
                 phone_visible: p.phone_visible,
                 email_visible: p.email_visible,
+                text_ok: p.text_ok,
                 lat: p.lat,
                 lng: p.lng,
               }))}
@@ -228,35 +274,81 @@ export default function AlumniMapContent() {
           {grouped.map(([key, group]) => (
             <section key={key}>
               <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-foreground/55 mb-2">{key}</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {group.map((p) => (
-                  <article key={p.user_id} className="rounded-xl border border-black/10 bg-white p-4">
-                    {p.bio && (
-                      <p className="text-[13px] text-foreground/80 leading-relaxed line-clamp-4">{p.bio}</p>
-                    )}
-                    {(p.interests.length > 0 || p.available_for.length > 0) && (
-                      <div className="mt-2 flex flex-wrap gap-1">
-                        {p.interests.map((t) => (
-                          <span key={`i-${t}`} className="text-[10px] font-semibold uppercase tracking-wider bg-primary/10 text-primary px-1.5 py-0.5 rounded">{t}</span>
-                        ))}
-                        {p.available_for.map((t) => (
-                          <span key={`a-${t}`} className="text-[10px] font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">{t}</span>
-                        ))}
-                      </div>
-                    )}
-                    <div className="mt-3 flex flex-wrap gap-2 text-[11.5px]">
-                      {p.phone_visible && p.phone && (
-                        <a href={`tel:${p.phone}`} className="text-primary font-semibold hover:underline">{p.phone}</a>
-                      )}
-                      {p.email_visible && p.email_for_alumni && (
-                        <a href={`mailto:${p.email_for_alumni}`} className="text-primary font-semibold hover:underline">{p.email_for_alumni}</a>
-                      )}
-                      {!p.phone_visible && !p.email_visible && (
-                        <span className="text-foreground/45 italic">Contact via Feather chat</span>
+              <div className="rounded-xl border border-black/10 bg-white overflow-hidden divide-y divide-black/5">
+                {group.map((p) => {
+                  const expanded = expandedPin === p.user_id;
+                  const initial = (p.full_name || p.city || '?').charAt(0).toUpperCase();
+                  const showPhone = p.phone_visible && !!p.phone;
+                  const showText = showPhone && p.text_ok;
+                  return (
+                    <div key={p.user_id}>
+                      {/* Collapsed row — click to expand the detail dropdown. */}
+                      <button
+                        type="button"
+                        onClick={() => setExpandedPin((prev) => (prev === p.user_id ? null : p.user_id))}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-warm-bg/40 transition-colors"
+                        aria-expanded={expanded}
+                      >
+                        {p.avatar_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={p.avatar_url} alt="" referrerPolicy="no-referrer" className="shrink-0 w-11 h-11 rounded-full object-cover ring-1 ring-primary/40" />
+                        ) : (
+                          <span aria-hidden className="shrink-0 w-11 h-11 rounded-full bg-primary/10 text-primary text-[15px] font-bold ring-1 ring-primary/40 inline-flex items-center justify-center">{initial}</span>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[14px] font-semibold text-foreground truncate">{p.full_name || 'Alumni'}</p>
+                          <p className="text-[11.5px] text-foreground/55 truncate">
+                            {[p.city, p.state].filter(Boolean).join(', ') || 'Location private'}
+                            {showText && <span className="ml-1.5 text-emerald-600 font-semibold">· 💬 texts welcome</span>}
+                          </p>
+                        </div>
+                        {showPhone ? (
+                          <PhoneCard phone={p.phone as string} size="sm" />
+                        ) : (
+                          <span className="shrink-0 text-[11px] text-foreground/45 italic">Via Feather chat</span>
+                        )}
+                        <span aria-hidden className={`shrink-0 ml-1 inline-flex items-center justify-center w-6 h-6 rounded-md border text-foreground/55 transition-transform ${expanded ? 'rotate-180 bg-foreground text-white border-foreground' : 'bg-white border-black/10'}`}>
+                          <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6l4 4 4-4" /></svg>
+                        </span>
+                      </button>
+
+                      {/* Expanded detail dropdown. */}
+                      {expanded && (
+                        <div className="px-4 pb-4 pt-1 bg-warm-bg/25">
+                          {p.bio && (
+                            <p className="text-[13px] text-foreground/80 leading-relaxed">{p.bio}</p>
+                          )}
+                          {(p.interests.length > 0 || p.available_for.length > 0) && (
+                            <div className="mt-2.5 flex flex-wrap gap-1">
+                              {p.interests.map((t) => (
+                                <span key={`i-${t}`} className="text-[10px] font-semibold uppercase tracking-wider bg-primary/10 text-primary px-1.5 py-0.5 rounded">{t}</span>
+                              ))}
+                              {p.available_for.map((t) => (
+                                <span key={`a-${t}`} className="text-[10px] font-semibold uppercase tracking-wider bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded">{t}</span>
+                              ))}
+                            </div>
+                          )}
+                          <div className="mt-3 flex flex-wrap items-center gap-2">
+                            {showPhone && <PhoneCard phone={p.phone as string} />}
+                            {showText && <TextAnytime phone={p.phone as string} />}
+                            {p.email_visible && p.email_for_alumni && (
+                              <a
+                                href={`mailto:${p.email_for_alumni}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-black/10 bg-white px-3 py-2 text-[12.5px] font-semibold text-foreground/75 hover:bg-warm-bg/60"
+                              >
+                                ✉️ {p.email_for_alumni}
+                              </a>
+                            )}
+                            {!showPhone && !p.email_visible && (
+                              <span className="text-[12px] text-foreground/45 italic">Reach out via Feather chat.</span>
+                            )}
+                          </div>
+                        </div>
                       )}
                     </div>
-                  </article>
-                ))}
+                  );
+                })}
               </div>
             </section>
           ))}
