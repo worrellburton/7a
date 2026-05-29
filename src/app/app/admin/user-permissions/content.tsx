@@ -570,10 +570,17 @@ export default function UserPermissionsContent() {
                 {sortedUsers.map((u) => {
                   const isSelf = u.id === user?.id;
                   const userDept = departments.find((d) => d.id === u.department_id) || null;
+                  // Alumni rows render in an emerald-tinted variant so a
+                  // glance at the All view tells you who's a teammate vs
+                  // who's on the alumni side. Dept/job-title/superadmin
+                  // cells don't apply to alumni and get neutralized to
+                  // a clean "—" or an Alumni pill below.
+                  const isAlumni = u.user_kind === 'alumni';
                   return (
-                    <tr key={u.id} className="border-b border-gray-100 last:border-b-0 hover:bg-warm-bg/30 transition-colors">
-                      {/* User */}
-                      <td className="px-6 py-4">
+                    <tr key={u.id} className={`border-b border-gray-100 last:border-b-0 transition-colors ${isAlumni ? 'bg-emerald-50/30 hover:bg-emerald-50/55' : 'hover:bg-warm-bg/30'}`}>
+                      {/* User — left border + tinted bg above flags the
+                          row as alumni so the All view reads at a glance. */}
+                      <td className={`px-6 py-4 ${isAlumni ? 'border-l-4 border-emerald-500/70' : ''}`}>
                         <div className="flex items-center gap-3">
                           {u.avatar_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
@@ -587,6 +594,11 @@ export default function UserPermissionsContent() {
                             <p className="text-sm font-medium text-foreground">
                               {formatNameWithCredentials(u.full_name, u.credentials) || 'Unknown'}
                               {isSelf && <span className="ml-2 text-[11px] text-foreground/40">(you)</span>}
+                              {isAlumni && (
+                                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-emerald-100 text-emerald-800">
+                                  Alumni
+                                </span>
+                              )}
                               {u.status === 'on_hold' && (
                                 <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-amber-100 text-amber-800">
                                   On hold
@@ -624,28 +636,39 @@ export default function UserPermissionsContent() {
                         })()}
                       </td>
 
-                      {/* Department */}
+                      {/* Department — N/A for alumni (they're not on the
+                          org chart). Show a static Alumni pill instead so
+                          the column reads cleanly. */}
                       <td className="px-6 py-4 hidden md:table-cell">
-                        <select
-                          value={u.department_id || ''}
-                          onChange={(e) => updateDepartment(u.id, e.target.value || null)}
-                          className={`text-xs px-2 py-1 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[180px] ${userDept ? 'font-medium' : 'text-foreground/40 bg-white border border-gray-200'}`}
-                          style={{
-                            fontFamily: 'var(--font-body)',
-                            backgroundColor: userDept ? (userDept.color || '#a0522d') + '1f' : undefined,
-                            color: userDept ? (userDept.color || '#a0522d') : undefined,
-                          }}
-                        >
-                          <option value="">—</option>
-                          {departments.map((d) => (
-                            <option key={d.id} value={d.id}>{d.name}</option>
-                          ))}
-                        </select>
+                        {isAlumni ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-emerald-100 text-emerald-800" title="Alumni — not part of the org chart">
+                            Alumni
+                          </span>
+                        ) : (
+                          <select
+                            value={u.department_id || ''}
+                            onChange={(e) => updateDepartment(u.id, e.target.value || null)}
+                            className={`text-xs px-2 py-1 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[180px] ${userDept ? 'font-medium' : 'text-foreground/40 bg-white border border-gray-200'}`}
+                            style={{
+                              fontFamily: 'var(--font-body)',
+                              backgroundColor: userDept ? (userDept.color || '#a0522d') + '1f' : undefined,
+                              color: userDept ? (userDept.color || '#a0522d') : undefined,
+                            }}
+                          >
+                            <option value="">—</option>
+                            {departments.map((d) => (
+                              <option key={d.id} value={d.id}>{d.name}</option>
+                            ))}
+                          </select>
+                        )}
                       </td>
 
-                      {/* Job Title — same dropdown + inline custom-title input as /app/team */}
+                      {/* Job Title — same dropdown + inline custom-title input as /app/team.
+                          Alumni don't have job titles so the cell shows a clean "—". */}
                       <td className="px-6 py-4 hidden sm:table-cell">
-                        {customTitleUserId === u.id ? (
+                        {isAlumni ? (
+                          <span className="text-xs text-foreground/30">—</span>
+                        ) : customTitleUserId === u.id ? (
                           <input
                             autoFocus
                             type="text"
@@ -724,9 +747,15 @@ export default function UserPermissionsContent() {
                       {/* Super Admin toggle — controls is_super_admin
                           on public.users (and implicitly is_admin
                           when ON). Department-level admin status
-                          (is_admin alone) is managed elsewhere. */}
+                          (is_admin alone) is managed elsewhere.
+                          Alumni shouldn't be super admins; show a static
+                          "—" unless they accidentally already are one
+                          (legacy data), in which case keep the toggle so
+                          it can be turned off. */}
                       <td className="px-6 py-4">
-                        {isRootAdmin(u.email) ? (
+                        {isAlumni && !u.is_super_admin && !u.is_admin ? (
+                          <span className="text-xs text-foreground/30">—</span>
+                        ) : isRootAdmin(u.email) ? (
                           <span className="inline-flex items-center gap-2 text-xs font-semibold text-primary" title="Root super admin — locked">
                             Super Admin
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
