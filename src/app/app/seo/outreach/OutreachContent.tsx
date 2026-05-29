@@ -279,6 +279,10 @@ export default function OutreachContent({ channel }: { channel: OutreachChannel 
           targetPath: `/app/seo/${copy.slug}`,
           metadata: { url: real.url ?? undefined },
         });
+      } else {
+        // No row returned but no exception either — almost always a
+        // silent RLS / policy block. Surface it so it isn't invisible.
+        setError("Couldn't save — your account doesn't have permission to add entries here. Ask an admin to widen access.");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
