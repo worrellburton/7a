@@ -18,7 +18,7 @@ import { findSitePage } from '@/lib/site-pages';
 // blank lines). The final build step renders it into a designed
 // HTML email.
 
-const DEFAULT_MODEL = 'claude-opus-4-7';
+const DEFAULT_MODEL = 'claude-opus-4-8';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
 const SITE_URL = 'https://www.sevenarrowsrecoveryarizona.com/';

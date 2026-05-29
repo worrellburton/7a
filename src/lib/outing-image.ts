@@ -20,7 +20,7 @@ import { Outing } from './outings';
 export const OUTING_DEFAULT_MODEL = 'gemini-3-pro-image-preview';
 const GEMINI_API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
-const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-4-6';
+const CLAUDE_MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-4-8';
 const CLAUDE_VERSION = '2023-06-01';
 const BUCKET = 'public-images';
 
