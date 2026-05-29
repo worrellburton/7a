@@ -31,8 +31,17 @@ export interface AlumniMapPin {
   email_for_alumni: string | null;
   phone_visible: boolean;
   email_visible: boolean;
+  text_ok: boolean;
   lat: number;
   lng: number;
+}
+
+// Pretty-print a 10-digit US phone; leave anything else untouched.
+function formatPhone(raw: string): string {
+  const d = raw.replace(/\D/g, '');
+  if (d.length === 10) return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+  if (d.length === 11 && d[0] === '1') return `(${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
+  return raw;
 }
 
 // Stable per-user jitter so pins in the same city don't perfectly
@@ -235,7 +244,7 @@ function PinPopup({ pin }: { pin: AlumniMapPin }) {
         </div>
       </div>
       {pin.bio && (
-        <p style={{ fontSize: 12.5, color: 'rgba(26,26,26,0.78)', margin: 0, marginBottom: 8, lineHeight: 1.5 }}>
+        <p style={{ fontSize: 12.5, color: 'rgba(26,26,26,0.78)', margin: 0, marginBottom: 8, lineHeight: 1.5, maxHeight: 160, overflowY: 'auto' }}>
           {pin.bio}
         </p>
       )}
@@ -249,15 +258,52 @@ function PinPopup({ pin }: { pin: AlumniMapPin }) {
           ))}
         </div>
       )}
-      <div style={{ fontSize: 12 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
         {pin.phone_visible && pin.phone && (
-          <a href={`tel:${pin.phone}`} style={{ color: '#bc6b4a', fontWeight: 600, textDecoration: 'none', marginRight: 12 }}>{pin.phone}</a>
+          <a
+            href={`tel:${pin.phone.replace(/[^\d+]/g, '')}`}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              border: '1px solid rgba(188,107,74,0.45)',
+              background: 'linear-gradient(135deg, rgba(188,107,74,0.16), rgba(188,107,74,0.04))',
+              color: '#bc6b4a', fontWeight: 700, fontSize: 13.5,
+              padding: '7px 12px', borderRadius: 12, textDecoration: 'none',
+              boxShadow: '0 0 16px -4px rgba(188,107,74,0.6)',
+            }}
+            title={`Call ${formatPhone(pin.phone)}`}
+          >
+            <span aria-hidden>📞</span>{formatPhone(pin.phone)}
+          </a>
+        )}
+        {pin.phone_visible && pin.phone && pin.text_ok && (
+          <a
+            href={`sms:${pin.phone.replace(/[^\d+]/g, '')}`}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              border: '1px solid rgba(16,185,129,0.4)', background: 'rgba(16,185,129,0.08)',
+              color: '#047857', fontWeight: 700, fontSize: 11, textTransform: 'uppercase',
+              letterSpacing: '0.06em', padding: '5px 10px', borderRadius: 9999, textDecoration: 'none',
+            }}
+            title="Open to texts anytime"
+          >
+            <span aria-hidden>💬</span> Text anytime
+          </a>
         )}
         {pin.email_visible && pin.email_for_alumni && (
-          <a href={`mailto:${pin.email_for_alumni}`} style={{ color: '#bc6b4a', fontWeight: 600, textDecoration: 'none' }}>{pin.email_for_alumni}</a>
+          <a
+            href={`mailto:${pin.email_for_alumni}`}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              border: '1px solid rgba(0,0,0,0.1)', background: '#fff',
+              color: 'rgba(26,26,26,0.7)', fontWeight: 600, fontSize: 12,
+              padding: '7px 11px', borderRadius: 12, textDecoration: 'none',
+            }}
+          >
+            <span aria-hidden>✉️</span> Email
+          </a>
         )}
         {!pin.phone_visible && !pin.email_visible && (
-          <span style={{ color: 'rgba(26,26,26,0.45)', fontStyle: 'italic' }}>Contact via Feather chat</span>
+          <span style={{ color: 'rgba(26,26,26,0.45)', fontStyle: 'italic', fontSize: 12 }}>Contact via Feather chat</span>
         )}
       </div>
     </div>

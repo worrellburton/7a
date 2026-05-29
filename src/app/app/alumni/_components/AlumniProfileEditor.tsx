@@ -28,6 +28,7 @@ export interface AlumniProfileState {
   on_phone_list: boolean;
   phone_visible: boolean;
   email_visible: boolean;
+  text_ok: boolean;
 }
 
 // Curated tag pickers — small enough to fit on a phone, broad
@@ -50,6 +51,7 @@ const EMPTY: AlumniProfileState = {
   phone: '', email_for_alumni: '',
   on_map: false, on_phone_list: false,
   phone_visible: false, email_visible: false,
+  text_ok: false,
 };
 
 export default function AlumniProfileEditor({
@@ -89,6 +91,7 @@ export default function AlumniProfileEditor({
           on_phone_list: !!data.on_phone_list,
           phone_visible: !!data.phone_visible,
           email_visible: !!data.email_visible,
+          text_ok: !!data.text_ok,
         });
       }
     } catch (e) {
@@ -118,6 +121,7 @@ export default function AlumniProfileEditor({
         on_phone_list: profile.on_phone_list,
         phone_visible: profile.phone_visible,
         email_visible: profile.email_visible,
+        text_ok: profile.text_ok,
       };
       const { error } = await supabase
         .from('alumni_profiles')
@@ -276,6 +280,13 @@ export default function AlumniProfileEditor({
                 description="Optional. Defaults to off — most alumni prefer the in-app chat to start a conversation."
                 checked={profile.email_visible}
                 onChange={(v) => setProfile((p) => ({ ...p, email_visible: v }))}
+                indent
+              />
+              <ToggleRow
+                label="Text me whenever"
+                description="Adds a “Text anytime” badge + one-tap SMS link next to your number, so alumni know a text is always welcome."
+                checked={profile.text_ok}
+                onChange={(v) => setProfile((p) => ({ ...p, text_ok: v }))}
                 indent
               />
             </div>
