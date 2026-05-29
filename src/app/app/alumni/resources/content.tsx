@@ -57,7 +57,7 @@ export default function ResourcesContent() {
             What helped, from people who lived it.
           </h1>
           <p className="mt-1 text-sm text-foreground/65 max-w-xl">
-            Submitted by alumni, lightly moderated before publishing. Every entry below has a story behind it.
+            Shared by alumni — posts go live the moment you submit them. Every entry below has a story behind it.
           </p>
         </div>
         <button
@@ -158,7 +158,10 @@ function SubmitResourceModal({
         url: url.trim() || null,
         author_or_host: author.trim() || null,
         submitted_by: userId,
-        status: 'pending',
+        // Auto-approve: submissions publish immediately, no moderation
+        // gate. The insert RLS policy only requires submitted_by =
+        // auth.uid(), so an authenticated alum can publish directly.
+        status: 'published',
       });
       if (error) throw error;
       onSubmitted();
@@ -177,7 +180,7 @@ function SubmitResourceModal({
           <h2 className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
             What helped you?
           </h2>
-          <p className="text-[12px] text-foreground/55 mt-1">Goes to a quick staff review before publishing.</p>
+          <p className="text-[12px] text-foreground/55 mt-1">Publishes to the resources list right away.</p>
         </header>
         <div className="px-5 py-4 space-y-3">
           {error && <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-700">{error}</div>}
@@ -214,7 +217,7 @@ function SubmitResourceModal({
           <button onClick={onClose} className="px-3 py-1.5 rounded-md border border-black/10 text-foreground/65 text-[12.5px] font-semibold hover:bg-warm-bg/60">Cancel</button>
           <button onClick={() => void submit()} disabled={saving || !title.trim()}
             className="px-4 py-1.5 rounded-md bg-primary text-white text-[12.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50">
-            {saving ? 'Submitting…' : 'Submit for review'}
+            {saving ? 'Publishing…' : 'Publish resource'}
           </button>
         </footer>
       </div>
