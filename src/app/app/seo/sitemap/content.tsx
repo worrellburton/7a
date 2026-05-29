@@ -118,6 +118,30 @@ export default function SitemapContent() {
 
       <SeoSubNav />
 
+      {/* Deployed build-config download. Public, no-auth endpoint
+          (the file carries no secrets) refreshed by a 6 AM cron — sits
+          here on the Sitemap tab alongside the other downloadable site
+          files (sitemap.xml below, robots, etc.). */}
+      <div className="rounded-xl border border-black/10 bg-white p-5 mb-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[13px] font-semibold text-foreground">Build config — <code className="font-mono text-[12px]">next.config.mjs</code></p>
+          <p className="text-[11.5px] text-foreground/55 mt-0.5">
+            Download the deployed config (redirects, headers, image + Sentry setup). Public link, refreshed every morning at 6 AM.
+          </p>
+        </div>
+        <a
+          href="/api/seo/next-config"
+          download="next.config.mjs"
+          className="shrink-0 inline-flex items-center gap-2 rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-foreground/75 hover:border-primary/40 hover:text-primary transition"
+          title="Download the current next.config.mjs"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14" />
+          </svg>
+          Download next.config.mjs
+        </a>
+      </div>
+
       <div className="rounded-xl border border-black/10 bg-white p-5 mb-5">
         <div className="flex flex-wrap items-center gap-3">
           <button
