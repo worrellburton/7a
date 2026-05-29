@@ -203,18 +203,30 @@ export default function HomeContent() {
           select: 'id, name, image_url, age, weight, works_in, rideable',
           order: { column: 'name', ascending: true },
         }).catch(() => []),
-        db({
-          action: 'select',
-          table: 'equine_weight_logs',
-          select: 'horse_id, weight_lbs, logged_at',
-          order: { column: 'logged_at', ascending: false },
-        }).catch(() => []),
-        db({
-          action: 'select',
-          table: 'equine_feed_logs',
-          select: 'horse_id, feed_type, amount, unit, logged_at',
-          order: { column: 'logged_at', ascending: false },
-        }).catch(() => []),
+        // Equine weight + feed logs grow unbounded. The dashboard only
+        // needs the LATEST per horse, so cap to the last 60 days +
+        // 2000 rows — that fits ~15-20 horses with multiple daily
+        // entries each and lops gigabytes of egress over time.
+        (async () => {
+          const since = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+          const { data } = await supabase
+            .from('equine_weight_logs')
+            .select('horse_id, weight_lbs, logged_at')
+            .gte('logged_at', since)
+            .order('logged_at', { ascending: false })
+            .limit(2000);
+          return data ?? [];
+        })().catch(() => []),
+        (async () => {
+          const since = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+          const { data } = await supabase
+            .from('equine_feed_logs')
+            .select('horse_id, feed_type, amount, unit, logged_at')
+            .gte('logged_at', since)
+            .order('logged_at', { ascending: false })
+            .limit(2000);
+          return data ?? [];
+        })().catch(() => []),
       ]);
       if (cancelled || !Array.isArray(hs)) return;
 
@@ -394,19 +406,24 @@ export default function HomeContent() {
         setPendingSignatures([]);
         return;
       }
-      const jobs = await Promise.all(
-        pending.map((p) =>
-          db({ action: 'select', table: 'job_descriptions', match: { id: p.job_description_id }, select: 'id, title' })
-            .then((r) => (Array.isArray(r) && r.length > 0 ? (r[0] as { id: string; title: string }) : null))
-            .catch(() => null)
-        )
-      );
+      // Single round-trip for all pending JDs instead of one fetch
+      // per signature. Was an N+1 — a user with 5 pending JDs hit
+      // /api/db 5 times sequentially before the nag modal could
+      // render.
+      const jobIds = Array.from(new Set(pending.map((p) => p.job_description_id)));
+      const { data: jobRows } = await supabase
+        .from('job_descriptions')
+        .select('id, title')
+        .in('id', jobIds);
       if (cancelled) return;
+      const titleById = new Map(
+        ((jobRows ?? []) as Array<{ id: string; title: string }>).map((j) => [j.id, j.title]),
+      );
       const merged: PendingSignature[] = pending
-        .map((p, i) => {
-          const j = jobs[i];
-          if (!j) return null;
-          return { id: p.id, job_description_id: p.job_description_id, sent_at: p.sent_at, title: j.title };
+        .map((p) => {
+          const title = titleById.get(p.job_description_id);
+          if (!title) return null;
+          return { id: p.id, job_description_id: p.job_description_id, sent_at: p.sent_at, title };
         })
         .filter((x): x is PendingSignature => x !== null);
       setPendingSignatures(merged);
