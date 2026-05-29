@@ -166,7 +166,7 @@ function AlumniMeetingCard() {
             Join us on Zoom.
           </h2>
           <p className="mt-1 text-sm text-foreground/65 max-w-xl">
-            Standing meeting every week. Pop in for fellowship, updates, and the live update to the peer-support list.
+            <span className="font-semibold text-foreground/80">Mondays · 6:00 PM MST (Arizona).</span> Pop in for fellowship, updates, and the live update to the peer-support list.
           </p>
         </div>
         <a
@@ -180,11 +180,94 @@ function AlumniMeetingCard() {
         </a>
       </div>
 
+      <MeetingCountdown />
+
       <dl className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[12.5px]">
         <CopyableField label="Meeting ID" value={ALUMNI_MEETING.meetingId} copyValue={idCompact} />
         <CopyableField label="Passcode" value={ALUMNI_MEETING.passcode} copyValue={ALUMNI_MEETING.passcode} />
       </dl>
     </section>
+  );
+}
+
+// Next-Monday-6pm-MST instant. Phoenix is UTC−7 year-round (no DST),
+// so we shift into a "fake UTC = Phoenix wall-clock" space, do the
+// weekday/hour arithmetic there, then shift back by the fixed 7h.
+// Recomputed on every tick, so the moment the meeting time passes the
+// countdown automatically rolls to next week — no manual reset.
+function nextMeetingInstant(nowMs: number): number {
+  const PHX_OFFSET_MS = 7 * 60 * 60 * 1000;
+  // Treat the shifted Date's UTC fields as Phoenix wall-clock fields.
+  const phx = new Date(nowMs - PHX_OFFSET_MS);
+  const target = new Date(phx);
+  const daysUntilMon = (1 - target.getUTCDay() + 7) % 7; // 0=Sun,1=Mon
+  target.setUTCDate(target.getUTCDate() + daysUntilMon);
+  target.setUTCHours(18, 0, 0, 0); // 6:00 PM Phoenix wall-clock
+  // If we've already passed this week's slot, jump to next Monday.
+  if (target.getTime() <= phx.getTime()) target.setUTCDate(target.getUTCDate() + 7);
+  // Shift the Phoenix wall-clock instant back to a real UTC timestamp.
+  return target.getTime() + PHX_OFFSET_MS;
+}
+
+// Live countdown to the weekly meeting. Mounts client-side only
+// (remaining starts null) to avoid a hydration mismatch, then ticks
+// every second.
+function MeetingCountdown() {
+  const [remainingMs, setRemainingMs] = useState<number | null>(null);
+  const [isLive, setIsLive] = useState(false);
+
+  useEffect(() => {
+    const tick = () => {
+      const now = Date.now();
+      const target = nextMeetingInstant(now);
+      const diff = target - now;
+      // The meeting runs ~60 min; show a "happening now" state for the
+      // first hour after the start instead of immediately counting to
+      // next week.
+      const justStarted = nextMeetingInstant(now - 60 * 60 * 1000) !== target;
+      setIsLive(justStarted);
+      setRemainingMs(diff);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  if (remainingMs == null) {
+    // Pre-hydration placeholder — same height so the card doesn't jump.
+    return <div className="mt-4 h-[58px] rounded-xl bg-white/50 border border-primary/15 animate-pulse" aria-hidden />;
+  }
+
+  const totalSec = Math.max(0, Math.floor(remainingMs / 1000));
+  const days = Math.floor(totalSec / 86400);
+  const hours = Math.floor((totalSec % 86400) / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+  const pad = (n: number) => String(n).padStart(2, '0');
+
+  return (
+    <div className="mt-4 rounded-xl border border-primary/25 bg-white/70 px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
+      <div className="min-w-0">
+        <p className="text-[9.5px] font-bold uppercase tracking-[0.24em] text-primary/70">
+          {isLive ? 'Happening now' : 'Next meeting in'}
+        </p>
+        {isLive ? (
+          <p className="mt-0.5 text-[15px] font-bold text-emerald-700" style={{ fontFamily: 'var(--font-display)' }}>
+            🟢 Live now — jump in
+          </p>
+        ) : (
+          <p className="mt-0.5 flex items-baseline gap-1.5 tabular-nums text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+            {days > 0 && (
+              <span className="text-[22px] font-bold">{days}<span className="text-[12px] font-semibold text-foreground/55 ml-0.5">d</span></span>
+            )}
+            <span className="text-[22px] font-bold">{pad(hours)}<span className="text-[12px] font-semibold text-foreground/55 ml-0.5">h</span></span>
+            <span className="text-[22px] font-bold">{pad(mins)}<span className="text-[12px] font-semibold text-foreground/55 ml-0.5">m</span></span>
+            <span className="text-[22px] font-bold">{pad(secs)}<span className="text-[12px] font-semibold text-foreground/55 ml-0.5">s</span></span>
+          </p>
+        )}
+      </div>
+      <p className="text-[11px] text-foreground/50 shrink-0">Mondays · 6:00 PM MST</p>
+    </div>
   );
 }
 
