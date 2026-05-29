@@ -8,7 +8,9 @@ import { logActivity } from '@/lib/activity';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
-import { jsPDF } from 'jspdf';
+// jsPDF (~300 KB) is loaded lazily inside buildSignedPdf so it isn't
+// in the initial page chunk — the signer only pays for it the moment
+// they actually sign, not on first paint.
 
 interface JobDescription {
   id: string;
@@ -140,14 +142,15 @@ export default function SignContent() {
     hasInk.current = false;
   }
 
-  function buildSignedPdf(j: JobDescription, opts: {
+  async function buildSignedPdf(j: JobDescription, opts: {
     signerName: string;
     signedAt: string;
     signatureImg: string | null;
     typedName: string | null;
     deptName: string | null;
     version: number;
-  }): Blob {
+  }): Promise<Blob> {
+    const { jsPDF } = await import('jspdf');
     const doc = new jsPDF({ unit: 'pt', format: 'letter' });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
@@ -296,7 +299,7 @@ export default function SignContent() {
     // upload fails we still persist the raw signature data so nothing is lost.
     let pdfPath: string | null = null;
     try {
-      const blob = buildSignedPdf(job, {
+      const blob = await buildSignedPdf(job, {
         signerName,
         signedAt: nowIso,
         signatureImg: dataUrl,
