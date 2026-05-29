@@ -12,6 +12,15 @@ const withBundleAnalyzer = withBundleAnalyzerFactory({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Force next.config.mjs itself into the serverless bundle for the two
+  // routes that read it at runtime (the public download + the 6 AM
+  // snapshot cron). Without this @vercel/nft wouldn't trace a plain
+  // fs.readFile of a path built from process.cwd().
+  outputFileTracingIncludes: {
+    '/api/seo/next-config': ['./next.config.mjs'],
+    '/api/cron/seo/next-config-snapshot': ['./next.config.mjs'],
+  },
+
   images: {
     // Next-image optimizer ON. The two heroes we hand-rolled via
     // <picture> still work (they don't go through next/image). Any
