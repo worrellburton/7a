@@ -37,6 +37,10 @@
     {
       "path": "/api/cron/kaizen/scan",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/seo/next-config-snapshot",
+      "schedule": "0 13 * * *"
     }
   ]
 }
