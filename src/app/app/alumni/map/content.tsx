@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
@@ -34,6 +34,7 @@ interface AlumniPin {
   phone_visible: boolean;
   email_visible: boolean;
   text_ok: boolean;
+  sobriety_date: string | null;
   lat: number | null;
   lng: number | null;
 }
@@ -101,7 +102,7 @@ export default function AlumniMapContent() {
     // a join — the map markers ARE their profile photos.
     const { data } = await supabase
       .from('alumni_profiles')
-      .select('user_id, city, state, bio, interests, available_for, phone, email_for_alumni, phone_visible, email_visible, text_ok, lat, lng, users:user_id(full_name, avatar_url)')
+      .select('user_id, city, state, bio, interests, available_for, phone, email_for_alumni, phone_visible, email_visible, text_ok, sobriety_date, lat, lng, users:user_id(full_name, avatar_url)')
       .eq('on_map', true)
       .order('state', { ascending: true })
       .order('city', { ascending: true });
@@ -121,6 +122,7 @@ export default function AlumniMapContent() {
         phone_visible: !!row.phone_visible,
         email_visible: !!row.email_visible,
         text_ok: !!row.text_ok,
+        sobriety_date: (row.sobriety_date as string | null) ?? null,
         lat: (row.lat as number | null) ?? null,
         lng: (row.lng as number | null) ?? null,
       };
@@ -355,7 +357,237 @@ export default function AlumniMapContent() {
         </div>
       )}
 
+      {pins.length > 0 && <AlumniInsightsPanel pins={pins} />}
+
       {editorOpen && <AlumniProfileEditor onClose={() => setEditorOpen(false)} onSaved={() => void load()} />}
+    </div>
+  );
+}
+
+// Aggregate stats computed from the on_map pins. Everything is derived
+// from the data already loaded for the map + list above — no extra
+// round-trips. Updates live as new alumni opt in (the reload triggered
+// by the on_map toggle re-runs load() which feeds this).
+function AlumniInsightsPanel({ pins }: { pins: AlumniPin[] }) {
+  const stats = useMemo(() => {
+    const total = pins.length;
+    const states = new Set<string>();
+    const cities = new Set<string>();
+    const stateCounts = new Map<string, number>();
+    const availableCounts = new Map<string, number>();
+    const interestCounts = new Map<string, number>();
+    let phoneCount = 0;
+    let textOkCount = 0;
+    let emailCount = 0;
+    let bioCount = 0;
+    let withSobrietyDate = 0;
+    let totalSoberDays = 0;
+    const todayMs = Date.now();
+    for (const p of pins) {
+      if (p.state) {
+        states.add(p.state);
+        stateCounts.set(p.state, (stateCounts.get(p.state) ?? 0) + 1);
+      }
+      if (p.city) cities.add(`${p.city}|${p.state ?? ''}`);
+      for (const t of p.available_for) availableCounts.set(t, (availableCounts.get(t) ?? 0) + 1);
+      for (const t of p.interests) interestCounts.set(t, (interestCounts.get(t) ?? 0) + 1);
+      if (p.phone_visible && p.phone) phoneCount += 1;
+      if (p.phone_visible && p.phone && p.text_ok) textOkCount += 1;
+      if (p.email_visible && p.email_for_alumni) emailCount += 1;
+      if (p.bio && p.bio.trim().length > 0) bioCount += 1;
+      if (p.sobriety_date) {
+        const t = Date.parse(p.sobriety_date);
+        if (Number.isFinite(t) && t <= todayMs) {
+          withSobrietyDate += 1;
+          totalSoberDays += Math.floor((todayMs - t) / 86_400_000);
+        }
+      }
+    }
+    const topStates = Array.from(stateCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+    const topAvailable = Array.from(availableCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6);
+    const topInterests = Array.from(interestCounts.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6);
+    const totalSoberYears = totalSoberDays / 365.25;
+    return {
+      total,
+      stateCount: states.size,
+      cityCount: cities.size,
+      topStates,
+      topAvailable,
+      topInterests,
+      phoneCount,
+      textOkCount,
+      emailCount,
+      bioCount,
+      withSobrietyDate,
+      totalSoberYears,
+    };
+  }, [pins]);
+
+  const pct = (n: number) => (stats.total > 0 ? Math.round((n / stats.total) * 100) : 0);
+
+  return (
+    <section className="mt-10 mb-4">
+      <div className="mb-4 flex items-baseline justify-between flex-wrap gap-2">
+        <h2 className="text-xl sm:text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+          By the numbers.
+        </h2>
+        <p className="text-[11.5px] text-foreground/55">Live from the pins above — updates as alumni opt in.</p>
+      </div>
+
+      {/* Hero stats — the headline numbers. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        <HeroStat label="On the map" value={stats.total} sub={stats.total === 1 ? 'alum' : 'alumni'} tone="primary" />
+        <HeroStat label="States" value={stats.stateCount} sub={stats.stateCount === 1 ? 'state represented' : 'states represented'} />
+        <HeroStat label="Cities" value={stats.cityCount} sub={stats.cityCount === 1 ? 'city' : 'cities'} />
+        {stats.withSobrietyDate > 0 ? (
+          <HeroStat
+            label="Combined sobriety"
+            value={Math.round(stats.totalSoberYears)}
+            sub={`years across ${stats.withSobrietyDate} alum${stats.withSobrietyDate === 1 ? '' : 'ni'}`}
+            tone="emerald"
+          />
+        ) : (
+          <HeroStat
+            label="Open to texts"
+            value={stats.textOkCount}
+            sub={`${pct(stats.textOkCount)}% of the map`}
+            tone="emerald"
+          />
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        {/* Geographic spread. */}
+        <article className="rounded-2xl border border-black/10 bg-white p-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/45 mb-2">Where alumni are</p>
+          {stats.topStates.length === 0 ? (
+            <p className="text-[12px] text-foreground/45 italic">No states recorded yet.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {stats.topStates.map(([state, count]) => (
+                <BarRow key={state} label={state} value={count} max={stats.total} />
+              ))}
+            </ul>
+          )}
+        </article>
+
+        {/* What alumni are available for. */}
+        <article className="rounded-2xl border border-black/10 bg-white p-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/45 mb-2">Most offered support</p>
+          {stats.topAvailable.length === 0 ? (
+            <p className="text-[12px] text-foreground/45 italic">No availability tags selected yet.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {stats.topAvailable.map(([tag, count]) => (
+                <BarRow key={tag} label={tag} value={count} max={stats.total} tone="emerald" />
+              ))}
+            </ul>
+          )}
+        </article>
+
+        {/* Recovery program / interest mix. */}
+        <article className="rounded-2xl border border-black/10 bg-white p-4">
+          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/45 mb-2">Top recovery programs</p>
+          {stats.topInterests.length === 0 ? (
+            <p className="text-[12px] text-foreground/45 italic">No programs / interests selected yet.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {stats.topInterests.map(([tag, count]) => (
+                <BarRow key={tag} label={tag} value={count} max={stats.total} tone="primary" />
+              ))}
+            </ul>
+          )}
+        </article>
+      </div>
+
+      {/* Reachability strip — who you can actually contact. */}
+      <article className="mt-3 rounded-2xl border border-black/10 bg-white p-4">
+        <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/45 mb-2">How alumni are reachable</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <ReachStat label="Phone listed" value={stats.phoneCount} pct={pct(stats.phoneCount)} />
+          <ReachStat label="Open to texts" value={stats.textOkCount} pct={pct(stats.textOkCount)} tone="emerald" />
+          <ReachStat label="Email listed" value={stats.emailCount} pct={pct(stats.emailCount)} />
+          <ReachStat label="Wrote a bio" value={stats.bioCount} pct={pct(stats.bioCount)} />
+        </div>
+      </article>
+    </section>
+  );
+}
+
+function HeroStat({
+  label,
+  value,
+  sub,
+  tone,
+}: {
+  label: string;
+  value: number;
+  sub?: string;
+  tone?: 'primary' | 'emerald';
+}) {
+  const valueClass =
+    tone === 'primary' ? 'text-primary' : tone === 'emerald' ? 'text-emerald-700' : 'text-foreground';
+  return (
+    <div className="rounded-2xl border border-black/10 bg-white p-4">
+      <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/45">{label}</p>
+      <p className={`mt-1 text-3xl font-bold tabular-nums ${valueClass}`} style={{ fontFamily: 'var(--font-display)' }}>
+        {value.toLocaleString()}
+      </p>
+      {sub && <p className="text-[11px] text-foreground/55 mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+function BarRow({
+  label,
+  value,
+  max,
+  tone,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  tone?: 'emerald' | 'primary';
+}) {
+  const pctNum = max > 0 ? Math.round((value / max) * 100) : 0;
+  const fill =
+    tone === 'emerald' ? 'bg-emerald-500/70' : tone === 'primary' ? 'bg-primary/70' : 'bg-foreground/40';
+  return (
+    <li className="flex items-center gap-3">
+      <span className="text-[12px] text-foreground/80 flex-1 min-w-0 truncate">{label}</span>
+      <div className="relative h-2 w-28 sm:w-32 rounded-full bg-foreground/[0.06] overflow-hidden">
+        <span className={`absolute inset-y-0 left-0 ${fill} rounded-full`} style={{ width: `${pctNum}%` }} />
+      </div>
+      <span className="shrink-0 text-[11.5px] text-foreground/60 tabular-nums w-10 text-right">{value}</span>
+    </li>
+  );
+}
+
+function ReachStat({
+  label,
+  value,
+  pct,
+  tone,
+}: {
+  label: string;
+  value: number;
+  pct: number;
+  tone?: 'emerald';
+}) {
+  const valueClass = tone === 'emerald' ? 'text-emerald-700' : 'text-foreground';
+  return (
+    <div>
+      <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/45">{label}</p>
+      <p className={`mt-0.5 text-xl font-semibold tabular-nums ${valueClass}`} style={{ fontFamily: 'var(--font-display)' }}>
+        {value}
+        <span className="ml-1 text-[11px] font-medium text-foreground/45">· {pct}%</span>
+      </p>
     </div>
   );
 }
