@@ -94,6 +94,16 @@ function describe(row: ActivityRow): { verb: string; accent: string } {
     }
     case 'user.signed_in':
       return { verb: 'signed in', accent: 'text-emerald-600' };
+    case 'social.posted': {
+      const platforms = Array.isArray(row.metadata?.platforms) ? (row.metadata.platforms as string[]) : [];
+      const where = platforms.length > 0 ? ` to ${platforms.join(', ')}` : '';
+      return { verb: `posted${where}`, accent: 'text-primary' };
+    }
+    case 'social.scheduled': {
+      const platforms = Array.isArray(row.metadata?.platforms) ? (row.metadata.platforms as string[]) : [];
+      const where = platforms.length > 0 ? ` to ${platforms.join(', ')}` : '';
+      return { verb: `scheduled a post${where}`, accent: 'text-foreground' };
+    }
     default:
       return { verb: row.type.replace(/[._]/g, ' '), accent: 'text-foreground' };
   }
