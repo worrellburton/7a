@@ -12,7 +12,7 @@
 //                       image, pull_quote, svg_icon, webgl_animation,
 //                       and callout.
 //
-// All three call claude-opus-4-7 per CLAUDE.md (the most capable
+// All three call claude-opus-4-8 per CLAUDE.md (the most capable
 // model is the default for new AI features). Caller is responsible
 // for surfacing the "no api key" path — `loadKey` throws so the
 // route handler can return a 503.
@@ -21,7 +21,7 @@ import { SEO_CONTENT_WRITER_SKILL, HUMANIZER_SKILL } from './skills';
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_VERSION = '2023-06-01';
-const CLAUDE_MODEL = process.env.ANTHROPIC_CONTENT_MODEL || 'claude-opus-4-7';
+const CLAUDE_MODEL = process.env.ANTHROPIC_CONTENT_MODEL || 'claude-opus-4-8';
 
 function loadKey(): string {
   const key = process.env.ANTHROPIC_API_KEY;
