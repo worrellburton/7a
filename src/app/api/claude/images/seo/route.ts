@@ -14,7 +14,7 @@ import { getUserFromRequest } from '@/lib/supabase-server';
 //   seo_title is ≤ 60 chars for <title> / OG
 //   seo_description is ≤ 160 chars for <meta description> / OG
 
-const CLAUDE_DEFAULT_MODEL = 'claude-opus-4-7';
+const CLAUDE_DEFAULT_MODEL = 'claude-opus-4-8';
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_API_VERSION = '2023-06-01';
 

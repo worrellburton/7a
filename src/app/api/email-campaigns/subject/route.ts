@@ -9,7 +9,7 @@ import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 // Persists the result back onto the campaign row so revisits
 // don't re-spend tokens.
 
-const DEFAULT_MODEL = 'claude-opus-4-6';
+const DEFAULT_MODEL = 'claude-opus-4-8';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
 

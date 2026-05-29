@@ -14,9 +14,9 @@ import { buildEmailSystemPrompt, PROMPT_VERSION } from '@/lib/prompts/email-buil
 // existing HTML according to the note instead of starting over.
 //
 // Required env: ANTHROPIC_API_KEY
-// Optional env: ANTHROPIC_MODEL (defaults to claude-opus-4-7)
+// Optional env: ANTHROPIC_MODEL (defaults to claude-opus-4-8)
 
-const DEFAULT_MODEL = 'claude-opus-4-7';
+const DEFAULT_MODEL = 'claude-opus-4-8';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
 
