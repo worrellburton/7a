@@ -17,7 +17,7 @@
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { DepartmentPageNav } from '../DepartmentPageNav';
 import { SearchSelectCell } from '@/components/SearchSelectCell';
@@ -311,6 +311,12 @@ export default function ContactsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  // The search box binds to `search` for instant typing feedback, but
+  // the heavy filter→sort→grid recompute reads this deferred value so
+  // React can keep the input responsive and re-render the (large,
+  // un-virtualized) row list at a lower priority. Without this every
+  // keystroke synchronously re-rendered hundreds of ContactCells.
+  const deferredSearch = useDeferredValue(search);
   // Tier filter sits inline next to the search bar. 'all' means
   // "show every tier including unrated rows"; 'unrated' specifically
   // narrows to rows where rating is null so the team can hunt down
@@ -687,7 +693,7 @@ export default function ContactsContent() {
   // ── Filtering ─────────────────────────────────────────────────
 
   const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = deferredSearch.trim().toLowerCase();
     return rows.filter((r) => {
       if (tierFilter === 'unrated') { if (r.rating != null) return false; }
       else if (tierFilter !== 'all' && r.rating !== tierFilter) return false;
@@ -696,7 +702,7 @@ export default function ContactsContent() {
         .filter(Boolean).join(' ').toLowerCase();
       return hay.includes(q);
     });
-  }, [rows, search, tierFilter]);
+  }, [rows, deferredSearch, tierFilter]);
 
   // Sorted, deduplicated list of every company string currently in
   // the contacts table. Drives the SearchSelect dropdown on the
