@@ -13,6 +13,8 @@ import AlumniProfileEditor from '../_components/AlumniProfileEditor';
 
 interface Contact {
   user_id: string;
+  full_name: string | null;
+  avatar_url: string | null;
   city: string | null;
   state: string | null;
   phone: string | null;
@@ -30,13 +32,32 @@ export default function PeerSupportContent() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    // Pull each alum's name + avatar in the same round-trip via the
+    // users join so every row in the list can render its identity
+    // (matching the alumni map's portrait-pin convention).
     const { data } = await supabase
       .from('alumni_profiles')
-      .select('user_id, city, state, phone, email_for_alumni, available_for, phone_visible, email_visible, updated_at')
+      .select('user_id, city, state, phone, email_for_alumni, available_for, phone_visible, email_visible, updated_at, users:user_id(full_name, avatar_url)')
       .eq('on_phone_list', true)
       .order('state', { ascending: true })
       .order('city', { ascending: true });
-    setRows((data ?? []) as Contact[]);
+    const flattened: Contact[] = ((data ?? []) as Array<Record<string, unknown>>).map((row) => {
+      const usr = (row.users as { full_name?: string | null; avatar_url?: string | null } | null) ?? null;
+      return {
+        user_id: row.user_id as string,
+        full_name: usr?.full_name ?? null,
+        avatar_url: usr?.avatar_url ?? null,
+        city: (row.city as string | null) ?? null,
+        state: (row.state as string | null) ?? null,
+        phone: (row.phone as string | null) ?? null,
+        email_for_alumni: (row.email_for_alumni as string | null) ?? null,
+        available_for: Array.isArray(row.available_for) ? (row.available_for as string[]) : [],
+        phone_visible: !!row.phone_visible,
+        email_visible: !!row.email_visible,
+        updated_at: (row.updated_at as string) ?? '',
+      };
+    });
+    setRows(flattened);
     setLoading(false);
   }, []);
   useEffect(() => { void load(); }, [load]);
@@ -76,33 +97,57 @@ export default function PeerSupportContent() {
         </div>
       ) : (
         <div className="rounded-2xl border border-black/10 bg-white overflow-hidden">
-          {rows.map((r, idx) => (
-            <div
-              key={r.user_id}
-              className={`px-4 py-3 flex items-center gap-3 ${idx > 0 ? 'border-t border-black/5' : ''}`}
-            >
-              <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-semibold text-foreground">
-                  {[r.city, r.state].filter(Boolean).join(', ') || 'Location private'}
-                </p>
-                {r.available_for.length > 0 && (
-                  <p className="text-[11px] text-foreground/55 mt-0.5">
-                    {r.available_for.slice(0, 4).join(' · ')}
-                  </p>
-                )}
-              </div>
-              <div className="shrink-0 flex flex-col items-end gap-0.5 text-[12px]">
-                {r.phone_visible && r.phone ? (
-                  <a href={`tel:${r.phone}`} className="text-primary font-semibold">{r.phone}</a>
+          {rows.map((r, idx) => {
+            const initial = (r.full_name || r.city || '?').charAt(0).toUpperCase();
+            const locationStr = [r.city, r.state].filter(Boolean).join(', ');
+            return (
+              <div
+                key={r.user_id}
+                className={`px-4 py-3 flex items-center gap-3 ${idx > 0 ? 'border-t border-black/5' : ''}`}
+              >
+                {r.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={r.avatar_url}
+                    alt={r.full_name || ''}
+                    referrerPolicy="no-referrer"
+                    className="shrink-0 w-10 h-10 rounded-full object-cover ring-1 ring-primary/40"
+                  />
                 ) : (
-                  <span className="text-foreground/45 italic">Via Feather chat</span>
+                  <div
+                    aria-hidden
+                    className="shrink-0 w-10 h-10 rounded-full bg-primary/10 text-primary text-[13px] font-bold ring-1 ring-primary/40 inline-flex items-center justify-center"
+                  >
+                    {initial}
+                  </div>
                 )}
-                {r.email_visible && r.email_for_alumni && (
-                  <a href={`mailto:${r.email_for_alumni}`} className="text-foreground/65 text-[11px]">{r.email_for_alumni}</a>
-                )}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold text-foreground truncate">
+                    {r.full_name || 'Alumni'}
+                  </p>
+                  <p className="text-[11px] text-foreground/55 mt-0.5 truncate">
+                    {locationStr || 'Location private'}
+                    {r.available_for.length > 0 && (
+                      <>
+                        <span aria-hidden className="mx-1.5 text-foreground/30">·</span>
+                        {r.available_for.slice(0, 4).join(' · ')}
+                      </>
+                    )}
+                  </p>
+                </div>
+                <div className="shrink-0 flex flex-col items-end gap-0.5 text-[12px]">
+                  {r.phone_visible && r.phone ? (
+                    <a href={`tel:${r.phone}`} className="text-primary font-semibold">{r.phone}</a>
+                  ) : (
+                    <span className="text-foreground/45 italic">Via Feather chat</span>
+                  )}
+                  {r.email_visible && r.email_for_alumni && (
+                    <a href={`mailto:${r.email_for_alumni}`} className="text-foreground/65 text-[11px]">{r.email_for_alumni}</a>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

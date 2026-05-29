@@ -102,6 +102,13 @@ export default function AlumniHubContent() {
         </div>
       </header>
 
+      {/* Weekly alumni meeting · the recurring Zoom that drives the
+          peer-support list updates. Recurring, so it doesn't live in
+          /meetups (those are one-off events). Join link, meeting id,
+          and passcode are surfaced inline so an alum can tap-to-join
+          from a phone without bouncing through a calendar invite. */}
+      <AlumniMeetingCard />
+
       {/* Today's orbit · alumni outer ring + staff middle + horses
           inner. Reuses the same HomeOnlineOrbit component the staff
           dashboard mounts on /app, so behavior + animations stay in
@@ -121,6 +128,92 @@ export default function AlumniHubContent() {
       {editorOpen && (
         <AlumniProfileEditor onClose={() => setEditorOpen(false)} />
       )}
+    </div>
+  );
+}
+
+// Weekly alumni meeting card. Standing Zoom (recurring, so it doesn't
+// belong on /meetups which is for one-off events). Tap the join
+// button to open Zoom — falls back to the web client if the native
+// app isn't installed. The meeting ID + passcode are shown plaintext
+// so an alum can dial in by hand if the deep-link bounces.
+//
+// Values are hard-coded today; if the meeting moves we'll lift them
+// into an app_settings row keyed by 'alumni.weekly_meeting' so an
+// admin can edit without a code deploy.
+const ALUMNI_MEETING = {
+  meetingId: '291-295-6173',
+  passcode: '1234',
+  // zoom.us deep-link. Numeric id with hyphens stripped is the
+  // canonical /j/ format; the pwd param uses the plain passcode
+  // (Zoom accepts both the plain string and the encoded hash).
+  joinUrl: 'https://us02web.zoom.us/j/2912956173?pwd=1234',
+};
+
+function AlumniMeetingCard() {
+  const idCompact = ALUMNI_MEETING.meetingId.replace(/-/g, '');
+  return (
+    <section
+      className="mb-8 rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-warm-bg/40 to-white p-5 sm:p-6"
+      aria-label="Weekly alumni meeting"
+    >
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-primary mb-1.5">
+            Weekly alumni meeting · recurring
+          </p>
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+            Join us on Zoom.
+          </h2>
+          <p className="mt-1 text-sm text-foreground/65 max-w-xl">
+            Standing meeting every week. Pop in for fellowship, updates, and the live update to the peer-support list.
+          </p>
+        </div>
+        <a
+          href={ALUMNI_MEETING.joinUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 inline-flex items-center gap-1.5 px-4 py-2.5 rounded-md bg-primary text-white text-[12.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 shadow-[0_8px_22px_-12px_rgba(188,107,74,0.6)]"
+          title="Open the Zoom join link in a new tab"
+        >
+          <span aria-hidden>🎥</span> Join Zoom
+        </a>
+      </div>
+
+      <dl className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3 text-[12.5px]">
+        <CopyableField label="Meeting ID" value={ALUMNI_MEETING.meetingId} copyValue={idCompact} />
+        <CopyableField label="Passcode" value={ALUMNI_MEETING.passcode} copyValue={ALUMNI_MEETING.passcode} />
+      </dl>
+    </section>
+  );
+}
+
+// Small inline component for the meeting ID + passcode rows so each
+// has its own copy button. Copies the digits-only version of the
+// value so paste-into-Zoom works without the hyphens.
+function CopyableField({ label, value, copyValue }: { label: string; value: string; copyValue: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="rounded-lg border border-black/10 bg-white/80 px-3 py-2.5 flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <p className="text-[9.5px] font-bold uppercase tracking-[0.22em] text-foreground/45">{label}</p>
+        <p className="mt-0.5 text-[14px] font-semibold text-foreground tabular-nums" style={{ fontFamily: 'var(--font-body)' }}>
+          {value}
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={() => {
+          void navigator.clipboard.writeText(copyValue).then(() => {
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1400);
+          });
+        }}
+        className="shrink-0 text-[10.5px] font-bold uppercase tracking-wider px-2 py-1 rounded border border-primary/30 text-primary hover:bg-primary/5"
+        aria-label={`Copy ${label.toLowerCase()}`}
+      >
+        {copied ? '✓ Copied' : 'Copy'}
+      </button>
     </div>
   );
 }
