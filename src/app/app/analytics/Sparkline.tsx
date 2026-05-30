@@ -10,6 +10,15 @@ interface Props {
 
 // Inline SVG sparkline — no dependencies. Renders a smooth polyline with a
 // soft filled area underneath, auto-scaled to min/max of the series.
+//
+// The SVG renders fluid: width fills its container (block + w-full),
+// height is fixed in pixels via the height prop (default 32). The
+// internal viewBox coordinate system uses the passed `width` only as a
+// path-construction reference; with preserveAspectRatio="none" the
+// rendered path stretches to fit. That stops the chart from punching
+// past its parent card on narrow viewports (the previous version set
+// width=200 on the SVG, which overflowed when KpiCards laid out at
+// less than 200px each).
 export function Sparkline({
   values,
   width = 120,
@@ -18,7 +27,7 @@ export function Sparkline({
   fillClassName = 'fill-primary/10',
 }: Props) {
   if (!values.length) {
-    return <div style={{ width, height }} />;
+    return <div style={{ height }} className="w-full" />;
   }
   const min = Math.min(...values);
   const max = Math.max(...values);
@@ -35,10 +44,9 @@ export function Sparkline({
   return (
     <svg
       viewBox={`0 0 ${width} ${height}`}
-      width={width}
-      height={height}
       preserveAspectRatio="none"
-      className="block"
+      className="block w-full"
+      style={{ height }}
     >
       <path d={areaPath} className={fillClassName} />
       <path d={linePath} fill="none" strokeWidth={1.5} className={strokeClassName} />
