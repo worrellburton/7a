@@ -381,7 +381,7 @@ function SeoKpi({
       </div>
       <p className="text-3xl font-bold text-foreground leading-none">{value}</p>
       {spark && spark.length > 0 ? (
-        <div className="mt-3">
+        <div className="mt-3 w-full">
           <Sparkline values={spark} width={200} height={28} strokeClassName={stroke} fillClassName={fill} />
         </div>
       ) : null}

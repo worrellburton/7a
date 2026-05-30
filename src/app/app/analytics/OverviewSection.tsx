@@ -233,7 +233,7 @@ function KpiCard({
   inverseDelta?: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-black/5 bg-white p-5">
+    <div className="rounded-xl border border-black/5 bg-white p-5 overflow-hidden">
       <div className="flex items-start justify-between mb-2">
         <p className="text-[10px] font-semibold tracking-[0.22em] uppercase text-foreground/50">
           {label}
@@ -242,7 +242,7 @@ function KpiCard({
       </div>
       <p className="text-3xl font-bold text-foreground leading-none">{value}</p>
       {spark && spark.length > 0 ? (
-        <div className="mt-3">
+        <div className="mt-3 w-full">
           <Sparkline
             values={spark}
             width={200}
