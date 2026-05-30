@@ -55,7 +55,7 @@ const beats: Beat[] = [
   {
     time: '11:00 am',
     title: 'Group therapy',
-    body: 'Small-group process work. Six clients, one facilitator, a room that has become unusually honest over the past week.',
+    body: 'Small-group process work. A room filled with natural light and calming paint colors — a space where defenses soften and meaningful connection unfolds.',
     image: '/hero/group-therapy-room.jpg',
   },
   {

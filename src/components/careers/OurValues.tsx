@@ -31,7 +31,7 @@ const values: Value[] = [
   {
     statement: 'We pay attention to our own regulation.',
     body:
-      'You can\'t co-regulate with an exhausted nervous system. Staff yoga, sauna, paid rest between intakes, and a culture that says "take the afternoon" aren\'t perks — they\'re clinical tools.',
+      'You can’t co-regulate from an exhausted nervous system. We support staff wellness through sweat lodge, kiva fire gatherings, spacious schedules that allow time for grounding and regulation, monthly team check-ins, and a collaborative culture where every voice is heard.',
   },
   {
     statement: 'We respect lineage.',
