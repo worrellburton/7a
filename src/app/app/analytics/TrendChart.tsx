@@ -7,9 +7,15 @@ interface DailyPoint {
   sessions: number;
   activeUsers: number;
   pageViews: number;
+  // Per-day sessions whose sessionDefaultChannelGroup == "Organic
+  // Search". Populated by /api/google/ga4 via a parallel filtered
+  // query (we can't safely re-aggregate channel breakdowns
+  // client-side — activeUsers across channels would double-count).
+  // Falls back to 0 on days GA4 didn't return an organic row.
+  organicSearch?: number;
 }
 
-type Metric = 'sessions' | 'activeUsers' | 'pageViews';
+type Metric = 'sessions' | 'activeUsers' | 'pageViews' | 'organicSearch';
 
 interface Props {
   data: DailyPoint[];
@@ -20,13 +26,14 @@ const METRICS: { key: Metric; label: string; colorClass: string }[] = [
   { key: 'sessions', label: 'Sessions', colorClass: 'stroke-primary' },
   { key: 'activeUsers', label: 'Active users', colorClass: 'stroke-emerald-500' },
   { key: 'pageViews', label: 'Page views', colorClass: 'stroke-amber-500' },
+  { key: 'organicSearch', label: 'Organic search', colorClass: 'stroke-sky-500' },
 ];
 
 export function TrendChart({ data, height = 220 }: Props) {
   const [metric, setMetric] = useState<Metric>('sessions');
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
-  const values = useMemo(() => data.map((d) => d[metric]), [data, metric]);
+  const values = useMemo(() => data.map((d) => d[metric] ?? 0), [data, metric]);
   const max = Math.max(1, ...values);
 
   const chartWidth = 1000;
@@ -162,7 +169,7 @@ export function TrendChart({ data, height = 220 }: Props) {
           <div className="absolute top-0 right-0 rounded-lg bg-foreground text-white px-3 py-1.5 text-[11px]">
             <span className="font-semibold">{data[hoverIdx].date}</span>
             <span className="mx-2 opacity-50">·</span>
-            <span>{active.label}: {data[hoverIdx][metric].toLocaleString()}</span>
+            <span>{active.label}: {(data[hoverIdx][metric] ?? 0).toLocaleString()}</span>
           </div>
         ) : null}
       </div>
