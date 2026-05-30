@@ -212,7 +212,7 @@ export default function TraumAddictionPage() {
               Forward-Facing® Accelerated Recovery (FF-AR)
             </p>
             <h2 className="text-3xl lg:text-4xl font-bold mb-6">
-              Stabilize. Understand. Grow.
+              Awareness. Capacity. Meaning.
             </h2>
             <p
               className="text-white/70 leading-relaxed text-lg"
@@ -295,6 +295,19 @@ export default function TraumAddictionPage() {
               Contact Us Online
             </Link>
           </div>
+        </div>
+      </section>
+
+      {/* FF-AR attribution. Per Lindsay + Dr. Gentry: the page must
+          cite the co-ownership of the adapted model so external readers
+          (and other clinicians citing the framework) trace it back to
+          the right primary source. */}
+      <section className="bg-warm-bg/60 border-t border-black/10">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8 py-8">
+          <p className="text-[12px] leading-relaxed text-foreground/65" style={{ fontFamily: 'var(--font-body)' }}>
+            <span className="font-semibold text-foreground/80">Citation.</span>{' '}
+            Forward-Facing Accelerated Recovery (FF-AR) is an adapted application of the Forward-Facing Freedom&reg; model developed by J. Eric Gentry. The FF-AR model was collaboratively developed and is jointly owned by Dr. Eric Gentry and Lindsay Rothschild for use in trauma and addiction recovery settings.
+          </p>
         </div>
       </section>
     </>

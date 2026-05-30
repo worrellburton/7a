@@ -25,7 +25,7 @@ const practices: Practice[] = [
     tag: 'Ceremony',
     title: 'Sweat lodge',
     body:
-      'Inipi. A structured purification held by trusted carriers, on the land. Heat, water, prayer, and song — a container old enough that the body knows what to do inside it.',
+      'Aalaawuusua, from Crow ceremonies. A structured purification held by trusted carriers, on the land. Heat, water, prayer, and song — a container old enough that the body knows what to do inside it.',
   },
   {
     tag: 'Medicine',
