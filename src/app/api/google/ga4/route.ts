@@ -143,9 +143,47 @@ export async function GET(req: Request) {
           { name: 'engagementRate' },
         ],
         dimensionFilter: {
-          filter: {
-            fieldName: 'sessionDefaultChannelGroup',
-            stringFilter: { value: 'Organic Search' },
+          // "Organic search" here is GA4's classic Organic Search channel
+          // (google/organic, bing/organic, duckduckgo/organic, etc.) PLUS
+          // explicit AI-search referrers. The latter currently land in
+          // GA4's "Referral" or "Unassigned" buckets because the default
+          // channel grouping rules predate AI search, but user intent
+          // (someone asked a question and clicked through to the site)
+          // is the same as classic organic — so we union them here.
+          // Source list is hand-curated; extend it as new AI engines
+          // start sending traffic. Match is by stringFilter MATCH_TYPE
+          // CONTAINS so we don't need to enumerate www / chat / etc.
+          // subdomains for each engine.
+          orGroup: {
+            expressions: [
+              {
+                filter: {
+                  fieldName: 'sessionDefaultChannelGroup',
+                  stringFilter: { value: 'Organic Search' },
+                },
+              },
+              {
+                filter: {
+                  fieldName: 'sessionSource',
+                  inListFilter: {
+                    values: [
+                      'chatgpt.com',
+                      'chat.openai.com',
+                      'perplexity.ai',
+                      'www.perplexity.ai',
+                      'claude.ai',
+                      'claude.com',
+                      'gemini.google.com',
+                      'copilot.microsoft.com',
+                      'bing.com/chat',
+                      'you.com',
+                      'phind.com',
+                      'meta.ai',
+                    ],
+                  },
+                },
+              },
+            ],
           },
         },
         orderBys: [{ dimension: { dimensionName: 'date' } }],
