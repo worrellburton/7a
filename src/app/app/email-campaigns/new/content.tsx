@@ -126,6 +126,13 @@ export default function NewEmailCampaignContent() {
   // fresh rebuild is kicked off so the marketer never has to
   // remember the second step.
   const [replaceImagesOpen, setReplaceImagesOpen] = useState(false);
+  // Per-image swap state. Click on an image in the rendered preview
+  // posts {type:'img:click', src} from the iframe bridge — we record
+  // that src here and open the SwapImageModal, which is a single-
+  // select picker over the same library. Confirming sends an
+  // {type:'img:swap', from, to} message back into the iframe; the
+  // bridge swaps and reposts updated HTML. No full rebuild required.
+  const [swapImageFor, setSwapImageFor] = useState<string | null>(null);
   // Inline text editing on the preview iframe. When the marketer
   // clicks "Edit text" we ask the iframe to flip its <body> to
   // contentEditable; every input event there posts the updated
@@ -302,6 +309,24 @@ export default function NewEmailCampaignContent() {
     if (debounceTimer) clearTimeout(debounceTimer);
     debounceTimer = setTimeout(post, 250);
   }
+  // Image hover affordance + click-to-swap. When the body isn't in
+  // contenteditable mode, hovering any <img> shows a primary-tinted
+  // outline + pointer cursor, and clicking posts {type:'img:click', src}
+  // so the parent can open the swap picker. We skip this when editing
+  // text so the bridge doesn't fight the contenteditable cursor.
+  var swapStyle = document.createElement('style');
+  swapStyle.textContent = 'body:not([contenteditable="true"]) img { cursor: pointer; transition: outline 120ms ease, box-shadow 120ms ease; } body:not([contenteditable="true"]) img:hover { outline: 3px solid #bc6b4a; outline-offset: 2px; box-shadow: 0 0 0 2px rgba(255,255,255,0.85); }';
+  document.head.appendChild(swapStyle);
+  document.addEventListener('click', function(e){
+    if (editing) return;
+    var t = e.target;
+    if (!t || t.tagName !== 'IMG') return;
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      parent.postMessage({ type: 'img:click', src: t.getAttribute('src') || '', alt: t.getAttribute('alt') || '' }, '*');
+    } catch (err) { /* noop */ }
+  }, true);
   window.addEventListener('message', function(e){
     var data = e && e.data;
     if (!data) return;
@@ -318,6 +343,36 @@ export default function NewEmailCampaignContent() {
       document.body.style.outlineOffset = '';
       document.body.style.cursor = '';
       post();
+    } else if (data.type === 'img:swap' && typeof data.from === 'string' && typeof data.to === 'string') {
+      // Swap every <img src=from> AND any data-bg / inline
+      // style background-image references in case the layout uses
+      // CSS-painted images. Then post the updated HTML back.
+      var imgs = document.querySelectorAll('img');
+      var swapped = 0;
+      for (var i = 0; i < imgs.length; i++) {
+        if (imgs[i].getAttribute('src') === data.from) {
+          imgs[i].setAttribute('src', data.to);
+          swapped += 1;
+        }
+      }
+      // Also catch <a href> wrappers, srcset, and background-image:
+      // url(<from>) in inline styles, which Claude sometimes emits.
+      var srcsetNodes = document.querySelectorAll('[srcset]');
+      for (var s = 0; s < srcsetNodes.length; s++) {
+        var ss = srcsetNodes[s].getAttribute('srcset') || '';
+        if (ss.indexOf(data.from) >= 0) {
+          srcsetNodes[s].setAttribute('srcset', ss.split(data.from).join(data.to));
+        }
+      }
+      var styled = document.querySelectorAll('[style*="background"]');
+      for (var b = 0; b < styled.length; b++) {
+        var st = styled[b].getAttribute('style') || '';
+        if (st.indexOf(data.from) >= 0) {
+          styled[b].setAttribute('style', st.split(data.from).join(data.to));
+        }
+      }
+      post();
+      try { parent.postMessage({ type: 'img:swapped', from: data.from, to: data.to, count: swapped }, '*'); } catch (err) { /* noop */ }
     }
   });
   document.addEventListener('input', function(){ if (editing) schedulePost(); }, true);
@@ -338,8 +393,13 @@ export default function NewEmailCampaignContent() {
   // every render and the saved html would carry a dozen copies.
   useEffect(() => {
     function onMessage(e: MessageEvent) {
-      const data = e.data as { type?: string; html?: string } | null;
-      if (!data || data.type !== 'html:update' || typeof data.html !== 'string') return;
+      const data = e.data as { type?: string; html?: string; src?: string } | null;
+      if (!data) return;
+      if (data.type === 'img:click' && typeof data.src === 'string' && data.src.length > 0) {
+        setSwapImageFor(data.src);
+        return;
+      }
+      if (data.type !== 'html:update' || typeof data.html !== 'string') return;
       // Drop the bridge script (everything inside the inserted
       // <script>...<\/script> wrapper). The bridge is the only
       // <script> we ever insert, so a single regex match is safe.
@@ -1176,6 +1236,23 @@ export default function NewEmailCampaignContent() {
           }}
         />
       )}
+      {swapImageFor && (
+        <SwapImageModal
+          currentSrc={swapImageFor}
+          assets={libraryAssets}
+          onClose={() => setSwapImageFor(null)}
+          onPick={(newUrl) => {
+            // Post the swap to the iframe; the bridge updates the src
+            // and posts the new HTML back via html:update, which lands
+            // in setDraft through the existing handler.
+            const win = previewIframeRef.current?.contentWindow;
+            if (win) {
+              win.postMessage({ type: 'img:swap', from: swapImageFor, to: newUrl }, '*');
+            }
+            setSwapImageFor(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -1526,6 +1603,97 @@ function HorsePicker({ horses, selectedId, onSelect, onClose }: {
 // grid as the inline picker but inside a modal, with a Save
 // button that confirms the new selection so the parent can
 // kick off a fresh rebuild.
+// Single-image swap picker. Opens when a user clicks any image in
+// the rendered email preview — replaces just that image with the
+// one they pick from the library and re-posts updated HTML to the
+// parent without a full rebuild. Quick fix flow for "this picture
+// isn't right" without re-running the build.
+function SwapImageModal({
+  currentSrc, assets, onPick, onClose,
+}: {
+  currentSrc: string;
+  assets: LibraryImage[];
+  onPick: (url: string) => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return assets;
+    return assets.filter((a) => (a.filename ?? '').toLowerCase().includes(q));
+  }, [assets, query]);
+  return (
+    <ModalShell
+      title="Swap this image"
+      subtitle={`Pick a replacement · ${assets.length} in library`}
+      onClose={onClose}
+    >
+      {/* Show the current image at the top so it's clear which one
+          we're replacing — useful when the layout has repeats. */}
+      <div className="mb-4 flex items-center gap-3 rounded-lg border border-black/10 bg-warm-bg/40 p-2.5">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={currentSrc} alt="" className="w-14 h-14 rounded-md object-cover border border-black/10" />
+        <div className="min-w-0 flex-1">
+          <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-foreground/55">Current</p>
+          <p className="text-[11.5px] text-foreground/60 truncate" title={currentSrc}>{currentSrc.split('/').pop() || currentSrc}</p>
+        </div>
+      </div>
+
+      <div className="mb-3">
+        <input
+          autoFocus
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Filter by filename…"
+          className="w-full rounded-md border border-black/10 bg-white px-3 py-1.5 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
+          {assets.length === 0 ? 'Library is empty. Upload images via /app/images first.' : 'No images match the filter.'}
+        </p>
+      ) : (
+        <ul className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 mb-4">
+          {filtered.map((a) => {
+            const isCurrent = a.url === currentSrc;
+            return (
+              <li key={a.id}>
+                <button
+                  type="button"
+                  onClick={() => onPick(a.url)}
+                  disabled={isCurrent}
+                  className={`relative w-full aspect-square rounded-md overflow-hidden border-2 transition-all ${isCurrent ? 'border-primary ring-2 ring-primary/30 cursor-not-allowed opacity-60' : 'border-black/10 hover:border-primary hover:ring-2 hover:ring-primary/20'}`}
+                  title={isCurrent ? 'Already in the email' : `Swap with ${a.filename ?? 'this image'}`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={a.url} alt={a.filename ?? ''} className="w-full h-full object-cover" />
+                  {isCurrent && (
+                    <span className="absolute top-1 right-1 px-1 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-primary text-white">
+                      Current
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <div className="flex items-center justify-end gap-2 sticky bottom-0 bg-white pt-2 border-t border-black/5">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-3 py-1.5 rounded-md border border-black/10 bg-white text-[11.5px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+        >
+          Cancel
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
 function ReplaceImagesModal({
   assets, initialSelected, onConfirm, onClose,
 }: {
