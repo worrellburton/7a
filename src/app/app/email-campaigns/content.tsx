@@ -393,58 +393,81 @@ function AutopilotPanel({ canManage }: { canManage: boolean }) {
         </p>
       )}
 
-      <div className="px-4 py-3">
-        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45 mb-2" style={{ fontFamily: 'var(--font-body)' }}>
-          Recent activity
-        </p>
-        {loading ? (
-          <p className="text-[12px] text-foreground/50 italic" style={{ fontFamily: 'var(--font-body)' }}>
-            Loading…
-          </p>
-        ) : items.length === 0 ? (
-          <p className="text-[12px] text-foreground/50 italic" style={{ fontFamily: 'var(--font-body)' }}>
-            No contacts added yet. As new contacts come in, they&apos;ll show up here automatically.
-          </p>
-        ) : (
-          <ul className="space-y-1.5">
-            {items.map((it) => (
-              <li
-                key={it.id}
-                className="flex items-start gap-2.5 rounded-lg border border-black/5 bg-white/70 px-3 py-2"
-              >
-                <span aria-hidden className="mt-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] shrink-0">
-                  +
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[12.5px] text-foreground" style={{ fontFamily: 'var(--font-body)' }}>
-                    <span className="font-semibold">{it.contactName || it.contactEmail || 'New contact'}</span>
-                    {' '}added to{' '}
-                    <span className="font-semibold">{it.campaignCount}</span>
-                    {' '}scheduled campaign{it.campaignCount === 1 ? '' : 's'}
-                  </p>
-                  {it.campaigns.length > 0 && (
-                    <div className="mt-1 flex flex-wrap gap-1">
-                      {it.campaigns.map((c) => (
-                        <span
-                          key={c.id}
-                          className="inline-block max-w-[220px] truncate px-1.5 py-0.5 rounded border border-emerald-200 bg-emerald-50/60 text-emerald-800 text-[10.5px]"
-                          style={{ fontFamily: 'var(--font-body)' }}
-                          title={c.label}
-                        >
-                          {c.label}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <span className="shrink-0 text-[11px] text-foreground/45 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
-                  {formatRelative(it.createdAt)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
+      {/* Recent activity is collapsed by default — most page loads
+          don't need the per-contact detail, just the headline that
+          autopilot is on. Using <details> for native disclosure
+          semantics (keyboard + screen reader) without needing a
+          new state hook. */}
+      <details className="group border-t border-emerald-100/80">
+        <summary className="px-4 py-3 flex items-center justify-between gap-3 cursor-pointer list-none select-none hover:bg-emerald-50/40 transition-colors">
+          <div className="flex items-baseline gap-3">
+            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55" style={{ fontFamily: 'var(--font-body)' }}>
+              Recent activity
+            </p>
+            {!loading && (
+              <span className="text-[11px] text-foreground/45 tabular-nums" style={{ fontFamily: 'var(--font-body)' }}>
+                {items.length === 0 ? 'none yet' : `${items.length} most recent`}
+              </span>
+            )}
+          </div>
+          <span
+            aria-hidden
+            className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md border border-black/10 bg-white text-foreground/55 transition-transform group-open:rotate-180"
+          >
+            <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6l4 4 4-4" /></svg>
+          </span>
+        </summary>
+
+        <div className="px-4 pb-3">
+          {loading ? (
+            <p className="text-[12px] text-foreground/50 italic" style={{ fontFamily: 'var(--font-body)' }}>
+              Loading…
+            </p>
+          ) : items.length === 0 ? (
+            <p className="text-[12px] text-foreground/50 italic" style={{ fontFamily: 'var(--font-body)' }}>
+              No contacts added yet. As new contacts come in, they&apos;ll show up here automatically.
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {items.map((it) => (
+                <li
+                  key={it.id}
+                  className="flex items-start gap-2.5 rounded-lg border border-black/5 bg-white/70 px-3 py-2"
+                >
+                  <span aria-hidden className="mt-0.5 inline-flex items-center justify-center w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] shrink-0">
+                    +
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[12.5px] text-foreground" style={{ fontFamily: 'var(--font-body)' }}>
+                      <span className="font-semibold">{it.contactName || it.contactEmail || 'New contact'}</span>
+                      {' '}added to{' '}
+                      <span className="font-semibold">{it.campaignCount}</span>
+                      {' '}scheduled campaign{it.campaignCount === 1 ? '' : 's'}
+                    </p>
+                    {it.campaigns.length > 0 && (
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {it.campaigns.map((c) => (
+                          <span
+                            key={c.id}
+                            className="inline-block max-w-[220px] truncate px-1.5 py-0.5 rounded border border-emerald-200 bg-emerald-50/60 text-emerald-800 text-[10.5px]"
+                            style={{ fontFamily: 'var(--font-body)' }}
+                            title={c.label}
+                          >
+                            {c.label}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <span className="shrink-0 text-[11px] text-foreground/45 whitespace-nowrap" style={{ fontFamily: 'var(--font-body)' }}>
+                    {formatRelative(it.createdAt)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </details>
     </section>
   );
 }
