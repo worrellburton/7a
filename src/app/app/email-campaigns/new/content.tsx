@@ -77,6 +77,15 @@ interface CampaignDraft {
   featuredEquineId: string | null;
   generatedHtml: string | null;
   generatedSubject: string | null;
+  // Persisted status loaded from email_campaigns.status. Drives the
+  // save-handler's decision whether to leave the campaign on its
+  // current rail (e.g. 'scheduled') or promote a fresh draft to
+  // 'recipients'. Null on a brand-new campaign.
+  originalStatus: string | null;
+  // ISO timestamp from email_campaigns.scheduled_send_at. Surfaced
+  // in the editor header so the marketer can see "you're editing a
+  // campaign scheduled for X" and trust that saving won't drop it.
+  scheduledSendAt: string | null;
 }
 
 interface DraftText {
@@ -112,6 +121,8 @@ export default function NewEmailCampaignContent() {
     featuredEquineId: null,
     generatedHtml: null,
     generatedSubject: null,
+    originalStatus: null,
+    scheduledSendAt: null,
   });
   const [libraryAssets, setLibraryAssets] = useState<LibraryImage[]>([]);
   const [blogs, setBlogs] = useState<BlogOption[]>([]);
@@ -178,7 +189,7 @@ export default function NewEmailCampaignContent() {
     void (async () => {
       const { data } = await supabase
         .from('email_campaigns')
-        .select('id, prompt, image_urls, use_logos, link_to_website, include_phone, include_quote, include_insurance_strip, include_social_footer, dark_mode, featured_blog_id, featured_episode_slug, featured_page_path, featured_page_image_url, featured_employee_id, featured_equine_id, generated_html, generated_subject')
+        .select('id, prompt, image_urls, use_logos, link_to_website, include_phone, include_quote, include_insurance_strip, include_social_footer, dark_mode, featured_blog_id, featured_episode_slug, featured_page_path, featured_page_image_url, featured_employee_id, featured_equine_id, generated_html, generated_subject, status, scheduled_send_at')
         .eq('id', editingId)
         .maybeSingle();
       if (cancelled || !data) return;
@@ -201,6 +212,8 @@ export default function NewEmailCampaignContent() {
         featuredEquineId: data.featured_equine_id ?? null,
         generatedHtml: data.generated_html ?? null,
         generatedSubject: data.generated_subject ?? null,
+        originalStatus: (data.status as string | null) ?? null,
+        scheduledSendAt: (data.scheduled_send_at as string | null) ?? null,
       });
       // Resuming a previously-started draft drops straight into the
       // compose step so the marketer can keep iterating instead of
@@ -606,7 +619,19 @@ export default function NewEmailCampaignContent() {
     setError(null);
     setSaving(true);
     try {
-      const payload = {
+      // Status preservation: a campaign that already passed recipient
+      // picking and landed on a later rail (scheduled, finalizing,
+      // sending, sent, failed) should NOT get bounced back to
+      // 'recipients' just because the marketer tweaked the body or
+      // subject — that strips scheduled_send_at logic, breaks the
+      // queue, and forces them to re-walk the funnel. Only promote to
+      // 'recipients' on a brand-new campaign or one still earlier than
+      // that rail.
+      const PRESERVE_STATUSES = new Set(['scheduled', 'finalizing', 'sending', 'sent', 'failed']);
+      const nextStatus = draft.originalStatus && PRESERVE_STATUSES.has(draft.originalStatus)
+        ? draft.originalStatus
+        : 'recipients';
+      const payload: Record<string, unknown> = {
         prompt: draft.prompt,
         image_urls: draft.imageUrls,
         use_logos: draft.useLogos,
@@ -624,7 +649,7 @@ export default function NewEmailCampaignContent() {
         featured_equine_id: draft.featuredEquineId,
         generated_html: draft.generatedHtml,
         generated_subject: draft.generatedSubject,
-        status: 'recipients',
+        status: nextStatus,
         created_by: user?.id ?? null,
       };
       let id = draft.id;
@@ -643,7 +668,17 @@ export default function NewEmailCampaignContent() {
         if (insErr) throw new Error(insErr.message);
         id = data.id;
       }
-      router.push(`/app/email-campaigns/${id}/recipients`);
+      // Route the marketer to the right place for the status they're in:
+      // a preserved-status edit (e.g. scheduled) just bounces back to
+      // the campaigns list — there's nothing for them to do on the
+      // recipients picker, the queue is already set.
+      if (nextStatus === 'recipients') {
+        router.push(`/app/email-campaigns/${id}/recipients`);
+      } else if (nextStatus === 'scheduled') {
+        router.push('/app/email-campaigns/scheduled');
+      } else {
+        router.push(`/app/email-campaigns/${id}/finalize`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -656,7 +691,7 @@ export default function NewEmailCampaignContent() {
       <header className="mb-5 flex items-baseline justify-between flex-wrap gap-3">
         <div>
           <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">
-            Email Campaigns · {editingId ? 'Edit draft' : 'New campaign'}
+            Email Campaigns · {editingId ? (draft.originalStatus === 'scheduled' ? 'Edit scheduled' : 'Edit draft') : 'New campaign'}
           </p>
           <h1 className="mt-1 text-2xl font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
             Build the email
@@ -672,6 +707,34 @@ export default function NewEmailCampaignContent() {
           ← Back
         </Link>
       </header>
+
+      {/* Editing-a-scheduled-campaign banner. Saving will keep the
+          send time + recipient list intact; this just makes that
+          explicit so the marketer trusts the editor enough to tweak
+          a queued campaign without canceling + rescheduling. */}
+      {draft.originalStatus === 'scheduled' && (
+        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 flex items-start justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-amber-900/80" style={{ fontFamily: 'var(--font-body)' }}>
+              Editing a scheduled campaign
+            </p>
+            <p className="mt-1 text-[12.5px] text-amber-900 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+              {draft.scheduledSendAt ? (
+                <>This campaign is scheduled to send at <strong>{new Date(draft.scheduledSendAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</strong>. Your edits save in place — the send time and recipient list stay locked.</>
+              ) : (
+                <>This campaign is on the scheduled queue. Your edits save in place — the send time and recipient list stay locked.</>
+              )}
+            </p>
+          </div>
+          <Link
+            href="/app/email-campaigns/scheduled"
+            className="shrink-0 px-3 py-1.5 rounded-md border border-amber-300 bg-white text-amber-900 text-[11px] font-semibold uppercase tracking-wider hover:bg-amber-100"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Reschedule
+          </Link>
+        </div>
+      )}
 
       {/* Prompt */}
       <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
@@ -1172,7 +1235,11 @@ export default function NewEmailCampaignContent() {
           className="px-4 py-2 rounded-md bg-primary text-white text-[12px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50"
           style={{ fontFamily: 'var(--font-body)' }}
         >
-          {saving ? 'Saving…' : 'Save and continue →'}
+          {saving
+            ? 'Saving…'
+            : draft.originalStatus === 'scheduled'
+            ? 'Save changes (keep schedule)'
+            : 'Save and continue →'}
         </button>
       </div>
 
