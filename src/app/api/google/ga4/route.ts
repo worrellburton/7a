@@ -124,6 +124,24 @@ export async function GET(req: Request) {
         orderBys: [{ dimension: { dimensionName: 'date' } }],
         limit: 400,
       }),
+      // Per-day organic-search sessions. Same date dimension as the
+      // totals query above, but filtered to sessionDefaultChannelGroup
+      // = 'Organic Search' so the TrendChart can overlay it as a
+      // separate metric without us having to re-aggregate channel
+      // breakdowns client-side (which would double-count activeUsers).
+      ga4Run({
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'date' }],
+        metrics: [{ name: 'sessions' }],
+        dimensionFilter: {
+          filter: {
+            fieldName: 'sessionDefaultChannelGroup',
+            stringFilter: { value: 'Organic Search' },
+          },
+        },
+        orderBys: [{ dimension: { dimensionName: 'date' } }],
+        limit: 400,
+      }),
     ];
     if (withCompare) {
       fetches.push(
@@ -139,9 +157,20 @@ export async function GET(req: Request) {
     const channelsRes = results[1] as { rows?: { dimensionValues?: { value?: string }[]; metricValues?: { value?: string }[] }[] };
     const topPagesRes = results[2] as { rows?: { dimensionValues?: { value?: string }[]; metricValues?: { value?: string }[] }[] };
     const dailyRes = results[3] as { rows?: { dimensionValues?: { value?: string }[]; metricValues?: { value?: string }[] }[] };
+    const organicDailyRes = results[4] as { rows?: { dimensionValues?: { value?: string }[]; metricValues?: { value?: string }[] }[] };
     const prevRes = withCompare
-      ? (results[4] as { rows?: { metricValues?: { value?: string }[] }[] })
+      ? (results[5] as { rows?: { metricValues?: { value?: string }[] }[] })
       : null;
+
+    // Map of YYYYMMDD → organic-search sessions, looked up when
+    // assembling per-day points below. Dates with no organic traffic
+    // simply aren't returned by GA4 and fall through to 0.
+    const organicByDate = new Map<string, number>();
+    for (const r of organicDailyRes.rows ?? []) {
+      const d = r.dimensionValues?.[0]?.value ?? '';
+      if (!/^\d{8}$/.test(d)) continue;
+      organicByDate.set(d, Number(r.metricValues?.[0]?.value ?? 0));
+    }
 
     const summary = readSummary(summaryRes.rows?.[0]?.metricValues);
     const previous = prevRes ? readSummary(prevRes.rows?.[0]?.metricValues) : null;
@@ -163,10 +192,14 @@ export async function GET(req: Request) {
         sessions: Number(r.metricValues?.[0]?.value ?? 0),
         activeUsers: Number(r.metricValues?.[1]?.value ?? 0),
         pageViews: Number(r.metricValues?.[2]?.value ?? 0),
+        organicSearch: 0,
       }))
       .filter((d) => /^\d{8}$/.test(d.date))
       .map((d) => ({
         ...d,
+        // Pull organic sessions from the channel-filtered query (keyed
+        // by YYYYMMDD before we hyphenate it below).
+        organicSearch: organicByDate.get(d.date) ?? 0,
         date: `${d.date.slice(0, 4)}-${d.date.slice(4, 6)}-${d.date.slice(6, 8)}`,
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
