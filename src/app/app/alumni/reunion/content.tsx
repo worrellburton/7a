@@ -3,25 +3,13 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
+import { REUNION_EVENT as EVENT } from './event';
 
 // The Reunion at the Ranch — a Partiful-style event page for alumni.
 // Hero (title / dates / location) → live countdown → RSVP buttons with
 // a guest list → the planning surveys. RSVPs persist to reunion_rsvps
-// via /api/alumni/reunion-rsvp.
-//
-// Event: Oct 9–11, 2026 at the ranch in Elfrida ("El Frida"), Arizona.
-// The countdown anchors to 00:00 of Oct 9 in Phoenix time (UTC-7,
-// no DST) — the day the event starts.
-
-const EVENT = {
-  title: 'The Reunion at the Ranch',
-  location: 'El Frida, Arizona',
-  // Display string for the date range.
-  dateLabel: 'October 9 – 11, 2026',
-  days: ['Fri · Oct 9', 'Sat · Oct 10', 'Sun · Oct 11'],
-  // Countdown anchor: Oct 9 2026, midnight Phoenix (UTC-7).
-  startsAtMs: Date.parse('2026-10-09T00:00:00-07:00'),
-};
+// via /api/alumni/reunion-rsvp. Event constants live in ./event so the
+// home teaser stays in sync.
 
 const SURVEYS = [
   {
