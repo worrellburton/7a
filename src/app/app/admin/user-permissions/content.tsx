@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { defaultPages } from '@/lib/PagePermissions';
 import { logActivity } from '@/lib/activity';
 import { formatNameWithCredentials } from '@/lib/displayName';
 import dynamic from 'next/dynamic';
@@ -865,18 +866,17 @@ export default function UserPermissionsContent() {
 // user_kind='alumni' (the PagePermissions gate enforces this on
 // route entry + sidebar render). Defaults to off so nothing is
 // hidden from staff without an explicit click.
-// Canonical list of /app/alumni/* routes. Drives the "All alumni
-// pages" master toggle: flipping it ON sets alumni_only=true on
-// every path in this list in one batched update, and the page
-// list below renders these paths in a dedicated highlighted group.
+// Canonical list of alumni-portal routes. Drives the "All alumni
+// pages" master toggle: flipping it ON sets alumni_only=true on every
+// path in this list in one batched update, and the page list below
+// renders these paths in a dedicated highlighted group.
+//
+// Derived from the page registry's `alumniOnly` flag rather than a
+// hand-maintained list, so any new alumni page automatically joins the
+// bundle the moment it's declared in defaultPages — there's no second
+// list to keep in sync (this is what had silently left Reunion out).
 const ALUMNI_PORTAL_PATHS = new Set<string>([
-  '/app/alumni',
-  '/app/alumni/map',
-  '/app/alumni/peer-support',
-  '/app/alumni/meetups',
-  '/app/alumni/scholarships',
-  '/app/alumni/resources',
-  '/app/alumni/stories',
+  ...defaultPages.filter((p) => p.alumniOnly === true).map((p) => p.path),
   // Chat lives outside the /app/alumni/* tree but is part of the
   // alumni's daily surface — group it inside the master toggle so
   // a single flip enables / disables the whole community.

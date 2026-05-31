@@ -33,7 +33,7 @@ export interface PageConfig {
   externalUrl?: string;
 }
 
-const defaultPages: PageConfig[] = [
+export const defaultPages: PageConfig[] = [
   { path: '/app', label: 'Home', adminOnly: false, section: 'nav', sort_order: 0, allowedDepartments: [], departmentId: null },
   // Connect-4 tournament — team-bonding game shipped across 10 phases.
   // Phase 1: page scaffold + schema. Visible to all staff so the
@@ -301,7 +301,13 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
           const missing = defaultPages.filter((p) => !dbPaths.has(p.path));
           if (missing.length > 0) {
             for (const m of missing) {
-              await db({ action: 'upsert', table: 'page_permissions', data: [{ path: m.path, admin_only: m.adminOnly, section: m.section, sort_order: m.sort_order, allowed_departments: [], department_id: null }], onConflict: 'path' });
+              // Carry the code-side `alumniOnly` default through to the
+              // seeded row. Without this, a newly added alumni page lands
+              // in the DB with alumni_only=false and silently loses its
+              // alumni-only gate (this is exactly what dropped Reunion out
+              // of the alumni portal). Seeding the flag keeps the rule
+              // "any alumni page is automatically in the alumni set" true.
+              await db({ action: 'upsert', table: 'page_permissions', data: [{ path: m.path, admin_only: m.adminOnly, section: m.section, sort_order: m.sort_order, allowed_departments: [], department_id: null, alumni_only: m.alumniOnly === true }], onConflict: 'path' });
             }
           }
 
