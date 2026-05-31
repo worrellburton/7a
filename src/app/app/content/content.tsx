@@ -75,6 +75,21 @@ export default function ContentLanding() {
   // POST is in flight so a second click doesn't spawn a second draft.
   const [creating, setCreating] = useState(false);
   const [analyticsFor, setAnalyticsFor] = useState<string | null>(null);
+  // List (default) vs. board/grouped view. Persisted in localStorage
+  // so a marketer's preferred layout sticks across visits. Hydrated
+  // in an effect (not useState initializer) to avoid an SSR/client
+  // mismatch on the persisted value.
+  const [view, setView] = useState<'list' | 'board'>('list');
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem('sa-content:view');
+      if (v === 'board' || v === 'list') setView(v);
+    } catch { /* localStorage unavailable — keep default */ }
+  }, []);
+  const chooseView = useCallback((v: 'list' | 'board') => {
+    setView(v);
+    try { localStorage.setItem('sa-content:view', v); } catch { /* ignore */ }
+  }, []);
 
   const load = useCallback(async () => {
     if (!session?.access_token) return;
@@ -254,6 +269,26 @@ export default function ContentLanding() {
           <p className="mt-1 text-sm text-foreground/60">Every blog on the site, plus the AI pipeline to draft new ones.</p>
         </div>
         <div className="flex items-center gap-2">
+          {/* List / board view toggle. List is the default; board
+              groups items into Draft / In progress / Published columns. */}
+          <div className="inline-flex items-center rounded-lg border border-black/15 bg-white p-0.5" role="group" aria-label="View">
+            <button
+              type="button"
+              onClick={() => chooseView('list')}
+              aria-pressed={view === 'list'}
+              className={`px-2.5 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wider transition-colors ${view === 'list' ? 'bg-foreground text-white' : 'text-foreground/55 hover:text-foreground/80'}`}
+            >
+              List
+            </button>
+            <button
+              type="button"
+              onClick={() => chooseView('board')}
+              aria-pressed={view === 'board'}
+              className={`px-2.5 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wider transition-colors ${view === 'board' ? 'bg-foreground text-white' : 'text-foreground/55 hover:text-foreground/80'}`}
+            >
+              Board
+            </button>
+          </div>
           <Link
             href="/app/content/analytics"
             className="inline-flex items-center gap-2 px-3 py-2.5 rounded-lg border border-black/15 bg-white text-foreground/75 text-xs font-semibold uppercase tracking-wider hover:bg-warm-bg/60 transition-colors"
@@ -283,6 +318,11 @@ export default function ContentLanding() {
         <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-800">{error}</div>
       )}
 
+      {view === 'board' && (
+        <ContentBoard rows={rows} aiEpisodeNumber={aiEpisodeNumber} loading={loading} />
+      )}
+
+      {view === 'list' && (<>
       {/* In development = every AI-pipeline row whose status is not
           yet 'published'. Hand-coded posts are live-by-definition,
           so they never land here. */}
@@ -465,6 +505,135 @@ export default function ContentLanding() {
           </section>
         );
       })()}
+      </>)}
+    </div>
+  );
+}
+
+// Board / grouped view. Three columns mapped from the blog pipeline's
+// real status set (there is no "scheduled" status for blogs):
+//   • Draft        — status 'draft' (and any unknown/missing status)
+//   • In progress  — 'reviewing' | 'images' | 'selecting' | 'built'
+//   • Published    — status 'published' AI rows + every static episode
+// Column accents honor the requested palette: sage published, copper
+// in-progress, muted gray draft. Read-only board (cards link to the
+// editor); all the row actions stay in the list view.
+const BOARD_COLUMNS = [
+  { key: 'draft', label: 'Draft', accent: '#8a8a86', tint: 'rgba(138,138,134,0.10)' },
+  { key: 'progress', label: 'In progress', accent: '#b87333', tint: 'rgba(184,115,51,0.10)' },
+  { key: 'published', label: 'Published', accent: '#7a8b6f', tint: 'rgba(122,139,111,0.12)' },
+] as const;
+type BoardColKey = (typeof BOARD_COLUMNS)[number]['key'];
+
+function columnForStatus(status: string | null | undefined): BoardColKey {
+  if (status === 'published') return 'published';
+  if (status === 'reviewing' || status === 'images' || status === 'selecting' || status === 'built') return 'progress';
+  return 'draft'; // 'draft' + anything unknown/missing
+}
+
+interface BoardCard {
+  key: string;
+  title: string;
+  href: string;
+  dateLabel: string;
+  chipLabel: string;
+  episodeLabel: string | null;
+}
+
+function ContentBoard({
+  rows,
+  aiEpisodeNumber,
+  loading,
+}: {
+  rows: DbBlog[];
+  aiEpisodeNumber: Map<string, number>;
+  loading: boolean;
+}) {
+  const columns = useMemo(() => {
+    const buckets: Record<BoardColKey, BoardCard[]> = { draft: [], progress: [], published: [] };
+    // AI-pipeline rows.
+    for (const r of rows) {
+      const col = columnForStatus(r.status);
+      const epNum = aiEpisodeNumber.get(r.id);
+      const dateLabel = r.status === 'published' && r.published_at
+        ? `Published ${new Date(r.published_at).toLocaleDateString()}`
+        : `Updated ${new Date(r.updated_at).toLocaleDateString()}`;
+      buckets[col].push({
+        key: r.id,
+        title: r.title || '(Untitled)',
+        href: `/app/content/${r.id}`,
+        dateLabel,
+        chipLabel: STATUS_LABELS[r.status] ?? 'Draft',
+        episodeLabel: epNum ? `Episode ${epNum}` : null,
+      });
+    }
+    // Static hand-coded episodes are always published.
+    for (const ep of EPISODES) {
+      buckets.published.push({
+        key: `static-${ep.slug}`,
+        title: ep.title,
+        href: `/app/content/static/${ep.slug}`,
+        dateLabel: `Published ${new Date(ep.publishedAt).toLocaleDateString()}`,
+        chipLabel: 'Published',
+        episodeLabel: `Episode ${ep.number}`,
+      });
+    }
+    // Newest-ish first within each column (published already carry a
+    // date; in-dev sort by recency of update isn't available on the
+    // card, so we keep insertion order which is the API's newest-first).
+    return buckets;
+  }, [rows, aiEpisodeNumber]);
+
+  if (loading) {
+    return <p className="text-[13px] text-foreground/50 italic py-8">Loading…</p>;
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {BOARD_COLUMNS.map((col) => {
+        const cards = columns[col.key];
+        return (
+          <section key={col.key} className="rounded-2xl border border-black/10 bg-warm-bg/30 overflow-hidden flex flex-col">
+            <header
+              className="px-3 py-2.5 flex items-center justify-between border-b"
+              style={{ borderColor: col.accent + '33', background: col.tint }}
+            >
+              <span className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em]" style={{ color: col.accent }}>
+                <span className="w-2 h-2 rounded-full" style={{ background: col.accent }} aria-hidden />
+                {col.label}
+              </span>
+              <span className="text-[11px] font-semibold tabular-nums" style={{ color: col.accent }}>{cards.length}</span>
+            </header>
+            <div className="p-2 space-y-2 min-h-[80px]">
+              {cards.length === 0 ? (
+                <p className="text-[11.5px] text-foreground/40 italic text-center py-6">Nothing here.</p>
+              ) : (
+                cards.map((c) => (
+                  <Link
+                    key={c.key}
+                    href={c.href}
+                    className="block rounded-xl border border-black/10 bg-white px-3 py-2.5 hover:border-black/25 hover:shadow-sm transition-all"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-[13px] font-semibold text-foreground leading-snug line-clamp-2 min-w-0">{c.title}</p>
+                      <span
+                        className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-[9.5px] font-bold uppercase tracking-wider"
+                        style={{ color: col.accent, background: col.tint, border: `1px solid ${col.accent}33` }}
+                      >
+                        {c.chipLabel}
+                      </span>
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-2 text-[10.5px] text-foreground/50">
+                      {c.episodeLabel && <span className="font-semibold text-foreground/45">{c.episodeLabel}</span>}
+                      <span>{c.dateLabel}</span>
+                    </div>
+                  </Link>
+                ))
+              )}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }
