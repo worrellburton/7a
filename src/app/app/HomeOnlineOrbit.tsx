@@ -49,6 +49,11 @@ interface OrbitUser {
     start_time: string | null;
     end_time: string | null;
   }>;
+  // Coarse sobriety milestone ("2 years sober"), attached by the
+  // alumni home for alumni who turned on time-sober tracking AND
+  // opted to share it. Shown as a line in the hover tooltip. The
+  // staff dashboard never sets this.
+  sobriety_label?: string | null;
 }
 
 const ON_FIRE_THRESHOLD = 10;
@@ -199,6 +204,11 @@ function OrbitTooltip({
               <p className="text-white/75 leading-tight mt-0.5">
                 {hovered.online ? 'Online now' : `Last active ${timeAgo(hovered.user.last_sign_in)}`}
               </p>
+              {hovered.user.sobriety_label && (
+                <p className="text-emerald-300 font-semibold leading-tight mt-1">
+                  🌱 {hovered.user.sobriety_label}
+                </p>
+              )}
               {hovered.viewing && (
                 <p className="text-emerald-300 leading-tight mt-0.5">
                   Viewing {hovered.viewing}

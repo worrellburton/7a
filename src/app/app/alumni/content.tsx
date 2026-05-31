@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import HomeOnlineOrbit, { type OrbitHorse, type OrbitUser } from '../HomeOnlineOrbit';
+import { supabase } from '@/lib/supabase';
 import AlumniProfileEditor from './_components/AlumniProfileEditor';
-import TimeSoberCard from './_components/TimeSoberCard';
+import TimeSoberCard, { soberMilestoneLabel } from './_components/TimeSoberCard';
 
 // Alumni hub. The 6-tile shortcut grid was removed — alumni
 // reach the sub-routes (map, meetups, peer support, etc.) from
@@ -65,7 +66,30 @@ export default function AlumniHubContent() {
       job_title: u.job_title,
     });
     setStaff(filtered.filter((u) => u.user_kind !== 'alumni').map(toOrbit));
-    setAlumni(filtered.filter((u) => u.user_kind === 'alumni').map(toOrbit));
+
+    // Alumni list, enriched with a sobriety milestone for anyone who
+    // turned on time-sober tracking AND opted to share it (the viewer
+    // always sees their own, shared or not). Shows in the orbit hover
+    // tooltip + the online-today list.
+    const alumniList = filtered.filter((u) => u.user_kind === 'alumni').map(toOrbit);
+    const alumniIds = alumniList.map((u) => u.id);
+    if (alumniIds.length > 0) {
+      const { data: profs } = await supabase
+        .from('alumni_profiles')
+        .select('user_id, track_sobriety, sobriety_public, sobriety_date')
+        .in('user_id', alumniIds);
+      const labelById = new Map<string, string>();
+      for (const p of (profs ?? []) as Array<{ user_id: string; track_sobriety: boolean; sobriety_public: boolean; sobriety_date: string | null }>) {
+        if (!p.track_sobriety || !p.sobriety_date) continue;
+        const sharable = p.sobriety_public || p.user_id === user?.id;
+        if (!sharable) continue;
+        const label = soberMilestoneLabel(p.sobriety_date);
+        if (label) labelById.set(p.user_id, label);
+      }
+      setAlumni(alumniList.map((o) => ({ ...o, sobriety_label: labelById.get(o.id) ?? null })));
+    } else {
+      setAlumni(alumniList);
+    }
 
     const horseRows = await db({
       action: 'select',
@@ -74,7 +98,7 @@ export default function AlumniHubContent() {
       order: { column: 'name', ascending: true },
     }).catch(() => []);
     if (Array.isArray(horseRows)) setHorses(horseRows as DbHorse[]);
-  }, [session?.access_token]);
+  }, [session?.access_token, user?.id]);
   useEffect(() => { void load(); }, [load]);
 
   const pathLabel = useCallback(() => null, []);
