@@ -465,6 +465,14 @@ const pageIcons: Record<string, React.ReactNode> = {
     </svg>
   ),
   // Map: classic folded-map glyph
+  // Reunion: a calendar with a small star — the headline event
+  '/app/alumni/reunion': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="17" rx="2" />
+      <path d="M3 9h18M8 2v4M16 2v4" />
+      <path d="M12 12.5l.9 1.8 2 .3-1.45 1.4.34 2-1.79-.94-1.79.94.34-2L9.1 14.6l2-.3.9-1.8z" fill="currentColor" stroke="none" />
+    </svg>
+  ),
   '/app/alumni/map': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M9 4l-6 2v14l6-2 6 2 6-2V4l-6 2-6-2z" />
