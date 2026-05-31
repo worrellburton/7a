@@ -131,11 +131,139 @@ export default function AlumniHubContent() {
         </div>
       </div>
 
+      {/* List view of who's online today — alumni first (peers), then
+          the 7A team. Mirrors the orbit's data but reads as a roster
+          you can scan, which the circular layout can't. */}
+      <OnlineList alumni={alumni} staff={staff} currentUserId={user?.id ?? null} />
+
       {editorOpen && (
         <AlumniProfileEditor onClose={() => setEditorOpen(false)} />
       )}
     </div>
   );
+}
+
+// Two-section online-today roster. Alumni on top (these are the
+// viewer's peers), then the Seven Arrows team. Each section hides
+// itself when empty so a quiet day doesn't show two empty headers.
+function OnlineList({
+  alumni,
+  staff,
+  currentUserId,
+}: {
+  alumni: OrbitUser[];
+  staff: OrbitUser[];
+  currentUserId: string | null;
+}) {
+  if (alumni.length === 0 && staff.length === 0) return null;
+  return (
+    <div className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <OnlineSection
+        label="Alumni online today"
+        emptyHint="No other alumni have signed in yet today."
+        people={alumni}
+        currentUserId={currentUserId}
+        accent="primary"
+      />
+      <OnlineSection
+        label="Team online today"
+        emptyHint="No Seven Arrows staff have signed in yet today."
+        people={staff}
+        currentUserId={currentUserId}
+        accent="emerald"
+      />
+    </div>
+  );
+}
+
+function OnlineSection({
+  label,
+  emptyHint,
+  people,
+  currentUserId,
+  accent,
+}: {
+  label: string;
+  emptyHint: string;
+  people: OrbitUser[];
+  currentUserId: string | null;
+  accent: 'primary' | 'emerald';
+}) {
+  // "Online now" = seen in the last 5 minutes; otherwise they signed
+  // in earlier today. Sort online-first, then most-recently-seen.
+  const ONLINE_MS = 5 * 60 * 1000;
+  const now = Date.now();
+  const isOnline = (u: OrbitUser) => {
+    const t = u.last_seen_at ? Date.parse(u.last_seen_at) : NaN;
+    return Number.isFinite(t) && now - t <= ONLINE_MS;
+  };
+  const sorted = [...people].sort((a, b) => {
+    const ao = isOnline(a) ? 1 : 0;
+    const bo = isOnline(b) ? 1 : 0;
+    if (ao !== bo) return bo - ao;
+    const at = a.last_seen_at ? Date.parse(a.last_seen_at) : 0;
+    const bt = b.last_seen_at ? Date.parse(b.last_seen_at) : 0;
+    return bt - at;
+  });
+  const dotOn = accent === 'primary' ? 'bg-primary' : 'bg-emerald-500';
+  const ring = accent === 'primary' ? 'ring-primary/30' : 'ring-emerald-500/30';
+
+  return (
+    <section className="rounded-2xl border border-black/10 bg-white overflow-hidden">
+      <header className="px-4 py-3 border-b border-black/5 flex items-baseline justify-between">
+        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">{label}</p>
+        <span className="text-[11px] text-foreground/45 tabular-nums">{people.length}</span>
+      </header>
+      {sorted.length === 0 ? (
+        <p className="px-4 py-6 text-[12.5px] text-foreground/45 italic text-center">{emptyHint}</p>
+      ) : (
+        <ul className="divide-y divide-black/5 max-h-[420px] overflow-y-auto">
+          {sorted.map((p) => {
+            const online = isOnline(p);
+            const initial = (p.full_name || '?').charAt(0).toUpperCase();
+            return (
+              <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">
+                <div className="relative shrink-0">
+                  {p.avatar_url ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.avatar_url} alt="" referrerPolicy="no-referrer" className={`w-9 h-9 rounded-full object-cover ring-1 ${online ? ring : 'ring-black/10'}`} />
+                  ) : (
+                    <span aria-hidden className={`w-9 h-9 rounded-full bg-warm-bg text-foreground/60 text-[12px] font-bold inline-flex items-center justify-center ring-1 ${online ? ring : 'ring-black/10'}`}>{initial}</span>
+                  )}
+                  {online && (
+                    <span aria-hidden className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full ${dotOn} ring-2 ring-white animate-pulse`} />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-semibold text-foreground truncate">
+                    {p.full_name || 'Member'}
+                    {p.id === currentUserId && <span className="ml-1.5 text-[10.5px] font-normal text-foreground/40">(you)</span>}
+                  </p>
+                  {p.job_title && <p className="text-[11px] text-foreground/50 truncate">{p.job_title}</p>}
+                </div>
+                <span className={`shrink-0 text-[11px] font-medium ${online ? (accent === 'primary' ? 'text-primary' : 'text-emerald-600') : 'text-foreground/40'}`}>
+                  {online ? 'Online now' : signedInLabel(p.last_sign_in)}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+// Short "Xh/Xm ago" label for someone who's signed in today but isn't
+// currently online.
+function signedInLabel(iso: string | null): string {
+  if (!iso) return 'today';
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return 'today';
+  const m = Math.round((Date.now() - t) / 60_000);
+  if (m < 1) return 'just now';
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  return `${h}h ago`;
 }
 
 // Weekly alumni meeting card. Standing Zoom (recurring, so it doesn't
