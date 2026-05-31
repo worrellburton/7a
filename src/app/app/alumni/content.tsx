@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { REUNION_EVENT } from './reunion/event';
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import HomeOnlineOrbit, { type OrbitHorse, type OrbitUser } from '../HomeOnlineOrbit';
@@ -126,6 +128,10 @@ export default function AlumniHubContent() {
           </button>
         </div>
       </header>
+
+      {/* Headline event teaser — countdown + RSVP shortcut to the
+          full Reunion page. Sits above the recurring meeting card. */}
+      <ReunionTeaser />
 
       {/* Personal time-sober tracker — toggle on, set a start date,
           watch it climb, and check in daily. Private unless the alum
@@ -288,6 +294,56 @@ function signedInLabel(iso: string | null): string {
   if (m < 60) return `${m}m ago`;
   const h = Math.round(m / 60);
   return `${h}h ago`;
+}
+
+// Reunion teaser — compact countdown + RSVP shortcut linking to the
+// full /app/alumni/reunion page. Ticks daily-ish (60s is plenty for a
+// months-out event). Event constants come from reunion/event.ts so
+// this never drifts from the page itself.
+function ReunionTeaser() {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const diff = REUNION_EVENT.startsAtMs - now;
+  const started = diff <= 0;
+  const days = Math.max(0, Math.floor(diff / 86_400_000));
+  const hours = Math.max(0, Math.floor((diff % 86_400_000) / 3_600_000));
+  return (
+    <Link
+      href={REUNION_EVENT.href}
+      className="group mb-8 block rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/12 via-warm-bg/40 to-white p-5 sm:p-6 hover:border-primary/50 hover:shadow-sm transition-all"
+    >
+      <div className="flex items-center justify-between gap-4 flex-wrap">
+        <div className="min-w-0">
+          <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-primary mb-1.5">Next event · RSVP</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+            {REUNION_EVENT.title}
+          </h2>
+          <p className="mt-1 text-[13px] text-foreground/65">
+            <span className="font-semibold text-foreground/80">{REUNION_EVENT.dateLabel}</span>
+            <span className="mx-2 text-foreground/30">·</span>📍 {REUNION_EVENT.location}
+          </p>
+        </div>
+        <div className="shrink-0 text-right">
+          {started ? (
+            <p className="text-[15px] font-bold text-emerald-700">Happening now 🎉</p>
+          ) : (
+            <p className="tabular-nums leading-none" style={{ fontFamily: 'var(--font-display)' }}>
+              <span className="text-3xl sm:text-4xl font-bold text-foreground">{days}</span>
+              <span className="text-[12px] font-semibold text-foreground/55 ml-1">days</span>
+              <span className="text-2xl sm:text-3xl font-bold text-foreground ml-2">{hours}</span>
+              <span className="text-[12px] font-semibold text-foreground/55 ml-1">hrs</span>
+            </p>
+          )}
+          <span className="mt-1.5 inline-flex items-center gap-1 text-[11.5px] font-semibold text-primary group-hover:gap-2 transition-all">
+            RSVP now <span aria-hidden>→</span>
+          </span>
+        </div>
+      </div>
+    </Link>
+  );
 }
 
 // Weekly alumni meeting card. Standing Zoom (recurring, so it doesn't
