@@ -27,6 +27,12 @@ import {
   formatTime,
 } from './_shared';
 
+// Call-log page size. The list is server-paginated through CTM's
+// calls.json API (calls live in CallTrackingMetrics, not Supabase, so
+// CTM's own page/per_page IS the server-side pagination). Newest-first
+// is CTM's default order. Prev/next jump whole pages of this size.
+const PER_PAGE = 50;
+
 export default function CallsContent() {
   const { user, session } = useAuth();
   // Batch selection — checkbox in every row, sticky action bar appears
@@ -55,7 +61,6 @@ export default function CallsContent() {
   const [calls, setCalls] = useState<Call[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -539,7 +544,7 @@ export default function CallsContent() {
     if (append) setLoadingMore(true); else setLoading(true);
     setError(null);
 
-    const params: Record<string, string | number> = { page: p, per_page: 25 };
+    const params: Record<string, string | number> = { page: p, per_page: PER_PAGE };
     if (searchQuery) params.search = searchQuery;
     if (dateFilter) params.start_date = dateFilter;
     if (directionFilter !== 'all') params.direction = directionFilter;
@@ -578,50 +583,52 @@ export default function CallsContent() {
     if (accountId) fetchCalls(1);
   }, [accountId, fetchCalls]);
 
-  // Infinite scroll: observe the sentinel and load the next page when visible.
-  useEffect(() => {
-    const node = loadMoreSentinelRef.current;
-    if (!node) return;
-    if (tab !== 'calls') return;
-    if (loading || loadingMore) return;
-    if (page >= totalPages) return;
-
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some(e => e.isIntersecting)) {
-        fetchCalls(page + 1, true);
-      }
-    }, { rootMargin: '200px' });
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [tab, loading, loadingMore, page, totalPages, fetchCalls]);
+  // Prev/next pagination (replaced the old infinite-scroll). Each page
+  // is a fresh CTM fetch of PER_PAGE rows; `calls` holds only the
+  // current page. goToPage scrolls back to the top of the list so the
+  // new page reads from the start.
+  const goToPage = useCallback((p: number) => {
+    if (p < 1 || p > totalPages || p === page) return;
+    fetchCalls(p);
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [page, totalPages, fetchCalls]);
 
   // Light polling — pick up newly-completed calls every 60s without a
-  // full page reload. Merges new IDs to the front instead of resetting
-  // pagination so the user's scroll position survives.
+  // full reload. Only merges when viewing page 1 (the newest page);
+  // on a historical page we just refresh the total count so we don't
+  // splice newer calls into the middle of an older page. Detail view
+  // (CallDetail) always loads fresh on expand, so it's unaffected.
   useEffect(() => {
     if (!accountId || !session?.access_token) return;
     let cancelled = false;
     async function refresh() {
       if (cancelled) return;
-      const params: Record<string, string | number> = { page: 1, per_page: 25 };
+      const params: Record<string, string | number> = { page: 1, per_page: PER_PAGE };
       if (searchQuery) params.search = searchQuery;
       if (dateFilter) params.start_date = dateFilter;
       if (directionFilter !== 'all') params.direction = directionFilter;
       try {
         const data = await ctmFetch(`/accounts/${accountId}/calls.json`, params);
         if (cancelled || !data.calls) return;
-        setCalls(prev => {
-          const existing = new Set(prev.map(c => c.id));
-          const fresh = data.calls!.filter(c => !existing.has(c.id));
-          if (fresh.length === 0) return prev;
-          return [...fresh, ...prev];
-        });
-        if (data.total_entries) setTotalEntries(data.total_entries);
+        if (data.total_entries) {
+          setTotalEntries(data.total_entries);
+          setTotalPages(data.total_pages || 1);
+        }
+        // Front-merge new calls only when the user is on page 1.
+        if (page === 1) {
+          setCalls(prev => {
+            const existing = new Set(prev.map(c => c.id));
+            const fresh = data.calls!.filter(c => !existing.has(c.id));
+            if (fresh.length === 0) return prev;
+            // Keep page 1 at PER_PAGE so it doesn't grow unbounded.
+            return [...fresh, ...prev].slice(0, PER_PAGE);
+          });
+        }
       } catch { /* swallow — try again next tick */ }
     }
     const id = window.setInterval(refresh, 60_000);
     return () => { cancelled = true; window.clearInterval(id); };
-  }, [accountId, session?.access_token, searchQuery, dateFilter, directionFilter]);
+  }, [accountId, session?.access_token, searchQuery, dateFilter, directionFilter, page]);
 
   const playRecording = (url: string) => {
     if (playingAudio === url) {
@@ -1124,22 +1131,41 @@ export default function CallsContent() {
                 </table>
               </div>
 
-              {/* Infinite scroll sentinel + status */}
-              <div ref={loadMoreSentinelRef} className="flex items-center justify-center px-5 py-4 border-t border-gray-100 bg-warm-bg/30">
-                {loadingMore ? (
-                  <div className="flex items-center gap-2 text-xs text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-                    <span className="w-3 h-3 border-2 border-foreground/40 border-t-transparent rounded-full animate-spin" />
-                    Loading more calls…
-                  </div>
-                ) : page >= totalPages ? (
-                  <p className="text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                    All {totalEntries.toLocaleString()} calls loaded
-                  </p>
-                ) : (
-                  <p className="text-xs text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
-                    {calls.length.toLocaleString()} of {totalEntries.toLocaleString()} loaded · scroll for more
-                  </p>
-                )}
+              {/* Server-side pagination controls. Each page is a fresh
+                  CTM fetch of PER_PAGE rows (calls live in
+                  CallTrackingMetrics, not Supabase), so we page through
+                  with explicit Prev/Next rather than infinite scroll. */}
+              <div className="flex items-center justify-between gap-3 px-5 py-4 border-t border-gray-100 bg-warm-bg/30" style={{ fontFamily: 'var(--font-body)' }}>
+                <p className="text-xs text-foreground/45">
+                  {loadingMore ? (
+                    <span className="inline-flex items-center gap-2">
+                      <span className="w-3 h-3 border-2 border-foreground/40 border-t-transparent rounded-full animate-spin" />
+                      Loading…
+                    </span>
+                  ) : (
+                    <>Page {page.toLocaleString()} of {totalPages.toLocaleString()} · {totalEntries.toLocaleString()} total</>
+                  )}
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => goToPage(page - 1)}
+                    disabled={page <= 1 || loadingMore}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-foreground/70 hover:border-gray-300 hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+                    Prev
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => goToPage(page + 1)}
+                    disabled={page >= totalPages || loadingMore}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-semibold text-foreground/70 hover:border-gray-300 hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -1148,7 +1174,7 @@ export default function CallsContent() {
 
       {/* Sources Tab */}
       {tab === 'sources' && !loading && (
-        <SourcesPanel calls={calls} onOpenCall={(id) => { setExpandedId(id); setTab('calls'); setTimeout(() => { const el = document.querySelector(`[data-call-id="${id}"]`); if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300); }} />
+        <SourcesPanel calls={allCallsRaw.length ? allCallsRaw : calls} onOpenCall={(id) => { setExpandedId(id); setTab('calls'); setTimeout(() => { const el = document.querySelector(`[data-call-id="${id}"]`); if (el && 'scrollIntoView' in el) (el as HTMLElement).scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300); }} />
       )}
 
       {/* Selection action bar — appears when one or more calls are
