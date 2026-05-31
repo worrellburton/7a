@@ -5,6 +5,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import HomeOnlineOrbit, { type OrbitHorse, type OrbitUser } from '../HomeOnlineOrbit';
 import AlumniProfileEditor from './_components/AlumniProfileEditor';
+import TimeSoberCard from './_components/TimeSoberCard';
 
 // Alumni hub. The 6-tile shortcut grid was removed — alumni
 // reach the sub-routes (map, meetups, peer support, etc.) from
@@ -101,6 +102,11 @@ export default function AlumniHubContent() {
           </button>
         </div>
       </header>
+
+      {/* Personal time-sober tracker — toggle on, set a start date,
+          watch it climb, and check in daily. Private unless the alum
+          opts to share their milestone. */}
+      <TimeSoberCard />
 
       {/* Weekly alumni meeting · the recurring Zoom that drives the
           peer-support list updates. Recurring, so it doesn't live in
