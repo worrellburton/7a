@@ -7,6 +7,7 @@ import {
   AdvancedMarker,
   InfoWindow,
 } from '@vis.gl/react-google-maps';
+import { soberMilestoneLabel } from './TimeSoberCard';
 
 // Google-Maps-backed alumni map. Each pin is the alum's own
 // avatar (round, copper-ring) rendered as an AdvancedMarker —
@@ -32,6 +33,8 @@ export interface AlumniMapPin {
   phone_visible: boolean;
   email_visible: boolean;
   text_ok: boolean;
+  sobriety_date?: string | null;
+  sobriety_public?: boolean;
   lat: number;
   lng: number;
 }
@@ -243,6 +246,11 @@ function PinPopup({ pin }: { pin: AlumniMapPin }) {
           )}
         </div>
       </div>
+      {pin.sobriety_public && soberMilestoneLabel(pin.sobriety_date ?? null) && (
+        <p style={{ display: 'inline-block', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#047857', background: 'rgba(16,185,129,0.12)', padding: '3px 8px', borderRadius: 9999, margin: 0, marginBottom: 8 }}>
+          🌱 {soberMilestoneLabel(pin.sobriety_date ?? null)}
+        </p>
+      )}
       {pin.bio && (
         <p style={{ fontSize: 12.5, color: 'rgba(26,26,26,0.78)', margin: 0, marginBottom: 8, lineHeight: 1.5, maxHeight: 160, overflowY: 'auto' }}>
           {pin.bio}

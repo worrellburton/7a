@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
+import { soberMilestoneLabel } from '../_components/TimeSoberCard';
 import AlumniProfileEditor from '../_components/AlumniProfileEditor';
 
 // Phase 3 — interactive Leaflet map (ssr:false because Leaflet
@@ -35,6 +36,7 @@ interface AlumniPin {
   email_visible: boolean;
   text_ok: boolean;
   sobriety_date: string | null;
+  sobriety_public: boolean;
   lat: number | null;
   lng: number | null;
 }
@@ -102,7 +104,7 @@ export default function AlumniMapContent() {
     // a join — the map markers ARE their profile photos.
     const { data } = await supabase
       .from('alumni_profiles')
-      .select('user_id, city, state, bio, interests, available_for, phone, email_for_alumni, phone_visible, email_visible, text_ok, sobriety_date, lat, lng, users:user_id(full_name, avatar_url)')
+      .select('user_id, city, state, bio, interests, available_for, phone, email_for_alumni, phone_visible, email_visible, text_ok, sobriety_date, sobriety_public, lat, lng, users:user_id(full_name, avatar_url)')
       .eq('on_map', true)
       .order('state', { ascending: true })
       .order('city', { ascending: true });
@@ -123,6 +125,7 @@ export default function AlumniMapContent() {
         email_visible: !!row.email_visible,
         text_ok: !!row.text_ok,
         sobriety_date: (row.sobriety_date as string | null) ?? null,
+        sobriety_public: !!row.sobriety_public,
         lat: (row.lat as number | null) ?? null,
         lng: (row.lng as number | null) ?? null,
       };
@@ -260,6 +263,8 @@ export default function AlumniMapContent() {
                 phone_visible: p.phone_visible,
                 email_visible: p.email_visible,
                 text_ok: p.text_ok,
+                sobriety_date: p.sobriety_date,
+                sobriety_public: p.sobriety_public,
                 lat: p.lat,
                 lng: p.lng,
               }))}
@@ -317,6 +322,11 @@ export default function AlumniMapContent() {
                       {/* Expanded detail dropdown. */}
                       {expanded && (
                         <div className="px-4 pb-4 pt-1 bg-warm-bg/25">
+                          {p.sobriety_public && soberMilestoneLabel(p.sobriety_date) && (
+                            <p className="mb-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold uppercase tracking-wider">
+                              🌱 {soberMilestoneLabel(p.sobriety_date)}
+                            </p>
+                          )}
                           {p.bio && (
                             <p className="text-[13px] text-foreground/80 leading-relaxed">{p.bio}</p>
                           )}
