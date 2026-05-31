@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { useAuth, notifyAvatarChanged } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/db';
+import TimeSoberCard from '../_components/TimeSoberCard';
 
 const INTEREST_OPTIONS = [
   'AA', 'NA', 'CMA', 'Wellbriety', 'SMART Recovery', 'Refuge Recovery',
@@ -145,10 +146,12 @@ export default function AlumniProfileContent() {
     try {
       // Update name on users.
       await db({ action: 'update', table: 'users', data: { full_name: fullName.trim() || null }, match: { id: user.id } });
-      // Upsert alumni_profiles.
+      // Upsert alumni_profiles. sobriety_date is intentionally omitted —
+      // the Time-sober card is the sole writer of it (and of the
+      // check-in / streak columns), so the profile save can't stomp a
+      // fresh check-in or reset.
       const payload = {
         user_id: user.id,
-        sobriety_date: alumni.sobriety_date || null,
         city: alumni.city.trim() || null,
         state: alumni.state.trim() || null,
         bio: alumni.bio.trim() || null,
@@ -217,6 +220,11 @@ export default function AlumniProfileContent() {
         </p>
       </header>
 
+      {/* Time-sober tracker — owns sobriety_date + check-ins. Hidden in
+          the admin read-only preview (it writes the viewer's own row,
+          which isn't meaningful when previewing the alumni form). */}
+      {!readOnly && <TimeSoberCard />}
+
       {/* Avatar + name header */}
       <section className="mb-6 flex items-center gap-4 p-4 rounded-2xl border border-black/10 bg-white">
         <div className="relative">
@@ -275,14 +283,10 @@ export default function AlumniProfileContent() {
       ) : (
         <fieldset disabled={readOnly} className="space-y-5">
           <div className="grid sm:grid-cols-2 gap-3">
-            <Field label="Sobriety date">
-              <input
-                type="date"
-                value={alumni.sobriety_date ?? ''}
-                onChange={(e) => setAlumni((p) => ({ ...p, sobriety_date: e.target.value || null }))}
-                className="w-full rounded-md border border-black/15 bg-white px-2.5 py-1.5 text-[13px] disabled:bg-warm-bg/40"
-              />
-            </Field>
+            {/* Sobriety date is now owned by the Time-sober card above
+                (toggle + counter + check-in), so it's no longer a raw
+                field here — a single source of truth avoids the form's
+                save clobbering a check-in or reset. */}
             <Field label="Phone (for the list)">
               <input
                 type="tel"
