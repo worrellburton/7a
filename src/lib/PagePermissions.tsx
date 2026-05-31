@@ -135,12 +135,13 @@ const defaultPages: PageConfig[] = [
   // Sort orders 100-107 keep alumni surfaces grouped at the
   // bottom of the alumni's sidebar.
   { path: '/app/alumni', label: 'Home', adminOnly: false, section: 'nav', sort_order: 100, allowedDepartments: [], departmentId: null, alumniOnly: true },
-  { path: '/app/alumni/map', label: 'Map', adminOnly: false, section: 'nav', sort_order: 101, allowedDepartments: [], departmentId: null, alumniOnly: true },
-  { path: '/app/alumni/peer-support', label: 'Peer support', adminOnly: false, section: 'nav', sort_order: 102, allowedDepartments: [], departmentId: null, alumniOnly: true },
-  { path: '/app/alumni/meetups', label: 'Meetups', adminOnly: false, section: 'nav', sort_order: 103, allowedDepartments: [], departmentId: null, alumniOnly: true },
-  { path: '/app/alumni/scholarships', label: 'Scholarships', adminOnly: false, section: 'nav', sort_order: 104, allowedDepartments: [], departmentId: null, alumniOnly: true },
-  { path: '/app/alumni/resources', label: 'Resources', adminOnly: false, section: 'nav', sort_order: 105, allowedDepartments: [], departmentId: null, alumniOnly: true },
-  { path: '/app/alumni/stories', label: 'Voices & talks', adminOnly: false, section: 'nav', sort_order: 106, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/reunion', label: 'Reunion', adminOnly: false, section: 'nav', sort_order: 101, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/map', label: 'Map', adminOnly: false, section: 'nav', sort_order: 102, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/peer-support', label: 'Peer support', adminOnly: false, section: 'nav', sort_order: 103, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/meetups', label: 'Meetups', adminOnly: false, section: 'nav', sort_order: 104, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/scholarships', label: 'Scholarships', adminOnly: false, section: 'nav', sort_order: 105, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/resources', label: 'Resources', adminOnly: false, section: 'nav', sort_order: 106, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/stories', label: 'Voices & talks', adminOnly: false, section: 'nav', sort_order: 107, allowedDepartments: [], departmentId: null, alumniOnly: true },
   // Alumni-side My Profile. Lives at /app/alumni/profile (not the
   // staff /app/profile) so the alumni form — opt-ins, sobriety
   // date, interests — is the canonical identity surface for
