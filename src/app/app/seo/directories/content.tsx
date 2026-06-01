@@ -3952,6 +3952,22 @@ export default function DirectoriesContent() {
   };
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<DirectoryCategory | 'all'>('all');
+  // Bulk-select set, keyed by directory id. Drives the floating
+  // action bar that appears at the bottom of the page when one or
+  // more rows are checked. Cleared whenever a batch operation runs
+  // (commit-then-deselect) and on category/filter changes since the
+  // visible row set would shift out from under the user otherwise.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchMode, setBatchMode] = useState<null | 'edit' | 'delete'>(null);
+  const [batchBusy, setBatchBusy] = useState(false);
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), []);
   const [hideListed, setHideListed] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -3979,6 +3995,49 @@ export default function DirectoriesContent() {
     if (!confirm('Hide this directory from the list? You can show hidden ones again from the toolbar.')) return;
     setHidden(id, true);
   };
+
+  // Bulk delete: custom rows hard-delete from seo_custom_directories;
+  // curated rows flip hidden=true on directory_states (the table is
+  // hard-coded, so there's nothing to actually delete on the data
+  // layer). Runs in parallel — Supabase requests are independent.
+  const bulkDelete = useCallback(async (ids: string[]) => {
+    if (ids.length === 0) return;
+    setBatchBusy(true);
+    try {
+      await Promise.all(
+        ids.map((id) => {
+          if (customIds.has(id)) {
+            return db({ action: 'delete', table: 'seo_custom_directories', match: { id } }).catch(() => null);
+          }
+          return upsertDirectoryState(id, { hidden: true });
+        }),
+      );
+      clearSelection();
+      setBatchMode(null);
+    } finally {
+      setBatchBusy(false);
+    }
+  }, [customIds, upsertDirectoryState, clearSelection]);
+
+  // Bulk-edit applies a single patch across every selected row by
+  // calling the same upsertDirectoryState the per-cell editors use,
+  // so audit logging + paid_set_by / status_set_by attribution stay
+  // consistent. Empty patch (caller deselected every field) is a
+  // no-op — we close the panel instead of writing every row a noop.
+  const bulkEdit = useCallback(async (ids: string[], patch: Partial<DirectoryStateRow>) => {
+    if (ids.length === 0 || Object.keys(patch).length === 0) {
+      setBatchMode(null);
+      return;
+    }
+    setBatchBusy(true);
+    try {
+      await Promise.all(ids.map((id) => upsertDirectoryState(id, patch)));
+      clearSelection();
+      setBatchMode(null);
+    } finally {
+      setBatchBusy(false);
+    }
+  }, [upsertDirectoryState, clearSelection]);
   // Semrush column was removed from the row layout per product
   // feedback ("not actionable enough to keep"). The hook + cell stay
   // defined below so re-enabling is a single edit, but we no longer
@@ -4412,6 +4471,24 @@ export default function DirectoriesContent() {
           <table className="w-full text-sm">
             <thead className="bg-warm-bg/50 text-[11px] uppercase tracking-wider text-foreground/55">
               <tr>
+                <th className="px-3 py-2.5 font-semibold border-b border-black/10 w-10 text-left">
+                  <input
+                    type="checkbox"
+                    aria-label={selectedIds.size === flatRows.length && flatRows.length > 0 ? 'Deselect all' : 'Select all'}
+                    checked={selectedIds.size > 0 && selectedIds.size === flatRows.length}
+                    // Tri-state: indeterminate when some (but not all)
+                    // rows are selected. React doesn't accept that
+                    // through props, so set it via a ref callback.
+                    ref={(el) => {
+                      if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < flatRows.length;
+                    }}
+                    onChange={(e) => {
+                      if (e.target.checked) setSelectedIds(new Set(flatRows.map((d) => d.id)));
+                      else clearSelection();
+                    }}
+                    className="w-4 h-4 accent-primary cursor-pointer"
+                  />
+                </th>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="directory" widthClass="w-64">Directory</SortableTh>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="category" widthClass="w-32">Category</SortableTh>
                 <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-12">Insights</th>
@@ -4455,6 +4532,16 @@ export default function DirectoriesContent() {
                     title="Click row to view comments"
                     aria-expanded={chatOpen}
                   >
+                    <td className="px-3 py-3 align-top">
+                      <input
+                        type="checkbox"
+                        aria-label={`Select ${d.name}`}
+                        checked={selectedIds.has(d.id)}
+                        onChange={() => toggleSelected(d.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="w-4 h-4 accent-primary cursor-pointer"
+                      />
+                    </td>
                     <td className="px-3 py-3">
                       {/* Drop zone wraps the directory cell so a
                           dragged image anywhere on this column
@@ -4650,7 +4737,7 @@ export default function DirectoriesContent() {
                   </tr>
                   {chatOpen && (
                     <tr className={`${tintClass}`}>
-                      <td colSpan={13} className="px-0 py-0 border-t border-primary/15">
+                      <td colSpan={14} className="px-0 py-0 border-t border-primary/15">
                         <div className="bg-white border-y border-primary/10">
                           <header className="flex items-center justify-between px-4 py-2 bg-warm-bg/40 border-b border-black/5">
                             <div className="flex items-baseline gap-2 min-w-0">
@@ -4939,6 +5026,237 @@ export default function DirectoriesContent() {
         </div>
       )}
 
+      {/* Floating batch-action bar. Renders when any rows are
+          selected; sits above the bottom safe area on mobile so it
+          never gets tucked under iOS home-indicator. Mirrors the
+          Calls page selection-bar pattern. */}
+      {selectedIds.size > 0 && (
+        <div
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 inline-flex items-center gap-2 bg-foreground text-white rounded-full pl-5 pr-2 py-2 shadow-2xl ring-1 ring-white/10"
+          style={{ fontFamily: 'var(--font-body)' }}
+          role="status"
+          aria-live="polite"
+        >
+          <span className="text-sm font-semibold">
+            {selectedIds.size} selected
+          </span>
+          <button
+            type="button"
+            onClick={() => setBatchMode('edit')}
+            disabled={batchBusy}
+            className="ml-2 inline-flex items-center gap-1.5 rounded-full bg-white/10 hover:bg-white/20 px-3.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Edit properties
+          </button>
+          <button
+            type="button"
+            onClick={() => setBatchMode('delete')}
+            disabled={batchBusy}
+            className="inline-flex items-center gap-1.5 rounded-full bg-red-500/90 hover:bg-red-500 px-3.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M1 7h22M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3" />
+            </svg>
+            Delete {selectedIds.size}
+          </button>
+          <button
+            type="button"
+            onClick={clearSelection}
+            disabled={batchBusy}
+            className="ml-1 inline-flex items-center justify-center w-7 h-7 rounded-full text-white/60 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-50"
+            aria-label="Clear selection"
+          >
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* Batch-edit modal — opens from the floating bar. Each control
+          is opt-in: only fields the user actually picks values for
+          get passed to upsertDirectoryState. */}
+      {batchMode === 'edit' && (
+        <BatchEditModal
+          count={selectedIds.size}
+          busy={batchBusy}
+          onClose={() => setBatchMode(null)}
+          onApply={(patch) => bulkEdit(Array.from(selectedIds), patch)}
+        />
+      )}
+
+      {/* Batch-delete confirm — hard-deletes custom rows and hides
+          curated rows. One confirmation across the whole batch
+          instead of N per-row confirms. */}
+      {batchMode === 'delete' && (
+        <BatchDeleteConfirm
+          count={selectedIds.size}
+          busy={batchBusy}
+          onCancel={() => setBatchMode(null)}
+          onConfirm={() => bulkDelete(Array.from(selectedIds))}
+        />
+      )}
+    </div>
+  );
+}
+
+// Bulk-edit modal. Each row has a "leave unchanged" sentinel value
+// — only fields with an explicit selection get included in the patch
+// sent to upsertDirectoryState. Returning an empty patch is treated
+// as a cancel in bulkEdit above.
+function BatchEditModal({
+  count,
+  busy,
+  onClose,
+  onApply,
+}: {
+  count: number;
+  busy: boolean;
+  onClose: () => void;
+  onApply: (patch: Partial<DirectoryStateRow>) => void;
+}) {
+  const [status, setStatus] = useState<'' | Status>('');
+  const [paid, setPaid] = useState<'' | 'yes' | 'no'>('');
+  const [twofa, setTwofa] = useState<'' | 'yes' | 'no'>('');
+  const [ein, setEin] = useState<'' | 'yes' | 'no'>('');
+
+  function submit() {
+    const patch: Partial<DirectoryStateRow> = {};
+    if (status) patch.status = status;
+    if (paid) {
+      patch.paid = paid === 'yes';
+      if (paid === 'no') patch.paid_amount = null;
+    }
+    if (twofa) patch.requires_2fa = twofa === 'yes';
+    if (ein) patch.requires_ein = ein === 'yes';
+    onApply(patch);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="batch-edit-title">
+      <div className="absolute inset-0 bg-black/55" onClick={busy ? undefined : onClose} aria-hidden="true" />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md" style={{ fontFamily: 'var(--font-body)' }}>
+        <header className="px-5 py-4 border-b border-black/10">
+          <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-foreground/50">Batch edit</p>
+          <h2 id="batch-edit-title" className="mt-0.5 text-lg font-bold text-foreground">
+            Update {count} {count === 1 ? 'directory' : 'directories'}
+          </h2>
+          <p className="mt-1 text-[12px] text-foreground/55">
+            Only the fields you set are applied. Leave a row at &ldquo;Leave unchanged&rdquo; to skip it.
+          </p>
+        </header>
+        <div className="px-5 py-4 space-y-4">
+          <div>
+            <label className="block text-[11px] font-semibold text-foreground/65 mb-1">Status</label>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as '' | Status)}
+              disabled={busy}
+              className="w-full px-3 py-2 rounded-lg border border-black/15 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+            >
+              <option value="">Leave unchanged</option>
+              {(Object.keys(STATUS_LABELS) as Status[]).map((s) => (
+                <option key={s} value={s}>{STATUS_LABELS[s]}</option>
+              ))}
+            </select>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <ThreeWay label="Paid" value={paid} onChange={setPaid} disabled={busy} />
+            <ThreeWay label="2FA required" value={twofa} onChange={setTwofa} disabled={busy} />
+          </div>
+          <ThreeWay label="EIN required" value={ein} onChange={setEin} disabled={busy} />
+        </div>
+        <footer className="px-5 py-4 border-t border-black/10 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-foreground/70 hover:bg-black/5 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={submit}
+            disabled={busy}
+            className="px-4 py-2 rounded-lg text-sm font-semibold bg-primary hover:bg-primary-dark text-white disabled:opacity-50"
+          >
+            {busy ? 'Applying…' : `Apply to ${count}`}
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
+}
+
+function ThreeWay({
+  label, value, onChange, disabled,
+}: {
+  label: string;
+  value: '' | 'yes' | 'no';
+  onChange: (v: '' | 'yes' | 'no') => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div>
+      <label className="block text-[11px] font-semibold text-foreground/65 mb-1">{label}</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value as '' | 'yes' | 'no')}
+        disabled={disabled}
+        className="w-full px-3 py-2 rounded-lg border border-black/15 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+      >
+        <option value="">Leave unchanged</option>
+        <option value="yes">Yes</option>
+        <option value="no">No</option>
+      </select>
+    </div>
+  );
+}
+
+function BatchDeleteConfirm({
+  count,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  count: number;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="batch-delete-title">
+      <div className="absolute inset-0 bg-black/55" onClick={busy ? undefined : onCancel} aria-hidden="true" />
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-sm" style={{ fontFamily: 'var(--font-body)' }}>
+        <div className="p-5">
+          <h2 id="batch-delete-title" className="text-lg font-bold text-foreground">
+            Delete {count} {count === 1 ? 'directory' : 'directories'}?
+          </h2>
+          <p className="mt-2 text-[13px] text-foreground/65 leading-relaxed">
+            Custom directories are permanently removed. Curated ones are hidden — you can bring them back from the &ldquo;Show hidden&rdquo; toggle.
+          </p>
+        </div>
+        <footer className="px-5 py-4 border-t border-black/10 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-foreground/70 hover:bg-black/5 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            className="px-4 py-2 rounded-lg text-sm font-semibold bg-red-500 hover:bg-red-600 text-white disabled:opacity-50"
+          >
+            {busy ? 'Removing…' : `Delete ${count}`}
+          </button>
+        </footer>
+      </div>
     </div>
   );
 }
