@@ -149,6 +149,12 @@ export const defaultPages: PageConfig[] = [
   // sidebar; the path itself is alumniOnly so staff never see
   // the link unless they're a super admin auditing.
   { path: '/app/alumni/profile', label: 'My Profile', adminOnly: false, section: 'popup', sort_order: 0.2, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  // /app/alumni/u/[id] is intentionally NOT registered here. It's a
+  // dynamic route that anyone signed in can reach via a direct link
+  // (the reunion guest list, alumni online list, etc.). The API at
+  // /api/alumni/profile/[id] already enforces opt-in privacy on the
+  // PII fields (phone / email / sobriety_date), so we don't need a
+  // separate registry-driven gate for the route itself.
   // Staff-only moderation queue — NOT alumniOnly. adminOnly hides
   // it from non-staff in the sidebar; an alumni who tries to navigate
   // in directly bounces back via the runtime is_admin check in the

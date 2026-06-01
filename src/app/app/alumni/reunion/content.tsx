@@ -242,7 +242,15 @@ function GuestRow({ label, people, accent }: { label: string; people: Guest[]; a
       </p>
       <div className="flex flex-wrap gap-2">
         {people.map((g) => (
-          <span key={g.userId} className="inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-warm-bg/60 border border-black/5">
+          // Pills navigate to the per-alumnus profile page. Discovery
+          // for individual profiles flows through these chips, the
+          // alumni "Online today" list, and (eventually) the map pin
+          // popup — there's no top-level sidebar entry per alumnus.
+          <Link
+            key={g.userId}
+            href={`/app/alumni/u/${g.userId}`}
+            className="inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-warm-bg/60 border border-black/5 hover:bg-warm-bg hover:border-primary/30 transition-colors"
+          >
             {g.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={g.avatarUrl} alt="" referrerPolicy="no-referrer" className="w-6 h-6 rounded-full object-cover" />
@@ -252,7 +260,7 @@ function GuestRow({ label, people, accent }: { label: string; people: Guest[]; a
               </span>
             )}
             <span className="text-[12px] font-medium text-foreground/75 max-w-[140px] truncate">{g.name || 'Alum'}</span>
-          </span>
+          </Link>
         ))}
       </div>
     </div>
