@@ -22,10 +22,18 @@ export async function GET() {
   //
   // Try the full select with responded_*; fall back if the columns
   // aren't in the deployed schema yet.
-  const FULL = 'id, source, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at, responded_at, responded_by, responded_note, is_spam';
+  const FULL = 'id, source, subject, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at, responded_at, responded_by, responded_note, is_spam';
+  const NO_SUBJECT = 'id, source, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at, responded_at, responded_by, responded_note, is_spam';
   const NO_SPAM = 'id, source, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at, responded_at, responded_by, responded_note';
   const MIN  = 'id, source, first_name, last_name, email, telephone, payment_method, message, consent, page_url, referrer, user_agent, status, notes, created_at';
   let resp = await admin.from('contact_submissions').select(FULL).neq('source', 'careers').order('created_at', { ascending: false }).limit(500);
+  if (resp.error && /subject/i.test(resp.error.message)) {
+    // Pre-migration deploys won't have the subject column yet —
+    // fall back to the unsubjected select so the Forms tab keeps
+    // rendering until the migration catches up.
+    console.warn('[forms] subject column missing, degrading read:', resp.error.message);
+    resp = await admin.from('contact_submissions').select(NO_SUBJECT).neq('source', 'careers').order('created_at', { ascending: false }).limit(500) as typeof resp;
+  }
   if (resp.error && /is_spam/i.test(resp.error.message)) {
     console.warn('[forms] is_spam column missing, degrading read:', resp.error.message);
     resp = await admin.from('contact_submissions').select(NO_SPAM).neq('source', 'careers').order('created_at', { ascending: false }).limit(500) as typeof resp;

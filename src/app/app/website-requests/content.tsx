@@ -1964,6 +1964,7 @@ function CardImage({ url, label }: { url: string; label: string }) {
 interface FormRow extends RespondedFields {
   id: string;
   source: 'contact_page' | 'footer' | 'exit_intent' | 'careers' | 'other' | null;
+  subject: 'general_inquiry' | 'admissions' | null;
   first_name: string | null;
   last_name: string | null;
   telephone: string | null;
@@ -1978,6 +1979,11 @@ interface FormRow extends RespondedFields {
   created_at: string;
   is_spam: boolean;
 }
+
+const FORM_SUBJECT_LABELS: Record<'general_inquiry' | 'admissions', string> = {
+  general_inquiry: 'General Inquiry',
+  admissions: 'Admissions',
+};
 
 type FormSourceFilter = 'all' | 'contact_page' | 'footer' | 'exit_intent' | 'other';
 const FORM_SOURCE_LABELS: Record<Exclude<FormSourceFilter, 'all'>, string> = {
@@ -2160,6 +2166,7 @@ function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
               <tr>
                 <Th>Name</Th>
                 <Th>Source</Th>
+                <Th>Subject</Th>
                 <Th>Contact</Th>
                 <Th>Message</Th>
                 <Th>Status</Th>
@@ -2201,6 +2208,21 @@ function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
                           </span>
                         )}
                       </div>
+                    </Td>
+                    <Td>
+                      {r.subject ? (
+                        <span
+                          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border ${
+                            r.subject === 'admissions'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              : 'bg-slate-50 text-slate-700 border-slate-200'
+                          }`}
+                        >
+                          {FORM_SUBJECT_LABELS[r.subject]}
+                        </span>
+                      ) : (
+                        <span className="text-foreground/40 text-xs">—</span>
+                      )}
                     </Td>
                     <Td>
                       <div className="text-xs text-foreground/70 space-y-0.5">
