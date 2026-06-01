@@ -10,7 +10,7 @@
 // flips status='sent' on the campaign row.
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
@@ -69,6 +69,15 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
   // either. Keeping a single canSend flag means the banner, button
   // disabled state, and button label all flip together.
   const canSend = isAdmin || isSuperAdmin;
+  // Preview mode (?preview=1) — entered from the Preview button on
+  // the campaigns index. Renders the email + the iterate textarea
+  // but suppresses the Send + Schedule controls so a marketer who
+  // just wants to tweak a scheduled campaign's content can't
+  // accidentally bypass its scheduled_at by clicking Send Now.
+  // Iterating still updates generated_html / generated_subject in
+  // place; status and scheduled_at are never touched by /build.
+  const searchParams = useSearchParams();
+  const previewMode = searchParams?.get('preview') === '1';
   const [campaign, setCampaign] = useState<CampaignRow | null>(null);
   const [recipients, setRecipients] = useState<DisplayRecipient[]>([]);
   const [iterateNote, setIterateNote] = useState('');
@@ -620,7 +629,22 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
         </div>
       )}
 
-      {!isSent && (
+      {previewMode && !isSent && (
+        <div className="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 mb-3 flex items-center justify-between gap-3" style={{ fontFamily: 'var(--font-body)' }}>
+          <p className="text-[12.5px] text-foreground/80">
+            <span className="font-bold uppercase tracking-[0.18em] text-[10px] text-primary mr-2">Preview</span>
+            Edits here update the email content. The campaign&rsquo;s schedule is unchanged.
+          </p>
+          <Link
+            href="/app/email-campaigns"
+            className="shrink-0 px-3 py-1.5 rounded-md border border-black/10 bg-white text-[11.5px] font-semibold text-foreground/70 hover:bg-white"
+          >
+            Back to list
+          </Link>
+        </div>
+      )}
+
+      {!isSent && !previewMode && (
         <div className="flex items-center justify-end gap-2">
           <Link
             href="/app/email-campaigns"

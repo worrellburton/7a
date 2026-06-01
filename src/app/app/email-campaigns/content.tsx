@@ -583,6 +583,19 @@ function CampaignRowItem({
         >
           {STATUS_LABELS[c.status] ?? c.status}
         </span>
+        {/* Preview opens the built email with iterate enabled but the
+            Send + Schedule controls hidden, so a marketer can tweak
+            wording on a scheduled campaign without touching the
+            schedule. Skipped for drafts that haven't been built yet
+            (status='draft' has no generated_html to preview). */}
+        {c.status !== 'draft' && (
+          <Link
+            href={`/app/email-campaigns/${c.id}/finalize?preview=1`}
+            className="shrink-0 px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+          >
+            Preview
+          </Link>
+        )}
         <Link
           href={resumeHref}
           className="shrink-0 px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"

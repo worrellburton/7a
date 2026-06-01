@@ -434,15 +434,17 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
           one fans out to 680px. `w-full` still clamps to the viewport
           on phones, so the px-4 padding keeps mobile avatars off the
           screen edges without needing a hard breakpoint cap. */}
-      {/* Reserve vertical clearance above the orbit's aspect-square
-          box so the outer alumni ring (inset -30%, overhangs ~30%
-          above the container) doesn't poke into the title block
-          sitting just above. pt-16 is the smallest gap that keeps
-          the alumni avatars off the title text — earlier we had
-          pt-32 which pushed the title block above the viewport on
-          desktop, since the whole orbit section is vertically
-          centered with translate-y-1/2 by the home page wrapper. */}
-      <div className="w-full flex justify-center px-8 sm:px-12 pt-12 pb-8">
+      {/* Reserve vertical clearance above + below the orbit's
+          aspect-square box so the outer alumni ring (now inset -15%
+          → ~15% overhang ≈ 70px on a 460px ring) clears both the
+          title block above and the daily-logs pill below. Earlier
+          this was inset -30% / pt-12 — that combination poked the
+          12-o'clock alumni avatar straight onto the "Seven Arrows"
+          subtitle. Bringing the alumni ring closer (still clearly
+          outside the staff ring, but no longer halfway to the
+          viewport edge) plus matching pt/pb keeps every layer
+          discrete and on its own track. */}
+      <div className="w-full flex justify-center px-8 sm:px-12 pt-24 pb-24">
         <div
           className="relative w-full aspect-square"
           style={{ maxWidth: `${idealDiameter}px` }}
@@ -727,19 +729,21 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
         {alumni.length > 0 && (
           <div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-[-30%] rounded-full border border-violet-400/25"
+            className="pointer-events-none absolute inset-[-15%] rounded-full border border-violet-400/25"
           />
         )}
 
         {/* Outermost ring — alumni online today. Pinned to a
-            NEGATIVE inset (-30%) so alumni orbit at a much larger
-            radius than the staff ring, reading as a distinct
-            outer halo with the decorative ring border tracing
-            their path. Counter-rotates so all three rings drift
-            in different directions. */}
+            NEGATIVE inset (-15%) so alumni orbit clearly outside
+            the staff ring while still leaving room for the title
+            above and the daily-logs pill below (see pt-24/pb-24
+            on the wrapper). Was -30% before — that put the top
+            alumni avatar right on top of the "Seven Arrows"
+            subtitle text. Counter-rotates so all three rings
+            drift in different directions. */}
         {alumni.length > 0 && (
           <div
-            className={`orbit-ring absolute inset-[-30%] motion-reduce:!animate-none ${mounted ? 'orbit-spin-rev' : ''} ${hovered ? 'orbit-paused' : ''}`}
+            className={`orbit-ring absolute inset-[-15%] motion-reduce:!animate-none ${mounted ? 'orbit-spin-rev' : ''} ${hovered ? 'orbit-paused' : ''}`}
           >
             {alumni.map((u, i) => {
               const angle = (i / alumni.length) * 360;
