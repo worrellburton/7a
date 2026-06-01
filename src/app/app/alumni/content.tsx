@@ -194,6 +194,7 @@ function OnlineList({
         people={alumni}
         currentUserId={currentUserId}
         accent="primary"
+        linkable
       />
       <OnlineSection
         label="Team online today"
@@ -212,12 +213,17 @@ function OnlineSection({
   people,
   currentUserId,
   accent,
+  linkable = false,
 }: {
   label: string;
   emptyHint: string;
   people: OrbitUser[];
   currentUserId: string | null;
   accent: 'primary' | 'emerald';
+  // When true, each row links to /app/alumni/u/[id]. Used for the
+  // alumni section only — staff don't have a per-person profile
+  // page on the alumni side of the app, so the team list stays flat.
+  linkable?: boolean;
 }) {
   // "Online now" = seen in the last 5 minutes; otherwise they signed
   // in earlier today. Sort online-first, then most-recently-seen.
@@ -251,8 +257,8 @@ function OnlineSection({
           {sorted.map((p) => {
             const online = isOnline(p);
             const initial = (p.full_name || '?').charAt(0).toUpperCase();
-            return (
-              <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">
+            const inner = (
+              <>
                 <div className="relative shrink-0">
                   {p.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -274,6 +280,20 @@ function OnlineSection({
                 <span className={`shrink-0 text-[11px] font-medium ${online ? (accent === 'primary' ? 'text-primary' : 'text-emerald-600') : 'text-foreground/40'}`}>
                   {online ? 'Online now' : signedInLabel(p.last_sign_in)}
                 </span>
+              </>
+            );
+            return (
+              <li key={p.id}>
+                {linkable ? (
+                  <Link
+                    href={`/app/alumni/u/${p.id}`}
+                    className="flex items-center gap-3 px-4 py-2.5 hover:bg-warm-bg/40 transition-colors"
+                  >
+                    {inner}
+                  </Link>
+                ) : (
+                  <div className="flex items-center gap-3 px-4 py-2.5">{inner}</div>
+                )}
               </li>
             );
           })}
