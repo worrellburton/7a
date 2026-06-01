@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 
 // Centered overlay modal with a compact contact form. Posts to
@@ -12,12 +12,16 @@ import { createPortal } from 'react-dom';
 // so the backdrop covers all stacking contexts regardless of the
 // caller's z-index.
 
+type Subject = 'general_inquiry' | 'admissions';
+
 interface FormState {
   firstName: string;
   lastName: string;
   phone: string;
   email: string;
+  subject: Subject;
   message: string;
+  captcha: string;
 }
 
 const EMPTY: FormState = {
@@ -25,8 +29,21 @@ const EMPTY: FormState = {
   lastName: '',
   phone: '',
   email: '',
+  subject: 'general_inquiry',
   message: '',
+  captcha: '',
 };
+
+// Two single-digit integers — small enough to be friction-free for
+// a real person, large enough that a naïve bot has to actually
+// evaluate the arithmetic in the rendered text rather than just
+// submitting empty fields. Regenerated every time the modal opens
+// so a single captured token cannot be replayed indefinitely.
+function buildMathQuestion(): { a: number; b: number; answer: number } {
+  const a = Math.floor(Math.random() * 9) + 1;
+  const b = Math.floor(Math.random() * 9) + 1;
+  return { a, b, answer: a + b };
+}
 
 export default function ContactModal({
   open,
@@ -40,8 +57,25 @@ export default function ContactModal({
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  // Question is re-rolled whenever the modal opens (see effect
+  // below). useMemo gets a stable initial value on first paint so
+  // the captcha label renders without a render flash.
+  const [math, setMath] = useState(() => buildMathQuestion());
 
   useEffect(() => { setMounted(true); }, []);
+
+  // Fresh math problem on every open. Without this, closing and
+  // reopening the modal (or a Send → "Try Again" loop after an
+  // error) would let a bot answer the same problem twice. Keep the
+  // captcha input cleared too so the user's old wrong answer
+  // doesn't carry over.
+  useEffect(() => {
+    if (!open) return;
+    setMath(buildMathQuestion());
+    setForm((f) => ({ ...f, captcha: '' }));
+  }, [open]);
+
+  const captchaExpected = useMemo(() => math.answer, [math]);
 
   // Lock body scroll while the modal is open + close on Escape.
   useEffect(() => {
@@ -75,6 +109,18 @@ export default function ContactModal({
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
+    // Math captcha — refuse to even hit the network if the answer
+    // is wrong. Trimming first because mobile keyboards sometimes
+    // emit a trailing space.
+    const given = Number(form.captcha.trim());
+    if (!Number.isFinite(given) || given !== captchaExpected) {
+      setError(`Quick check: ${math.a} + ${math.b} = ? Please try again.`);
+      // Roll a new problem so an attacker can't brute-force the
+      // same one by retrying.
+      setMath(buildMathQuestion());
+      setForm((f) => ({ ...f, captcha: '' }));
+      return;
+    }
     setSubmitting(true);
     try {
       const res = await fetch('/api/public/contact', {
@@ -86,6 +132,7 @@ export default function ContactModal({
           lastName: form.lastName,
           phone: form.phone,
           email: form.email,
+          subject: form.subject,
           message: form.message,
           page_url: typeof window !== 'undefined' ? window.location.href : null,
         }),
@@ -187,6 +234,23 @@ export default function ContactModal({
                   />
                 </Field>
 
+                {/* Subject dropdown — routes the email on the server:
+                    "General Inquiry" → info@sevenarrowsrecovery.com,
+                    "Admissions" → admissions@sevenarrowsrecovery.com.
+                    Persisted on the submission row so the admin Forms
+                    tab can display + filter by subject. */}
+                <Field label="Subject" required>
+                  <select
+                    required
+                    value={form.subject}
+                    onChange={(e) => setForm({ ...form, subject: e.target.value as Subject })}
+                    className="w-full px-3 py-2.5 rounded-lg border border-foreground/15 bg-white text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                  >
+                    <option value="general_inquiry">General Inquiry</option>
+                    <option value="admissions">Admissions</option>
+                  </select>
+                </Field>
+
                 <Field label="Message" required>
                   <textarea
                     rows={4}
@@ -194,6 +258,22 @@ export default function ContactModal({
                     value={form.message}
                     onChange={(e) => setForm({ ...form, message: e.target.value })}
                     className="w-full px-3 py-2.5 rounded-lg border border-foreground/15 bg-white text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
+                  />
+                </Field>
+
+                {/* Quick are-you-a-real-person check. Cheap to pass
+                    for a person, expensive for a naïve bot because
+                    the problem text is regenerated client-side each
+                    open and the server also re-validates. */}
+                <Field label={`Quick check: what is ${math.a} + ${math.b}?`} required>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    required
+                    value={form.captcha}
+                    onChange={(e) => setForm({ ...form, captcha: e.target.value })}
+                    className="w-full px-3 py-2.5 rounded-lg border border-foreground/15 bg-white text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
                   />
                 </Field>
 
