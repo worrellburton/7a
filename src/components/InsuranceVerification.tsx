@@ -32,10 +32,19 @@
 //      their existing aria-labels + focus-visible rings; reduced-
 //      motion respected by the backdrop.
 
+import { headers } from 'next/headers';
 import AdmissionsForm from './AdmissionsForm';
 import DarkFormBackdrop from './DarkFormBackdrop';
 
-export default function InsuranceVerification() {
+export default async function InsuranceVerification() {
+  // Per-page copy overrides. The cocaine page asked for an
+  // em-dash-free variant of the share-your-details line + a period
+  // dropped from the heading. We read the pathname via the header
+  // the (site) layout already sets (`x-pathname`) and tweak only
+  // those two strings; every other page renders the canonical copy.
+  const h = await headers();
+  const pathname = h.get('x-pathname') || '/';
+  const isCocaine = pathname === '/what-we-treat/cocaine';
   return (
     <section
       className="relative isolate overflow-hidden pt-16 lg:pt-24 pb-8 lg:pb-12"
@@ -76,15 +85,25 @@ export default function InsuranceVerification() {
               className="text-3xl sm:text-4xl lg:text-[44px] font-bold tracking-tight text-white leading-[1.05]"
               style={{ fontFamily: 'var(--font-display)' }}
             >
-              Take the first step toward <em className="not-italic text-amber-200">the rest of your life.</em>
+              Take the first step toward <em className="not-italic text-amber-200">the rest of your life{isCocaine ? '' : '.'}</em>
             </h2>
             <p
               className="mt-4 text-white/70 text-base lg:text-lg leading-relaxed max-w-xl"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              Most major insurance plans cover addiction treatment. Share your details
-              (and snap a photo of your card if you have one) and we&rsquo;ll verify your
-              benefits and call you back — typically within 15 minutes.
+              {isCocaine ? (
+                <>
+                  Most major insurance plans cover addiction treatment. Share your details
+                  (and snap a photo of your card if you have one) and we&rsquo;ll verify your
+                  benefits and call you back  typically within 15 minutes.
+                </>
+              ) : (
+                <>
+                  Most major insurance plans cover addiction treatment. Share your details
+                  (and snap a photo of your card if you have one) and we&rsquo;ll verify your
+                  benefits and call you back — typically within 15 minutes.
+                </>
+              )}
             </p>
 
             {/* Phase 9 — trust strip. Three small chips, each one

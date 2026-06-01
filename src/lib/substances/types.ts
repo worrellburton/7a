@@ -138,7 +138,7 @@ export interface SubstanceHero {
   // labelAs: 'h1' + titleAs: 'h2' to swap the hierarchy without
   // changing the visual layout.
   labelAs?: 'p' | 'h1';
-  titleAs?: 'h1' | 'h2';
+  titleAs?: 'h1' | 'h2' | 'p';
 }
 
 export interface SubstanceContent {

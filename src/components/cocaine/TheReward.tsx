@@ -64,8 +64,8 @@ export default function TheReward() {
                 lineHeight: 1.06,
               }}
             >
-              Cocaine rewires the brain&rsquo;s reward system —{' '}
-              <em className="not-italic text-primary">and then steals the baseline.</em>
+              How cocaine rewires the brain&rsquo;s reward system{' '}
+              <em className="not-italic text-primary">and then steals the baseline</em>
             </h2>
             <p
               className="text-foreground/75 text-lg leading-relaxed mb-5"
@@ -82,11 +82,11 @@ export default function TheReward() {
               className="text-foreground/75 text-lg leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              After repeated use, the baseline itself drops. The
-              ordinary pleasures stop registering. What the person
-              used to enjoy no longer reaches them — not because
-              anything changed about the pleasure, but because the
-              measuring stick got broken.
+              After repeated use of cocaine, the baseline of the brain
+              itself drops. The ordinary pleasures stop registering.
+              What the person used to enjoy no longer reaches them, not
+              because anything changed about the pleasure, but because
+              the measuring stick got broken by addiction.
             </p>
           </div>
 

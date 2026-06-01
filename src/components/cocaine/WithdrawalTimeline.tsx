@@ -41,7 +41,7 @@ const phases: Phase[] = [
   {
     label: 'Re-regulation',
     days: 'Weeks 6–12+',
-    body: 'A new baseline begins to stabilize. Natural rewards start registering again — food, rest, connection, music. Aftercare and holistic practice keep the curve climbing.',
+    body: 'A new baseline begins to stabilize. Natural rewards start registering again like food, rest, connection, music. Aftercare and holistic practice keep the curve climbing.',
     anchor: 0.9,
   },
 ];
@@ -92,8 +92,8 @@ export default function WithdrawalTimeline() {
             }}
           >
             Cocaine withdrawal is{' '}
-            <em className="not-italic text-primary">quieter than you think</em> — and
-            longer than you&rsquo;d want to do alone.
+            <em className="not-italic text-primary">quieter than you think</em> and
+            longer than you&rsquo;d want to do alone
           </h2>
           <p
             className="text-foreground/70 text-lg leading-relaxed"
@@ -101,10 +101,10 @@ export default function WithdrawalTimeline() {
           >
             Unlike alcohol or benzodiazepines, cocaine withdrawal
             isn&rsquo;t medically dramatic. It&rsquo;s emotionally
-            brutal. The real risk is psychological — anhedonia,
-            cravings, and the pull of the cycle — which is why
+            brutal. The real risk is psychological, anhedonia,
+            cravings, and the pull of the cycle, which is why
             structure and supportive community during the first
-            month carries the most weight.
+            month of treatment carries the most weight.
           </p>
         </div>
 
