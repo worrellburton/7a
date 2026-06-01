@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { siteVideos } from '@/lib/siteVideos';
 
@@ -24,6 +25,20 @@ const FADE_MS = 900; // opacity crossfade duration
 export default function BeforeFooterCTA() {
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
   const [active, setActive] = useState(0);
+  // Per-page copy overrides. The cocaine page asked for a
+  // keyword-targeted variant of the headline + sub-copy; rather than
+  // forking the whole component or threading props through the
+  // layout, we read the pathname here and substitute only the
+  // strings that differ. Default values keep every other page on
+  // the same canonical copy.
+  const pathname = usePathname();
+  const isCocaine = pathname === '/what-we-treat/cocaine';
+  const heading = isCocaine
+    ? 'Change your life with one call to our cocaine detox center'
+    : null;
+  const body = isCocaine
+    ? 'Get in touch with our caring team at Seven Arrows Recovery today to find out how we can help you have a life-changing experience at our cocaine addiction treatment center.'
+    : null;
 
   // Kick every video into play on mount. autoPlay alone is flaky
   // after hydration and with hidden (opacity 0) elements on some
@@ -117,15 +132,23 @@ export default function BeforeFooterCTA() {
               fontSize: 'clamp(2.2rem, 4.5vw, 3.4rem)',
             }}
           >
-            Change your life <br className="hidden sm:block" /> with a single call.
+            {heading ?? (
+              <>
+                Change your life <br className="hidden sm:block" /> with a single call.
+              </>
+            )}
           </h2>
           <p
             className="text-white/90 leading-relaxed mb-9 max-w-md text-lg"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            Get in touch with the caring team at Seven Arrows Recovery today and
-            find out how we can help you have a life-changing experience at our
-            center.
+            {body ?? (
+              <>
+                Get in touch with the caring team at Seven Arrows Recovery today and
+                find out how we can help you have a life-changing experience at our
+                center.
+              </>
+            )}
           </p>
           <div className="flex flex-col sm:flex-row gap-3">
             <a

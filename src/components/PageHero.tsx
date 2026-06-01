@@ -57,7 +57,7 @@ interface PageHeroProps {
    *  <h1>). Used by /what-we-treat/* pages that want a keyword-rich
    *  H1 in the eyebrow slot. */
   labelAs?: 'p' | 'h1';
-  titleAs?: 'h1' | 'h2';
+  titleAs?: 'h1' | 'h2' | 'p';
 }
 
 // Temporary placeholder backdrop used on every inner page until we
@@ -391,6 +391,13 @@ export default function PageHero({
             >
               {renderTitle(title)}
             </h2>
+          ) : titleAs === 'p' ? (
+            <p
+              className="text-4xl sm:text-5xl lg:text-[4rem] font-bold tracking-tight leading-[1.05] mb-5"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              {renderTitle(title)}
+            </p>
           ) : (
             <h1
               className="text-4xl sm:text-5xl lg:text-[4rem] font-bold tracking-tight leading-[1.05] mb-5"

@@ -119,17 +119,19 @@ export default function TheBody() {
                 lineHeight: 1.04,
               }}
             >
-              Stimulant overactivation is <em className="not-italic text-accent">physically expensive.</em>
+              Stimulant overactivation is <em className="not-italic text-accent">physically expensive</em>
             </h2>
             <p
               className="text-white/75 text-lg leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              Cocaine narrows blood vessels, raises heart rate and
-              blood pressure, thickens the blood, and holds the
-              sympathetic nervous system in overdrive for hours. The
-              body metabolizes the drug; the damage from the
+              The use of Cocaine narrows blood vessels, raises heart
+              rate and blood pressure, thickens the blood, and holds
+              the sympathetic nervous system in overdrive for hours.
+              The body metabolizes the drug; the damage from the
               physiological load it created takes far longer to clear.
+              Here is how cocaine addiction can gradually damage overall
+              health and take away the joy of life.
             </p>
           </div>
 

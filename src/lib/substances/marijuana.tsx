@@ -2,28 +2,30 @@ import type { SubstanceContent } from './types';
 
 export const marijuanaContent: SubstanceContent = {
   hero: {
-    label: 'Marijuana Addiction Treatment',
-    title: 'Cannabis dependence is real — and it finally has a name.',
+    label: 'Marijuana Addiction Treatment in Arizona',
+    title: 'Cannabis dependence is real, and it finally has a name.',
     description:
-      'At Seven Arrows Recovery, cannabis use disorder is treated as a legitimate clinical diagnosis, not dismissed because the drug is legal. High-potency modern cannabis produces real tolerance, real withdrawal, and real functional cost. Our residential program in Arizona treats it with the same seriousness as any other substance.',
+      'At Seven Arrows Recovery, cannabis use disorder is treated as a legitimate clinical diagnosis, not dismissed because the drug is legal. High-potency modern cannabis produces real tolerance, real withdrawal symptoms, and real functional cost. Our marijuana rehab in Arizona treats it with the same seriousness as any other substance.',
     breadcrumbs: [
       { label: 'Home', href: '/' },
       { label: 'What We Treat', href: '/what-we-treat' },
       { label: 'Marijuana Addiction' },
     ],
+    labelAs: 'h1',
+    titleAs: 'p',
   },
   reward: {
     eyebrow: 'The Neurochemistry',
     title: (
       <>
-        THC rides the endocannabinoid system —{' '}
-        <em className="not-italic text-primary">and today&rsquo;s THC is nothing like 1995&rsquo;s.</em>
+        How THC Affects the Brain:{' '}
+        <em className="not-italic text-primary">Today&rsquo;s Cannabis Is Nothing Like 1995&rsquo;s</em>
       </>
     ),
     paragraphs: [
       'THC binds to CB1 receptors across the brain, triggering dopamine release, mood shifts, and modulation of appetite, pain, and anxiety. At moderate doses this is the smoothing effect most users describe.',
-      'The THC content of modern cannabis has climbed from ~3% in flower from 1995 to 20%+ in commonly-sold flower today, and 70–90% in concentrates and vapes. The pharmacology looks nothing like the cannabis of a generation ago. The dependence landscape matches.',
-      'Recovery involves giving the endocannabinoid system time to reset — which it will — and treating the underlying anxiety, sleep, and attention patterns cannabis was stepping in to manage.',
+      'The THC content of modern cannabis has climbed from ~3% in flower in 1995 to 20%+ in commonly-sold flower today, and 70–90% in concentrates and vapes. The pharmacology looks nothing like the cannabis of a generation ago. The marijuana dependence landscape matches.',
+      'Recovery involves giving the endocannabinoid system time to reset, which it will, and treating the underlying anxiety, sleep, and attention patterns cannabis was stepping in to manage. It is why our structured marijuana addiction treatment in Arizona is built around both clinical withdrawal support and dual-diagnosis therapy, producing outcomes that quitting alone rarely does.',
     ],
     chart: {
       natural: { label: 'endocannabinoid baseline', color: '#2f6f5e' },
@@ -39,8 +41,8 @@ export const marijuanaContent: SubstanceContent = {
       </>
     ),
     paragraphs: [
-      'Cannabis dependence settles in softly. A wake-and-bake, a session to unwind, something for sleep, something to eat. By the time it is every waking non-task hour, the pattern has been invisible for years.',
-      'Residential care for cannabis often surprises clients: withdrawal is more uncomfortable than they expected, and life feels louder — good and bad — without the smoothing effect. That is the nervous system coming back online.',
+      'Cannabis dependency settles in softly. A wake-and-bake, a session to unwind, something for sleep, something to eat. By the time it is every waking non-task hour, the pattern has been invisible for years.',
+      'Residential marijuana treatment often surprises clients: the withdrawal is more uncomfortable than they expected, and life feels louder, good and bad, without the smoothing effect. At our Arizona marijuana rehab, that transition is held with clinical structure and trauma-informed support from day one. That is the nervous system coming back online.',
     ],
     stages: [
       { label: 'Use', hint: 'Unwind, sleep, appetite' },
@@ -56,7 +58,7 @@ export const marijuanaContent: SubstanceContent = {
         Cannabis dependence is <em className="not-italic text-accent">not a fringe diagnosis</em>.
       </>
     ),
-    body: 'Legalization has normalized cannabis — and quietly normalized daily high-dose use. Dependence rates are rising, especially among young adults using concentrates and vapes. The drug has changed faster than the cultural understanding of what it does.',
+    body: 'Legalization has normalized cannabis, and quietly normalized daily high-dose use. Dependence rates are rising, especially among young adults using concentrates and vapes. The drug has changed faster than the cultural understanding of what it does, which is part of why getting help for weed addiction still carries an unnecessary stigma.',
     stats: [
       {
         value: 30,
@@ -84,10 +86,11 @@ export const marijuanaContent: SubstanceContent = {
     eyebrow: 'The First Thirty Days',
     title: (
       <>
-        Cannabis withdrawal is <em className="not-italic text-primary">real</em> — and almost nobody is told that before they try to quit.
+        Marijuana Withdrawal Is Real:{' '}
+        <em className="not-italic text-primary">What to Expect Before You Quit</em>
       </>
     ),
-    body: 'The cultural myth that cannabis has no withdrawal has kept people from seeking help. The truth: irritability, sleep disturbance, anxiety, vivid dreams, and appetite disruption are documented, consistent, and meaningful. They pass. The window is navigable with structure.',
+    body: 'The cultural myth that cannabis withdrawal syndrome does not exist has kept people from seeking help. The truth: irritability, sleep disturbance, anxiety, vivid dreams, and appetite disruption are documented, consistent, and real. Cannabis withdrawal syndrome is not a myth - it is just underreported. The window is navigable with our structured  marijuana detox program built around exactly this timeline.',
     phases: [
       {
         label: 'Acute withdrawal',
@@ -115,11 +118,11 @@ export const marijuanaContent: SubstanceContent = {
     eyebrow: 'Who We Actually See',
     title: (
       <>
-        Five patterns through our door —{' '}
-        <em className="not-italic text-primary">almost none of them thought they had a real problem</em>.
+        Who Comes to Our Arizona Marijuana Rehab:{' '}
+        <em className="not-italic text-primary">Almost None Thought They Had a Real Problem</em>
       </>
     ),
-    body: 'The biggest obstacle to cannabis treatment is the belief that cannabis cannot produce a real problem. If it is affecting your sleep, your attention, your relationships, or your work — it is a real problem.',
+    body: 'The biggest obstacle to treating marijuana addiction is the belief that cannabis cannot produce a real problem. If it is affecting your sleep, your attention, your relationships, or your work, it is a real problem, and rehab for marijuana addiction is exactly what it was designed for.',
     personas: [
       {
         label: 'The wake-and-bake daily user',
@@ -152,11 +155,11 @@ export const marijuanaContent: SubstanceContent = {
     eyebrow: 'Our Approach',
     title: (
       <>
-        Take cannabis seriously.{' '}
-        <em className="not-italic text-primary">Treat the anxiety underneath.</em> Rebuild the routines the plant was holding.
+        Our Marijuana Rehab in Arizona:{' '}
+        <em className="not-italic text-primary">Take It Seriously, Treat the Anxiety, Rebuild the Routines</em>
       </>
     ),
-    body: 'Cannabis use disorder deserves the same clinical seriousness as any other SUD. What makes this treatment slightly different is that most of the therapeutic work happens not during acute withdrawal but in the weeks after — rebuilding life patterns cannabis was smoothing over.',
+    body: 'Cannabis use disorder deserves the same clinical seriousness as any other SUD. What makes our inpatient marijuana rehab slightly different is that most of the therapeutic work happens not during acute withdrawal but in the weeks after: rebuilding life patterns the drug was smoothing over.',
     flagship: {
       title: 'Somatic-CBT for cannabis use disorder',
       body: 'Our house-integrated CBT variant tracks the body and the thought together. Clients learn to distinguish genuine anxiety from craving-anxiety and to interrupt the pattern before reflex takes over.',
@@ -203,8 +206,8 @@ export const marijuanaContent: SubstanceContent = {
       </>
     ),
     paragraphs: [
-      'Most alumni describe the shift at week three or four — sleep comes back, dreams normalize, mornings feel workable, appetite synchronizes with actual hunger. The system is rebalancing.',
-      'Sleep, movement, connection, and meaning — the four pillars — do the long-arc work. The goal is not a life that feels exactly like it did on cannabis; it is a life the nervous system can actually inhabit.',
+      'Most alumni describe the shift at week three or four: sleep comes back, dreams normalize, mornings feel workable, appetite synchronizes with actual hunger. The system is rebalancing.',
+      'Sleep, movement, connection, and meaning do the long-arc work of sustained marijuana addiction recovery. The goal is not a life that feels exactly like it did on cannabis; it is a life the nervous system can actually inhabit.',
     ],
     anchors: [
       { x: 0.12, label: 'Sleep', hint: 'REM returns' },
@@ -249,6 +252,6 @@ export const marijuanaContent: SubstanceContent = {
         Cannabis dependence is real. <em className="not-italic text-accent">So is recovery.</em>
       </>
     ),
-    body: 'Our admissions team can verify your insurance and begin intake within 24 to 48 hours. You do not need a rock-bottom to deserve a better system.',
+    body: 'Our admissions team can verify your insurance and begin marijuana rehab intake within 24 to 48 hours. You do not need a rock-bottom to deserve a better system.',
   },
 };
