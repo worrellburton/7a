@@ -87,9 +87,9 @@ export default function WebsiteRequestsContent() {
       </div>
 
       {tab === 'overview' && <OverviewPanel onJump={selectTab} />}
-      {tab === 'forms' && <FormsPanel mode="forms" />}
+      {tab === 'forms' && <FormsPanel mode="forms" onSwitchTab={selectTab} />}
       {tab === 'careers' && <CareersPanel />}
-      {tab === 'spam' && <FormsPanel mode="spam" />}
+      {tab === 'spam' && <FormsPanel mode="spam" onSwitchTab={selectTab} />}
     </div>
   );
 }
@@ -1993,15 +1993,21 @@ const FORM_SOURCE_LABELS: Record<Exclude<FormSourceFilter, 'all'>, string> = {
   other: 'Other',
 };
 
-function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
+function FormsPanel({
+  mode = 'forms',
+  onSwitchTab,
+}: {
+  mode?: 'forms' | 'spam';
+  // Lets us drive the "Show spam → goes to the Spam tab" navigation
+  // from the Forms tab, and the "Mark not spam → jumps back to Forms"
+  // bounce from the Spam tab. The parent owns the tab state + the
+  // URL ?tab= sync, so we just hand the next tab name up.
+  onSwitchTab?: (next: Tab) => void;
+}) {
   const [rows, setRows] = useState<FormRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FormSourceFilter>('all');
-  // showSpam toggle is only meaningful on the Forms tab. The Spam
-  // tab is itself the spam-only view, so we ignore the toggle there
-  // and force-show.
-  const [showSpam, setShowSpam] = useState(false);
   const isSpamView = mode === 'spam';
   const { respond, busyId } = useRespond('contact');
   const { remove, busyId: deletingId } = useDelete('contact');
@@ -2075,15 +2081,13 @@ function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
   const spamCount = useMemo(() => rows.filter((r) => r.is_spam).length, [rows]);
 
   const visible = useMemo(() => {
-    let out = rows;
-    if (isSpamView) {
-      out = out.filter((r) => r.is_spam);
-    } else if (!showSpam) {
-      out = out.filter((r) => !r.is_spam);
-    }
+    // Forms tab always hides spam (the dedicated Spam tab is the only
+    // place spam shows). No inline toggle anymore — "Show spam (N)"
+    // navigates over to the Spam tab instead of expanding the list.
+    let out = isSpamView ? rows.filter((r) => r.is_spam) : rows.filter((r) => !r.is_spam);
     if (filter !== 'all') out = out.filter((r) => r.source === filter);
     return out;
-  }, [rows, filter, showSpam, isSpamView]);
+  }, [rows, filter, isSpamView]);
 
   async function handleMarkResponded(id: string, note: string) {
     const result = await respond(id, { note });
@@ -2105,6 +2109,14 @@ function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
     const ok = await markSpam(id, spam);
     if (!ok) return;
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, is_spam: spam } : r)));
+    // From the Spam tab, marking "not spam" pops the row off this
+    // view — bounce the user back to Forms where the row now lives,
+    // matching the email-client pattern the request asked for. Going
+    // the other direction (flagging as spam from Forms) keeps the
+    // user on Forms so they can keep triaging in place.
+    if (isSpamView && !spam) {
+      onSwitchTab?.('forms');
+    }
   }
 
   return (
@@ -2126,26 +2138,35 @@ function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
           </button>
         ))}
         <span className="ml-auto" />
-        {/* Show/Hide spam toggle is only useful on the Forms tab —
-            the Spam tab itself is the spam-only view. */}
+        {/* "Show spam" navigates over to the dedicated Spam tab
+            instead of expanding spam inline — matches the email-
+            client pattern where spam is its own folder. The Spam
+            tab itself shows the count + a "Back to Forms" jump so
+            the round-trip stays one click each way. */}
         {!isSpamView && spamCount > 0 && (
           <button
             type="button"
-            onClick={() => setShowSpam((v) => !v)}
-            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-              showSpam
-                ? 'bg-amber-100 text-amber-900 border-amber-300'
-                : 'bg-white text-foreground/70 border-black/10 hover:border-amber-300 hover:text-amber-700'
-            }`}
-            title={showSpam ? 'Hide spam' : 'Show spam'}
+            onClick={() => onSwitchTab?.('spam')}
+            className="text-xs px-2.5 py-1 rounded-full border transition-colors bg-white text-foreground/70 border-black/10 hover:border-amber-300 hover:text-amber-700"
+            title="Show spam"
           >
-            {showSpam ? 'Hide' : 'Show'} spam ({spamCount})
+            Show spam ({spamCount})
           </button>
         )}
         {isSpamView && (
-          <span className="text-xs text-amber-800 font-semibold">
-            {spamCount} flagged spam
-          </span>
+          <>
+            <span className="text-xs text-amber-800 font-semibold">
+              {spamCount} flagged spam
+            </span>
+            <button
+              type="button"
+              onClick={() => onSwitchTab?.('forms')}
+              className="text-xs px-2.5 py-1 rounded-full border bg-white text-foreground/70 border-black/10 hover:border-primary/40 hover:text-primary transition-colors"
+              title="Back to Forms"
+            >
+              ← Back to Forms
+            </button>
+          </>
         )}
       </div>
 
