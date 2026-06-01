@@ -72,8 +72,8 @@ export default function CocaineCTA() {
             transition: 'all 1.05s cubic-bezier(0.16,1,0.3,1) 0.2s',
           }}
         >
-          The reward system rebuilds.{' '}
-          <em className="not-italic text-accent">Yours can too.</em>
+          The reward system rebuilds{' '}
+          <em className="not-italic text-accent">and yours can too</em>
         </h2>
         <p
           className="text-white/75 text-lg leading-relaxed max-w-2xl mx-auto mb-10"

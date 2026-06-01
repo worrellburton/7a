@@ -83,8 +83,8 @@ export default function TheCycle() {
               className="text-foreground/75 text-lg leading-relaxed mb-5"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              Cocaine&rsquo;s short half-life is what makes it so
-              compulsive. A hit, a peak, a crash — and the craving
+              Cocaine&rsquo;s short half-life addiction is what makes
+              it so compulsive. A hit, a peak, a crash, and the craving
               starts again, often within the same hour. Willpower
               isn&rsquo;t the problem; the loop is running faster than
               conscious decision-making can interrupt.
@@ -94,8 +94,9 @@ export default function TheCycle() {
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Breaking the cycle requires something other than more
-              effort. It requires a room where the loop cannot close —
-              which is what residential care is for.
+              effort. It requires a room where the loop cannot close,
+              which is what our residential cocaine addiction treatment
+              in Arizona is for.
             </p>
           </div>
 
