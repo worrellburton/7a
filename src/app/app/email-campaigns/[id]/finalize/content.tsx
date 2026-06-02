@@ -89,6 +89,13 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
   // to step backward to queue a later send time.
   const router = useRouter();
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  // Send-confirm modal. Replaced native window.confirm which is too
+  // easy to click past on mobile and gives no real friction for a
+  // multi-hundred-recipient blast. Above the SEND_TYPED_THRESHOLD
+  // the modal also requires typing the recipient count exactly so
+  // a misclick can't fire to a large list.
+  const [sendConfirmOpen, setSendConfirmOpen] = useState(false);
+  const [sendConfirmTyped, setSendConfirmTyped] = useState('');
   const [scheduleDateTime, setScheduleDateTime] = useState('');
   const [scheduling, setScheduling] = useState(false);
   const buildControllerRef = useRef<AbortController | null>(null);
@@ -221,6 +228,11 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
     }
   };
 
+  // Click-through validation. If it passes, open the confirm modal;
+  // actual send fires from `confirmAndSend` below. Keeping the modal
+  // step decoupled means a stale-state validation error (no body, no
+  // recipients, etc.) can't be hidden under the confirmation flow —
+  // we surface it inline first.
   const onSend = async () => {
     if (!session?.access_token || sending) return;
     if (!campaign?.generated_html) {
@@ -232,7 +244,6 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
       return;
     }
     const pendingNow = recipients.filter((r) => r.send_status === 'pending').length;
-    const sentAlready = recipients.filter((r) => r.send_status === 'sent').length;
     if (pendingNow === 0) {
       setError('Nothing pending to send. Reset failed to pending if you want to retry.');
       return;
@@ -241,11 +252,15 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
       setError('Subject line is empty.');
       return;
     }
-    const confirmMsg = sentAlready > 0
-      ? `Send this email to the ${pendingNow} pending recipient${pendingNow === 1 ? '' : 's'}? The ${sentAlready} already-sent ${sentAlready === 1 ? 'row is' : 'rows are'} skipped.`
-      : `Send this email to ${pendingNow} recipient${pendingNow === 1 ? '' : 's'}?`;
-    const ok = window.confirm(confirmMsg);
-    if (!ok) return;
+    setError(null);
+    setSendConfirmTyped('');
+    setSendConfirmOpen(true);
+  };
+
+  const confirmAndSend = async () => {
+    if (!session?.access_token || sending) return;
+    if (!campaign?.generated_html) return;
+    setSendConfirmOpen(false);
     setError(null);
     setSending(true);
     try {
@@ -712,6 +727,101 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
           recipients-page version so the picker UI reads the same
           across the funnel. Native datetime-local picks up the
           OS calendar / wheel UI. */}
+      {/* Send-confirm modal · replaces the old window.confirm.
+          For any send >= SEND_TYPED_THRESHOLD recipients the user
+          has to type the recipient count exactly to enable the
+          Send button — a hard guard against fat-fingering Send on
+          a multi-hundred-recipient blast. Smaller sends are a
+          single explicit click instead, no typing. */}
+      {sendConfirmOpen && (() => {
+        const SEND_TYPED_THRESHOLD = 25;
+        const pendingNow = recipients.filter((r) => r.send_status === 'pending').length;
+        const sentAlready = recipients.filter((r) => r.send_status === 'sent').length;
+        const needsTyping = pendingNow >= SEND_TYPED_THRESHOLD;
+        const typedOk = !needsTyping || sendConfirmTyped.trim() === String(pendingNow);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="send-confirm-title">
+            <div className="w-full max-w-md rounded-2xl bg-white shadow-[0_30px_60px_-20px_rgba(0,0,0,0.4)] overflow-hidden" style={{ fontFamily: 'var(--font-body)' }}>
+              <header className="px-5 py-4 border-b border-black/5">
+                <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
+                  Confirm send
+                </p>
+                <h2 id="send-confirm-title" className="mt-0.5 text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+                  Send this email to {pendingNow.toLocaleString()} {pendingNow === 1 ? 'person' : 'people'}?
+                </h2>
+              </header>
+              <div className="px-5 py-4 space-y-3">
+                <div className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-[13px] text-foreground/80">
+                  <p>
+                    <strong className="text-primary-dark font-bold">{pendingNow.toLocaleString()}</strong>
+                    {' recipient'}{pendingNow === 1 ? '' : 's'}
+                    {sentAlready > 0 && (
+                      <>
+                        {' · '}
+                        <span className="text-foreground/55">
+                          {sentAlready.toLocaleString()} already sent will be skipped
+                        </span>
+                      </>
+                    )}
+                  </p>
+                  <p className="mt-1 text-[12px] text-foreground/55">
+                    Subject: <span className="text-foreground/80">{campaign?.generated_subject ?? '(no subject)'}</span>
+                  </p>
+                </div>
+                {needsTyping ? (
+                  <div>
+                    <label className="block">
+                      <span className="text-[11px] font-semibold text-foreground/65 mb-1.5 block">
+                        Type <span className="text-primary font-bold">{pendingNow}</span> to confirm
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        autoFocus
+                        value={sendConfirmTyped}
+                        onChange={(e) => setSendConfirmTyped(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && typedOk) void confirmAndSend();
+                          if (e.key === 'Escape') setSendConfirmOpen(false);
+                        }}
+                        className="w-full px-3 py-2 rounded-lg border border-black/15 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        placeholder={String(pendingNow)}
+                      />
+                    </label>
+                    <p className="mt-2 text-[11px] text-foreground/45">
+                      Required for sends of {SEND_TYPED_THRESHOLD}+ recipients — a typed match is the only way to fire Send so a misclick can&rsquo;t blast a large list.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-[12.5px] text-foreground/60">
+                    This will send to everyone listed in the recipients panel below. Already-sent rows are skipped automatically.
+                  </p>
+                )}
+              </div>
+              <footer className="px-5 py-4 border-t border-black/5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSendConfirmOpen(false)}
+                  disabled={sending}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold text-foreground/70 hover:bg-black/5 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void confirmAndSend()}
+                  disabled={!typedOk || sending}
+                  className="px-4 py-2 rounded-lg text-sm font-semibold bg-primary hover:bg-primary-dark text-white disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {sending ? 'Sending…' : `Send to ${pendingNow.toLocaleString()}`}
+                </button>
+              </footer>
+            </div>
+          </div>
+        );
+      })()}
+
       {scheduleOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Schedule send">
           <div className="w-full max-w-md rounded-2xl bg-white shadow-[0_30px_60px_-20px_rgba(0,0,0,0.4)] overflow-hidden" style={{ fontFamily: 'var(--font-body)' }}>
