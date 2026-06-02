@@ -13,10 +13,11 @@ import { useAuth } from '@/lib/AuthProvider';
 // pills), and the range pills below it filter only the
 // scoreboard / feed / breakdown / records cards.
 
-type RangeKey = 'today' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'all_time';
+type RangeKey = 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'all_time';
 
 const RANGES: Array<{ key: RangeKey; label: string; short: string }> = [
   { key: 'today',      label: 'Today',      short: 'Today' },
+  { key: 'yesterday',  label: 'Yesterday',  short: 'Yest' },
   { key: 'this_week',  label: 'This week',  short: 'Wk' },
   { key: 'last_week',  label: 'Last week',  short: 'Last wk' },
   { key: 'this_month', label: 'This month', short: 'Mo' },
@@ -156,6 +157,7 @@ function methodTone(method: string | null): { bg: string; text: string; ring: st
 
 function parseRange(raw: string | null | undefined): RangeKey {
   switch (raw) {
+    case 'yesterday':
     case 'this_week':
     case 'last_week':
     case 'this_month':
