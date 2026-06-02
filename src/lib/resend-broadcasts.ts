@@ -68,16 +68,41 @@ async function resendFetch(
   init: RequestInit & { apiKey: string },
 ): Promise<{ ok: true; data: unknown } | { ok: false; status: number; error: string }> {
   const { apiKey, headers, ...rest } = init;
-  const res = await fetch(`${RESEND_API}${path}`, {
-    ...rest,
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      ...(headers ?? {}),
-    },
-  });
-  const text = await res.text();
-  if (!res.ok) {
+  // Resend's free + Marketing Pro plans both cap at 5 req/s per API
+  // key. A single 429 used to abort the whole campaign because the
+  // addContactsToAudience loop is the only call site that retried —
+  // createAudience / createBroadcast / sendBroadcast each fired once
+  // and surfaced the 429 straight up to the caller, which stamped
+  // every pending recipient with "Resend audience creation failed:
+  // rate_limit_exceeded" via markCampaignFailed. Retry-with-backoff
+  // here means every Resend call survives a brief rate-limit blip
+  // without needing per-call retry logic above.
+  const MAX_ATTEMPTS = 5;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    const res = await fetch(`${RESEND_API}${path}`, {
+      ...rest,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        ...(headers ?? {}),
+      },
+    });
+    const text = await res.text();
+    if (res.ok) {
+      try { return { ok: true, data: JSON.parse(text) }; }
+      catch { return { ok: true, data: text }; }
+    }
+    // 429 → respect Retry-After if Resend gave us one; otherwise
+    // exponential backoff capped at 4s. Final attempt falls through
+    // to the error branch below so the caller still gets a clean
+    // failure if Resend never recovers.
+    if (res.status === 429 && attempt < MAX_ATTEMPTS) {
+      const retryAfter = Number(res.headers.get('retry-after') ?? 0);
+      const headerMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 0;
+      const backoffMs = Math.min(4000, Math.max(headerMs, 350 * 2 ** (attempt - 1)));
+      await new Promise((r) => setTimeout(r, backoffMs));
+      continue;
+    }
     let msg = text.slice(0, 1000);
     try {
       const body = JSON.parse(text) as ResendErrorBody;
@@ -85,8 +110,9 @@ async function resendFetch(
     } catch { /* non-JSON body — fall through */ }
     return { ok: false, status: res.status, error: msg };
   }
-  try { return { ok: true, data: JSON.parse(text) }; }
-  catch { return { ok: true, data: text }; }
+  // Unreachable — the loop above always returns or retries — but TS
+  // can't see that, so satisfy the return type.
+  return { ok: false, status: 0, error: 'resendFetch exceeded retry budget without resolving' };
 }
 
 // Create a fresh audience for one campaign send. We don't reuse a
