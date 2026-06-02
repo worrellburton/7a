@@ -60,6 +60,28 @@ export async function sendCampaignBatch(opts: SendCampaignBatchOpts): Promise<Se
     return { ok: false, error: 'Campaign is missing body or subject.', sent: 0, failed: 0, skipped: 0, simulated: false, stillPending: 0 };
   }
 
+  // Pre-flight constraint checks — fail fast on known Resend limits
+  // BEFORE we burn rate budget on an audience + contacts upsert that
+  // we'd just have to abort. Catches new instances of the
+  // class of bug that produced 'validation_error: Field name has a
+  // maximum of 70 items' (a subject 1 char over the cap that took a
+  // full Send round-trip to discover). Each check returns a clear
+  // human error so the operator can fix the campaign in 5 seconds.
+  const subject = (campaign.generated_subject as string).trim();
+  if (subject.length === 0) {
+    return { ok: false, error: 'Subject line is empty.', sent: 0, failed: 0, skipped: 0, simulated: false, stillPending: 0 };
+  }
+  if (subject.length > 200) {
+    return { ok: false, error: `Subject is ${subject.length} chars; Resend caps at 200. Shorten the subject and try again.`, sent: 0, failed: 0, skipped: 0, simulated: false, stillPending: 0 };
+  }
+  // 5MB total request payload (Resend's documented limit). The HTML
+  // is the dominant contributor; refuse upfront if it alone exceeds
+  // 4MB so we leave headroom for the JSON envelope + tags.
+  const htmlBytes = Buffer.byteLength(campaign.generated_html as string, 'utf-8');
+  if (htmlBytes > 4 * 1024 * 1024) {
+    return { ok: false, error: `Email body is ${(htmlBytes / 1024 / 1024).toFixed(1)} MB; Resend caps the payload at 5 MB. Compress images or shorten the body.`, sent: 0, failed: 0, skipped: 0, simulated: false, stillPending: 0 };
+  }
+
   // Idempotency guard: if a broadcast was already created for this
   // campaign, the fan-out is in Resend's hands — don't fire a second
   // one. This catches the cron + manual-click race that produced the
@@ -214,6 +236,25 @@ export async function sendCampaignBatch(opts: SendCampaignBatchOpts): Promise<Se
   }
   const broadcastId = b.id;
   await supabase.from('email_campaigns').update({ resend_broadcast_id: broadcastId }).eq('id', campaignId);
+
+  // Audit-log the broadcast fire. This is the canonical record that
+  // a campaign's audience was shipped — duplicates will surface
+  // immediately as multiple rows on the admin /app/activity feed.
+  // Best-effort: a failure here doesn't roll back the send.
+  await supabase.from('activity_log').insert({
+    type: 'email_campaign.broadcast_fired',
+    actor_id: actingUserId,
+    target_type: 'email_campaign',
+    target_id: campaignId,
+    target_label: subject.slice(0, 120),
+    payload: {
+      broadcast_id: broadcastId,
+      audience_id: audienceId,
+      recipient_count: recipients.length,
+    },
+  }).then((r) => {
+    if (r.error) console.warn('[campaigns send] activity_log insert failed:', r.error.message);
+  });
 
   // Step 4: fire the broadcast. Resend queues internally and the
   // events table fills in over the next minutes via the webhook.
