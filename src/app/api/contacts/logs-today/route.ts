@@ -30,7 +30,7 @@ import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
-type RangeKey = 'today' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'all_time';
+type RangeKey = 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'all_time';
 
 interface LogRow {
   id: string;
@@ -110,6 +110,19 @@ function rangeWindow(range: RangeKey): RangeWindow {
         label: 'today',
       };
     }
+    case 'yesterday': {
+      // Closed day window: [yesterday 00:00 Phoenix, today 00:00 Phoenix).
+      // Mirrors the last_week / last_month pattern (start of period
+      // inclusive, start of the *next* period exclusive) so a log
+      // landing right at midnight goes to the new day and doesn't
+      // get double-counted.
+      const yKey = addDaysKey(todayKey, -1);
+      return {
+        startIso: phoenixMidnight(yKey).toISOString(),
+        endIso: phoenixMidnight(todayKey).toISOString(),
+        label: 'yesterday',
+      };
+    }
     case 'this_week': {
       const monKey = phoenixWeekStartKey(nowIso);
       return {
@@ -156,6 +169,7 @@ function rangeWindow(range: RangeKey): RangeWindow {
 
 function parseRange(raw: string | null): RangeKey {
   switch (raw) {
+    case 'yesterday':
     case 'this_week':
     case 'last_week':
     case 'this_month':
@@ -324,15 +338,17 @@ export async function GET(req: NextRequest) {
   // sweep we already pulled for the records section, so this is
   // free; no extra DB query.
   const todayKey0 = phoenixDateKey(new Date().toISOString());
+  const yesterdayKey0 = addDaysKey(todayKey0, -1);
   const thisWeekStartKey = phoenixWeekStartKey(new Date().toISOString());
   const lastWeekStartKey = addDaysKey(thisWeekStartKey, -7);
   const thisMonthStartKey = phoenixMonthStartKey(new Date().toISOString());
   const lastMonthStartKey = addMonthsKey(thisMonthStartKey, -1);
-  const counts = { today: 0, this_week: 0, last_week: 0, this_month: 0, last_month: 0, all_time: 0 };
+  const counts = { today: 0, yesterday: 0, this_week: 0, last_week: 0, this_month: 0, last_month: 0, all_time: 0 };
   for (const r of history) {
     const k = phoenixDateKey(r.contacted_at);
     counts.all_time += 1;
     if (k === todayKey0) counts.today += 1;
+    if (k === yesterdayKey0) counts.yesterday += 1;
     if (k >= thisWeekStartKey) counts.this_week += 1;
     if (k >= lastWeekStartKey && k < thisWeekStartKey) counts.last_week += 1;
     if (k >= thisMonthStartKey) counts.this_month += 1;
