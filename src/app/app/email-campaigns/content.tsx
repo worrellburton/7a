@@ -25,6 +25,8 @@ interface CampaignRow {
   sent_at: string | null;
   created_at: string;
   created_by: string | null;
+  scheduled_send_at: string | null;
+  resend_broadcast_id: string | null;
   // Hydrated client-side from a second select on public.users keyed
   // by created_by. Done as a separate query (rather than a PostgREST
   // embed) because email_campaigns has TWO FKs to users — created_by
@@ -112,7 +114,7 @@ export default function EmailCampaignsContent() {
     void (async () => {
       const { data } = await supabase
         .from('email_campaigns')
-        .select('id, prompt, generated_subject, status, sent_at, created_at, created_by')
+        .select('id, prompt, generated_subject, status, sent_at, created_at, created_by, scheduled_send_at, resend_broadcast_id')
         .order('created_at', { ascending: false })
         .limit(500);
       if (cancelled) return;
@@ -231,6 +233,8 @@ export default function EmailCampaignsContent() {
       )}
 
       <AutopilotPanel canManage={canManage} />
+
+      <SendQueuePanel rows={rows} />
 
       <section className="rounded-2xl border border-black/10 bg-white">
         <header className="px-4 py-3 border-b border-black/5 flex items-baseline justify-between">
@@ -784,4 +788,168 @@ function formatExact(iso: string): string {
   const t = new Date(iso);
   if (Number.isNaN(t.getTime())) return iso;
   return t.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+// ============================================================================
+// SendQueuePanel — visible queue of in-flight + scheduled campaigns.
+//
+// Three buckets, only renders the row if at least one campaign falls
+// into that bucket so a fully-drained queue collapses to nothing:
+//
+//   - "Sending now" — campaigns currently in status='sending'. With
+//     the cron+idempotency guards in place these should be rare and
+//     short-lived (the broadcast fires in ~2 min for a 500-recipient
+//     send and then flips to 'sent'). A row that's been sitting in
+//     'sending' for >10 min is auto-reconciled by the cron — until
+//     that happens we surface it here so it's visible, not hidden.
+//
+//   - "Scheduled" — status='scheduled' with a future scheduled_send_at.
+//     Links out to the dedicated /scheduled view for reschedule /
+//     cancel controls (which already exist there).
+//
+//   - "Stuck" — status='sending' for >10 minutes. Shown in amber so
+//     the operator can audit them. The cron's stuck-row reconciliation
+//     will flip these to 'sent' (if broadcast fired) or 'failed' (if
+//     it didn't) on the next tick.
+// ============================================================================
+function SendQueuePanel({ rows }: { rows: CampaignRow[] }) {
+  // Live tick so countdowns advance without a refetch. One second is
+  // overkill at the day/hour scale we mostly show — clamp the
+  // re-render via an integer "minutes since mount" rather than a
+  // full Date.now() in state.
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((t) => t + 1), 30_000);
+    return () => window.clearInterval(id);
+  }, []);
+  // tick is intentionally read to force re-render at each interval.
+  void tick;
+
+  const now = Date.now();
+  const STUCK_THRESHOLD_MS = 10 * 60 * 1000;
+
+  const sending: CampaignRow[] = [];
+  const stuck: CampaignRow[] = [];
+  const scheduled: CampaignRow[] = [];
+  for (const r of rows) {
+    if (r.status === 'sending') {
+      const startedMs = Date.parse(r.created_at);
+      const ageMs = Number.isFinite(startedMs) ? now - startedMs : 0;
+      if (ageMs > STUCK_THRESHOLD_MS) stuck.push(r);
+      else sending.push(r);
+    } else if (r.status === 'scheduled') {
+      scheduled.push(r);
+    }
+  }
+  // Sort scheduled by scheduled_send_at ascending so the next one to
+  // fire is on top.
+  scheduled.sort((a, b) => {
+    const at = a.scheduled_send_at ? Date.parse(a.scheduled_send_at) : Number.POSITIVE_INFINITY;
+    const bt = b.scheduled_send_at ? Date.parse(b.scheduled_send_at) : Number.POSITIVE_INFINITY;
+    return at - bt;
+  });
+
+  if (sending.length + stuck.length + scheduled.length === 0) return null;
+
+  return (
+    <section
+      className="mt-4 mb-5 rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/5 via-warm-bg/30 to-white overflow-hidden"
+      style={{ fontFamily: 'var(--font-body)' }}
+      aria-label="Send queue"
+    >
+      <header className="px-4 py-3 border-b border-primary/15 flex items-baseline justify-between gap-3 flex-wrap">
+        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-primary">
+          Send queue
+        </p>
+        <div className="flex items-center gap-3 text-[11px] text-foreground/55">
+          {sending.length > 0 && (
+            <span><strong className="text-emerald-700">{sending.length}</strong> sending</span>
+          )}
+          {scheduled.length > 0 && (
+            <span><strong className="text-foreground/80">{scheduled.length}</strong> scheduled</span>
+          )}
+          {stuck.length > 0 && (
+            <span><strong className="text-amber-700">{stuck.length}</strong> stuck</span>
+          )}
+          <Link href="/app/email-campaigns/scheduled" className="text-primary font-semibold hover:underline">
+            Manage →
+          </Link>
+        </div>
+      </header>
+      <ul className="divide-y divide-primary/10">
+        {sending.map((r) => (
+          <QueueRow key={r.id} row={r} kind="sending" />
+        ))}
+        {stuck.map((r) => (
+          <QueueRow key={r.id} row={r} kind="stuck" />
+        ))}
+        {scheduled.slice(0, 3).map((r) => (
+          <QueueRow key={r.id} row={r} kind="scheduled" now={now} />
+        ))}
+        {scheduled.length > 3 && (
+          <li className="px-4 py-2 text-[11.5px] text-foreground/55">
+            +{scheduled.length - 3} more scheduled — open <Link href="/app/email-campaigns/scheduled" className="text-primary font-semibold hover:underline">Sending schedule</Link> for the full list.
+          </li>
+        )}
+      </ul>
+    </section>
+  );
+}
+
+function QueueRow({
+  row,
+  kind,
+  now,
+}: {
+  row: CampaignRow;
+  kind: 'sending' | 'scheduled' | 'stuck';
+  now?: number;
+}) {
+  const subject = row.generated_subject?.trim() || row.prompt?.trim().slice(0, 80) || 'Untitled';
+  const meta = (() => {
+    if (kind === 'sending') {
+      return row.resend_broadcast_id
+        ? 'Broadcast fired · finalizing'
+        : 'Building audience · uploading contacts';
+    }
+    if (kind === 'stuck') {
+      return row.resend_broadcast_id
+        ? 'Broadcast fired but never flipped to sent — cron will reconcile within 1 min'
+        : 'Never reached the broadcast step — will be marked failed within 1 min';
+    }
+    if (!row.scheduled_send_at) return 'Scheduled (no time set)';
+    const ms = Date.parse(row.scheduled_send_at) - (now ?? Date.now());
+    if (ms <= 0) return 'Sending now…';
+    const sec = Math.floor(ms / 1000);
+    if (sec < 60) return `Sending in ${sec}s`;
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `Sending in ${min} min`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `Sending in ${hr}h ${min - hr * 60}m`;
+    const days = Math.floor(hr / 24);
+    return `Sending in ${days}d ${hr - days * 24}h`;
+  })();
+  const accent =
+    kind === 'sending' ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+    : kind === 'stuck' ? 'bg-amber-100 text-amber-900 border-amber-300'
+    : 'bg-foreground/[0.06] text-foreground/75 border-foreground/10';
+  const label = kind === 'sending' ? 'SENDING' : kind === 'stuck' ? 'STUCK' : 'SCHEDULED';
+  return (
+    <li className="px-4 py-3 flex items-center gap-3">
+      <span className={`inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[9.5px] font-bold uppercase tracking-wider border ${accent}`}>
+        {kind === 'sending' && <span aria-hidden className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+        {label}
+      </span>
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-semibold text-foreground truncate">{subject}</p>
+        <p className="text-[11.5px] text-foreground/55 truncate">{meta}</p>
+      </div>
+      <Link
+        href={`/app/email-campaigns/${row.id}/finalize${kind === 'scheduled' ? '?preview=1' : ''}`}
+        className="shrink-0 px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+      >
+        Open
+      </Link>
+    </li>
+  );
 }
