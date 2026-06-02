@@ -107,40 +107,55 @@ async function resendFetch(
   init: RequestInit & { apiKey: string },
 ): Promise<{ ok: true; data: unknown } | { ok: false; status: number; error: string }> {
   const { apiKey, headers, ...rest } = init;
-  // Resend's free + Marketing Pro plans both cap at 5 req/s per API
-  // key. A single 429 used to abort the whole campaign because the
-  // addContactsToAudience loop is the only call site that retried —
-  // createAudience / createBroadcast / sendBroadcast each fired once
-  // and surfaced the 429 straight up to the caller, which stamped
-  // every pending recipient with "Resend audience creation failed:
-  // rate_limit_exceeded" via markCampaignFailed. Retry-with-backoff
-  // here means every Resend call survives a brief rate-limit blip
-  // without needing per-call retry logic above.
+  // Retry budget covers BOTH rate-limit blips (429) and Resend-side
+  // transient failures (502/503/504, network hangs). Without the
+  // transient-error path here, a single 503 from Resend's edge on
+  // the lone createAudience call would still abort the campaign
+  // even with the rate-limiter in place. Every Resend caller
+  // inherits this — createAudience, contacts upsert, createBroadcast,
+  // sendBroadcast, unsubscribe mirror, anything new.
   const MAX_ATTEMPTS = 5;
+  let lastError = 'Resend request failed without a response';
+  let lastStatus = 0;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     // Block until the process-wide budget has a slot. Every Resend
     // caller hits this gate, so concurrent campaign sends + the
     // unsubscribe mirror + a scheduled cron tick can't collectively
     // exceed 5/sec the way they used to.
     await acquireResendSlot();
-    const res = await fetch(`${RESEND_API}${path}`, {
-      ...rest,
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        ...(headers ?? {}),
-      },
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${RESEND_API}${path}`, {
+        ...rest,
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          ...(headers ?? {}),
+        },
+      });
+    } catch (err) {
+      // Network failure (TLS reset, DNS hiccup, edge timeout). Treat
+      // as retryable — these are the most common cause of a single-
+      // shot Resend call failing on a busy edge.
+      lastError = `network: ${err instanceof Error ? err.message : String(err)}`;
+      lastStatus = 0;
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, Math.min(4000, 400 * 2 ** (attempt - 1))));
+        continue;
+      }
+      return { ok: false, status: 0, error: lastError };
+    }
     const text = await res.text();
     if (res.ok) {
       try { return { ok: true, data: JSON.parse(text) }; }
       catch { return { ok: true, data: text }; }
     }
-    // 429 → respect Retry-After if Resend gave us one; otherwise
-    // exponential backoff capped at 4s. Final attempt falls through
-    // to the error branch below so the caller still gets a clean
-    // failure if Resend never recovers.
-    if (res.status === 429 && attempt < MAX_ATTEMPTS) {
+    // 429 + 5xx → retryable. 429 respects Retry-After when Resend
+    // sets it; 5xx uses pure exponential backoff (capped at 4s).
+    // 4xx other than 429 is the caller's fault (bad payload, bad
+    // API key, missing audience) and aborts straight through.
+    const retryable = res.status === 429 || (res.status >= 500 && res.status < 600);
+    if (retryable && attempt < MAX_ATTEMPTS) {
       const retryAfter = Number(res.headers.get('retry-after') ?? 0);
       const headerMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 0;
       const backoffMs = Math.min(4000, Math.max(headerMs, 350 * 2 ** (attempt - 1)));
@@ -152,11 +167,14 @@ async function resendFetch(
       const body = JSON.parse(text) as ResendErrorBody;
       msg = `${body.name ?? `HTTP ${res.status}`}: ${body.message ?? text.slice(0, 500)}`;
     } catch { /* non-JSON body — fall through */ }
+    lastError = msg;
+    lastStatus = res.status;
     return { ok: false, status: res.status, error: msg };
   }
   // Unreachable — the loop above always returns or retries — but TS
-  // can't see that, so satisfy the return type.
-  return { ok: false, status: 0, error: 'resendFetch exceeded retry budget without resolving' };
+  // can't see that, so satisfy the return type with the last error
+  // we recorded.
+  return { ok: false, status: lastStatus, error: lastError };
 }
 
 // Create a fresh audience for one campaign send. We don't reuse a
