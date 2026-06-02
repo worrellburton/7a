@@ -183,7 +183,9 @@ export async function sendCampaignBatch(opts: SendCampaignBatchOpts): Promise<Se
     html: broadcastHtml,
     from,
     replyTo,
-    name: (campaign.generated_subject as string).slice(0, 100),
+    // Resend caps broadcast `name` at 70 chars. createBroadcast
+    // re-truncates defensively too — keep both in sync.
+    name: (campaign.generated_subject as string).slice(0, 70),
   });
   if (!b.ok) {
     await markCampaignFailed(supabase, campaignId, `Resend broadcast creation failed: ${b.error}`);

@@ -246,6 +246,15 @@ export async function addContactsToAudience(
 }
 
 // Create a broadcast tied to an audience. The send is a separate call.
+//
+// Resend caps the broadcast `name` field at 70 characters (the
+// validation_error reads "Field `name` has a maximum of 70 items").
+// Callers truncate at slice(0, 100) which silently overshoots when a
+// subject line runs long — we defensively cap again here so a
+// single edit to the call-site truncation can't sneak the failure
+// back in. The name is only Resend's internal display label; the
+// actual recipient-visible subject is the separate `subject` field.
+const BROADCAST_NAME_MAX = 70;
 export async function createBroadcast(
   apiKey: string,
   audienceId: string,
@@ -260,7 +269,7 @@ export async function createBroadcast(
       subject: envelope.subject,
       html: envelope.html,
       reply_to: envelope.replyTo,
-      name: envelope.name,
+      name: envelope.name ? envelope.name.slice(0, BROADCAST_NAME_MAX) : undefined,
     }),
   });
   if (!r.ok) return { ok: false, error: r.error };
