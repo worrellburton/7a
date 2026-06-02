@@ -23,6 +23,45 @@
 
 const RESEND_API = 'https://api.resend.com';
 
+// PROCESS-WIDE Resend rate limiter. Resend caps every API key at
+// 5 requests/second (Pro + Free both). The old code only throttled
+// the per-campaign contacts-upsert loop — every other Resend call
+// (createAudience, createBroadcast, sendBroadcast, the unsubscribe
+// mirror that PATCHes one audience per past campaign on every
+// unsub click, the cron-driven schedule tick, the test-route VOB
+// path) fired with no throttle. So a single Send button click
+// could collide with: a scheduled-send cron, an unsubscribe sync
+// fanout, or its own contacts loop, and tip us past 5/sec.
+//
+// One sliding-window limiter at module scope means every Resend
+// call across the whole process — irrespective of which feature
+// triggered it — shares the budget. RESEND_RPS_LIMIT lets us tune
+// per environment if Resend ever bumps the plan.
+const RESEND_RPS = (() => {
+  const raw = Number(process.env.RESEND_RPS_LIMIT);
+  if (Number.isFinite(raw) && raw > 0 && raw <= 20) return Math.floor(raw);
+  // One under the plan cap so a momentary clock-skew burst with
+  // Resend's counter doesn't trip 429.
+  return 4;
+})();
+
+const rateRecent: number[] = [];
+async function acquireResendSlot(): Promise<void> {
+  // FIFO: each waiter polls + sleeps until the oldest entry inside
+  // the 1s window has aged out. Cheaper than a real semaphore for
+  // single-process Node and resilient to clock jumps.
+  while (true) {
+    const now = Date.now();
+    while (rateRecent.length > 0 && now - rateRecent[0] >= 1000) rateRecent.shift();
+    if (rateRecent.length < RESEND_RPS) {
+      rateRecent.push(now);
+      return;
+    }
+    const wait = 1000 - (now - rateRecent[0]) + 8;
+    await new Promise((r) => setTimeout(r, Math.max(wait, 20)));
+  }
+}
+
 // Marketing/Broadcasts API calls need a Full-access Resend API key
 // (Audiences + Broadcasts endpoints are gated). We keep that key on
 // its own env var so the send-only RESEND_API_KEY used for
@@ -79,6 +118,11 @@ async function resendFetch(
   // without needing per-call retry logic above.
   const MAX_ATTEMPTS = 5;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    // Block until the process-wide budget has a slot. Every Resend
+    // caller hits this gate, so concurrent campaign sends + the
+    // unsubscribe mirror + a scheduled cron tick can't collectively
+    // exceed 5/sec the way they used to.
+    await acquireResendSlot();
     const res = await fetch(`${RESEND_API}${path}`, {
       ...rest,
       headers: {
@@ -135,67 +179,38 @@ export async function createAudience(
 }
 
 // Bulk-add contacts to an audience. Resend has no batch endpoint
-// for this (POST /audiences/{id}/contacts is one-contact-at-a-time)
-// AND enforces a global 5 req/sec cap per API key on every endpoint.
-// We use a small parallel pool gated by a token-bucket limiter so
-// we hover just under the cap, and retry on 429 using the Retry-
-// After header. Duplicates within the same audience return 409/422 —
-// we treat those as success since the contact is already in the list.
+// for this (POST /audiences/{id}/contacts is one-contact-at-a-time).
+// The process-wide acquireResendSlot() inside resendFetch is what
+// keeps us under the 5/sec cap now; we just spin a small parallel
+// pool and let the global limiter throttle naturally. 429 retry
+// also lives in resendFetch, so the only thing we still handle
+// here is the 409/422 "already in audience" case.
 export async function addContactsToAudience(
   apiKey: string,
   audienceId: string,
   contacts: ResendBroadcastContact[],
-  opts: { parallelism?: number; rps?: number } = {},
+  opts: { parallelism?: number } = {},
 ): Promise<{ added: number; alreadyIn: number; failed: number; firstError?: string }> {
-  // Stay one under Resend's 5 RPS cap so a clock-skew burst doesn't
-  // accidentally trip it. Empirically 4 parallel workers + 4 RPS
-  // drains ~240 contacts in ~60s without a single 429.
-  const parallelism = Math.max(1, Math.min(opts.parallelism ?? 4, 5));
-  const rps = Math.max(1, Math.min(opts.rps ?? 4, 5));
+  const parallelism = Math.max(1, Math.min(opts.parallelism ?? 4, 8));
   let added = 0; let alreadyIn = 0; let failed = 0; let firstError: string | undefined;
   let cursor = 0;
 
-  // Sliding-window rate limiter. Any caller must call acquireSlot()
-  // before issuing a fetch; the limiter blocks until we have fewer
-  // than `rps` requests in the last 1000ms window.
-  const recent: number[] = [];
-  const acquireSlot = async () => {
-    while (true) {
-      const now = Date.now();
-      while (recent.length > 0 && now - recent[0] >= 1000) recent.shift();
-      if (recent.length < rps) { recent.push(now); return; }
-      const wait = 1000 - (now - recent[0]) + 8;
-      await new Promise((r) => setTimeout(r, Math.max(wait, 25)));
-    }
-  };
-
   const upsertOne = async (c: ResendBroadcastContact): Promise<void> => {
-    const MAX_ATTEMPTS = 4;
-    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-      await acquireSlot();
-      const r = await resendFetch(`/audiences/${audienceId}/contacts`, {
-        apiKey,
-        method: 'POST',
-        body: JSON.stringify({
-          email: c.email,
-          first_name: c.firstName ?? undefined,
-          last_name: c.lastName ?? undefined,
-          unsubscribed: false,
-        }),
-      });
-      if (r.ok) { added += 1; return; }
-      // 409/422 → already in the audience.
-      if (r.status === 409 || r.status === 422) { alreadyIn += 1; return; }
-      // 429 → respect Retry-After if Resend gave us one, else backoff.
-      if (r.status === 429 && attempt < MAX_ATTEMPTS) {
-        const backoffMs = 500 * 2 ** (attempt - 1);
-        await new Promise((res) => setTimeout(res, backoffMs));
-        continue;
-      }
-      failed += 1;
-      if (!firstError) firstError = r.error;
-      return;
-    }
+    const r = await resendFetch(`/audiences/${audienceId}/contacts`, {
+      apiKey,
+      method: 'POST',
+      body: JSON.stringify({
+        email: c.email,
+        first_name: c.firstName ?? undefined,
+        last_name: c.lastName ?? undefined,
+        unsubscribed: false,
+      }),
+    });
+    if (r.ok) { added += 1; return; }
+    // 409/422 → already in the audience.
+    if (r.status === 409 || r.status === 422) { alreadyIn += 1; return; }
+    failed += 1;
+    if (!firstError) firstError = r.error;
   };
 
   const worker = async () => {
