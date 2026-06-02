@@ -60,6 +60,27 @@ export async function sendCampaignBatch(opts: SendCampaignBatchOpts): Promise<Se
     return { ok: false, error: 'Campaign is missing body or subject.', sent: 0, failed: 0, skipped: 0, simulated: false, stillPending: 0 };
   }
 
+  // Idempotency guard: if a broadcast was already created for this
+  // campaign, the fan-out is in Resend's hands — don't fire a second
+  // one. This catches the cron + manual-click race that produced the
+  // triple-send incident (user clicked Send while the cron's
+  // every-minute tick was still inside the first invocation). A
+  // legitimate retry comes through "Reset failed to pending", which
+  // resets send_status='pending' but leaves resend_broadcast_id
+  // untouched; the operator clears it from the row only if they
+  // genuinely want a re-send of the same audience (rare, manual).
+  if (campaign.resend_broadcast_id) {
+    return {
+      ok: true,
+      sent: 0,
+      failed: 0,
+      skipped: 0,
+      simulated: false,
+      stillPending: 0,
+      note: 'Campaign already has a Resend broadcast_id — skipping to avoid double-send.',
+    };
+  }
+
   // Pull every pending recipient — Broadcasts sends in one shot, so
   // there's no batching to do. We still respect send_status so a
   // resend-failed click on /finalize only re-targets the failed rows
