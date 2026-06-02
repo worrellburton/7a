@@ -42,6 +42,58 @@ export async function GET(req: NextRequest) {
   const admin = getAdminSupabase();
   const nowIso = new Date().toISOString();
 
+  // Stuck-row reconciliation. The cron used to re-fire sending rows
+  // on every tick (which produced the triple-send bug). Now that
+  // we've stopped that, any row left in status='sending' is
+  // orphaned and needs explicit cleanup or it'll sit there forever.
+  // Two cases:
+  //
+  //   (a) resend_broadcast_id IS set → the broadcast actually fired,
+  //       webhooks have been updating per-recipient rows, but the
+  //       outer send loop never reached markAllSent (function
+  //       timeout, crash, etc.). Flip to 'sent' so the campaign
+  //       exits the queue cleanly. Resend has it; nothing else to do.
+  //
+  //   (b) resend_broadcast_id IS NULL → the send aborted before the
+  //       broadcast was created. Flip to 'failed' with a clear
+  //       error so the operator can Reset+Send via the finalize
+  //       page. We only consider rows older than 10 minutes so a
+  //       healthy mid-flight send isn't yanked out from under itself.
+  const STUCK_THRESHOLD_MS = 10 * 60 * 1000;
+  const stuckCutoffIso = new Date(Date.now() - STUCK_THRESHOLD_MS).toISOString();
+  const { data: stuck } = await admin
+    .from('email_campaigns')
+    .select('id, resend_broadcast_id, updated_at')
+    .eq('status', 'sending')
+    .lt('updated_at', stuckCutoffIso)
+    .limit(50);
+  let cleanedSent = 0;
+  let cleanedFailed = 0;
+  for (const r of (stuck ?? []) as Array<{ id: string; resend_broadcast_id: string | null }>) {
+    if (r.resend_broadcast_id) {
+      const { error: upErr } = await admin
+        .from('email_campaigns')
+        .update({ status: 'sent', sent_at: new Date().toISOString() })
+        .eq('id', r.id)
+        .eq('status', 'sending');
+      if (!upErr) cleanedSent += 1;
+    } else {
+      const { error: upErr } = await admin
+        .from('email_campaigns')
+        .update({ status: 'failed' })
+        .eq('id', r.id)
+        .eq('status', 'sending');
+      if (!upErr) {
+        cleanedFailed += 1;
+        await admin
+          .from('email_campaign_recipients')
+          .update({ send_status: 'failed', send_error: 'Send stalled before broadcast created — reset and retry.' })
+          .eq('campaign_id', r.id)
+          .eq('send_status', 'pending');
+      }
+    }
+  }
+
   // Pick up campaigns whose scheduled_send_at has passed. We DON'T
   // re-pick up rows already in 'sending' — see the file header for
   // why. Each row that survives the claim below gets exactly one
@@ -104,6 +156,8 @@ export async function GET(req: NextRequest) {
     fired,
     failed,
     claimed: claimedDue.length,
+    cleaned_sent: cleanedSent,
+    cleaned_failed: cleanedFailed,
   });
   });
 }
