@@ -401,8 +401,14 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
   // the domain was verified and the account hit its daily cap.
   const sendErrorJoined = recipients.map((r) => r.send_error ?? '').join('\n');
   const quotaExceeded = /daily_quota_exceeded|reached your daily email sending quota|HTTP 429/i.test(sendErrorJoined);
+  // Drop the bare `validation_error` token from the sandbox-detect
+  // regex — it false-positives on every Resend 422 (e.g. broadcast
+  // name > 70 chars, missing audience, invalid from address), all
+  // of which are unrelated to the no-verified-domain sandbox state.
+  // Anchoring on the actual sandbox phrasing keeps the banner
+  // accurate without snagging unrelated 422s.
   const resendBlockedByDomain = !quotaExceeded
-    && /domain is not verified|verify.*domain|validation_error|testing emails to your own/i.test(sendErrorJoined);
+    && /domain is not verified|verify.*domain|testing emails to your own/i.test(sendErrorJoined);
 
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-6xl mx-auto">
