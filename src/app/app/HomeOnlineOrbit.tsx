@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 // Centered, slowly-rotating ring of avatars representing every
 // teammate seen in the last 24 hours.
@@ -553,12 +554,13 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                           {h.image_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
-                              src={h.image_url}
+                              src={toAvatarThumb(h.image_url, 200) ?? h.image_url}
                               alt={h.name}
                               referrerPolicy="no-referrer"
                               width={36}
                               height={36}
                               decoding="async"
+                              loading="lazy"
                               className="block w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover border-2 border-white shadow-md transition-transform duration-300 group-hover:scale-110"
                             />
                           ) : (
@@ -649,12 +651,13 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                         {u.avatar_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={u.avatar_url}
+                            src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
                             alt={u.full_name || ''}
                             referrerPolicy="no-referrer"
                             width={48}
                             height={48}
                             decoding="async"
+                            loading="lazy"
                             className={`block w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border-2 transition-transform duration-300 group-hover:scale-110 ${
                               onFire
                                 ? 'border-orange-400 shadow-[0_0_18px_rgba(251,146,60,0.7)]'
@@ -778,12 +781,13 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                           {u.avatar_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
-                              src={u.avatar_url}
+                              src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
                               alt={u.full_name || ''}
                               referrerPolicy="no-referrer"
                               width={40}
                               height={40}
                               decoding="async"
+                              loading="lazy"
                               className={`block w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover border-2 ${
                                 online
                                   ? 'border-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.55)]'
