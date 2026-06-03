@@ -41,6 +41,13 @@ export interface GateContext {
   isAdmin: boolean;
   /** Whether the user has is_super_admin = true. */
   isSuperAdmin: boolean;
+  /** Whether the user has is_alumni_admin = true. Sits orthogonal
+   *  to is_admin / is_super_admin — an alumni admin can administer
+   *  ONLY alumni rows, never staff. Gates that surface alumni
+   *  data should accept (isSuperAdmin || isAlumniAdmin), and the
+   *  caller is then responsible for narrowing reads/writes to
+   *  user_kind='alumni' rows. */
+  isAlumniAdmin: boolean;
   /** Department UUID the user belongs to, if any. */
   departmentId: string | null;
 }
@@ -66,11 +73,24 @@ async function resolveContext(req?: NextRequest): Promise<{ ctx: GateContext } |
   }
 
   const admin = getAdminSupabase();
-  const { data: row } = await admin
+  // is_alumni_admin landed late; degrade gracefully so a pre-migration
+  // deploy doesn't blank out admin state for everyone.
+  let row: { is_admin?: boolean; is_super_admin?: boolean; is_alumni_admin?: boolean; department_id?: string | null } | null = null;
+  const full = await admin
     .from('users')
-    .select('is_admin, is_super_admin, department_id')
+    .select('is_admin, is_super_admin, is_alumni_admin, department_id')
     .eq('id', user.id)
     .maybeSingle();
+  if (full.error && /is_alumni_admin/i.test(full.error.message)) {
+    const fb = await admin
+      .from('users')
+      .select('is_admin, is_super_admin, department_id')
+      .eq('id', user.id)
+      .maybeSingle();
+    row = fb.data ?? null;
+  } else {
+    row = full.data ?? null;
+  }
 
   return {
     ctx: {
@@ -79,6 +99,7 @@ async function resolveContext(req?: NextRequest): Promise<{ ctx: GateContext } |
       admin,
       isAdmin: row?.is_admin === true,
       isSuperAdmin: row?.is_super_admin === true,
+      isAlumniAdmin: row?.is_alumni_admin === true,
       departmentId: (row?.department_id as string | null | undefined) ?? null,
     },
   };
@@ -116,6 +137,22 @@ export async function requireSuperAdmin(
   const res = await resolveContext(req);
   if ('error' in res) return res.error;
   if (!res.ctx.isSuperAdmin) {
+    return NextResponse.json({ error: forbiddenMessage }, { status: 403 });
+  }
+  return res.ctx;
+}
+
+/** Require is_super_admin OR is_alumni_admin. Gates the alumni-scoped
+ *  views on /app/admin/user-permissions and /app/admin/incoming-users.
+ *  The CALLER is responsible for narrowing reads + writes to
+ *  user_kind='alumni' rows when only ctx.isAlumniAdmin is true. */
+export async function requireSuperOrAlumniAdmin(
+  req?: NextRequest,
+  forbiddenMessage = 'Super admin or alumni admin only.',
+): Promise<GateContext | NextResponse> {
+  const res = await resolveContext(req);
+  if ('error' in res) return res.error;
+  if (!res.ctx.isSuperAdmin && !res.ctx.isAlumniAdmin) {
     return NextResponse.json({ error: forbiddenMessage }, { status: 403 });
   }
   return res.ctx;
