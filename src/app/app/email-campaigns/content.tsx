@@ -237,12 +237,15 @@ export default function EmailCampaignsContent() {
       <SendQueuePanel rows={rows} />
 
       {(() => {
-        // Split the campaign list so finished sends collapse into
-        // their own card at the bottom. Recent gets every status
-        // EXCEPT 'sent' (drafts, recipients, finalizing, scheduled,
-        // sending, failed) — that's what the marketer is actively
-        // working on. Sent is the archive.
-        const activeRows = rows.filter((r) => r.status !== 'sent');
+        // Three-way split:
+        //   - Send queue panel (above) owns scheduled + sending +
+        //     stuck. Scheduled campaigns live ONLY there so they
+        //     don't double-list with the queue countdown.
+        //   - 'Campaigns in progress' (middle card) is the
+        //     working set — drafts, recipients, finalizing, sending,
+        //     failed. Anything the marketer is actively touching.
+        //   - 'Sent campaigns' (bottom card) is the archive.
+        const activeRows = rows.filter((r) => r.status !== 'sent' && r.status !== 'scheduled');
         const sentRows = rows.filter((r) => r.status === 'sent');
         const showEmpty = !loading && activeRows.length === 0 && sentRows.length === 0;
         return (
@@ -250,7 +253,7 @@ export default function EmailCampaignsContent() {
             <section className="rounded-2xl border border-black/10 bg-white">
               <header className="px-4 py-3 border-b border-black/5 flex items-baseline justify-between">
                 <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
-                  Recent campaigns
+                  Campaigns in progress
                 </p>
                 {!loading && activeRows.length > 0 && (
                   <span className="text-[11px] text-foreground/45" style={{ fontFamily: 'var(--font-body)' }}>
@@ -277,7 +280,7 @@ export default function EmailCampaignsContent() {
                 </div>
               ) : activeRows.length === 0 ? (
                 <p className="px-4 py-8 text-[12.5px] text-foreground/55 italic text-center" style={{ fontFamily: 'var(--font-body)' }}>
-                  Nothing in flight — every campaign below has already been sent.
+                  Nothing in progress — scheduled campaigns live in the Send queue above; sent ones live below.
                 </p>
               ) : (
                 <ul className="divide-y divide-black/5">
