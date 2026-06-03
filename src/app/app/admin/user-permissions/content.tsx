@@ -528,6 +528,7 @@ export default function UserPermissionsContent() {
       ) : topTab === 'alumni' ? (
         <AlumniTab
           users={users}
+          alumniScoped={alumniScoped}
           onApproveAlumni={async (userId) => {
             setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: 'active' } : u)));
             const res = await db({
@@ -966,7 +967,20 @@ interface PagePermRow {
   sort_order: number | null;
 }
 
-function AlumniTab({ users, onApproveAlumni }: { users: AppUser[]; onApproveAlumni: (userId: string) => Promise<void> | void }) {
+function AlumniTab({
+  users,
+  onApproveAlumni,
+  alumniScoped = false,
+}: {
+  users: AppUser[];
+  onApproveAlumni: (userId: string) => Promise<void> | void;
+  // True when the viewer is an Alumni Admin (not a Super Admin). The
+  // tab collapses the per-section page list to just the "All alumni
+  // pages" group — every other page (NAV, popup, marketing-only
+  // surfaces) is out-of-scope for an Alumni Admin's job, so we don't
+  // render the toggles for them at all.
+  alumniScoped?: boolean;
+}) {
   const alumni = useMemo(
     () => users.filter((u) => u.user_kind === 'alumni'),
     [users],
@@ -1201,8 +1215,12 @@ function AlumniTab({ users, onApproveAlumni }: { users: AppUser[]; onApproveAlum
                 </li>
               )}
 
-              {/* Every other page, grouped by section as before. */}
-              {otherGrouped.map(([section, rows]) => (
+              {/* Every other page, grouped by section as before.
+                  Hidden entirely for Alumni Admins — they only
+                  manage the alumni-portal bundle (the highlighted
+                  group above), never the NAV / popup / marketing
+                  surfaces below. */}
+              {!alumniScoped && otherGrouped.map(([section, rows]) => (
                 <li key={section} className="px-5 py-3">
                   <p className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 mb-2">{section}</p>
                   <ul className="space-y-1">
