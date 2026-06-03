@@ -236,52 +236,98 @@ export default function EmailCampaignsContent() {
 
       <SendQueuePanel rows={rows} />
 
-      <section className="rounded-2xl border border-black/10 bg-white">
-        <header className="px-4 py-3 border-b border-black/5 flex items-baseline justify-between">
-          <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
-            Recent campaigns
-          </p>
-          {!loading && (
-            <span className="text-[11px] text-foreground/45" style={{ fontFamily: 'var(--font-body)' }}>
-              {rows.length} {rows.length === 1 ? 'campaign' : 'campaigns'}
-            </span>
-          )}
-        </header>
-        {loading ? (
-          <p className="px-4 py-10 text-[12.5px] text-foreground/55 italic text-center" style={{ fontFamily: 'var(--font-body)' }}>
-            Loading…
-          </p>
-        ) : rows.length === 0 ? (
-          <div className="px-4 py-12 text-center">
-            <p className="text-[13px] text-foreground/55 mb-3" style={{ fontFamily: 'var(--font-body)' }}>
-              No campaigns yet. Build the first one.
-            </p>
-            <Link
-              href="/app/email-campaigns/new"
-              className="inline-flex items-center px-3 py-1.5 rounded-md border border-primary/30 bg-primary/5 text-primary text-[11.5px] font-semibold hover:bg-primary/10"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              + Start a new campaign
-            </Link>
-          </div>
-        ) : (
-          <ul className="divide-y divide-black/5">
-            {rows.map((c) => (
-              <CampaignRowItem
-                key={c.id}
-                c={c}
-                expanded={expanded === c.id}
-                onToggle={() => setExpanded((prev) => (prev === c.id ? null : c.id))}
-                canManage={canManage}
-                onDeleted={(id) => {
-                  setRows((prev) => prev.filter((r) => r.id !== id));
-                  setExpanded((prev) => (prev === id ? null : prev));
-                }}
-              />
-            ))}
-          </ul>
-        )}
-      </section>
+      {(() => {
+        // Split the campaign list so finished sends collapse into
+        // their own card at the bottom. Recent gets every status
+        // EXCEPT 'sent' (drafts, recipients, finalizing, scheduled,
+        // sending, failed) — that's what the marketer is actively
+        // working on. Sent is the archive.
+        const activeRows = rows.filter((r) => r.status !== 'sent');
+        const sentRows = rows.filter((r) => r.status === 'sent');
+        const showEmpty = !loading && activeRows.length === 0 && sentRows.length === 0;
+        return (
+          <>
+            <section className="rounded-2xl border border-black/10 bg-white">
+              <header className="px-4 py-3 border-b border-black/5 flex items-baseline justify-between">
+                <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
+                  Recent campaigns
+                </p>
+                {!loading && activeRows.length > 0 && (
+                  <span className="text-[11px] text-foreground/45" style={{ fontFamily: 'var(--font-body)' }}>
+                    {activeRows.length} {activeRows.length === 1 ? 'campaign' : 'campaigns'}
+                  </span>
+                )}
+              </header>
+              {loading ? (
+                <p className="px-4 py-10 text-[12.5px] text-foreground/55 italic text-center" style={{ fontFamily: 'var(--font-body)' }}>
+                  Loading…
+                </p>
+              ) : showEmpty ? (
+                <div className="px-4 py-12 text-center">
+                  <p className="text-[13px] text-foreground/55 mb-3" style={{ fontFamily: 'var(--font-body)' }}>
+                    No campaigns yet. Build the first one.
+                  </p>
+                  <Link
+                    href="/app/email-campaigns/new"
+                    className="inline-flex items-center px-3 py-1.5 rounded-md border border-primary/30 bg-primary/5 text-primary text-[11.5px] font-semibold hover:bg-primary/10"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    + Start a new campaign
+                  </Link>
+                </div>
+              ) : activeRows.length === 0 ? (
+                <p className="px-4 py-8 text-[12.5px] text-foreground/55 italic text-center" style={{ fontFamily: 'var(--font-body)' }}>
+                  Nothing in flight — every campaign below has already been sent.
+                </p>
+              ) : (
+                <ul className="divide-y divide-black/5">
+                  {activeRows.map((c) => (
+                    <CampaignRowItem
+                      key={c.id}
+                      c={c}
+                      expanded={expanded === c.id}
+                      onToggle={() => setExpanded((prev) => (prev === c.id ? null : c.id))}
+                      canManage={canManage}
+                      onDeleted={(id) => {
+                        setRows((prev) => prev.filter((r) => r.id !== id));
+                        setExpanded((prev) => (prev === id ? null : prev));
+                      }}
+                    />
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            {!loading && sentRows.length > 0 && (
+              <section className="mt-5 rounded-2xl border border-black/10 bg-white">
+                <header className="px-4 py-3 border-b border-black/5 flex items-baseline justify-between">
+                  <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
+                    Sent campaigns
+                  </p>
+                  <span className="text-[11px] text-foreground/45" style={{ fontFamily: 'var(--font-body)' }}>
+                    {sentRows.length} {sentRows.length === 1 ? 'campaign' : 'campaigns'}
+                  </span>
+                </header>
+                <ul className="divide-y divide-black/5">
+                  {sentRows.map((c) => (
+                    <CampaignRowItem
+                      key={c.id}
+                      c={c}
+                      expanded={expanded === c.id}
+                      onToggle={() => setExpanded((prev) => (prev === c.id ? null : c.id))}
+                      canManage={canManage}
+                      onDeleted={(id) => {
+                        setRows((prev) => prev.filter((r) => r.id !== id));
+                        setExpanded((prev) => (prev === id ? null : prev));
+                      }}
+                    />
+                  ))}
+                </ul>
+              </section>
+            )}
+          </>
+        );
+      })()}
     </div>
   );
 }
