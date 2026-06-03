@@ -259,7 +259,7 @@ export default function ProfileContent() {
         setFavoriteSevenArrows(row.favorite_seven_arrows || '');
         setFacts(coerceFacts(row.interesting_facts));
         setAvatarUrl(row.avatar_url || user!.user_metadata?.avatar_url || null);
-        setPublicTeam(row.public_team !== false); // default true
+        setPublicTeam(row.public_team !== false); // legacy NULL → ON; column default is now false so new users land OFF
       }
       setLoaded(true);
     }
