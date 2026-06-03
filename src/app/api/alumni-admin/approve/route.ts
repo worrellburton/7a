@@ -58,14 +58,16 @@ export async function POST(req: NextRequest) {
   if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
 
   // Audit row so a future "who approved this alumni" question has
-  // a clear answer on the admin Activity feed.
+  // a clear answer on the admin Activity feed. The activity_log
+  // table uses user_id / target_kind / metadata column names
+  // (not actor_id / target_type / payload).
   await admin.from('activity_log').insert({
     type: 'alumni.approved',
-    actor_id: callerId,
-    target_type: 'user',
+    user_id: callerId,
+    target_kind: 'user',
     target_id: targetId,
     target_label: target.full_name || target.email || 'alumni',
-    payload: {
+    metadata: {
       via: isSuperAdmin ? 'super_admin' : 'alumni_admin',
       previous_status: target.status,
     },
