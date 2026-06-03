@@ -531,13 +531,21 @@ export default function UserPermissionsContent() {
           alumniScoped={alumniScoped}
           onApproveAlumni={async (userId) => {
             setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: 'active' } : u)));
-            const res = await db({
-              action: 'update',
-              table: 'users',
-              data: { status: 'active' },
-              match: { id: userId },
+            // Goes through the dedicated /api/alumni-admin/approve
+            // route so Alumni Admins can approve even though the
+            // users-table RLS policy gates UPDATE on is_admin() (the
+            // column). Super Admins fall through the same gate too —
+            // one auditable codepath instead of two divergent ones.
+            const res = await fetch('/api/alumni-admin/approve', {
+              method: 'POST',
+              credentials: 'include',
+              headers: session?.access_token
+                ? { 'content-type': 'application/json', Authorization: `Bearer ${session.access_token}` }
+                : { 'content-type': 'application/json' },
+              body: JSON.stringify({ id: userId }),
             }).catch(() => null);
-            if (!res) {
+            const ok = res?.ok === true;
+            if (!ok) {
               // Roll back the optimistic flip if the write failed.
               setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: 'on_hold' } : u)));
             }
