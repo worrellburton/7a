@@ -1367,20 +1367,25 @@ export default function ContactsContent() {
           Hidden on sm+ because admissions on desktop has the full
           row of header actions (Add Contact / Upload CSV / etc.)
           and doesn't need a thumb-reachable quick action.
-          Also fades out while the new-log modal is open — without
-          this, the FAB sits right under the modal's Save button
-          and the two overlap on smaller phones. */}
+          When the modal is OPEN, the same button morphs into a
+          "Save" submit button bound to the modal's form via the
+          form= attribute — one thumb-target for both opening and
+          submitting, no extra modal footer button to reach for. */}
       <button
-        type="button"
-        onClick={() => setShowNewLog(true)}
-        aria-hidden={showNewLog || undefined}
-        className={`sm:hidden fixed inset-x-4 z-50 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-full bg-foreground text-white text-sm font-semibold uppercase tracking-wider shadow-[0_12px_28px_-8px_rgba(0,0,0,0.45)] active:scale-[0.98] transition-all duration-200 ${
-          showNewLog ? 'opacity-0 pointer-events-none translate-y-2' : 'opacity-100'
-        }`}
+        type={showNewLog ? 'submit' : 'button'}
+        form={showNewLog ? 'quick-log-form' : undefined}
+        onClick={showNewLog ? undefined : () => setShowNewLog(true)}
+        className="sm:hidden fixed inset-x-4 z-50 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-full bg-foreground text-white text-sm font-semibold uppercase tracking-wider shadow-[0_12px_28px_-8px_rgba(0,0,0,0.45)] active:scale-[0.98] transition-all duration-200"
         style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
       >
-        <span aria-hidden className="text-base leading-none">🪵</span>
-        New log
+        {showNewLog ? (
+          'Save'
+        ) : (
+          <>
+            <span aria-hidden className="text-base leading-none">🪵</span>
+            New log
+          </>
+        )}
       </button>
       {showSuggest && (
         <SuggestWithClaudeModal
@@ -7017,6 +7022,10 @@ function NewLogModal({
   return (
     <ModalShell title="New log" eyebrow="Quick log" onClose={onClose}>
       <form
+        // Stable id so the mobile FAB ("Save") can submit this form
+        // from outside the modal via the standard `form=` attribute
+        // on its submit button — no global ref-passing needed.
+        id="quick-log-form"
         onSubmit={async (e) => {
           e.preventDefault();
           if (!submittable) return;
