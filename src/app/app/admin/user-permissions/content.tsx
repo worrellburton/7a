@@ -30,6 +30,7 @@ interface AppUser {
   avatar_url: string | null;
   is_admin: boolean;
   is_super_admin: boolean;
+  is_alumni_admin: boolean;
   status: 'active' | 'on_hold' | 'denied';
   department_id: string | null;
   job_title: string | null;
@@ -120,13 +121,23 @@ function SortableTh({
 }
 
 export default function UserPermissionsContent() {
-  const { session, user, isAdmin, isSuperAdmin } = useAuth();
+  const { session, user, isAdmin, isSuperAdmin, isAlumniAdmin } = useAuth();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [jobDescriptions, setJobDescriptions] = useState<JobDescriptionLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [filterPill, setFilterPill] = useState<FilterPill>('all');
+  // Snap the pill to 'alumni' for Alumni-Admin-only viewers so they
+  // never see the All / Team / Pending segments their role can't
+  // act on. Fires once whenever the alumniScoped flag flips true
+  // (e.g. after the role bit loads from the DB).
+  useEffect(() => {
+    if (isAlumniAdmin && !isSuperAdmin && filterPill !== 'alumni') {
+      setFilterPill('alumni');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAlumniAdmin, isSuperAdmin]);
   const [topTab, setTopTab] = useState<TopTab>('users');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [permissionsTarget, setPermissionsTarget] = useState<AppUser | null>(null);
@@ -157,7 +168,7 @@ export default function UserPermissionsContent() {
       const data = await db({
         action: 'select',
         table: 'users',
-        select: 'id, email, full_name, avatar_url, is_admin, is_super_admin, status, department_id, job_title, credentials, last_seen_at, last_path, created_at, user_kind',
+        select: 'id, email, full_name, avatar_url, is_admin, is_super_admin, is_alumni_admin, status, department_id, job_title, credentials, last_seen_at, last_path, created_at, user_kind',
         order: { column: 'full_name', ascending: true },
       }).catch(() => []);
       if (!cancelled && Array.isArray(data)) setUsers(data as AppUser[]);
@@ -238,14 +249,42 @@ export default function UserPermissionsContent() {
   // superset of admins; demoting from super admin keeps is_admin
   // intact so the user doesn't silently lose department-level
   // admin access in the same click.
-  async function toggleSuperAdmin(u: AppUser, next: boolean) {
-    if (isRootAdmin(u.email) && next === false) return;
+  // Three-way Admin dropdown — replaces the old binary
+  // "Super Admin" toggle. The three values:
+  //
+  //   - 'none'         → is_super_admin=false, is_alumni_admin=false.
+  //                       (is_admin is left untouched — that's the
+  //                       department-level bit and managed elsewhere.)
+  //   - 'super_admin'  → is_super_admin=true, is_alumni_admin=false,
+  //                       is_admin=true (super admins are a superset).
+  //   - 'alumni_admin' → is_alumni_admin=true, is_super_admin=false.
+  //                       Scoped role — can administer ONLY
+  //                       user_kind='alumni' rows on user-permissions
+  //                       + incoming-users.
+  //
+  // The root admin (bobby@) is locked at super_admin; alumni rows
+  // can only be 'none' or 'alumni_admin' so a staff super-admin role
+  // can't accidentally be granted to an alumni account.
+  type AdminRole = 'none' | 'super_admin' | 'alumni_admin';
+  function roleOf(u: AppUser): AdminRole {
+    if (u.is_super_admin) return 'super_admin';
+    if (u.is_alumni_admin) return 'alumni_admin';
+    return 'none';
+  }
+  async function setAdminRole(u: AppUser, next: AdminRole) {
+    if (isRootAdmin(u.email) && next !== 'super_admin') return;
+    const previous = roleOf(u);
+    if (previous === next) return;
     setBusyId(u.id);
-    const patch: { is_super_admin: boolean; is_admin?: boolean } = { is_super_admin: next };
-    if (next && !u.is_admin) patch.is_admin = true;
+    const patch: { is_super_admin: boolean; is_alumni_admin: boolean; is_admin?: boolean } = {
+      is_super_admin: next === 'super_admin',
+      is_alumni_admin: next === 'alumni_admin',
+    };
+    if (next === 'super_admin' && !u.is_admin) patch.is_admin = true;
     setUsers((prev) => prev.map((x) => (x.id === u.id ? {
       ...x,
-      is_super_admin: next,
+      is_super_admin: patch.is_super_admin,
+      is_alumni_admin: patch.is_alumni_admin,
       is_admin: patch.is_admin ?? x.is_admin,
     } : x)));
     const res = await db({ action: 'update', table: 'users', data: patch, match: { id: u.id } }).catch(() => null);
@@ -253,7 +292,8 @@ export default function UserPermissionsContent() {
       // Revert optimistic update on failure.
       setUsers((prev) => prev.map((x) => (x.id === u.id ? {
         ...x,
-        is_super_admin: !next,
+        is_super_admin: u.is_super_admin,
+        is_alumni_admin: u.is_alumni_admin,
         is_admin: u.is_admin,
       } : x)));
     } else if (user?.id) {
@@ -264,7 +304,13 @@ export default function UserPermissionsContent() {
         targetId: u.id,
         targetLabel: u.full_name || u.email,
         targetPath: '/app/user-permissions',
-        metadata: { is_super_admin: next, is_admin: patch.is_admin },
+        metadata: {
+          previous_role: previous,
+          next_role: next,
+          is_super_admin: patch.is_super_admin,
+          is_alumni_admin: patch.is_alumni_admin,
+          is_admin: patch.is_admin,
+        },
       });
     }
     setBusyId(null);
@@ -314,10 +360,20 @@ export default function UserPermissionsContent() {
     }
   }
 
+  // Alumni-only scope: viewer is an Alumni Admin but NOT a Super
+  // Admin, so they see only alumni rows + the Alumni pill, and the
+  // tabs/groups that don't apply to them are hidden.
+  const alumniScoped = isAlumniAdmin && !isSuperAdmin;
   const sortedUsers = useMemo(() => {
     const visible = (() => {
       const q = filter.trim().toLowerCase();
       let list = users;
+      // Alumni Admin scope: when the viewer is an Alumni Admin but
+      // NOT also a Super Admin, every list narrows to user_kind='alumni'
+      // before any pill filter runs. This is the page-level
+      // implementation of the role's intent — they see only alumni
+      // rows on user-permissions, never staff.
+      if (alumniScoped) list = list.filter((u) => u.user_kind === 'alumni');
       switch (filterPill) {
         // Team = anyone with elevated access (admin OR super-admin),
         // excluding alumni who shouldn't double-count.
@@ -362,9 +418,9 @@ export default function UserPermissionsContent() {
           return cmp(new Date(a.created_at).getTime(), new Date(b.created_at).getTime());
       }
     });
-  }, [users, filter, filterPill, sortKey, sortDir, departments]);
+  }, [users, filter, filterPill, sortKey, sortDir, departments, alumniScoped]);
 
-  if (!isAdmin) {
+  if (!isAdmin && !isAlumniAdmin) {
     return (
       <div className="p-10 text-center text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
         You need to be an admin to view this page.
@@ -429,15 +485,24 @@ export default function UserPermissionsContent() {
       {/* Top-level tabs — Users (default) | Access Groups (super-admin
           builder for named permission templates). */}
       <div className="border-b border-gray-100 mb-5 flex gap-1" style={{ fontFamily: 'var(--font-body)' }}>
-        {([
-          // Content tab leads the strip — it's the single most
-          // requested promotion path (HR flips a teammate into the
-          // blog pipeline) and benefits from being first.
-          { id: 'content' as TopTab, label: 'Content' },
-          { id: 'users' as TopTab, label: 'Users' },
-          { id: 'groups' as TopTab, label: 'Access Groups' },
-          { id: 'alumni' as TopTab, label: 'Alumni' },
-        ]).map((t) => {
+        {(alumniScoped
+          ? [
+              // Alumni Admins only see the Users + Alumni tabs —
+              // Content and Access Groups are out-of-scope for the
+              // role's narrowed responsibility.
+              { id: 'users' as TopTab, label: 'Users' },
+              { id: 'alumni' as TopTab, label: 'Alumni' },
+            ]
+          : [
+              // Content tab leads the strip — it's the single most
+              // requested promotion path (HR flips a teammate into the
+              // blog pipeline) and benefits from being first.
+              { id: 'content' as TopTab, label: 'Content' },
+              { id: 'users' as TopTab, label: 'Users' },
+              { id: 'groups' as TopTab, label: 'Access Groups' },
+              { id: 'alumni' as TopTab, label: 'Alumni' },
+            ]
+        ).map((t) => {
           const active = topTab === t.id;
           return (
             <button
@@ -487,7 +552,10 @@ export default function UserPermissionsContent() {
           sub-filters at one click of depth. */}
       <div className="mb-4 space-y-2" style={{ fontFamily: 'var(--font-body)' }}>
         <div className="flex items-center gap-1.5 flex-wrap">
-          {(['all', 'team', 'alumni', 'pending'] as FilterPill[]).map((pill) => {
+          {/* Alumni Admins see only the Alumni pill — every other
+              segment is out-of-scope for them. Super Admins still
+              see the full set. */}
+          {((alumniScoped ? ['alumni'] : ['all', 'team', 'alumni', 'pending']) as FilterPill[]).map((pill) => {
             const active = filterPill === pill || (pill === 'team' && (filterPill === 'admins' || filterPill === 'super_admins'));
             const count = pillCounts[pill];
             const isPending = pill === 'pending';
@@ -563,7 +631,7 @@ export default function UserPermissionsContent() {
                   <SortableTh label="Department" sortKey="department" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden md:table-cell" />
                   <SortableTh label="Job Title" sortKey="job_title" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden sm:table-cell" />
                   <SortableTh label="Joined" sortKey="created_at" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden lg:table-cell" />
-                  <th className="px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Super Admin</th>
+                  <th className="px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Admin</th>
                   <th className="px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider text-center" style={{ fontFamily: 'var(--font-body)' }}>Pages</th>
                 </tr>
               </thead>
@@ -745,18 +813,16 @@ export default function UserPermissionsContent() {
                         })()}
                       </td>
 
-                      {/* Super Admin toggle — controls is_super_admin
-                          on public.users (and implicitly is_admin
-                          when ON). Department-level admin status
-                          (is_admin alone) is managed elsewhere.
-                          Alumni shouldn't be super admins; show a static
-                          "—" unless they accidentally already are one
-                          (legacy data), in which case keep the toggle so
-                          it can be turned off. */}
+                      {/* Admin dropdown — None / Super Admin / Alumni
+                          Admin. Writes to (is_super_admin,
+                          is_alumni_admin) in lockstep through
+                          setAdminRole above. Alumni rows can only be
+                          None or Alumni Admin so a staff-level
+                          super-admin promotion can't sneak through.
+                          Root super admin (bobby@) is locked at
+                          Super Admin. */}
                       <td className="px-6 py-4">
-                        {isAlumni && !u.is_super_admin && !u.is_admin ? (
-                          <span className="text-xs text-foreground/30">—</span>
-                        ) : isRootAdmin(u.email) ? (
+                        {isRootAdmin(u.email) ? (
                           <span className="inline-flex items-center gap-2 text-xs font-semibold text-primary" title="Root super admin — locked">
                             Super Admin
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
@@ -765,22 +831,27 @@ export default function UserPermissionsContent() {
                             </svg>
                           </span>
                         ) : (
-                          <label className={`inline-flex items-center gap-2 cursor-pointer select-none ${busyId === u.id ? 'opacity-50' : ''}`}>
-                            <span className="relative inline-block w-9 h-5">
-                              <input
-                                type="checkbox"
-                                className="sr-only peer"
-                                checked={u.is_super_admin}
-                                disabled={busyId === u.id || isSelf}
-                                onChange={(e) => toggleSuperAdmin(u, e.target.checked)}
-                              />
-                              <span className="absolute inset-0 rounded-full bg-gray-200 peer-checked:bg-primary transition-colors" />
-                              <span className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
-                            </span>
-                            <span className={`text-xs font-medium ${u.is_super_admin ? 'text-primary' : 'text-foreground/40'}`}>
-                              {u.is_super_admin ? 'Super Admin' : u.is_admin ? 'Admin' : 'Off'}
-                            </span>
-                          </label>
+                          <select
+                            value={roleOf(u)}
+                            disabled={busyId === u.id || isSelf}
+                            onChange={(e) => void setAdminRole(u, e.target.value as 'none' | 'super_admin' | 'alumni_admin')}
+                            className={`text-xs px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white max-w-[140px] ${
+                              u.is_super_admin || u.is_alumni_admin ? 'text-primary font-semibold' : 'text-foreground/55'
+                            } ${busyId === u.id ? 'opacity-50' : ''}`}
+                            style={{ fontFamily: 'var(--font-body)' }}
+                            aria-label="Admin role"
+                          >
+                            <option value="none">None</option>
+                            {/* Staff super-admin promotion is hidden
+                                for alumni rows to enforce the role
+                                scope. An alumni who's accidentally a
+                                super admin from legacy data still
+                                sees this option so it can be cleared. */}
+                            {(!isAlumni || u.is_super_admin) && (
+                              <option value="super_admin">Super Admin</option>
+                            )}
+                            <option value="alumni_admin">Alumni Admin</option>
+                          </select>
                         )}
                       </td>
 
