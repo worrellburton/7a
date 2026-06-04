@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase } from '@/lib/supabase-server';
 import { requireSuperAdmin } from '@/lib/content-server';
+import { apiError } from '@/lib/api-responses';
 
 // PATCH  /api/content/roadmap/[id] — edit one row in place (title,
 //                                    keyword, volume, intent, date,
