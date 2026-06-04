@@ -77,12 +77,13 @@ interface DbRevision {
 }
 
 export default function BlogEditor({ id }: { id: string }) {
-  const { user, isSuperAdmin, session } = useAuth();
-  const { userOverrides } = usePagePermissions();
-  // Super admin OR per-user content-page override (same gate as
-  // /app/content). Matches the requireSuperAdmin server-side gate
-  // in /lib/content-server so the page UI and the API agree.
-  const hasContentAccess = isSuperAdmin || userOverrides['/app/content'] === true;
+  const { user, isAdmin, isSuperAdmin, departmentId, session } = useAuth();
+  const { userOverrides, userExtraDepartmentIds } = usePagePermissions();
+  // Five access paths — matches /app/content list page + the
+  // requireSuperAdmin server gate in src/lib/content-server.ts.
+  const MARKETING_DEPT_ID = 'dfde0b96-c605-40dd-84e5-281af2f6d8e9';
+  const inMarketing = departmentId === MARKETING_DEPT_ID || userExtraDepartmentIds.includes(MARKETING_DEPT_ID);
+  const hasContentAccess = isSuperAdmin || isAdmin || inMarketing || userOverrides['/app/content'] === true;
   const [blog, setBlog] = useState<DbBlog | null>(null);
   const [images, setImages] = useState<DbImage[]>([]);
   const [revisions, setRevisions] = useState<DbRevision[]>([]);

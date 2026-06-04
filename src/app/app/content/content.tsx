@@ -57,15 +57,19 @@ const STATUS_TONES: Record<DbBlog['status'], string> = {
 };
 
 export default function ContentLanding() {
-  const { user, isSuperAdmin, session } = useAuth();
-  const { userOverrides } = usePagePermissions();
-  // A teammate has full content-pipeline access when they're a
-  // super admin OR when /app/admin/user-permissions → Content tab
-  // has flipped the toggle on for them (writes a per-user
-  // user_page_permissions row, which the requireSuperAdmin gate
-  // in /lib/content-server also honours so create/edit/publish
-  // API calls go through). Mirrors the same logic on /app/content/[id].
-  const hasContentAccess = isSuperAdmin || userOverrides['/app/content'] === true;
+  const { user, isAdmin, isSuperAdmin, departmentId, session } = useAuth();
+  const { userOverrides, userExtraDepartmentIds } = usePagePermissions();
+  // Five access paths — matches the server gate in
+  // src/lib/content-server.ts requireSuperAdmin exactly:
+  //   (a) is_super_admin OR is_admin
+  //   (b) primary department_id = Marketing & Admissions
+  //   (c) extras include Marketing
+  //   (d) per-user user_page_permissions row with can_view=true
+  // Any one of these gives full content-pipeline access (view +
+  // create / edit / publish). Mirrors /app/content/[id].
+  const MARKETING_DEPT_ID = 'dfde0b96-c605-40dd-84e5-281af2f6d8e9';
+  const inMarketing = departmentId === MARKETING_DEPT_ID || userExtraDepartmentIds.includes(MARKETING_DEPT_ID);
+  const hasContentAccess = isSuperAdmin || isAdmin || inMarketing || userOverrides['/app/content'] === true;
   const router = useRouter();
   const [rows, setRows] = useState<DbBlog[]>([]);
   const [visibility, setVisibility] = useState<Record<string, boolean>>({});
