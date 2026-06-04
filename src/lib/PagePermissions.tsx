@@ -86,7 +86,20 @@ export const defaultPages: PageConfig[] = [
   // as Social Media: adminOnly here for the sidebar, runtime
   // is_super_admin check inside the page + every /api/content/*
   // route via requireSuperAdmin.
-  { path: '/app/content', label: 'Content', adminOnly: true, section: 'nav', sort_order: 26, allowedDepartments: [], departmentId: null },
+  // Content — AI blog pipeline. Lives in the Marketing & Admissions
+  // department group so marketers see it grouped alongside Tours /
+  // Contacts / Partners / Email Campaigns in their sidebar. The
+  // server gate (src/lib/content-server.ts requireSuperAdmin) ALSO
+  // accepts Marketing department members + per-user overrides
+  // (set via /app/admin/user-permissions → Content tab), so the
+  // page is reachable by:
+  //   - super admins (always)
+  //   - anyone in the Marketing & Admissions department
+  //   - anyone with a user_page_permissions row for /app/content
+  // Runtime is_super_admin OR override check inside the page guards
+  // the editor surface; every /api/content/* route runs the same
+  // gate server-side.
+  { path: '/app/content', label: 'Content', adminOnly: false, section: 'nav', sort_order: 26, allowedDepartments: ['dfde0b96-c605-40dd-84e5-281af2f6d8e9'], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   // Email Campaigns — marketing-email build → recipients → send.
   // Lives in the Marketing department group like social-media; not
   // admin-only since the same marketing folks own the social channel.
