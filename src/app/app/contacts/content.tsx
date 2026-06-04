@@ -14,7 +14,7 @@
 //     _prefs scope='contacts' so the layout is org-wide and live
 //     for every other tab via realtime (Phase 9)
 
-import Link from 'next/link';
+import Link from '@/components/HoverPrefetchLink';
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { Fragment, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';

@@ -12,7 +12,7 @@
 // (rightmost on the row) still routes to the appropriate page
 // based on campaign status.
 
-import Link from 'next/link';
+import Link from '@/components/HoverPrefetchLink';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase } from '@/lib/supabase-server';
 import { requireSuperAdmin } from '@/lib/content-server';
+import { apiError } from '@/lib/api-responses';
 
 // GET  /api/content/roadmap — list every roadmap row, joined with
 //                             the linked blog so the UI can show
