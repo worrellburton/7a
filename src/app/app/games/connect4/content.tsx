@@ -21,6 +21,7 @@ import BracketLobby from './BracketLobby';
 import Tournament from './Tournament';
 import TournamentList from './TournamentList';
 import Leaderboard from './Leaderboard';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface MatchRow {
   id: string;
@@ -305,7 +306,7 @@ function SmallAvatar({ user }: { user: UserLite | null }) {
   if (!user) return <div className={`${dim} rounded-full bg-warm-bg shrink-0`} />;
   if (user.avatar_url) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={user.avatar_url} alt="" className={`${dim} rounded-full object-cover bg-warm-bg shrink-0`} />;
+    return <img src={toAvatarThumb(user.avatar_url, 200) ?? user.avatar_url} alt="" className={`${dim} rounded-full object-cover bg-warm-bg shrink-0`} />;
   }
   const name = user.full_name || user.email || '?';
   return (

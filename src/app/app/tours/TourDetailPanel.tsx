@@ -17,6 +17,7 @@ import {
   type TourPresentation,
   type TourRoom,
 } from './content';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 // Detail panel rendered below the list/table when a tour is expanded. Owns
 // fetches + CRUD for all five child tables so the parent page stays lean.
@@ -677,7 +678,7 @@ function BdStaffSection({
                 <div className="flex items-center gap-3 min-w-0">
                   {u?.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={u.avatar_url} alt="" className="w-7 h-7 rounded-full" />
+                    <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-7 h-7 rounded-full" />
                   ) : (
                     <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold">
                       {(b.staff_name || '?').charAt(0).toUpperCase()}

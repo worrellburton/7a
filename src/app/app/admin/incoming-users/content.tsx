@@ -15,6 +15,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePagePermissions } from '@/lib/PagePermissions';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface IncomingUser {
   id: string;
@@ -423,7 +424,7 @@ function ClassifiedPanel({
 function UserAvatar({ user }: { user: IncomingUser }) {
   if (user.avatar_url) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={user.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover border border-black/10" />;
+    return <img src={toAvatarThumb(user.avatar_url, 200) ?? user.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover border border-black/10" />;
   }
   const letter = (user.full_name || user.email || '?').charAt(0).toUpperCase();
   return (

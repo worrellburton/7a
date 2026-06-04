@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface CampaignRow {
   id: string;
@@ -614,7 +615,7 @@ function CampaignRowItem({
                   {c.creator.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={c.creator.avatar_url}
+                      src={toAvatarThumb(c.creator.avatar_url, 200) ?? c.creator.avatar_url}
                       alt=""
                       className="w-4 h-4 rounded-full object-cover bg-warm-bg shrink-0"
                       referrerPolicy="no-referrer"

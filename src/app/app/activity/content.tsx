@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface ActivityRow {
   id: string;
@@ -288,7 +289,7 @@ export default function ActivityContent() {
                     {u?.avatar_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={u.avatar_url}
+                        src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
                         alt=""
                         className={`w-8 h-8 rounded-full object-cover ring-1 ${onFire ? 'ring-2 ring-amber-400 shadow-[0_0_10px_rgba(251,146,60,0.55)]' : 'ring-gray-100'}`}
                       />

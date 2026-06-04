@@ -9,6 +9,7 @@ import HomeOnlineOrbit, { type OrbitHorse, type OrbitUser } from '../HomeOnlineO
 import { supabase } from '@/lib/supabase';
 import AlumniProfileEditor from './_components/AlumniProfileEditor';
 import TimeSoberCard, { soberMilestoneLabel } from './_components/TimeSoberCard';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 // Alumni hub. The 6-tile shortcut grid was removed — alumni
 // reach the sub-routes (map, meetups, peer support, etc.) from
@@ -262,7 +263,7 @@ function OnlineSection({
                 <div className="relative shrink-0">
                   {p.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.avatar_url} alt="" referrerPolicy="no-referrer" className={`w-9 h-9 rounded-full object-cover ring-1 ${online ? ring : 'ring-black/10'}`} />
+                    <img src={toAvatarThumb(p.avatar_url, 200) ?? p.avatar_url} alt="" referrerPolicy="no-referrer" className={`w-9 h-9 rounded-full object-cover ring-1 ${online ? ring : 'ring-black/10'}`} />
                   ) : (
                     <span aria-hidden className={`w-9 h-9 rounded-full bg-warm-bg text-foreground/60 text-[12px] font-bold inline-flex items-center justify-center ring-1 ${online ? ring : 'ring-black/10'}`}>{initial}</span>
                   )}

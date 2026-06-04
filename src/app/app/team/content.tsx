@@ -8,6 +8,7 @@ import { formatNameWithCredentials } from '@/lib/displayName';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 // Lazy: 678 LOC reorder/drag modal only opens when an admin clicks
 // the Edit-order button. Initial /app/team paint never needs it.
 const TeamPageOrderModal = dynamic(() => import('./TeamPageOrderModal'), { ssr: false });
@@ -471,7 +472,7 @@ export default function UsersContent() {
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         {u.avatar_url ? (
-                          <img src={u.avatar_url} alt="" className="w-8 h-8 rounded-full" />
+                          <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-8 h-8 rounded-full" />
                         ) : (
                           <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
                             {(u.full_name || u.email || '?').charAt(0).toUpperCase()}

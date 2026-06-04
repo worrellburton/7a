@@ -8,6 +8,7 @@ import {
   InfoWindow,
 } from '@vis.gl/react-google-maps';
 import { soberMilestoneLabel } from './TimeSoberCard';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 // Google-Maps-backed alumni map. Each pin is the alum's own
 // avatar (round, copper-ring) rendered as an AdvancedMarker —
@@ -219,7 +220,7 @@ function PinPopup({ pin }: { pin: AlumniMapPin }) {
         {pin.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={pin.avatar_url}
+            src={toAvatarThumb(pin.avatar_url, 200) ?? pin.avatar_url}
             alt={pin.full_name || ''}
             referrerPolicy="no-referrer"
             style={{ width: 40, height: 40, borderRadius: 9999, objectFit: 'cover', border: '2px solid #bc6b4a' }}
