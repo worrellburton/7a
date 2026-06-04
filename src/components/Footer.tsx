@@ -6,7 +6,12 @@ import { RANCH_ADDRESS, RANCH_GMB_URL, RANCH_PHONE, RANCH_PHONE_TEL, ranchDirect
 export default function Footer() {
   return (
     <footer
-      className="relative overflow-hidden text-white"
+      // Bottom padding reservation for the floating StickyMobileCTA
+      // pill (lg:hidden). Moved here from the (site) <main> so the
+      // reservation lives at the END of the page instead of as a
+      // mid-page white band between the last section and
+      // BeforeFooterCTA. Desktop drops it (the pill is hidden there).
+      className="relative overflow-hidden text-white pb-[calc(env(safe-area-inset-bottom)+96px)] lg:pb-0"
       style={{
         background: 'linear-gradient(180deg, #2a0f0a 0%, #1a1a1a 35%, #111111 100%)',
       }}
