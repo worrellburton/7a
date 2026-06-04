@@ -195,19 +195,25 @@ export default function MobileMenu({
   return (
     <div
       ref={panelRef}
-      // Full-screen fixed panel pinned below the nav (TopBar +
-      // Header). Escapes the parent <nav>'s max-w-7xl / px
-      // container so the drawer spans the entire viewport width
-      // rather than being cropped into the centered column. A tap
-      // on the hamburger (now the X) or pressing Escape is the
-      // only way to close — no need for a separate backdrop since
-      // the panel owns the whole lower viewport.
-      className="lg:hidden fixed left-0 right-0 bottom-0 z-40 bg-white overflow-y-auto"
+      // Full-viewport fixed panel — covers the entire screen so a
+      // scrolled or collapsed-URL-bar layout can never leak page
+      // content through above the drawer (the bug being fixed: when
+      // the TopBar above the sticky Header was still partly visible,
+      // the drawer's old `top: var(--site-header-height)` left a gap
+      // where the page paragraph showed through at the top of the
+      // viewport). The Header itself is sticky at z-50, while we sit
+      // at z-40, so the X close button renders on top of us
+      // automatically — no separate backdrop needed.
+      //
+      // paddingTop pushes the drawer's INNER content below the
+      // header so menu items don't slide under the X. Falls back
+      // to 68px when the JS-set CSS variable isn't ready yet.
+      className="lg:hidden fixed inset-0 z-40 bg-white overflow-y-auto"
       role="dialog"
       aria-modal="true"
       aria-label="Main navigation"
       style={{
-        top: 'var(--site-header-height, 68px)',
+        paddingTop: 'var(--site-header-height, 68px)',
         opacity: showing ? 1 : 0,
         transform: showing ? 'translateY(0)' : 'translateY(-8px)',
         transition: `opacity ${duration}ms ${EASE}, transform ${duration}ms ${EASE}`,
