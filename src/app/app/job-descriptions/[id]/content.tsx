@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 // A textarea that grows with its content. Used for responsibilities and
 // requirements so long sentences wrap cleanly instead of overflowing a
@@ -995,7 +996,7 @@ export default function JobDescriptionDetailContent() {
                 >
                   {u.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={u.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                    <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
                   ) : (
                     <span className="w-5 h-5 rounded-full bg-foreground/10 flex items-center justify-center text-[9px] font-semibold text-foreground/60">
                       {(u.full_name || '?').charAt(0).toUpperCase()}
@@ -1052,7 +1053,7 @@ export default function JobDescriptionDetailContent() {
                         >
                           {u.avatar_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={u.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                            <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
                           ) : (
                             <span className="w-5 h-5 rounded-full bg-foreground/10 flex items-center justify-center text-[9px] font-semibold text-foreground/60">
                               {(u.full_name || '?').charAt(0).toUpperCase()}
@@ -1380,7 +1381,7 @@ export default function JobDescriptionDetailContent() {
                     <span className={`w-2 h-2 rounded-full shrink-0 ${s.signed_at ? 'bg-emerald-500' : 'bg-amber-400'}`} />
                     {signerUser?.avatar_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={signerUser.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+                      <img src={toAvatarThumb(signerUser.avatar_url, 200) ?? signerUser.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
                     ) : (
                       <span className="w-7 h-7 rounded-full bg-foreground/10 flex items-center justify-center text-[11px] font-semibold text-foreground/60 shrink-0">
                         {(s.signer_name || signerUser?.full_name || '?').charAt(0).toUpperCase()}
@@ -1672,7 +1673,7 @@ export default function JobDescriptionDetailContent() {
                       >
                         {u.avatar_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={u.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover" />
+                          <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover" />
                         ) : (
                           <span className="w-6 h-6 rounded-full bg-foreground/10 flex items-center justify-center text-[10px] font-semibold text-foreground/60">
                             {(u.full_name || '?').charAt(0).toUpperCase()}

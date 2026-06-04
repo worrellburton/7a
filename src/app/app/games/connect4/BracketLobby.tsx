@@ -37,6 +37,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { currentPlayer } from '@/lib/connect4';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 // Floor on the bracket size — keeps a small org from rendering a
 // lopsided 2- or 4-seat bracket. nextPow2 below grows the bracket
@@ -1395,7 +1396,7 @@ function Avatar({ user, size = 'sm' }: { user: UserLite | null | undefined; size
   const name = user.full_name || user.email || '?';
   if (user.avatar_url) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={user.avatar_url} alt="" className={`${dim} rounded-full object-cover bg-warm-bg`} />;
+    return <img src={toAvatarThumb(user.avatar_url, 200) ?? user.avatar_url} alt="" className={`${dim} rounded-full object-cover bg-warm-bg`} />;
   }
   return (
     <div className={`${dim} rounded-full bg-warm-bg flex items-center justify-center font-semibold text-foreground/55`}>

@@ -6,6 +6,7 @@ import { useModal } from '@/lib/ModalProvider';
 import { logActivity } from '@/lib/activity';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface Department {
   id: string;
@@ -351,7 +352,7 @@ export default function DepartmentsContent() {
                               <div key={m.id} className="relative group/avatar">
                                 {m.avatar_url ? (
                                   <img
-                                    src={m.avatar_url}
+                                    src={toAvatarThumb(m.avatar_url, 200) ?? m.avatar_url}
                                     alt={m.full_name || m.email}
                                     className="w-7 h-7 rounded-full border-2 border-white"
                                   />
@@ -419,7 +420,7 @@ export default function DepartmentsContent() {
                                 }`}
                               >
                                 {m.avatar_url ? (
-                                  <img src={m.avatar_url} alt="" className="w-7 h-7 rounded-full" />
+                                  <img src={toAvatarThumb(m.avatar_url, 200) ?? m.avatar_url} alt="" className="w-7 h-7 rounded-full" />
                                 ) : (
                                   <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[10px] font-bold">
                                     {(m.full_name || m.email || '?').charAt(0).toUpperCase()}
@@ -501,7 +502,7 @@ export default function DepartmentsContent() {
                       }`}
                     >
                       {u.avatar_url ? (
-                        <img src={u.avatar_url} alt="" className="w-7 h-7 rounded-full shrink-0" />
+                        <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-7 h-7 rounded-full shrink-0" />
                       ) : (
                         <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-foreground/50 text-[10px] font-bold shrink-0">
                           {(u.full_name || u.email || '?').charAt(0).toUpperCase()}

@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface LeaderRow {
   user_id: string;
@@ -73,7 +74,7 @@ export default function Leaderboard() {
               <span className="w-6 text-right text-[11px] font-semibold text-foreground/45 tabular-nums">{i + 1}</span>
               {r.user?.avatar_url ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={r.user.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover bg-warm-bg" />
+                <img src={toAvatarThumb(r.user.avatar_url, 200) ?? r.user.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover bg-warm-bg" />
               ) : (
                 <div className="w-6 h-6 rounded-full bg-warm-bg flex items-center justify-center text-[10px] font-semibold text-foreground/55">
                   {display.charAt(0).toUpperCase()}

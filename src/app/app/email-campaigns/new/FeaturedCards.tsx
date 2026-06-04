@@ -8,6 +8,7 @@
 
 import type { BlogOption, EmployeeOption, HorseOption } from './types';
 import type { SitePage } from '@/lib/site-pages';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 export function FeaturedBlogCard({ blog, onClear }: { blog: BlogOption; onClear: () => void }) {
   return (
@@ -53,7 +54,7 @@ export function FeaturedEmployeeCard({ employee, onClear }: { employee: Employee
     <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
       {employee.avatar_url ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={employee.avatar_url} alt="" className="w-14 h-14 rounded-full object-cover border border-black/10" />
+        <img src={toAvatarThumb(employee.avatar_url, 200) ?? employee.avatar_url} alt="" className="w-14 h-14 rounded-full object-cover border border-black/10" />
       ) : (
         <div className="w-14 h-14 rounded-full bg-warm-bg/60 border border-black/10" />
       )}

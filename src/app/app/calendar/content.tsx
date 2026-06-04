@@ -5,6 +5,7 @@ import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { logActivity } from '@/lib/activity';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 // ------------------------------------------------------------
 // Calendar — Phase 3: polish, edit, reschedule, delete.
@@ -1895,7 +1896,7 @@ function PhonesMonthDay({
                 >
                   {firstUser.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={firstUser.avatar_url} alt="" className="w-full h-full object-cover" />
+                    <img src={toAvatarThumb(firstUser.avatar_url, 200) ?? firstUser.avatar_url} alt="" className="w-full h-full object-cover" />
                   ) : (
                     (firstLabel || '?').charAt(0).toUpperCase()
                   )}
@@ -1964,7 +1965,7 @@ function ShiftAvatar({
       {u?.avatar_url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={u.avatar_url}
+          src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
           alt={label}
           className="w-full h-full rounded-full object-cover"
         />
@@ -2204,7 +2205,7 @@ function ShiftAvatarFillRow({
       <span className="shrink-0 w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-white/80" style={{ backgroundColor: color }}>
         {u?.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={u.avatar_url} alt={label} className="w-full h-full object-cover" />
+          <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt={label} className="w-full h-full object-cover" />
         ) : (
           label.charAt(0).toUpperCase()
         )}
@@ -2255,7 +2256,7 @@ function EventChip({
         {u?.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={u.avatar_url}
+            src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
             alt=""
             className="w-5 h-5 rounded-full object-cover shrink-0 ring-1 ring-white"
           />
@@ -2337,7 +2338,7 @@ function TimedEventBlock({
         {u?.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={u.avatar_url}
+            src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
             alt=""
             className="w-6 h-6 rounded-full object-cover shrink-0 ring-1 ring-white"
           />
@@ -2562,7 +2563,7 @@ function ResizableEvent({
       <div className="flex items-center gap-1.5 px-1.5 py-1 min-h-0">
         {isUser && u?.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={u.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover shrink-0 ring-1 ring-white" />
+          <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover shrink-0 ring-1 ring-white" />
         ) : isUser ? (
           <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ backgroundColor: color }}>
             {label.charAt(0).toUpperCase()}
@@ -2678,7 +2679,7 @@ function AodSlot({
       {user.avatar_url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={user.avatar_url}
+          src={toAvatarThumb(user.avatar_url, 200) ?? user.avatar_url}
           alt=""
           className={`${avatarCls} rounded-full object-cover shrink-0 ring-1 ring-white`}
         />
@@ -2795,7 +2796,7 @@ function MonthView({
                   >
                     {aodUser.avatar_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={aodUser.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                      <img src={toAvatarThumb(aodUser.avatar_url, 200) ?? aodUser.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
                     ) : (
                       (aodUser.full_name || aodUser.email || '?').charAt(0).toUpperCase()
                     )}

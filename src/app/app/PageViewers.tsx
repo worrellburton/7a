@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface Viewer {
   id: string;
@@ -75,7 +76,7 @@ export default function PageViewers() {
           <div key={u.id} className="relative group">
             {u.avatar_url ? (
               <img
-                src={u.avatar_url}
+                src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
                 alt={u.full_name || ''}
                 className="w-6 h-6 rounded-full border-2 border-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)] hover:scale-110 hover:z-10 transition-transform"
               />

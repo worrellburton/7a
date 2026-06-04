@@ -16,6 +16,7 @@ import { db } from '@/lib/db';
 import { useAuth } from '@/lib/AuthProvider';
 import { logActivity } from '@/lib/activity';
 import { usePagePermissions } from '@/lib/PagePermissions';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface PermissionGroup {
   id: string;
@@ -529,7 +530,7 @@ function GroupEditor({
                       <div className="flex items-center gap-3 min-w-0">
                         {u.avatar_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={u.avatar_url} alt="" className="w-7 h-7 rounded-full" />
+                          <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-7 h-7 rounded-full" />
                         ) : (
                           <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[11px] font-bold">
                             {(u.full_name || u.email).charAt(0).toUpperCase()}

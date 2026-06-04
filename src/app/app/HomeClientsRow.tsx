@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface HomeClient {
   id: string;
@@ -82,7 +83,7 @@ export default function HomeClientsRow() {
               >
                 {c.avatar_url ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={c.avatar_url} alt={c.name} className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm group-hover:ring-2 group-hover:ring-primary/40 transition-all" />
+                  <img src={toAvatarThumb(c.avatar_url, 200) ?? c.avatar_url} alt={c.name} className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm group-hover:ring-2 group-hover:ring-primary/40 transition-all" />
                 ) : (
                   <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs border-2 border-white shadow-sm group-hover:ring-2 group-hover:ring-primary/40 transition-all">
                     {c.name.charAt(0)}
@@ -127,7 +128,7 @@ export default function HomeClientsRow() {
                   >
                     {c.avatar_url ? (
                       /* eslint-disable-next-line @next/next/no-img-element */
-                      <img src={c.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
+                      <img src={toAvatarThumb(c.avatar_url, 200) ?? c.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover" />
                     ) : (
                       <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center text-amber-800 font-bold text-xs">
                         {c.name.charAt(0)}

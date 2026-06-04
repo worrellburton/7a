@@ -26,6 +26,7 @@ import { touchMedia } from '@/lib/touchMedia';
 import { BuildProgress } from '../BuildProgress';
 import { SITE_PAGES, SITE_PAGE_GROUPS, findSitePage, type SitePage } from '@/lib/site-pages';
 import { Toggle, ModalShell } from '@/components/ui';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface LibraryImage {
   id: string;
@@ -1598,7 +1599,7 @@ function EmployeePicker({ employees, selectedId, onSelect, onClose }: {
               >
                 {e.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={e.avatar_url} alt="" className="w-12 h-12 rounded-full object-cover border border-black/10 shrink-0" />
+                  <img src={toAvatarThumb(e.avatar_url, 200) ?? e.avatar_url} alt="" className="w-12 h-12 rounded-full object-cover border border-black/10 shrink-0" />
                 ) : (
                   <div className="w-12 h-12 rounded-full bg-warm-bg/60 border border-black/10 shrink-0" />
                 )}
