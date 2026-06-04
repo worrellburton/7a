@@ -174,6 +174,10 @@ export const defaultPages: PageConfig[] = [
   // were previously five separate popup entries. They live under
   // /app/admin now — the index there links out to all of them.
   { path: '/app/admin', label: 'Admin', adminOnly: true, section: 'popup', sort_order: 0.5, allowedDepartments: [], departmentId: null },
+  // Operational health snapshot — stuck campaigns, cron failures,
+  // failed-send counts. Super-admin only (the page also runtime-
+  // gates on isSuperAdmin, and /api/admin/health is requireSuperAdmin).
+  { path: '/app/admin/health', label: 'Health', adminOnly: true, section: 'popup', sort_order: 0.6, allowedDepartments: [], departmentId: null },
   { path: '/app/activity', label: 'Activity', adminOnly: true, section: 'popup', sort_order: 5, allowedDepartments: [], departmentId: null },
 ];
 

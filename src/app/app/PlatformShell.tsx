@@ -10,6 +10,7 @@ import { db } from '@/lib/db';
 import PageGuard from '@/lib/PageGuard';
 import PageViewers from './PageViewers';
 import { PresenceCursors } from '@/components/PresenceCursors';
+import CommandPalette from '@/components/CommandPalette';
 import FlowBackground from './FlowBackground';
 import LoginScreen, { HeroGallery } from './LoginScreen';
 import LeverPullListener from '@/components/LeverPullListener';
@@ -1103,6 +1104,9 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       <PresenceCursors />
       <LeverPullListener />
       <ContactSubmissionToasts />
+      {/* Global cmd+K / ctrl+K palette. Listens for the shortcut at
+          window level so it's available from any /app/* surface. */}
+      <CommandPalette />
       {/* Left Sidebar — collapsed-by-default rail that expands on
           hover. The aside reserves a narrow `w-16` column so the
           main content's layout never reflows; the inner panel is
