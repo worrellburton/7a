@@ -80,6 +80,21 @@ export default function ContentLanding() {
   // in an effect (not useState initializer) to avoid an SSR/client
   // mismatch on the persisted value.
   const [view, setView] = useState<'list' | 'board'>('list');
+  // Top-level tab strip: 'roadmap' (editorial calendar of blog
+  // concepts) sits above 'pipeline' (the existing list + board
+  // surface). Persisted to localStorage so the marketer's last
+  // choice survives a refresh — same pattern as the view toggle.
+  const [tab, setTab] = useState<'roadmap' | 'pipeline'>('roadmap');
+  useEffect(() => {
+    try {
+      const t = localStorage.getItem('sa-content:tab');
+      if (t === 'roadmap' || t === 'pipeline') setTab(t);
+    } catch { /* ignore */ }
+  }, []);
+  const chooseTab = useCallback((t: 'roadmap' | 'pipeline') => {
+    setTab(t);
+    try { localStorage.setItem('sa-content:tab', t); } catch { /* ignore */ }
+  }, []);
   useEffect(() => {
     try {
       const v = localStorage.getItem('sa-content:view');
@@ -268,6 +283,7 @@ export default function ContentLanding() {
           <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Content</h1>
           <p className="mt-1 text-sm text-foreground/60">Every blog on the site, plus the AI pipeline to draft new ones.</p>
         </div>
+        {tab === 'pipeline' && (
         <div className="flex items-center gap-2">
           {/* List / board view toggle. List is the default; board
               groups items into Draft / In progress / Published columns. */}
@@ -312,17 +328,46 @@ export default function ContentLanding() {
             {creating ? 'Creating…' : 'New blog'}
           </button>
         </div>
+        )}
       </header>
+
+      {/* Top-level tabs · Roadmap is the editorial calendar of
+          concepts the team wants to write; Pipeline is the existing
+          list/board surface of in-flight blogs. */}
+      <div className="border-b border-gray-100 mb-5 flex gap-1" style={{ fontFamily: 'var(--font-body)' }}>
+        {([
+          { id: 'roadmap' as const, label: 'Roadmap' },
+          { id: 'pipeline' as const, label: 'Pipeline' },
+        ]).map((t) => {
+          const active = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => chooseTab(t.id)}
+              className={`px-4 py-2 text-sm font-semibold border-b-2 transition-colors -mb-px ${
+                active
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-foreground/55 hover:text-foreground/80'
+              }`}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
 
       {error && (
         <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-800">{error}</div>
       )}
 
-      {view === 'board' && (
+      {tab === 'roadmap' && <RoadmapTab />}
+
+      {tab === 'pipeline' && view === 'board' && (
         <ContentBoard rows={rows} aiEpisodeNumber={aiEpisodeNumber} loading={loading} />
       )}
 
-      {view === 'list' && (<>
+      {tab === 'pipeline' && view === 'list' && (<>
       {/* In development = every AI-pipeline row whose status is not
           yet 'published'. Hand-coded posts are live-by-definition,
           so they never land here. */}
@@ -1028,3 +1073,351 @@ function NewBlogForm({ token, onCancel, onCreated }: { token: string | null; onC
 // scope so future iterations can subscribe to realtime blogs changes
 // without re-importing.
 void supabase;
+
+// =============================================================================
+// RoadmapTab — editorial calendar of blog concepts that haven't been
+// built yet. Each row is a working title + target keyword + intent +
+// target date; the "Build" button on each row hits
+// /api/content/roadmap/[id]/build which spins up a real blogs row
+// with the title prepopulated and routes the user into the build flow.
+//
+// Once a row's been built the Build button morphs into "Open" and
+// the row shows the blog's current pipeline status (Draft / Built /
+// Published) so the marketer can see at a glance which concepts are
+// done.
+// =============================================================================
+
+interface RoadmapRow {
+  id: string;
+  position: number;
+  working_title: string;
+  target_keyword: string | null;
+  est_volume: number | null;
+  intent: string | null;
+  target_date: string | null;
+  blog_id: string | null;
+  blog_status: string | null;
+  blog_slug: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function RoadmapTab() {
+  const { session } = useAuth();
+  const router = useRouter();
+  const [rows, setRows] = useState<RoadmapRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [buildingId, setBuildingId] = useState<string | null>(null);
+  // Inline add-row form state.
+  const [addTitle, setAddTitle] = useState('');
+  const [addDate, setAddDate] = useState('');
+  const [addBusy, setAddBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!session?.access_token) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/content/roadmap', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+        cache: 'no-store',
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(typeof json.error === 'string' ? json.error : 'Could not load roadmap.');
+        return;
+      }
+      setRows((json.rows ?? []) as RoadmapRow[]);
+    } finally {
+      setLoading(false);
+    }
+  }, [session?.access_token]);
+  useEffect(() => { void load(); }, [load]);
+
+  const updateField = useCallback(async (id: string, patch: Partial<RoadmapRow>) => {
+    if (!session?.access_token) return;
+    // Optimistic local update so the cell doesn't flicker.
+    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/content/roadmap/${id}`, {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) {
+        // Roll back by reloading the row from the server.
+        await load();
+      }
+    } finally {
+      setBusyId(null);
+    }
+  }, [session?.access_token, load]);
+
+  const addRow = useCallback(async () => {
+    if (!session?.access_token) return;
+    const title = addTitle.trim();
+    if (!title) return;
+    setAddBusy(true);
+    try {
+      const res = await fetch('/api/content/roadmap', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          working_title: title,
+          target_date: addDate || null,
+        }),
+      });
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({}));
+        setError(typeof j.error === 'string' ? j.error : 'Could not add concept.');
+        return;
+      }
+      setAddTitle('');
+      setAddDate('');
+      await load();
+    } finally {
+      setAddBusy(false);
+    }
+  }, [session?.access_token, addTitle, addDate, load]);
+
+  const build = useCallback(async (row: RoadmapRow) => {
+    if (!session?.access_token) return;
+    // If the row already has a linked blog, just navigate over.
+    if (row.blog_id) {
+      router.push(`/app/content/${row.blog_id}`);
+      return;
+    }
+    setBuildingId(row.id);
+    try {
+      const res = await fetch(`/api/content/roadmap/${row.id}/build`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.id) {
+        setError(typeof json.error === 'string' ? json.error : 'Could not start build.');
+        return;
+      }
+      router.push(`/app/content/${json.id}`);
+    } finally {
+      setBuildingId(null);
+    }
+  }, [session?.access_token, router]);
+
+  const remove = useCallback(async (id: string) => {
+    if (!session?.access_token) return;
+    if (!window.confirm('Remove this blog concept from the roadmap? (The linked blog, if any, stays.)')) return;
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/content/roadmap/${id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) setRows((prev) => prev.filter((r) => r.id !== id));
+    } finally {
+      setBusyId(null);
+    }
+  }, [session?.access_token]);
+
+  return (
+    <section className="rounded-2xl border border-black/10 bg-white overflow-hidden" style={{ fontFamily: 'var(--font-body)' }}>
+      <header className="px-4 py-3 border-b border-black/5 flex items-baseline justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">Editorial roadmap</p>
+          <p className="text-[12.5px] text-foreground/55 mt-0.5">Blog concepts queued for the AI pipeline. Click Build on any row to start a new draft from that title.</p>
+        </div>
+        {!loading && (
+          <span className="text-[11px] text-foreground/45 shrink-0">{rows.length} {rows.length === 1 ? 'concept' : 'concepts'}</span>
+        )}
+      </header>
+
+      {loading ? (
+        <p className="px-4 py-10 text-[12.5px] text-foreground/55 italic text-center">Loading…</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead className="bg-warm-bg/40 text-[10px] uppercase tracking-wider text-foreground/55">
+              <tr>
+                <th className="w-10 text-left px-3 py-2.5 font-semibold border-b border-black/10">#</th>
+                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10">Working title</th>
+                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-48 hidden md:table-cell">Target keyword</th>
+                <th className="text-right px-3 py-2.5 font-semibold border-b border-black/10 w-20 hidden md:table-cell">Volume</th>
+                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-44 hidden lg:table-cell">Intent</th>
+                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-36">Target date</th>
+                <th className="text-right px-3 py-2.5 font-semibold border-b border-black/10 w-32">Action</th>
+                <th className="text-right px-2 py-2.5 font-semibold border-b border-black/10 w-8" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-black/5">
+              {rows.map((r) => {
+                const built = !!r.blog_id;
+                const status = r.blog_status;
+                const statusLabel =
+                  status === 'published' ? 'Published'
+                  : status === 'built' ? 'Built'
+                  : status === 'images' ? 'Images'
+                  : status === 'selecting' ? 'Selecting'
+                  : status === 'reviewing' ? 'Reviewing'
+                  : status === 'draft' ? 'In progress'
+                  : null;
+                const statusTone =
+                  status === 'published' ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                  : built ? 'bg-amber-50 text-amber-800 border-amber-200'
+                  : 'bg-foreground/[0.05] text-foreground/55 border-foreground/10';
+                const isBuilding = buildingId === r.id;
+                return (
+                  <tr key={r.id} className="align-top hover:bg-warm-bg/30">
+                    <td className="px-3 py-3 text-[11px] tabular-nums text-foreground/45">{r.position}</td>
+                    <td className="px-3 py-3">
+                      <input
+                        type="text"
+                        defaultValue={r.working_title}
+                        onBlur={(e) => {
+                          const next = e.target.value.trim();
+                          if (next && next !== r.working_title) void updateField(r.id, { working_title: next });
+                        }}
+                        className="w-full text-[13px] font-semibold text-foreground bg-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 rounded px-1.5 py-1 -mx-1.5 -my-1"
+                      />
+                      {statusLabel && (
+                        <span className={`mt-1 inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-bold uppercase tracking-wider border ${statusTone}`}>
+                          {statusLabel}
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-3 hidden md:table-cell">
+                      <input
+                        type="text"
+                        defaultValue={r.target_keyword ?? ''}
+                        onBlur={(e) => {
+                          const next = e.target.value.trim() || null;
+                          if (next !== r.target_keyword) void updateField(r.id, { target_keyword: next });
+                        }}
+                        placeholder="—"
+                        className="w-full text-[12.5px] text-foreground/75 bg-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 rounded px-1.5 py-1 -mx-1.5 -my-1"
+                      />
+                    </td>
+                    <td className="px-3 py-3 text-right tabular-nums hidden md:table-cell">
+                      <input
+                        type="number"
+                        min={0}
+                        defaultValue={r.est_volume ?? ''}
+                        onBlur={(e) => {
+                          const raw = e.target.value.trim();
+                          const next = raw === '' ? null : Number(raw);
+                          if (next !== r.est_volume) void updateField(r.id, { est_volume: Number.isFinite(next) ? next : null });
+                        }}
+                        placeholder="—"
+                        className="w-full text-right text-[12.5px] text-foreground/75 bg-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 rounded px-1.5 py-1 -mx-1.5 -my-1"
+                      />
+                    </td>
+                    <td className="px-3 py-3 hidden lg:table-cell">
+                      <input
+                        type="text"
+                        defaultValue={r.intent ?? ''}
+                        onBlur={(e) => {
+                          const next = e.target.value.trim() || null;
+                          if (next !== r.intent) void updateField(r.id, { intent: next });
+                        }}
+                        placeholder="—"
+                        className="w-full text-[12px] text-foreground/65 bg-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 rounded px-1.5 py-1 -mx-1.5 -my-1"
+                      />
+                    </td>
+                    <td className="px-3 py-3">
+                      <input
+                        type="date"
+                        defaultValue={r.target_date ?? ''}
+                        onChange={(e) => {
+                          const next = e.target.value || null;
+                          if (next !== r.target_date) void updateField(r.id, { target_date: next });
+                        }}
+                        className="w-full text-[12px] text-foreground/75 bg-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 rounded px-1.5 py-1 -mx-1.5 -my-1"
+                      />
+                    </td>
+                    <td className="px-3 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => void build(r)}
+                        disabled={isBuilding}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wider transition-colors disabled:opacity-60 ${
+                          built
+                            ? 'border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10'
+                            : 'bg-foreground text-white hover:bg-foreground/85'
+                        }`}
+                      >
+                        {isBuilding ? 'Starting…' : built ? 'Open →' : 'Build'}
+                      </button>
+                    </td>
+                    <td className="px-2 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => void remove(r.id)}
+                        disabled={busyId === r.id}
+                        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/40 hover:text-rose-700 hover:bg-rose-50 transition-colors disabled:opacity-50"
+                        title="Remove from roadmap"
+                        aria-label="Remove from roadmap"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                          <path d="M10 11v6M14 11v6" />
+                        </svg>
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {/* Inline add-row form. Pinned at the bottom so adding
+                  a concept doesn't disturb the existing scroll
+                  position. */}
+              <tr className="bg-warm-bg/20">
+                <td className="px-3 py-3 text-[11px] text-foreground/40">+</td>
+                <td className="px-3 py-3">
+                  <input
+                    type="text"
+                    value={addTitle}
+                    onChange={(e) => setAddTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && addTitle.trim().length > 0) void addRow();
+                    }}
+                    placeholder="New blog concept title…"
+                    className="w-full text-[13px] text-foreground bg-white border border-black/10 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </td>
+                <td className="px-3 py-3 hidden md:table-cell" colSpan={3} />
+                <td className="px-3 py-3">
+                  <input
+                    type="date"
+                    value={addDate}
+                    onChange={(e) => setAddDate(e.target.value)}
+                    className="w-full text-[12px] text-foreground/75 bg-white border border-black/10 rounded px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </td>
+                <td className="px-3 py-3 text-right">
+                  <button
+                    type="button"
+                    onClick={() => void addRow()}
+                    disabled={!addTitle.trim() || addBusy}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wider bg-foreground text-white hover:bg-foreground/85 transition-colors disabled:opacity-50"
+                  >
+                    {addBusy ? 'Adding…' : 'Add'}
+                  </button>
+                </td>
+                <td />
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
