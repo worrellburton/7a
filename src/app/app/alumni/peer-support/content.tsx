@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import AlumniProfileEditor from '../_components/AlumniProfileEditor';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 // Peer support phone list · the one shared at weekly meetings.
 // Reads from alumni_profiles where on_phone_list = true. Alumni
@@ -157,7 +158,7 @@ export default function PeerSupportContent() {
                   {r.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={r.avatar_url}
+                      src={toAvatarThumb(r.avatar_url, 200) ?? r.avatar_url}
                       alt={r.full_name || ''}
                       referrerPolicy="no-referrer"
                       className="shrink-0 w-10 h-10 rounded-full object-cover ring-1 ring-primary/40"

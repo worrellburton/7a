@@ -6,6 +6,7 @@ import { usePagePermissions, type PageConfig } from '@/lib/PagePermissions';
 import { db } from '@/lib/db';
 import { useRouter } from 'next/navigation';
 import { pageIcons } from '../../PlatformShell';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface Department {
   id: string;
@@ -368,7 +369,7 @@ export default function PagesContent() {
                           <span key={u.id} className="relative group/avatar">
                             {u.avatar_url ? (
                               <img
-                                src={u.avatar_url}
+                                src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
                                 alt={u.full_name || u.email}
                                 className="w-4 h-4 rounded-full border border-white"
                               />
@@ -670,7 +671,7 @@ export default function PagesContent() {
                         <span className="flex -space-x-1.5">
                           {deptUsers.slice(0, 5).map(u => (
                             u.avatar_url ? (
-                              <img key={u.id} src={u.avatar_url} alt={u.full_name || ''} className="w-5 h-5 rounded-full border-2 border-white" />
+                              <img key={u.id} src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt={u.full_name || ''} className="w-5 h-5 rounded-full border-2 border-white" />
                             ) : (
                               <span key={u.id} className="w-5 h-5 rounded-full bg-primary/15 text-primary text-[9px] font-bold flex items-center justify-center border-2 border-white">
                                 {(u.full_name || u.email || '?').charAt(0).toUpperCase()}

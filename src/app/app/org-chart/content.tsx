@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface OrgCardGroup {
   id: string;
@@ -1428,7 +1429,7 @@ export default function OrgChartContent() {
                       {members.slice(0, 8).map((m) => (
                         <div key={m.id} className="flex items-center gap-1.5 min-w-0">
                           {m.avatar_url ? (
-                            <img src={m.avatar_url} alt="" className="w-7 h-7 rounded-full shrink-0 border border-white shadow-sm" />
+                            <img src={toAvatarThumb(m.avatar_url, 200) ?? m.avatar_url} alt="" className="w-7 h-7 rounded-full shrink-0 border border-white shadow-sm" />
                           ) : (
                             <div className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center text-white text-[10px] font-bold border border-white shadow-sm" style={{ backgroundColor: '#a0522d' }}>
                               {(m.full_name || m.email || '?').charAt(0).toUpperCase()}
@@ -1507,7 +1508,7 @@ export default function OrgChartContent() {
                 >
                   <div className="p-4 h-full flex items-start gap-3">
                     {u.avatar_url ? (
-                      <img src={u.avatar_url} alt="" className="w-12 h-12 rounded-full shrink-0" />
+                      <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-12 h-12 rounded-full shrink-0" />
                     ) : (
                       <div
                         className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-white text-sm font-bold"

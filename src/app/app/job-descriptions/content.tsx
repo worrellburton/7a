@@ -6,6 +6,7 @@ import { logActivity } from '@/lib/activity';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface Department {
   id: string;
@@ -1175,7 +1176,7 @@ export default function JobDescriptionsContent() {
                     >
                       {u.avatar_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={u.avatar_url} alt={u.full_name || ''} className="w-6 h-6 rounded-full object-cover border border-gray-100" />
+                        <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt={u.full_name || ''} className="w-6 h-6 rounded-full object-cover border border-gray-100" />
                       ) : (
                         <span className="w-6 h-6 rounded-full bg-foreground/10 flex items-center justify-center text-[10px] font-semibold text-foreground/60 border border-gray-100">
                           {(u.full_name || '?').charAt(0).toUpperCase()}
@@ -1238,7 +1239,7 @@ export default function JobDescriptionsContent() {
                             >
                               {u.avatar_url ? (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={u.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                                <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
                               ) : (
                                 <span className="w-5 h-5 rounded-full bg-foreground/10 flex items-center justify-center text-[9px] font-semibold text-foreground/60">
                                   {(u.full_name || '?').charAt(0).toUpperCase()}

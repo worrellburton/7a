@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { db } from '@/lib/db';
 import { useAuth } from '@/lib/AuthProvider';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 // Content access tab on /app/admin/user-permissions.
 //
@@ -166,7 +167,7 @@ export default function ContentAccessTab() {
                 <li key={m.id} className="flex items-center gap-3 px-4 py-3 hover:bg-warm-bg/40">
                   {m.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={m.avatar_url} alt="" className="shrink-0 w-9 h-9 rounded-full object-cover bg-warm-bg" />
+                    <img src={toAvatarThumb(m.avatar_url, 200) ?? m.avatar_url} alt="" className="shrink-0 w-9 h-9 rounded-full object-cover bg-warm-bg" />
                   ) : (
                     <div className="shrink-0 w-9 h-9 rounded-full bg-warm-bg flex items-center justify-center text-[11px] font-bold text-foreground/55">
                       {(m.full_name ?? m.email ?? '?').charAt(0).toUpperCase()}

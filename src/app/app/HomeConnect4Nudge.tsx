@@ -16,6 +16,7 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { currentPlayer } from '@/lib/connect4';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface MatchRow {
   id: string;
@@ -123,7 +124,7 @@ export default function HomeConnect4Nudge({ onOpponentChange }: Props) {
     >
       {opp?.avatar_url ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={opp.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover ring-2 ring-white/30" />
+        <img src={toAvatarThumb(opp.avatar_url, 200) ?? opp.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover ring-2 ring-white/30" />
       ) : (
         <div className="w-7 h-7 rounded-full bg-warm-bg flex items-center justify-center text-[11px] font-bold text-foreground ring-2 ring-white/30">
           {oppName.charAt(0).toUpperCase()}

@@ -7,6 +7,7 @@ import { defaultPages } from '@/lib/PagePermissions';
 import { logActivity } from '@/lib/activity';
 import { formatNameWithCredentials } from '@/lib/displayName';
 import dynamic from 'next/dynamic';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 // Lazy: 482 LOC modal only mounts when an admin clicks a row, never
 // on first paint. Skips the route's initial JS bundle.
 const PermissionsModal = dynamic(() => import('./PermissionsModal'), { ssr: false });
@@ -662,7 +663,7 @@ export default function UserPermissionsContent() {
                         <div className="flex items-center gap-3">
                           {u.avatar_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={u.avatar_url} alt="" className="w-8 h-8 rounded-full" />
+                            <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-8 h-8 rounded-full" />
                           ) : (
                             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
                               {(u.full_name || u.email || '?').charAt(0).toUpperCase()}
@@ -1094,7 +1095,7 @@ function AlumniTab({
               <li key={u.id} className="px-5 py-3 flex items-center gap-3">
                 {u.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={u.avatar_url} alt={u.full_name ?? u.email} className="w-9 h-9 rounded-full object-cover bg-warm-bg" />
+                  <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt={u.full_name ?? u.email} className="w-9 h-9 rounded-full object-cover bg-warm-bg" />
                 ) : (
                   <div className="w-9 h-9 rounded-full bg-warm-bg flex items-center justify-center text-[12px] font-semibold text-foreground/55">
                     {(u.full_name || u.email || '?').charAt(0).toUpperCase()}

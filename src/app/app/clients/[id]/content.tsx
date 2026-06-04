@@ -7,6 +7,7 @@ import { useModal } from '@/lib/ModalProvider';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface DiagCode { code: string; description: string }
 
@@ -225,7 +226,7 @@ export default function ClientChartContent({ id }: { id: string }) {
         <div className="flex items-start gap-3 sm:gap-5">
           {client.avatar_url ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={client.avatar_url} alt="" className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover shrink-0" />
+            <img src={toAvatarThumb(client.avatar_url, 200) ?? client.avatar_url} alt="" className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover shrink-0" />
           ) : (
             <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xl sm:text-2xl shrink-0">
               {client.name.charAt(0)}

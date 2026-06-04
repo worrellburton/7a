@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
 import { soberMilestoneLabel } from '../_components/TimeSoberCard';
 import AlumniProfileEditor from '../_components/AlumniProfileEditor';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 // Phase 3 — interactive Leaflet map (ssr:false because Leaflet
 // imports `window` at module load). The list view stays as a
@@ -298,7 +299,7 @@ export default function AlumniMapContent() {
                       >
                         {p.avatar_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.avatar_url} alt="" referrerPolicy="no-referrer" className="shrink-0 w-11 h-11 rounded-full object-cover ring-1 ring-primary/40" />
+                          <img src={toAvatarThumb(p.avatar_url, 200) ?? p.avatar_url} alt="" referrerPolicy="no-referrer" className="shrink-0 w-11 h-11 rounded-full object-cover ring-1 ring-primary/40" />
                         ) : (
                           <span aria-hidden className="shrink-0 w-11 h-11 rounded-full bg-primary/10 text-primary text-[15px] font-bold ring-1 ring-primary/40 inline-flex items-center justify-center">{initial}</span>
                         )}
