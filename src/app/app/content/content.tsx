@@ -80,18 +80,21 @@ export default function ContentLanding() {
   // in an effect (not useState initializer) to avoid an SSR/client
   // mismatch on the persisted value.
   const [view, setView] = useState<'list' | 'board'>('list');
-  // Top-level tab strip: 'roadmap' (editorial calendar of blog
-  // concepts) sits above 'pipeline' (the existing list + board
-  // surface). Persisted to localStorage so the marketer's last
-  // choice survives a refresh — same pattern as the view toggle.
-  const [tab, setTab] = useState<'roadmap' | 'pipeline'>('roadmap');
+  // Top-level tab strip: 'blogs' (the working set + published
+  // archive, formerly named "Pipeline") sits on the LEFT and is
+  // the default; 'roadmap' (editorial calendar of concepts not
+  // yet built) sits on the right. Persisted to localStorage so a
+  // marketer's last choice survives a refresh — legacy stored
+  // 'pipeline' values are accepted and re-mapped to 'blogs'.
+  const [tab, setTab] = useState<'blogs' | 'roadmap'>('blogs');
   useEffect(() => {
     try {
       const t = localStorage.getItem('sa-content:tab');
-      if (t === 'roadmap' || t === 'pipeline') setTab(t);
+      if (t === 'blogs' || t === 'pipeline') setTab('blogs');
+      else if (t === 'roadmap') setTab('roadmap');
     } catch { /* ignore */ }
   }, []);
-  const chooseTab = useCallback((t: 'roadmap' | 'pipeline') => {
+  const chooseTab = useCallback((t: 'blogs' | 'roadmap') => {
     setTab(t);
     try { localStorage.setItem('sa-content:tab', t); } catch { /* ignore */ }
   }, []);
@@ -283,7 +286,7 @@ export default function ContentLanding() {
           <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>Content</h1>
           <p className="mt-1 text-sm text-foreground/60">Every blog on the site, plus the AI pipeline to draft new ones.</p>
         </div>
-        {tab === 'pipeline' && (
+        {tab === 'blogs' && (
         <div className="flex items-center gap-2">
           {/* List / board view toggle. List is the default; board
               groups items into Draft / In progress / Published columns. */}
@@ -336,8 +339,10 @@ export default function ContentLanding() {
           list/board surface of in-flight blogs. */}
       <div className="border-b border-gray-100 mb-5 flex gap-1" style={{ fontFamily: 'var(--font-body)' }}>
         {([
+          // Order: 'blogs' is the working set + archive and the
+          // default landing; 'roadmap' is the planning queue.
+          { id: 'blogs' as const, label: 'Blogs' },
           { id: 'roadmap' as const, label: 'Roadmap' },
-          { id: 'pipeline' as const, label: 'Pipeline' },
         ]).map((t) => {
           const active = tab === t.id;
           return (
@@ -363,11 +368,11 @@ export default function ContentLanding() {
 
       {tab === 'roadmap' && <RoadmapTab />}
 
-      {tab === 'pipeline' && view === 'board' && (
+      {tab === 'blogs' && view === 'board' && (
         <ContentBoard rows={rows} aiEpisodeNumber={aiEpisodeNumber} loading={loading} />
       )}
 
-      {tab === 'pipeline' && view === 'list' && (<>
+      {tab === 'blogs' && view === 'list' && (<>
       {/* In development = every AI-pipeline row whose status is not
           yet 'published'. Hand-coded posts are live-by-definition,
           so they never land here. */}
