@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase } from '@/lib/supabase-server';
 import { requireSuperAdmin, makeSlug } from '@/lib/content-server';
+import { apiError } from '@/lib/api-responses';
 
 // POST /api/content/roadmap/[id]/build
 //
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const gate = await requireSuperAdmin(req);
   if (gate.error) return gate.error;
   const { id } = await ctx.params;
-  if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
+  if (!id) return apiError('validation', 'id required');
 
   const admin = getAdminSupabase();
   const { data: roadmapRow, error: rmErr } = await admin
@@ -41,8 +42,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     .select('id, working_title, target_keyword, intent, blog_id')
     .eq('id', id)
     .maybeSingle();
-  if (rmErr) return NextResponse.json({ error: rmErr.message }, { status: 500 });
-  if (!roadmapRow) return NextResponse.json({ error: 'Roadmap item not found' }, { status: 404 });
+  if (rmErr) return apiError('server_error', rmErr.message);
+  if (!roadmapRow) return apiError('not_found', 'Roadmap item not found');
 
   // Idempotency: if this roadmap item already has a blog, return it
   // without creating a second one. UI uses this to short-circuit the
@@ -86,7 +87,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     })
     .select('id, slug, title, status')
     .single();
-  if (blogErr) return NextResponse.json({ error: blogErr.message }, { status: 500 });
+  if (blogErr) return apiError('server_error', blogErr.message);
 
   // Link the new blog back to the roadmap row. Failure here is non-
   // fatal — the blog still exists and the user can navigate to it —

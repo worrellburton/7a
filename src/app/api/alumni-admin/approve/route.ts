@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireSuperOrAlumniAdmin } from '@/lib/api-gates';
+import { apiError } from '@/lib/api-responses';
 
 // POST /api/alumni-admin/approve  { id: <user_id> }
 //
@@ -21,33 +22,22 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json().catch(() => ({}))) as { id?: unknown };
   const targetId = typeof body.id === 'string' ? body.id : null;
-  if (!targetId) {
-    return NextResponse.json({ error: 'id is required' }, { status: 400 });
-  }
+  if (!targetId) return apiError('validation', 'id is required');
 
   const { admin, userId: callerId, isSuperAdmin } = gate;
 
-  // Always verify the target is an alumni — this is the role's
-  // entire scope. Super Admins technically could mutate any row but
-  // routing them through the same endpoint with the same constraint
-  // means there's only ONE codepath to audit.
   const { data: target, error: lookupErr } = await admin
     .from('users')
     .select('id, user_kind, status, full_name, email')
     .eq('id', targetId)
     .maybeSingle();
-  if (lookupErr) return NextResponse.json({ error: lookupErr.message }, { status: 500 });
-  if (!target) return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  if (lookupErr) return apiError('server_error', lookupErr.message);
+  if (!target) return apiError('not_found', 'User not found');
   if (target.user_kind !== 'alumni') {
-    return NextResponse.json(
-      { error: 'This endpoint only approves alumni accounts.' },
-      { status: 403 },
-    );
+    return apiError('forbidden', 'This endpoint only approves alumni accounts.');
   }
 
   if (target.status === 'active') {
-    // Idempotent: already approved → nothing to do, but return ok
-    // so the UI's optimistic flip stays consistent on retries.
     return NextResponse.json({ ok: true, alreadyActive: true });
   }
 
@@ -55,7 +45,7 @@ export async function POST(req: NextRequest) {
     .from('users')
     .update({ status: 'active' })
     .eq('id', targetId);
-  if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
+  if (updErr) return apiError('server_error', updErr.message);
 
   // Audit row so a future "who approved this alumni" question has
   // a clear answer on the admin Activity feed. The activity_log

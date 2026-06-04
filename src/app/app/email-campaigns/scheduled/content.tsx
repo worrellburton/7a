@@ -11,7 +11,7 @@
 // scheduling from another tab shows up here without a manual
 // reload, and the countdown ticks once per second.
 
-import Link from 'next/link';
+import Link from '@/components/HoverPrefetchLink';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
