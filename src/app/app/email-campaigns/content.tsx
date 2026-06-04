@@ -109,6 +109,10 @@ export default function EmailCampaignsContent() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [backfillState, setBackfillState] = useState<'idle' | 'running' | 'done' | 'error'>('idle');
   const [backfillMessage, setBackfillMessage] = useState<string | null>(null);
+  // Per-campaign open/click totals, keyed by campaign id. Populated
+  // by one bulk fetch after the campaign rows load so the Sent
+  // archive can render rate circles without N round-trips.
+  const [analytics, setAnalytics] = useState<Record<string, { recipients: number; opened: number; clicked: number; openRate: number; clickRate: number }>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -142,9 +146,25 @@ export default function EmailCampaignsContent() {
       }
       setRows(baseRows);
       setLoading(false);
+
+      // Pull bulk analytics for every sent row in one round-trip so
+      // the Sent archive can show open/click rate circles per row.
+      const sentIds = baseRows.filter((r) => r.status === 'sent').map((r) => r.id);
+      if (sentIds.length > 0 && session?.access_token) {
+        try {
+          const aRes = await fetch(`/api/email-campaigns/analytics-bulk?ids=${sentIds.join(',')}`, {
+            headers: { Authorization: `Bearer ${session.access_token}` },
+            cache: 'no-store',
+          });
+          if (cancelled || !aRes.ok) return;
+          const aJson = await aRes.json();
+          setAnalytics((aJson.rows ?? {}) as typeof analytics);
+        } catch { /* non-fatal — circles just stay blank */ }
+      }
     })();
     return () => { cancelled = true; };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.access_token]);
 
   // Super-admin tool: one-shot seed of the events table for every
   // already-sent recipient. Useful right after pointing Resend at the
@@ -247,7 +267,21 @@ export default function EmailCampaignsContent() {
         //     failed. Anything the marketer is actively touching.
         //   - 'Sent campaigns' (bottom card) is the archive.
         const activeRows = rows.filter((r) => r.status !== 'sent' && r.status !== 'scheduled');
-        const sentRows = rows.filter((r) => r.status === 'sent');
+        // Sent archive always reads newest-sent → oldest. Was sorted
+        // by created_at (the row's draft creation time), which put a
+        // campaign drafted weeks ago but sent today below newer
+        // drafts that went out yesterday. sent_at is the operationally
+        // meaningful timestamp here. Falls back to created_at when
+        // a row is sent but missing sent_at (legacy data) so it still
+        // lands in some stable position rather than at the very top.
+        const sentRows = rows
+          .filter((r) => r.status === 'sent')
+          .slice()
+          .sort((a, b) => {
+            const at = a.sent_at ? Date.parse(a.sent_at) : Date.parse(a.created_at);
+            const bt = b.sent_at ? Date.parse(b.sent_at) : Date.parse(b.created_at);
+            return bt - at;
+          });
         const showEmpty = !loading && activeRows.length === 0 && sentRows.length === 0;
         return (
           <>
@@ -320,6 +354,7 @@ export default function EmailCampaignsContent() {
                       expanded={expanded === c.id}
                       onToggle={() => setExpanded((prev) => (prev === c.id ? null : c.id))}
                       canManage={canManage}
+                      analytics={analytics[c.id]}
                       onDeleted={(id) => {
                         setRows((prev) => prev.filter((r) => r.id !== id));
                         setExpanded((prev) => (prev === id ? null : prev));
@@ -526,8 +561,59 @@ function AutopilotPanel({ canManage }: { canManage: boolean }) {
   );
 }
 
+// Small SVG donut showing a 0..1 rate as a colored arc with the
+// percentage written in the middle. Used on every Sent row to give the
+// archive a quick at-a-glance read of open + click performance without
+// having to expand the row.
+function RateRing({ label, rate, color }: { label: string; rate: number; color: string }) {
+  const pct = Math.max(0, Math.min(1, rate));
+  const r = 13;
+  const c = 2 * Math.PI * r;
+  const offset = c * (1 - pct);
+  return (
+    <div
+      className="inline-flex items-center gap-1.5"
+      title={`${label} rate: ${(pct * 100).toFixed(1)}%`}
+      aria-label={`${label} rate ${(pct * 100).toFixed(0)} percent`}
+    >
+      <span
+        aria-hidden
+        className="relative inline-flex items-center justify-center"
+        style={{ width: 32, height: 32 }}
+      >
+        <svg width={32} height={32} viewBox="0 0 32 32" className="-rotate-90">
+          <circle cx={16} cy={16} r={r} fill="none" stroke="#e5e2dc" strokeWidth={3} />
+          <circle
+            cx={16}
+            cy={16}
+            r={r}
+            fill="none"
+            stroke={color}
+            strokeWidth={3}
+            strokeDasharray={c}
+            strokeDashoffset={offset}
+            strokeLinecap="round"
+          />
+        </svg>
+        <span
+          className="absolute inset-0 flex items-center justify-center text-[8.5px] font-bold tabular-nums text-foreground/75"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          {Math.round(pct * 100)}
+        </span>
+      </span>
+      <span
+        className="text-[10px] uppercase tracking-[0.14em] text-foreground/55 font-semibold"
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        {label}
+      </span>
+    </div>
+  );
+}
+
 function CampaignRowItem({
-  c, expanded, onToggle, canManage, onDeleted,
+  c, expanded, onToggle, canManage, onDeleted, analytics,
 }: {
   c: CampaignRow;
   expanded: boolean;
@@ -537,6 +623,10 @@ function CampaignRowItem({
   /** Parent updater so the row + its expanded analytics disappear
    *  immediately when the DELETE succeeds, no extra refetch. */
   onDeleted: (id: string) => void;
+  /** Pre-fetched rates from /api/email-campaigns/analytics-bulk so the
+   *  Sent row can render open / click circles without each row firing
+   *  its own request. Only meaningful when c.status === 'sent'. */
+  analytics?: { recipients: number; opened: number; clicked: number; openRate: number; clickRate: number };
 }) {
   const { session } = useAuth();
   const [deleting, setDeleting] = useState(false);
@@ -631,6 +721,12 @@ function CampaignRowItem({
             )}
           </p>
         </div>
+        {c.status === 'sent' && analytics && analytics.recipients > 0 && (
+          <div className="shrink-0 flex items-center gap-2.5">
+            <RateRing label="Open" rate={analytics.openRate} color="#1f8a4c" />
+            <RateRing label="Click" rate={analytics.clickRate} color="#a45a18" />
+          </div>
+        )}
         <span
           className={`shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-semibold uppercase tracking-wider ${tone}`}
           style={{ fontFamily: 'var(--font-body)' }}
