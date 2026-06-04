@@ -33,15 +33,18 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
     <>
       <TopBar />
       <Header />
-      {/* Bottom padding on mobile reserves the height of the
-          StickyMobileCTA + GoogleReviewsBadge stack so the last
-          row of page content isn't tucked behind the floating
-          call pill. lg:pb-0 drops the reservation on desktop
-          (the pill is lg:hidden there). The padding stays even
-          when the user dismisses the bar — losing a small empty
-          band at the bottom is cheaper than reflowing the page
-          every time the bar comes / goes. */}
-      <main className="flex-1 pb-[calc(env(safe-area-inset-bottom)+96px)] lg:pb-0">{children}</main>
+      {/* No bottom padding here anymore. The previous mobile
+          pb-[calc(env(safe-area-inset-bottom)+96px)] was reserving
+          height for the floating StickyMobileCTA pill, but it had
+          the side effect of dropping a ~96-120px empty white band
+          BETWEEN the page's last section and the BeforeFooterCTA
+          below (visible in the screenshot the user flagged: dark
+          contact CTA → big white gap → "Change your life with a
+          single call"). The Footer is the bottom-most element and
+          carries its own bottom padding for the floating pill's
+          safe-area on mobile (see Footer.tsx); reserving space
+          here just stacks white space mid-page. */}
+      <main className="flex-1">{children}</main>
       {/* Pre-footer conversion stack. Brought BeforeFooterCTA back
           above the form — the dog-photo "Change your life with a
           single call" block is the warm hook (anyone, casual), then
