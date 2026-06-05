@@ -194,35 +194,40 @@ export async function GET(req: NextRequest) {
 
   // Window logs — narrow query for the chosen range, hydrate fully.
   // History — only the timestamp + contacted_by so we can bucket all-
-  // time records (day / week / day×user). Both go in parallel.
-  //
-  // Both queries set an explicit large `.limit()` to override the
-  // PostgREST / Supabase default page size (1000 rows). Before this,
-  // any range with > 1000 logs would silently drop everything past
-  // the oldest 1000 — the bug that was hiding Donnie's 45 logs from
-  // the /app/logs leaderboard while Brendan + Bobby's bulk-mailer
-  // logs ate the entire 1000-row window.
-  let q = admin
-    .from('contact_logs')
-    .select('id, contact_id, contacted_by, contacted_at, duration_seconds, method')
-    .gte('contacted_at', win.startIso)
-    .order('contacted_at', { ascending: true })
-    .limit(100000);
-  if (win.endIso) q = q.lt('contacted_at', win.endIso);
+  // time records (day / week / day×user). Both fully paginated so
+  // there's no row cap; the previous .limit(100000) was a safer
+  // bound than the PostgREST default but still a cap. Pages of 1000
+  // are large enough that the typical range adds zero extra
+  // round-trips (one short page returns and we exit immediately).
+  const PAGE = 1000;
+  const windowLogs: LogRow[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    let q = admin
+      .from('contact_logs')
+      .select('id, contact_id, contacted_by, contacted_at, duration_seconds, method')
+      .gte('contacted_at', win.startIso)
+      .order('contacted_at', { ascending: true })
+      .range(offset, offset + PAGE - 1);
+    if (win.endIso) q = q.lt('contacted_at', win.endIso);
+    const { data, error } = await q;
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const chunk = (data ?? []) as LogRow[];
+    windowLogs.push(...chunk);
+    if (chunk.length < PAGE) break;
+  }
 
-  const [windowRes, historyRes] = await Promise.all([
-    q,
-    admin
+  const history: Array<{ contacted_at: string; contacted_by: string | null }> = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await admin
       .from('contact_logs')
       .select('contacted_at, contacted_by')
       .order('contacted_at', { ascending: false })
-      .limit(100000),
-  ]);
-  if (windowRes.error) return NextResponse.json({ error: windowRes.error.message }, { status: 500 });
-  if (historyRes.error) return NextResponse.json({ error: historyRes.error.message }, { status: 500 });
-
-  const windowLogs = (windowRes.data ?? []) as LogRow[];
-  const history = (historyRes.data ?? []) as Array<{ contacted_at: string; contacted_by: string | null }>;
+      .range(offset, offset + PAGE - 1);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const chunk = (data ?? []) as Array<{ contacted_at: string; contacted_by: string | null }>;
+    history.push(...chunk);
+    if (chunk.length < PAGE) break;
+  }
 
   // ── Hydrate users + contacts for window rows ─────────────────
   const userIds = Array.from(new Set(windowLogs.map((l) => l.contacted_by).filter((v): v is string => !!v)));
