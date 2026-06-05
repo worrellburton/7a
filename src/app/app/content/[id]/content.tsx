@@ -77,8 +77,8 @@ interface DbRevision {
 }
 
 export default function BlogEditor({ id }: { id: string }) {
-  const { user, isAdmin, isSuperAdmin, departmentId, session } = useAuth();
-  const { userOverrides, userExtraDepartmentIds } = usePagePermissions();
+  const { user, isAdmin, isSuperAdmin, departmentId, session, profileLoading } = useAuth();
+  const { userOverrides, userExtraDepartmentIds, loading: permLoading } = usePagePermissions();
   // Five access paths — matches /app/content list page + the
   // requireSuperAdmin server gate in src/lib/content-server.ts.
   const MARKETING_DEPT_ID = 'dfde0b96-c605-40dd-84e5-281af2f6d8e9';
@@ -137,6 +137,11 @@ export default function BlogEditor({ id }: { id: string }) {
   }, [blog?.status, images, load]);
 
   if (!user) return null;
+  // Same wait-for-profile rule as the list page — otherwise the gate
+  // flashes the denial screen before departmentId has loaded.
+  if (profileLoading || permLoading) {
+    return <div className="px-4 py-10 text-center text-foreground/55">Loading…</div>;
+  }
   if (!hasContentAccess) {
     return <div className="px-4 py-10 text-center text-foreground/55">Content access required. Ask a super admin to flip your toggle on in Admin → User Permissions → Content.</div>;
   }
