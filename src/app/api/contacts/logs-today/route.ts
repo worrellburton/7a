@@ -195,11 +195,19 @@ export async function GET(req: NextRequest) {
   // Window logs — narrow query for the chosen range, hydrate fully.
   // History — only the timestamp + contacted_by so we can bucket all-
   // time records (day / week / day×user). Both go in parallel.
+  //
+  // Both queries set an explicit large `.limit()` to override the
+  // PostgREST / Supabase default page size (1000 rows). Before this,
+  // any range with > 1000 logs would silently drop everything past
+  // the oldest 1000 — the bug that was hiding Donnie's 45 logs from
+  // the /app/logs leaderboard while Brendan + Bobby's bulk-mailer
+  // logs ate the entire 1000-row window.
   let q = admin
     .from('contact_logs')
     .select('id, contact_id, contacted_by, contacted_at, duration_seconds, method')
     .gte('contacted_at', win.startIso)
-    .order('contacted_at', { ascending: true });
+    .order('contacted_at', { ascending: true })
+    .limit(100000);
   if (win.endIso) q = q.lt('contacted_at', win.endIso);
 
   const [windowRes, historyRes] = await Promise.all([
