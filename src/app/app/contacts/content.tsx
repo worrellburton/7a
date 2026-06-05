@@ -3017,6 +3017,46 @@ function ContactsGrid({
   // Click the notes cell to toggle. Persists across rerenders via a
   // simple id string; null when collapsed.
   const [expandedNotesId, setExpandedNotesId] = useState<string | null>(null);
+  // Anchor for shift-click range selection — the last row id the user
+  // toggled with a plain click. Shift-click on a later (or earlier)
+  // row selects every row between the anchor and that row in the
+  // current `rows` order. Updated on every plain row click so the
+  // anchor follows the user's hand naturally.
+  const lastClickedIdRef = useRef<string | null>(null);
+  // Centralised row-click handler. Handles three modes:
+  //   * shift-click → range-select from anchor to current row
+  //   * plain click on a row → toggle just this row + update anchor
+  //   * click on a checkbox or interactive cell → bubbles handled by
+  //     each control; this handler bails via isInteractiveClick
+  const handleRowClick = useCallback(
+    (e: React.MouseEvent<HTMLTableRowElement | HTMLDivElement>, rowId: string) => {
+      if (isInteractiveClick(e.target)) return;
+      // Suppress when the user is dragging to highlight text inside
+      // a cell — otherwise the release click toggles selection.
+      const sel = window.getSelection?.();
+      if (sel && sel.toString().length > 0) return;
+      if (e.shiftKey && lastClickedIdRef.current && lastClickedIdRef.current !== rowId) {
+        const ids = rows.map((r) => r.id);
+        const aIdx = ids.indexOf(lastClickedIdRef.current);
+        const bIdx = ids.indexOf(rowId);
+        if (aIdx >= 0 && bIdx >= 0) {
+          const [start, end] = aIdx < bIdx ? [aIdx, bIdx] : [bIdx, aIdx];
+          // Clear the browser's text-range selection that shift-click
+          // would otherwise paint across the table, so the visual is
+          // just the row highlights.
+          window.getSelection?.()?.removeAllRanges();
+          onToggleSelectMany(ids.slice(start, end + 1), true);
+          // Anchor stays put on shift-click so the user can refine
+          // the range with a follow-up shift-click without losing
+          // their starting point.
+          return;
+        }
+      }
+      onToggleSelectOne(rowId);
+      lastClickedIdRef.current = rowId;
+    },
+    [rows, onToggleSelectMany, onToggleSelectOne],
+  );
   // Trailing columns the user can't reorder/hide: Actions + the merged
   // Last Contact summary + the action-menu expander. Was 5 (Actions,
   // 3 trailing sticky-right cells (Actions + Contact history +
@@ -3168,19 +3208,17 @@ function ContactsGrid({
             rows.map((c) => (
               <Fragment key={c.id}>
               <tr
-                onClick={(e) => {
-                  // Row body is a click-to-select target. Cells with
-                  // their own interaction (inputs, buttons, the notes
-                  // expander, the engagement panel) opt out via
-                  // isInteractiveClick. Use mousedown→click semantics
-                  // so a text-drag highlight inside a cell doesn't
-                  // accidentally toggle on release.
-                  if (isInteractiveClick(e.target)) return;
-                  // Suppress when the user is dragging to select text.
-                  const sel = window.getSelection?.();
-                  if (sel && sel.toString().length > 0) return;
-                  onToggleSelectOne(c.id);
+                onMouseDown={(e) => {
+                  // Shift+plain-mousedown would otherwise paint a
+                  // browser text-selection across the table before
+                  // our click handler fires. Suppress only when
+                  // shift is held AND the click target is non-
+                  // interactive, so inputs/buttons still focus.
+                  if (e.shiftKey && !isInteractiveClick(e.target)) {
+                    e.preventDefault();
+                  }
                 }}
+                onClick={(e) => handleRowClick(e, c.id)}
                 className={`group align-middle transition-colors cursor-pointer ${selectedIds.has(c.id) ? 'bg-primary/[0.06] hover:bg-primary/10' : isNewToUser(c) ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-warm-bg/40'}`}
               >
                 <td className="px-2 py-2.5 text-center align-middle">
