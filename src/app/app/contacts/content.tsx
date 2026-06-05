@@ -1160,8 +1160,8 @@ export default function ContactsContent() {
       <div className="mb-4">
         <DepartmentPageNav />
       </div>
-      <header className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-        <div>
+      <header className="mb-4 sm:mb-6 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+        <div className="lg:max-w-sm">
           <h1 className="text-base font-semibold text-foreground tracking-tight">Contacts</h1>
           <p className="text-[13px] text-foreground/55 mt-0.5">
             Marketing tracker for referrers, leads, and downgraded partners.
@@ -1170,18 +1170,22 @@ export default function ContactsContent() {
             )}
           </p>
         </div>
-        {/* Add menu used to live here — now lives inside the pill
-            tray below (InsightsCard → AddPill) so add sits next to
-            the metrics it changes. The legacy showAddMenu state is
-            kept for any leftover refs but is no longer rendered. */}
+        {/* Pill tray — Total / Activity / Database Health / Map /
+            Insights / Add — anchored to the upper-right of the page
+            header so the page's "control panel" is the first thing
+            the eye lands on. Each pill is its own floating glass
+            chip (no wrapping tray) with a cascaded entry animation.
+            InsightsCard renders the pill row plus the expansion
+            panels that drop below it when a stat-pill is opened. */}
+        <InsightsCard
+          fallback={insights}
+          viewMode={viewMode}
+          onSetViewMode={setViewMode}
+          onAddContact={() => setShowAdd(true)}
+          onAddWithAI={() => setShowSuggest(true)}
+          onUploadCsv={() => setShowImport(true)}
+        />
       </header>
-
-      <InsightsCard
-        fallback={insights}
-        onAddContact={() => setShowAdd(true)}
-        onAddWithAI={() => setShowSuggest(true)}
-        onUploadCsv={() => setShowImport(true)}
-      />
 
 
       <div className="mb-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
@@ -1229,41 +1233,8 @@ export default function ContactsContent() {
               </button>
             );
           })}
-          {/* Map + Insights view-mode toggles. Used to live in the
-              header; moved inline with the tier filters so the
-              header is just title + Add button. */}
-          <span className="w-px h-5 bg-black/10 mx-1" aria-hidden="true" />
-          <button
-            type="button"
-            onClick={() => setViewMode((v) => (v === 'map' ? 'table' : 'map'))}
-            aria-pressed={viewMode === 'map'}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11.5px] font-semibold border transition-colors ${
-              viewMode === 'map'
-                ? 'border-foreground bg-foreground text-white'
-                : 'bg-white text-foreground/55 border-black/10 hover:bg-warm-bg/60'
-            }`}
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13 6-3m-6 3V7m6 10 5.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-1.447-.894L15 4m0 13V4m-6 3 6-3" />
-            </svg>
-            Map
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode((v) => (v === 'insights' ? 'table' : 'insights'))}
-            aria-pressed={viewMode === 'insights'}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11.5px] font-semibold border transition-colors ${
-              viewMode === 'insights'
-                ? 'border-foreground bg-foreground text-white'
-                : 'bg-white text-foreground/55 border-black/10 hover:bg-warm-bg/60'
-            }`}
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <path d="M3 3v18h18" />
-              <path d="M7 15l4-6 4 4 5-9" />
-            </svg>
-            Insights
-          </button>
+          {/* Map + Insights toggles used to live here — they're
+              now pills in the upper-right pill tray. */}
         </div>
         {/* Manage Columns only matters for the desktop table; on
             mobile every field is visible inside each card. */}
@@ -4541,6 +4512,8 @@ function ContactsPillTray({
   governanceScore,
   governanceLoaded,
   activeExpansion,
+  viewMode,
+  onSetViewMode,
   onToggleGovernance,
   onToggleLogs,
   onAddContact,
@@ -4552,6 +4525,8 @@ function ContactsPillTray({
   governanceScore: number | null;
   governanceLoaded: boolean;
   activeExpansion: 'governance' | 'logs' | null;
+  viewMode: 'table' | 'map' | 'insights';
+  onSetViewMode: (next: 'table' | 'map' | 'insights') => void;
   onToggleGovernance: () => void;
   onToggleLogs: () => void;
   onAddContact: () => void;
@@ -4563,9 +4538,13 @@ function ContactsPillTray({
     governanceScore >= 90 ? '#15803d' :
     governanceScore >= 70 ? '#b87333' :
     '#be123c';
-  return (
-    <div className="flex justify-end">
-      <div className="inline-flex flex-wrap items-center gap-1.5 p-1.5 rounded-full bg-white/65 supports-[backdrop-filter]:bg-white/45 supports-[backdrop-filter]:backdrop-blur-xl supports-[backdrop-filter]:backdrop-saturate-150 border border-white/70 shadow-[0_8px_24px_-12px_rgba(40,30,25,0.22),0_2px_6px_-3px_rgba(40,30,25,0.12)]">
+  // Each pill stands alone — no surrounding "tray" container. The
+  // stagger delays below give a soft cascade entry on first paint
+  // (each pill rises + fades from a slight scale-down, 60ms apart).
+  const pills: Array<{ key: string; node: React.ReactNode }> = [
+    {
+      key: 'total',
+      node: (
         <StatPill
           label="Total"
           value={totalContacts.toLocaleString()}
@@ -4578,6 +4557,11 @@ function ContactsPillTray({
             </svg>
           }
         />
+      ),
+    },
+    {
+      key: 'activity',
+      node: (
         <StatPill
           label="Activity"
           value={`${logsToday} logged`}
@@ -4591,6 +4575,11 @@ function ContactsPillTray({
             </svg>
           }
         />
+      ),
+    },
+    {
+      key: 'health',
+      node: (
         <StatPill
           label="Database Health"
           value={governanceLoaded && governanceScore != null ? (governanceScore >= 90 ? 'Healthy' : governanceScore >= 70 ? 'Fair' : 'Needs work') : '…'}
@@ -4600,12 +4589,95 @@ function ContactsPillTray({
           iconBg="bg-transparent"
           iconColor=""
         />
+      ),
+    },
+    {
+      key: 'map',
+      node: (
+        <StatPill
+          label="View"
+          value="Map"
+          active={viewMode === 'map'}
+          onClick={() => onSetViewMode(viewMode === 'map' ? 'table' : 'map')}
+          iconBg="bg-sky-100"
+          iconColor="text-sky-600"
+          icon={
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13 6-3m-6 3V7m6 10 5.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-1.447-.894L15 4m0 13V4m-6 3 6-3" />
+            </svg>
+          }
+        />
+      ),
+    },
+    {
+      key: 'insights',
+      node: (
+        <StatPill
+          label="View"
+          value="Insights"
+          active={viewMode === 'insights'}
+          onClick={() => onSetViewMode(viewMode === 'insights' ? 'table' : 'insights')}
+          iconBg="bg-amber-100"
+          iconColor="text-amber-600"
+          icon={
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 3v18h18" />
+              <path d="M7 15l4-6 4 4 5-9" />
+            </svg>
+          }
+        />
+      ),
+    },
+    {
+      key: 'add',
+      node: (
         <AddPill
           onAddContact={onAddContact}
           onAddWithAI={onAddWithAI}
           onUploadCsv={onUploadCsv}
         />
-      </div>
+      ),
+    },
+  ];
+  return (
+    <div className="sa-contacts-pill-row flex flex-wrap items-center gap-2 justify-end">
+      {pills.map((p, i) => (
+        <span
+          key={p.key}
+          className="sa-pill-in"
+          style={{ ['--pill-delay' as string]: `${i * 70}ms` }}
+        >
+          {p.node}
+        </span>
+      ))}
+      <style>{`
+        /* Soft cascade entry — pill rises a few px and fades in from
+           a slight scale-down. Stagger per pill via --pill-delay so
+           the user sees a quick wave-in as the page settles. Only on
+           first mount; once finished the styles drop off so hover
+           states aren't affected. */
+        @keyframes sa-pill-enter {
+          from {
+            opacity: 0;
+            transform: translateY(6px) scale(0.94);
+            filter: blur(2px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+            filter: blur(0);
+          }
+        }
+        .sa-pill-in {
+          display: inline-flex;
+          animation: sa-pill-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1) var(--pill-delay, 0ms) both;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .sa-pill-in {
+            animation-duration: 0.01ms !important;
+          }
+        }
+      `}</style>
     </div>
   );
 }
@@ -4672,12 +4744,12 @@ function StatPill({
       type={onClick ? 'button' : undefined}
       onClick={onClick}
       aria-pressed={onClick ? active : undefined}
-      className={`inline-flex items-center gap-2 pl-1.5 pr-3.5 py-1 rounded-full transition-all ${onClick ? 'cursor-pointer' : ''} ${
+      className={`inline-flex items-center gap-2 pl-1.5 pr-3.5 py-1.5 rounded-full transition-all ${onClick ? 'cursor-pointer' : ''} ${
         active
-          ? 'bg-white shadow-[0_3px_10px_-2px_rgba(40,30,25,0.18)] ring-1 ring-foreground/15'
+          ? 'bg-white shadow-[0_8px_20px_-8px_rgba(40,30,25,0.32),0_2px_6px_-2px_rgba(40,30,25,0.15)] ring-1 ring-foreground/15'
           : onClick
-          ? 'bg-white/85 hover:bg-white hover:shadow-[0_3px_10px_-2px_rgba(40,30,25,0.15)] ring-1 ring-black/5 hover:ring-black/10'
-          : 'bg-white/85 ring-1 ring-black/5'
+          ? 'bg-white/90 supports-[backdrop-filter]:bg-white/75 supports-[backdrop-filter]:backdrop-blur-md hover:bg-white shadow-[0_6px_16px_-8px_rgba(40,30,25,0.24),0_1px_4px_-2px_rgba(40,30,25,0.10)] hover:shadow-[0_8px_22px_-8px_rgba(40,30,25,0.30)] ring-1 ring-black/5 hover:ring-black/10'
+          : 'bg-white/90 supports-[backdrop-filter]:bg-white/75 supports-[backdrop-filter]:backdrop-blur-md shadow-[0_6px_16px_-8px_rgba(40,30,25,0.24),0_1px_4px_-2px_rgba(40,30,25,0.10)] ring-1 ring-black/5'
       }`}
     >
       <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full shrink-0 ${iconBg} ${iconColor}`}>
@@ -4728,8 +4800,8 @@ function AddPill({
         aria-expanded={open}
         className={`inline-flex items-center gap-2 pl-1 pr-3.5 py-1 rounded-full transition-all ${
           open
-            ? 'bg-white shadow-[0_3px_10px_-2px_rgba(40,30,25,0.18)] ring-1 ring-foreground/15'
-            : 'bg-white/85 hover:bg-white hover:shadow-[0_3px_10px_-2px_rgba(40,30,25,0.15)] ring-1 ring-black/5 hover:ring-black/10'
+            ? 'bg-white shadow-[0_8px_20px_-8px_rgba(40,30,25,0.32),0_2px_6px_-2px_rgba(40,30,25,0.15)] ring-1 ring-foreground/15'
+            : 'bg-white/90 supports-[backdrop-filter]:bg-white/75 supports-[backdrop-filter]:backdrop-blur-md hover:bg-white shadow-[0_6px_16px_-8px_rgba(40,30,25,0.24),0_1px_4px_-2px_rgba(40,30,25,0.10)] hover:shadow-[0_8px_22px_-8px_rgba(40,30,25,0.30)] ring-1 ring-black/5 hover:ring-black/10'
         }`}
       >
         <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-foreground text-white shrink-0 shadow-[0_2px_6px_-1px_rgba(40,30,25,0.35)]">
@@ -4782,11 +4854,15 @@ function AddPill({
 
 function InsightsCard({
   fallback,
+  viewMode,
+  onSetViewMode,
   onAddContact,
   onAddWithAI,
   onUploadCsv,
 }: {
   fallback: { week: number; month: number; total: number; never: number; missingEmail: number };
+  viewMode: 'table' | 'map' | 'insights';
+  onSetViewMode: (next: 'table' | 'map' | 'insights') => void;
   onAddContact: () => void;
   onAddWithAI: () => void;
   onUploadCsv: () => void;
@@ -4841,6 +4917,8 @@ function InsightsCard({
         governanceScore={governanceScore}
         governanceLoaded={governanceLoaded}
         activeExpansion={showGovernance ? 'governance' : showLogs ? 'logs' : null}
+        viewMode={viewMode}
+        onSetViewMode={onSetViewMode}
         onToggleGovernance={() => {
           setShowGovernance((v) => !v);
           setShowLogs(false);
