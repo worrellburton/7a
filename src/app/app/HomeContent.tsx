@@ -47,6 +47,18 @@ interface RecentUser {
     start_time: string | null;
     end_time: string | null;
   }>;
+  // Sobriety data — populated for alumni rows only, sourced from
+  // public.alumni_profiles after the users query lands. Only set
+  // when the alum has sobriety_public=true. `sobriety_short_label`
+  // is a compact "47d / 3mo / 2y" form for the bubble badge;
+  // `sobriety_label` is the longer "47 days sober" form used in
+  // the tooltip. `last_check_in_at` + `check_in_streak` drive the
+  // first-time-seeing-it glow on the avatar bubble and the
+  // tooltip's check-in details.
+  sobriety_short_label?: string | null;
+  sobriety_label?: string | null;
+  last_check_in_at?: string | null;
+  check_in_streak?: number;
 }
 
 interface PendingSignature {
@@ -54,6 +66,39 @@ interface PendingSignature {
   job_description_id: string;
   sent_at: string;
   title: string;
+}
+
+// Phoenix-anchored day count since sobriety_date. Phoenix has no DST,
+// so anchoring the start day at midnight Phoenix avoids the off-by-one
+// drift that happens when crossing UTC midnight.
+function soberDayCount(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const start = Date.parse(`${iso}T00:00:00-07:00`);
+  if (!Number.isFinite(start)) return null;
+  const days = Math.floor((Date.now() - start) / 86_400_000);
+  return days < 0 ? null : days;
+}
+
+function soberShortLabel(iso: string | null | undefined): string | null {
+  const days = soberDayCount(iso);
+  if (days == null) return null;
+  if (days === 0) return '1d';
+  if (days < 30) return `${days}d`;
+  if (days < 365) return `${Math.floor(days / 30)}mo`;
+  return `${Math.floor(days / 365)}y`;
+}
+
+function soberLongLabel(iso: string | null | undefined): string | null {
+  const days = soberDayCount(iso);
+  if (days == null) return null;
+  if (days === 0) return 'Day 1 sober';
+  if (days < 30) return `${days} days sober`;
+  if (days < 365) {
+    const m = Math.floor(days / 30);
+    return `${m} ${m === 1 ? 'month' : 'months'} sober`;
+  }
+  const y = Math.floor(days / 365);
+  return `${y} ${y === 1 ? 'year' : 'years'} sober`;
 }
 
 function isOnlineNow(lastSeen: string | null): boolean {
@@ -303,6 +348,45 @@ export default function HomeContent() {
       setRecentUsers(staff);
       setRecentAlumni(alumni);
       setTimeout(() => setLoaded(true), 100);
+
+      // Side fetch: alumni_profiles for the alumni on the ring so each
+      // bubble can render a sobriety badge + the tooltip can show
+      // last-check-in details. RLS on alumni_profiles allows any
+      // signed-in user to read sobriety fields the alum opted in to
+      // share (sobriety_public), plus the per-row check-in fields.
+      // Failure is non-fatal — the orbit just loses the badge.
+      if (alumni.length > 0) {
+        void (async () => {
+          const { data: profiles, error: profErr } = await supabase
+            .from('alumni_profiles')
+            .select('user_id, sobriety_date, sobriety_public, last_check_in_at, check_in_streak')
+            .in('user_id', alumni.map((a) => a.id));
+          if (cancelled || profErr || !Array.isArray(profiles)) return;
+          type ProfileRow = {
+            user_id: string;
+            sobriety_date: string | null;
+            sobriety_public: boolean | null;
+            last_check_in_at: string | null;
+            check_in_streak: number | null;
+          };
+          const byId = new Map<string, ProfileRow>();
+          for (const p of profiles as ProfileRow[]) byId.set(p.user_id, p);
+          setRecentAlumni((prev) =>
+            prev.map((a) => {
+              const p = byId.get(a.id);
+              if (!p) return a;
+              const sobrietyOk = p.sobriety_public === true && !!p.sobriety_date;
+              return {
+                ...a,
+                sobriety_short_label: sobrietyOk ? soberShortLabel(p.sobriety_date) : null,
+                sobriety_label: sobrietyOk ? soberLongLabel(p.sobriety_date) : null,
+                last_check_in_at: p.last_check_in_at,
+                check_in_streak: typeof p.check_in_streak === 'number' ? p.check_in_streak : 0,
+              };
+            }),
+          );
+        })();
+      }
 
       // Second pass: pull today's activity_log rows and join them
       // onto the recent users. The orbit uses these counts to flip
