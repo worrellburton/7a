@@ -8,7 +8,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { usePagePermissions, type PageConfig } from '@/lib/PagePermissions';
 import { db } from '@/lib/db';
 import PageGuard from '@/lib/PageGuard';
-import { ALUMNI_ADMIN_PATHS } from '@/lib/alumni-admin-paths';
+import { ALUMNI_ADMIN_PATHS, ALUMNI_VIEWABLE_PATHS } from '@/lib/alumni-admin-paths';
 import PageViewers from './PageViewers';
 import { PresenceCursors } from '@/components/PresenceCursors';
 import CommandPalette from '@/components/CommandPalette';
@@ -483,6 +483,19 @@ const pageIcons: Record<string, React.ReactNode> = {
       <circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none" />
     </svg>
   ),
+  // Alumni roster — list with a person silhouette. Reads as
+  // "address book of people" without overlapping the team/people
+  // glyph used elsewhere in the sidebar.
+  '/app/alumni-roster': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2.5" />
+      <circle cx="9" cy="10" r="2.25" />
+      <path d="M5.5 17c.5-1.8 2-3 3.5-3s3 1.2 3.5 3" />
+      <path d="M15 9h3.5" />
+      <path d="M15 12.5h3.5" />
+      <path d="M5.5 20.5h13" />
+    </svg>
+  ),
   // Peer support: phone handset
   '/app/alumni/peer-support': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -674,6 +687,10 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       if (item.adminOnly && !isAdmin) return false;
       return true;
     }
+    // Some admin-managed pages also live on the alumni side as a
+    // peer directory (currently just /app/alumni-roster). Alumni
+    // see them; the API privacy filter handles per-row opt-ins.
+    if (isAlumni && ALUMNI_VIEWABLE_PATHS.has(item.path)) return true;
     // Alumni only see pages explicitly marked alumni-only (handled
     // above) or in the cross-portal allowlist. Everything else
     // in /app is staff-facing.
