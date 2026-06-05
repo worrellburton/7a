@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from '@/components/HoverPrefetchLink';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
+import { useModal } from '@/lib/ModalProvider';
 import { supabase } from '@/lib/supabase';
 import { EPISODES, episodeHref } from '@/lib/episodes';
 import PageAnalyticsPanel from '@/components/PageAnalyticsPanel';
@@ -1126,6 +1127,7 @@ interface RoadmapRow {
 
 function RoadmapTab() {
   const { session } = useAuth();
+  const modal = useModal();
   const router = useRouter();
   const [rows, setRows] = useState<RoadmapRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1237,7 +1239,12 @@ function RoadmapTab() {
 
   const remove = useCallback(async (id: string) => {
     if (!session?.access_token) return;
-    if (!window.confirm('Remove this blog concept from the roadmap? (The linked blog, if any, stays.)')) return;
+    const ok = await modal.confirm('Remove this blog concept?', {
+      message: 'Drops the concept from the roadmap. The linked blog, if any, stays.',
+      confirmLabel: 'Remove',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusyId(id);
     try {
       const res = await fetch(`/api/content/roadmap/${id}`, {
@@ -1248,7 +1255,7 @@ function RoadmapTab() {
     } finally {
       setBusyId(null);
     }
-  }, [session?.access_token]);
+  }, [session?.access_token, modal]);
 
   return (
     <section className="rounded-2xl border border-black/10 bg-white overflow-hidden" style={{ fontFamily: 'var(--font-body)' }}>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
+import { useModal } from '@/lib/ModalProvider';
 import { supabase } from '@/lib/supabase';
 import { touchMedia } from '@/lib/touchMedia';
 import { PlatformIcon, type PlatformId } from './PlatformIcon';
@@ -1796,6 +1797,7 @@ function CreativeDraftsPanel() {
 // Mirrors the publish-flow picker on the Post tab but lives here
 // so the marketer has a dedicated "what's queued?" surface.
 function ReadyToGoPanel() {
+  const modal = useModal();
   const [drafts, setDrafts] = useState<SavedDraft[]>([]);
   // Selected draft ids — drives the batch-action bar at the bottom.
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -1847,10 +1849,15 @@ function ReadyToGoPanel() {
     setDrafts(next);
     setSelected(new Set());
   };
-  const batchDelete = () => {
+  const batchDelete = async () => {
     const ids = selected;
     if (ids.size === 0) return;
-    if (!window.confirm(`Delete ${ids.size} approved post${ids.size === 1 ? '' : 's'}? This can't be undone.`)) return;
+    const ok = await modal.confirm(`Delete ${ids.size} approved post${ids.size === 1 ? '' : 's'}?`, {
+      message: "This can't be undone.",
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     const next = readSavedDrafts().filter((d) => !ids.has(d.id));
     writeSavedDrafts(next);
     setDrafts(next);

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { useModal } from '@/lib/ModalProvider';
 
 // Inline "click to pick from a list, or type a new value" cell. Used
 // for grid columns where the same string values repeat across rows
@@ -41,6 +42,7 @@ export function SearchSelectCell({
   placeholder?: string;
   className?: string;
 }) {
+  const modal = useModal();
   const [editingOption, setEditingOption] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -238,7 +240,12 @@ export function SearchSelectCell({
                             aria-label={`Delete ${o}`}
                             onMouseDown={async (e) => {
                               e.preventDefault();
-                              if (!window.confirm(`Delete "${o}" from every row that uses it? The rows stay; just this value gets cleared.`)) return;
+                              const ok = await modal.confirm(`Delete "${o}"?`, {
+                                message: 'Removes this value from every row that uses it. The rows stay; just this value gets cleared.',
+                                confirmLabel: 'Delete',
+                                tone: 'danger',
+                              });
+                              if (!ok) return;
                               if (!onDeleteOption) return;
                               setBusy(o);
                               try { await onDeleteOption(o); }

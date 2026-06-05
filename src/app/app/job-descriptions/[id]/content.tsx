@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuth } from '@/lib/AuthProvider';
+import { useModal } from '@/lib/ModalProvider';
 import { db, getAuthToken } from '@/lib/db';
 import { logActivity } from '@/lib/activity';
 import Link from 'next/link';
@@ -130,6 +131,7 @@ interface SignatureRow {
 
 export default function JobDescriptionDetailContent() {
   const { user, session, isAdmin } = useAuth();
+  const modal = useModal();
   // Editing is superadmin-only. Everyone else sees a read-only view.
   const canEdit = isAdmin;
   const params = useParams<{ id: string }>();
@@ -382,7 +384,11 @@ export default function JobDescriptionDetailContent() {
       await patchJob({ archived_at: null }, 'Unarchived role');
       return;
     }
-    if (!window.confirm(`Archive "${job.title}"? It will be hidden from the default list but not deleted.`)) return;
+    const archiveOk = await modal.confirm(`Archive "${job.title}"?`, {
+      message: "Hidden from the default list but not deleted. You can unarchive it later.",
+      confirmLabel: 'Archive',
+    });
+    if (!archiveOk) return;
     await patchJob({ archived_at: new Date().toISOString() }, 'Archived role');
     router.push('/app/job-descriptions');
   }
@@ -390,14 +396,21 @@ export default function JobDescriptionDetailContent() {
   async function deletePermanently() {
     if (!job) return;
     if (!job.archived_at) return;
-    if (!window.confirm(`Permanently delete "${job.title}"? This cannot be undone.`)) return;
+    const ok = await modal.confirm(`Permanently delete "${job.title}"?`, {
+      message: 'This cannot be undone.',
+      confirmLabel: 'Delete forever',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await db({ action: 'delete', table: 'jd_signatures', match: { job_description_id: job.id } }).catch(() => {});
       await db({ action: 'delete', table: 'job_descriptions', match: { id: job.id } });
       if (user) logActivity({ userId: user.id, type: 'jd.deleted', targetKind: 'job_description', targetId: job.id, targetLabel: job.title, targetPath: '/app/job-descriptions' });
       router.push('/app/job-descriptions');
     } catch (err) {
-      window.alert(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
+      await modal.alert('Delete failed', {
+        message: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 

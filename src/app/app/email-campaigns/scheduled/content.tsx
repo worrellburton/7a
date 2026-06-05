@@ -15,6 +15,7 @@ import Link from '@/components/HoverPrefetchLink';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
+import { useModal } from '@/lib/ModalProvider';
 import { KpiTile } from '@/components/ui';
 
 interface Row {
@@ -85,6 +86,7 @@ function isoToLocalInput(iso: string): string {
 
 export default function ScheduledContent() {
   const { session } = useAuth();
+  const modal = useModal();
   const searchParams = useSearchParams();
   const scheduledForParam = searchParams?.get('scheduledFor') ?? null;
 
@@ -159,7 +161,12 @@ export default function ScheduledContent() {
 
   const cancelSchedule = async (id: string) => {
     if (!session?.access_token) return;
-    if (!window.confirm('Cancel this scheduled send? The campaign goes back to finalizing — you can still send it later.')) return;
+    const ok = await modal.confirm('Cancel this scheduled send?', {
+      message: 'The campaign goes back to finalizing — you can still send it later.',
+      confirmLabel: 'Cancel send',
+      cancelLabel: 'Keep schedule',
+    });
+    if (!ok) return;
     setBusyId(id);
     try {
       const res = await fetch('/api/email-campaigns/schedule', {
