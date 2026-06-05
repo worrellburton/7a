@@ -13,6 +13,17 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
+  /**
+   * True until the follow-up `loadProfile` call resolves — at which
+   * point is_admin / is_super_admin / department_id / extras /
+   * status reflect the row in `users`. Decoupled from `loading`
+   * (which only reflects auth itself) so gates that need
+   * department-level info (e.g. /app/content) can wait for the
+   * profile without freezing every other route on a slow read.
+   * Defaults to true, flips false the first time loadProfile lands
+   * (success OR error) so the gate never gets stuck open.
+   */
+  profileLoading: boolean;
   isAdmin: boolean;
   isSuperAdmin: boolean;
   /**
@@ -71,6 +82,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   session: null,
   loading: true,
+  profileLoading: true,
   isAdmin: false,
   isSuperAdmin: false,
   isAlumniAdmin: false,
@@ -107,6 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isAlumniAdmin, setIsAlumniAdmin] = useState(false);
@@ -189,7 +202,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       }
     }
-    if (!row) return;
+    // Always flip profileLoading off — success or hard fail. A perma-
+    // true would freeze every gate that waits on it. Callers that care
+    // about distinguishing "loaded but empty" can read the actual
+    // fields (departmentId, isAdmin, etc) directly.
+    if (!row) {
+      setProfileLoading(false);
+      return;
+    }
 
     setIsAdmin(row.is_admin === true);
     setIsSuperAdmin(row.is_super_admin === true);
@@ -205,6 +225,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // back to on_hold every time they hit /app, so admin approvals
     // never stuck for Gmail/Yahoo accounts.
     setStatus(row.status ?? 'active');
+    setProfileLoading(false);
   }
 
   useEffect(() => {
@@ -257,6 +278,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setDepartmentId(null);
           setStatus('active');
           setCustomAvatarUrl(null);
+          // Reset back to true so a future sign-in re-arms the gate
+          // that waits on a fresh loadProfile.
+          setProfileLoading(true);
         }
         setLoading(false);
       }
@@ -376,6 +400,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         user,
         session,
         loading,
+        profileLoading,
         isAdmin,
         isSuperAdmin,
         isAlumniAdmin,

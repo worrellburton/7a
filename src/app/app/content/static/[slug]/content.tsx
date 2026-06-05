@@ -52,9 +52,12 @@ interface AuthorOption {
 const NONE_SLUG = '__none__';
 
 export default function StaticBlogDashboard({ slug }: { slug: string }) {
-  const { user, isSuperAdmin, session } = useAuth();
-  const { userOverrides } = usePagePermissions();
-  const hasContentAccess = isSuperAdmin || userOverrides['/app/content'] === true;
+  const { user, isAdmin, isSuperAdmin, departmentId, session, profileLoading } = useAuth();
+  const { userOverrides, userExtraDepartmentIds, loading: permLoading } = usePagePermissions();
+  // Mirror /app/content + /app/content/[id] + the server gate.
+  const MARKETING_DEPT_ID = 'dfde0b96-c605-40dd-84e5-281af2f6d8e9';
+  const inMarketing = departmentId === MARKETING_DEPT_ID || userExtraDepartmentIds.includes(MARKETING_DEPT_ID);
+  const hasContentAccess = isSuperAdmin || isAdmin || inMarketing || userOverrides['/app/content'] === true;
 
   const [episode, setEpisode] = useState<EpisodeOut | null>(null);
   const [meta, setMeta] = useState<MetaRow | null>(null);
@@ -119,6 +122,13 @@ export default function StaticBlogDashboard({ slug }: { slug: string }) {
   }
 
   if (!user) return null;
+  if (profileLoading || permLoading) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center text-foreground/55" style={{ fontFamily: 'var(--font-body)' }}>
+        Loading…
+      </div>
+    );
+  }
   if (!hasContentAccess) {
     return (
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center" style={{ fontFamily: 'var(--font-body)' }}>
