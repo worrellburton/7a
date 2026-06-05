@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
+import { useModal } from '@/lib/ModalProvider';
 import { supabase } from '@/lib/supabase';
 
 // Drag-and-drop editor for the public landing-page hero timelines.
@@ -70,6 +71,7 @@ function videoPoster(v: SiteVideo, imagesById: Map<string, SiteImage>): string |
 
 export default function LandingContent() {
   const { user, session } = useAuth();
+  const modal = useModal();
   const [available, setAvailable] = useState<SiteVideo[]>([]);
   const [timeline, setTimeline] = useState<SiteVideo[]>([]);
   const [imagesById, setImagesById] = useState<Map<string, SiteImage>>(new Map());
@@ -236,10 +238,13 @@ export default function LandingContent() {
     }
   }
 
-  function selectHero(nextId: string) {
+  async function selectHero(nextId: string) {
     if (nextId === heroId) return;
     if (dirtyRef.current) {
-      const ok = window.confirm('You have unsaved changes on this hero. Switch anyway? Your edits will be lost.');
+      const ok = await modal.confirm('Switch hero?', {
+        message: 'You have unsaved changes on this hero. Switching will lose your edits.',
+        confirmLabel: 'Switch anyway',
+      });
       if (!ok) return;
     }
     const next = heros.find((h) => h.id === nextId);
@@ -330,9 +335,11 @@ export default function LandingContent() {
     }
     const target = heros.find((h) => h.id === id);
     if (!target) return;
-    const ok = window.confirm(
-      `Delete "${target.name}"? This drops it from the landing page on the next save. Cannot be undone.`,
-    );
+    const ok = await modal.confirm(`Delete "${target.name}"?`, {
+      message: 'Drops the hero from the landing page on the next save. Cannot be undone.',
+      confirmLabel: 'Delete hero',
+      tone: 'danger',
+    });
     if (!ok) return;
     const res = await fetch(`/api/landing/heros/${id}`, {
       method: 'DELETE',
@@ -396,7 +403,10 @@ export default function LandingContent() {
   async function createHero() {
     if (!session?.access_token) return;
     if (dirtyRef.current) {
-      const ok = window.confirm('You have unsaved changes on this hero. Create a new hero anyway? Your edits will be lost.');
+      const ok = await modal.confirm('Create new hero?', {
+        message: 'You have unsaved changes on this hero. Creating a new one will lose your edits.',
+        confirmLabel: 'Create anyway',
+      });
       if (!ok) return;
     }
     const defaultName = `Hero ${heros.length + 1}`;

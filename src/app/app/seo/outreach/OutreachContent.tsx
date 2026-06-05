@@ -7,6 +7,7 @@ import LinksSubNav from '../LinksSubNav';
 import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
+import { useModal } from '@/lib/ModalProvider';
 import { RowChat } from '@/components/RowChat';
 import { logActivity } from '@/lib/activity';
 
@@ -167,6 +168,7 @@ const CHANNEL_COPY: Record<OutreachChannel, ChannelCopy> = {
 
 export default function OutreachContent({ channel }: { channel: OutreachChannel }) {
   const { user, isSuperAdmin } = useAuth();
+  const modal = useModal();
   const copy = CHANNEL_COPY[channel];
   const supportsCampaigns = channel === 'press_release';
   const [rows, setRows] = useState<OutreachEntry[]>([]);
@@ -392,7 +394,12 @@ export default function OutreachContent({ channel }: { channel: OutreachChannel 
   };
 
   const remove = async (id: string) => {
-    if (typeof window !== 'undefined' && !window.confirm('Delete this entry and its chat thread?')) return;
+    const ok = await modal.confirm('Delete this entry?', {
+      message: 'Removes the row and its chat thread. Cannot be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setRows((prev) => prev.filter((r) => r.id !== id));
     await db({ action: 'delete', table: 'seo_outreach_entries', match: { id } });
   };

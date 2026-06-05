@@ -1,6 +1,7 @@
 'use client';
 
 import { useAuth } from '@/lib/AuthProvider';
+import { useModal } from '@/lib/ModalProvider';
 import { db, getAuthToken } from '@/lib/db';
 import { logActivity } from '@/lib/activity';
 import Link from 'next/link';
@@ -77,6 +78,7 @@ interface SignatureLite {
 
 export default function JobDescriptionsContent() {
   const { user, session } = useAuth();
+  const modal = useModal();
   const router = useRouter();
   const [jobs, setJobs] = useState<JobDescription[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -293,7 +295,12 @@ export default function JobDescriptionsContent() {
   }, [signatures, jobs, users, archivedFilter]);
 
   async function deleteSignature(sigId: string) {
-    if (!window.confirm('Delete this signed job description? This cannot be undone.')) return;
+    const ok = await modal.confirm('Delete this signed job description?', {
+      message: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setSignatures((prev) => prev.filter((s) => s.id !== sigId));
     await db({ action: 'delete', table: 'jd_signatures', match: { id: sigId } }).catch((err) => {
       console.warn('deleteSignature failed', err);
