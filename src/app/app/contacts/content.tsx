@@ -1170,64 +1170,18 @@ export default function ContactsContent() {
             )}
           </p>
         </div>
-        {/* Single "+" button collapses what used to be three separate
-            buttons in the header (Add with Claude, Upload CSV, Add
-            contact) into one dropdown. Map / Insights moved down to
-            the tier-filter row so the header is just title + add. */}
-        <div className="flex items-center gap-2" ref={addMenuRef}>
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowAddMenu((v) => !v)}
-              aria-haspopup="menu"
-              aria-expanded={showAddMenu}
-              className="inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-lg bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors"
-            >
-              <PlusIcon />
-              Add
-              <svg className={`w-3 h-3 transition-transform ${showAddMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
-            </button>
-            {showAddMenu && (
-              <div
-                role="menu"
-                className="absolute right-0 mt-1.5 min-w-[14rem] rounded-lg border border-black/10 bg-white shadow-lg z-30 overflow-hidden"
-              >
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => { setShowAddMenu(false); setShowAdd(true); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-[12.5px] text-foreground hover:bg-warm-bg/60 text-left"
-                >
-                  <PlusIcon />
-                  Add contact
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => { setShowAddMenu(false); setShowSuggest(true); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-[12.5px] text-primary hover:bg-primary/5 text-left"
-                >
-                  <SparkleIcon />
-                  Add with AI
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => { setShowAddMenu(false); setShowImport(true); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-[12.5px] text-foreground hover:bg-warm-bg/60 text-left border-t border-black/5"
-                >
-                  <UploadIcon />
-                  Upload CSV
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
+        {/* Add menu used to live here — now lives inside the pill
+            tray below (InsightsCard → AddPill) so add sits next to
+            the metrics it changes. The legacy showAddMenu state is
+            kept for any leftover refs but is no longer rendered. */}
       </header>
 
-      <InsightsCard fallback={insights} />
+      <InsightsCard
+        fallback={insights}
+        onAddContact={() => setShowAdd(true)}
+        onAddWithAI={() => setShowSuggest(true)}
+        onUploadCsv={() => setShowImport(true)}
+      />
 
 
       <div className="mb-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
@@ -4509,17 +4463,280 @@ function fmtTotalDuration(seconds: number): string {
   return `${h}h ${m}m`;
 }
 
-function InsightsCard({ fallback }: { fallback: { week: number; month: number; total: number; never: number; missingEmail: number } }) {
+// Liquid-glass pill tray that anchors the contacts page. Mirrors
+// the iOS 26 "Liquid Glass" idiom — a frosted dock that holds a
+// row of stat pills (assist chips with leading icon) plus one
+// action pill on the right that owns the Add Contacts dropdown.
+//
+// Stat pills click-toggle the matching expansion panel below the
+// tray (Activity → logs panel, Database health → governance panel).
+// Total contacts is read-only — it's just the headline number.
+function ContactsPillTray({
+  totalContacts,
+  logsToday,
+  governanceScore,
+  governanceLoaded,
+  activeExpansion,
+  onToggleGovernance,
+  onToggleLogs,
+  onAddContact,
+  onAddWithAI,
+  onUploadCsv,
+}: {
+  totalContacts: number;
+  logsToday: number;
+  governanceScore: number | null;
+  governanceLoaded: boolean;
+  activeExpansion: 'governance' | 'logs' | null;
+  onToggleGovernance: () => void;
+  onToggleLogs: () => void;
+  onAddContact: () => void;
+  onAddWithAI: () => void;
+  onUploadCsv: () => void;
+}) {
+  const governanceTone =
+    governanceScore == null ? '#a3a3a3' :
+    governanceScore >= 90 ? '#15803d' :
+    governanceScore >= 70 ? '#b87333' :
+    '#be123c';
+  return (
+    <div className="flex justify-end">
+      <div className="inline-flex flex-wrap items-center gap-1.5 p-1.5 rounded-full bg-white/65 supports-[backdrop-filter]:bg-white/45 supports-[backdrop-filter]:backdrop-blur-xl supports-[backdrop-filter]:backdrop-saturate-150 border border-white/70 shadow-[0_8px_24px_-12px_rgba(40,30,25,0.22),0_2px_6px_-3px_rgba(40,30,25,0.12)]">
+        <StatPill
+          label="Total"
+          value={totalContacts.toLocaleString()}
+          iconBg="bg-foreground/8"
+          iconColor="text-foreground/70"
+          icon={
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+          }
+        />
+        <StatPill
+          label="Activity"
+          value={`${logsToday} logged`}
+          active={activeExpansion === 'logs'}
+          onClick={onToggleLogs}
+          iconBg="bg-violet-100"
+          iconColor="text-violet-600"
+          icon={
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 12h3l3-9 6 18 3-9h3" />
+            </svg>
+          }
+        />
+        <StatPill
+          label="Database Health"
+          value={governanceLoaded && governanceScore != null ? (governanceScore >= 90 ? 'Healthy' : governanceScore >= 70 ? 'Fair' : 'Needs work') : '…'}
+          active={activeExpansion === 'governance'}
+          onClick={onToggleGovernance}
+          icon={<HealthRingIcon score={governanceScore} tone={governanceTone} />}
+          iconBg="bg-transparent"
+          iconColor=""
+        />
+        <AddPill
+          onAddContact={onAddContact}
+          onAddWithAI={onAddWithAI}
+          onUploadCsv={onUploadCsv}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Compact 32px ring icon used as the leading icon on the Database
+// Health pill. Same colour-by-score scheme as the bigger
+// GovernanceBadge ring; the score number sits in the centre at a
+// micro font size so it reads even at this scale.
+function HealthRingIcon({ score, tone }: { score: number | null; tone: string }) {
+  const radius = 13;
+  const circumference = 2 * Math.PI * radius;
+  const pct = score == null ? 0 : Math.max(0, Math.min(100, score));
+  const arc = (pct / 100) * circumference;
+  return (
+    <span className="relative inline-flex items-center justify-center w-8 h-8">
+      <svg viewBox="0 0 32 32" className="absolute inset-0 -rotate-90" aria-hidden="true">
+        <circle cx="16" cy="16" r={radius} fill="none" stroke="rgba(44,24,16,0.10)" strokeWidth="2.5" />
+        <circle
+          cx="16"
+          cy="16"
+          r={radius}
+          fill="none"
+          stroke={tone}
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeDasharray={`${arc} ${circumference}`}
+          style={{ transition: 'stroke-dasharray 600ms cubic-bezier(0.4,0,0.2,1)' }}
+        />
+      </svg>
+      <span
+        className="relative text-[9px] font-bold tabular-nums leading-none"
+        style={{ color: tone, fontFamily: 'var(--font-display)' }}
+      >
+        {score == null ? '—' : Math.round(score)}
+      </span>
+    </span>
+  );
+}
+
+// One stat/assist pill in the tray. Icon-on-left, two-line text
+// on the right (ALL CAPS label / bold value). `active` adds an
+// inset ring + slightly stronger fill so the user can see which
+// expansion is currently open.
+function StatPill({
+  label,
+  value,
+  icon,
+  iconBg,
+  iconColor,
+  active = false,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  icon: React.ReactNode;
+  iconBg: string;
+  iconColor: string;
+  active?: boolean;
+  onClick?: () => void;
+}) {
+  const Tag = onClick ? 'button' : 'div';
+  return (
+    <Tag
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      aria-pressed={onClick ? active : undefined}
+      className={`inline-flex items-center gap-2 pl-1.5 pr-3.5 py-1 rounded-full transition-all ${onClick ? 'cursor-pointer' : ''} ${
+        active
+          ? 'bg-white shadow-[0_3px_10px_-2px_rgba(40,30,25,0.18)] ring-1 ring-foreground/15'
+          : onClick
+          ? 'bg-white/85 hover:bg-white hover:shadow-[0_3px_10px_-2px_rgba(40,30,25,0.15)] ring-1 ring-black/5 hover:ring-black/10'
+          : 'bg-white/85 ring-1 ring-black/5'
+      }`}
+    >
+      <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full shrink-0 ${iconBg} ${iconColor}`}>
+        {icon}
+      </span>
+      <span className="text-left whitespace-nowrap">
+        <span className="block text-[9px] font-bold uppercase tracking-[0.18em] text-foreground/50 leading-tight">{label}</span>
+        <span className="block text-[12.5px] font-bold leading-tight text-foreground">{value}</span>
+      </span>
+    </Tag>
+  );
+}
+
+// Action pill — visually paired with the stat pills so the dock
+// reads as one row, but its icon is the strong dark filled circle
+// to telegraph "primary action." Click opens a small dropdown with
+// the same three options that lived in the old header Add menu.
+function AddPill({
+  onAddContact,
+  onAddWithAI,
+  onUploadCsv,
+}: {
+  onAddContact: () => void;
+  onAddWithAI: () => void;
+  onUploadCsv: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onClickOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className={`inline-flex items-center gap-2 pl-1 pr-3.5 py-1 rounded-full transition-all ${
+          open
+            ? 'bg-white shadow-[0_3px_10px_-2px_rgba(40,30,25,0.18)] ring-1 ring-foreground/15'
+            : 'bg-white/85 hover:bg-white hover:shadow-[0_3px_10px_-2px_rgba(40,30,25,0.15)] ring-1 ring-black/5 hover:ring-black/10'
+        }`}
+      >
+        <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-foreground text-white shrink-0 shadow-[0_2px_6px_-1px_rgba(40,30,25,0.35)]">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+        </span>
+        <span className="text-left whitespace-nowrap">
+          <span className="block text-[9px] font-bold uppercase tracking-[0.18em] text-foreground/50 leading-tight">Add</span>
+          <span className="block text-[12.5px] font-bold leading-tight text-foreground">Contacts</span>
+        </span>
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute right-0 mt-2 min-w-[14rem] rounded-2xl border border-black/8 bg-white/95 supports-[backdrop-filter]:bg-white/85 supports-[backdrop-filter]:backdrop-blur-xl shadow-[0_18px_40px_-18px_rgba(40,30,25,0.45)] z-30 overflow-hidden"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => { setOpen(false); onAddContact(); }}
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-[12.5px] text-foreground hover:bg-warm-bg/60 text-left transition-colors"
+          >
+            <PlusIcon />
+            Add contact
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => { setOpen(false); onAddWithAI(); }}
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-[12.5px] text-primary hover:bg-primary/5 text-left transition-colors"
+          >
+            <SparkleIcon />
+            Add with AI
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => { setOpen(false); onUploadCsv(); }}
+            className="w-full flex items-center gap-2 px-3 py-2.5 text-[12.5px] text-foreground hover:bg-warm-bg/60 text-left border-t border-black/5 transition-colors"
+          >
+            <UploadIcon />
+            Upload CSV
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function InsightsCard({
+  fallback,
+  onAddContact,
+  onAddWithAI,
+  onUploadCsv,
+}: {
+  fallback: { week: number; month: number; total: number; never: number; missingEmail: number };
+  onAddContact: () => void;
+  onAddWithAI: () => void;
+  onUploadCsv: () => void;
+}) {
   const [data, setData] = useState<InsightsPayload | null>(null);
   const [mode, setMode] = useState<'logs' | 'duration'>('logs');
   // Governance score expansion — collapsed by default; clicking the
-  // score tile (or the "Why?" affordance underneath) reveals the
-  // per-field breakdown + recent fill activity.
+  // Database-health pill reveals the per-field breakdown + recent
+  // fill activity in the panel below the tray.
   const [showGovernance, setShowGovernance] = useState(false);
   // Logs-today expansion. The KPI tiles (Contacted this week /
   // month / total / never / Missing email) used to live in their
-  // own permanent row; collapsing them behind the Logs-today badge
-  // keeps row 1 a two-card "is the pipeline healthy?" summary
+  // own permanent row; collapsing them behind the Activity pill
+  // keeps the tray a one-line "is the pipeline healthy?" summary
   // without burying the detail — one click brings the full tile
   // strip back.
   const [showLogs, setShowLogs] = useState(false);
@@ -4539,100 +4756,100 @@ function InsightsCard({ fallback }: { fallback: { week: number; month: number; t
   const month = data?.month.leaderboard ?? [];
   const areas = data?.today.areas ?? [];
   // Total touchpoints logged today across every user — used as the
-  // headline number on the new Logs-today badge. Sum of per-user
-  // logs from today's leaderboard, which the insights endpoint
-  // already groups for the leaderboard row.
+  // headline number on the Activity pill. Sum of per-user logs
+  // from today's leaderboard, which the insights endpoint already
+  // groups for the leaderboard row.
   const logsTodayCount = today.reduce((s, e) => s + e.logs, 0);
+  const totalContacts = data?.governance?.totalContacts ?? (counts.total + counts.never);
+  const governanceScore = data?.governance?.score ?? null;
+  const governanceLoaded = data?.governance != null;
 
   return (
-    <div className="mb-4 rounded-xl border border-black/10 bg-white overflow-hidden">
-      {/* Row 1 — Total contacts (size of the book) + Data governance
-          (how complete each record is) + Logs today (how active the
-          pipeline is). Three pipeline-health signals side-by-side
-          so the answer to "is the book big, clean, and being
-          worked?" reads in one glance. Each click-to-expand badge
-          mounts its detail panel inline below row 1. */}
-      <div className="px-4 py-4 border-b border-black/5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <TotalContactsBadge
-            total={data?.governance?.totalContacts ?? (counts.total + counts.never)}
-            weekTouched={counts.week}
-            monthTouched={counts.month}
-          />
-          <GovernanceBadge
-            score={data?.governance?.score ?? null}
-            totalContacts={data?.governance?.totalContacts ?? 0}
-            expanded={showGovernance}
-            onClick={() => setShowGovernance((v) => !v)}
-          />
-          <LogsTodayBadge
-            count={logsTodayCount}
-            weekTotal={counts.week}
-            expanded={showLogs}
-            onClick={() => setShowLogs((v) => !v)}
-          />
-        </div>
-      </div>
-      {showGovernance && data?.governance && (
-        <GovernancePanel
-          governance={data.governance}
-          health={{
-            total: data.governance.totalContacts,
-            week: counts.week,
-            month: counts.month,
-            everContacted: counts.total,
-            never: counts.never,
-            missingEmail: counts.missingEmail ?? 0,
-          }}
-        />
-      )}
-      {showLogs && (
-        <div className="px-4 py-4 border-b border-black/5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/55 mb-3">
-            Logs
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-            <InsightTile label="Contacted this week" value={counts.week} tone="fresh" />
-            <InsightTile label="Contacted this month" value={counts.month} tone="cooling" />
-            <InsightTile label="Total contacted" value={counts.total} tone="neutral" />
-            <InsightTile label="Never contacted" value={counts.never} tone="stale" />
-            <InsightTile label="Missing email" value={counts.missingEmail ?? 0} tone="missing" />
-          </div>
-        </div>
-      )}
-
-      {/* Leaderboards. Gated behind showLogs so the home view stays
-          compact by default — the Today / This week / This month
-          rankings only mount when the user clicks the Logs-today
-          badge open. The KPI strip (week / month / total / never /
-          missing email) lives in the same expansion so all the
-          activity detail is grouped under one click. */}
-      {showLogs && (
-        <div className="px-4 py-3">
-          <div className="flex items-baseline justify-between gap-2 mb-2">
-            <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-foreground/55">Most active</p>
-            <div className="inline-flex items-center gap-0.5 rounded-md bg-warm-bg/60 border border-black/10 p-0.5">
-              <button
-                type="button"
-                onClick={() => setMode('logs')}
-                className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${mode === 'logs' ? 'bg-foreground text-white' : 'text-foreground/60 hover:text-foreground'}`}
-              >
-                By logs
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('duration')}
-                className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${mode === 'duration' ? 'bg-foreground text-white' : 'text-foreground/60 hover:text-foreground'}`}
-              >
-                By duration
-              </button>
+    <div className="mb-4">
+      {/* Liquid-glass pill tray — four stat / action pills in a
+          single dock. Total / Activity / Database health stay
+          stat-pills; Add contacts is an action pill that opens its
+          own three-option menu (replaces the old header "+ Add"
+          dropdown so add lives next to the metrics it changes). */}
+      <ContactsPillTray
+        totalContacts={totalContacts}
+        logsToday={logsTodayCount}
+        governanceScore={governanceScore}
+        governanceLoaded={governanceLoaded}
+        activeExpansion={showGovernance ? 'governance' : showLogs ? 'logs' : null}
+        onToggleGovernance={() => {
+          setShowGovernance((v) => !v);
+          setShowLogs(false);
+        }}
+        onToggleLogs={() => {
+          setShowLogs((v) => !v);
+          setShowGovernance(false);
+        }}
+        onAddContact={onAddContact}
+        onAddWithAI={onAddWithAI}
+        onUploadCsv={onUploadCsv}
+      />
+      {/* Expansion panels live in a separate frosted card below the
+          tray. Renders only when a pill is open — keeps the page
+          tight by default. Same liquid-glass surface as the tray
+          so the two read as one continuous control. */}
+      {(showGovernance || showLogs) && (
+        <div className="mt-3 rounded-2xl border border-black/8 bg-white/90 supports-[backdrop-filter]:bg-white/70 supports-[backdrop-filter]:backdrop-blur-xl supports-[backdrop-filter]:backdrop-saturate-150 overflow-hidden shadow-[0_8px_24px_-12px_rgba(40,30,25,0.18)]">
+          {showGovernance && data?.governance && (
+            <GovernancePanel
+              governance={data.governance}
+              health={{
+                total: data.governance.totalContacts,
+                week: counts.week,
+                month: counts.month,
+                everContacted: counts.total,
+                never: counts.never,
+                missingEmail: counts.missingEmail ?? 0,
+              }}
+            />
+          )}
+          {showLogs && (
+            <div className="px-4 py-4 border-b border-black/5">
+              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-foreground/55 mb-3">
+                Logs
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                <InsightTile label="Contacted this week" value={counts.week} tone="fresh" />
+                <InsightTile label="Contacted this month" value={counts.month} tone="cooling" />
+                <InsightTile label="Total contacted" value={counts.total} tone="neutral" />
+                <InsightTile label="Never contacted" value={counts.never} tone="stale" />
+                <InsightTile label="Missing email" value={counts.missingEmail ?? 0} tone="missing" />
+              </div>
             </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Leaderboard title="Today" entries={today} mode={mode} />
-            <Leaderboard title="This week" entries={week} mode={mode} />
-            <Leaderboard title="This month" entries={month} mode={mode} />
-          </div>
+          )}
+          {showLogs && (
+            <div className="px-4 py-3">
+              <div className="flex items-baseline justify-between gap-2 mb-2">
+                <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-foreground/55">Most active</p>
+                <div className="inline-flex items-center gap-0.5 rounded-md bg-warm-bg/60 border border-black/10 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setMode('logs')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${mode === 'logs' ? 'bg-foreground text-white' : 'text-foreground/60 hover:text-foreground'}`}
+                  >
+                    By logs
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode('duration')}
+                    className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors ${mode === 'duration' ? 'bg-foreground text-white' : 'text-foreground/60 hover:text-foreground'}`}
+                  >
+                    By duration
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Leaderboard title="Today" entries={today} mode={mode} />
+                <Leaderboard title="This week" entries={week} mode={mode} />
+                <Leaderboard title="This month" entries={month} mode={mode} />
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
