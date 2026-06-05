@@ -35,10 +35,11 @@ export interface PageConfig {
 
 export const defaultPages: PageConfig[] = [
   { path: '/app', label: 'Home', adminOnly: false, section: 'nav', sort_order: 0, allowedDepartments: [], departmentId: null },
-  // Connect-4 tournament — team-bonding game shipped across 10 phases.
-  // Phase 1: page scaffold + schema. Visible to all staff so the
-  // tournament participant pool isn't gated unnecessarily.
-  { path: '/app/games/connect4', label: 'Connect-4', adminOnly: false, section: 'nav', sort_order: 99, allowedDepartments: [], departmentId: null },
+  // Connect-4 tournament page (/app/games/connect4) used to be a
+  // top-level nav entry but the same game now lives inside the
+  // Arcade (/app/arcade/connect-four), so the standalone sidebar
+  // link was redundant. The tournament route still resolves —
+  // anyone with a bookmark or a direct link reaches it.
   // Hardware inventory — admin-only because the list contains PINs,
   // account credentials, and asset values that aren't appropriate
   // for general staff visibility.
