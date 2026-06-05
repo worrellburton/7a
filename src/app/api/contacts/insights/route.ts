@@ -112,14 +112,22 @@ export async function GET() {
     admin
       .from('contact_logs')
       .select('contact_id, contacted_by, contacted_at, duration_seconds, method')
-      .gte('contacted_at', new Date(monthCut).toISOString()),
+      .gte('contacted_at', new Date(monthCut).toISOString())
+      // Explicit large limit so we don't silently cap at the
+      // PostgREST default page size (1000). A busy month easily
+      // clears 1000 logs and we need every row to compute the
+      // leaderboard + week / month / total counters correctly.
+      .limit(100000),
     // Pipeline counters use the denormalised contacts.last_contact_at
     // so a contact last touched 35 days ago still rolls into
     // 'total contacted' / 'never contacted' — independent of the
-    // 30-day window above.
+    // 30-day window above. Same explicit limit for the contacts
+    // sweep, since the org's pipeline is already approaching 1000
+    // contacts.
     admin
       .from('contacts')
-      .select('id, last_contact_at, formatted_address, location, email, phone, phone_cell, phone_office, company, role, specialty, type'),
+      .select('id, last_contact_at, formatted_address, location, email, phone, phone_cell, phone_office, company, role, specialty, type')
+      .limit(100000),
   ]);
   if (logsRes.error) return NextResponse.json({ error: logsRes.error.message }, { status: 500 });
   if (contactsRes.error) return NextResponse.json({ error: contactsRes.error.message }, { status: 500 });
