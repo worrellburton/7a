@@ -7288,14 +7288,16 @@ function LogContactModal({
   // dual MIN+SEC field added a tab-stop with no real reporting value.
   // Persisted to the DB as `duration_seconds` (minutes * 60) so the
   // schema and downstream stats (avg call length, etc.) don't have
-  // to change. Left Message no longer auto-fills since "1 minute" is
-  // a worse default than letting the rep type the real duration.
+  // to change. Duration is OPTIONAL — for Text Message / Email /
+  // Left Message there's no meaningful duration to type, so leaving
+  // the field blank used to silently disable the Save button. The
+  // server already accepts 0, so the client trusts the server's
+  // contract: empty → 0 seconds, log saves, life goes on.
   const [durationMin, setDurationMin] = useState<string>('');
   const totalSeconds = (() => {
     const m = parseInt(durationMin, 10);
-    return Number.isFinite(m) ? m * 60 : 0;
+    return Number.isFinite(m) && m > 0 ? m * 60 : 0;
   })();
-  const durationValid = totalSeconds > 0;
 
   const [submitting, setSubmitting] = useState(false);
   return (
@@ -7307,7 +7309,6 @@ function LogContactModal({
       <form
         onSubmit={async (e) => {
           e.preventDefault();
-          if (!durationValid) return;
           setSubmitting(true);
           try {
             await onSubmit(method, comments.trim(), transcript.trim(), totalSeconds, followUpDays);
@@ -7320,7 +7321,7 @@ function LogContactModal({
           <ModalField label="Method" required>
             <ContactMethodPicker value={method} onChange={setMethod} />
           </ModalField>
-          <ModalField label="Duration" required hint="How long was the call / conversation, in minutes?">
+          <ModalField label="Duration" hint="Optional. How long was the call / conversation, in minutes? Leave blank for texts, emails, or left messages.">
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -7440,7 +7441,7 @@ function LogContactModal({
         </div>
         <ModalFooter
           submitting={submitting}
-          submitDisabled={!durationValid}
+          submitDisabled={false}
           submitLabel={transcript.trim() ? 'Log contact + summarise' : 'Log contact'}
           onCancel={onClose}
         />
@@ -7470,14 +7471,16 @@ function NewLogModal({
   const [name, setName] = useState('');
   const [method, setMethod] = useState<ContactMethod>('Phone');
   const [comments, setComments] = useState('');
+  // Duration is optional — see the matching note on LogContactModal
+  // (above) for why. Leave blank for texts / emails / left messages;
+  // the server treats null and 0 identically.
   const [durationMin, setDurationMin] = useState<string>('');
   const totalSeconds = (() => {
     const m = parseInt(durationMin, 10);
-    return Number.isFinite(m) ? m * 60 : 0;
+    return Number.isFinite(m) && m > 0 ? m * 60 : 0;
   })();
   const nameValid = name.trim().length > 0;
-  const durationValid = totalSeconds > 0;
-  const submittable = nameValid && durationValid;
+  const submittable = nameValid;
   const [submitting, setSubmitting] = useState(false);
   return (
     <ModalShell title="New log" eyebrow="Quick log" onClose={onClose}>
@@ -7525,7 +7528,7 @@ function NewLogModal({
           <ModalField label="Method" required>
             <ContactMethodPicker value={method} onChange={setMethod} />
           </ModalField>
-          <ModalField label="Duration" required hint="How long was the call / conversation, in minutes?">
+          <ModalField label="Duration" hint="Optional. Leave blank for texts, emails, or left messages.">
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -7804,8 +7807,10 @@ function HistoryEntry({
   async function save() {
     if (!accessToken) return;
     const minutes = parseInt(durationMin, 10);
-    const seconds = Number.isFinite(minutes) ? Math.max(0, minutes) * 60 : 0;
-    if (seconds <= 0) { setErr('Duration must be at least 1 minute.'); return; }
+    // Duration is optional on edit too — match the create flow.
+    // Empty / NaN / negative all coerce to 0 seconds, which the
+    // server accepts.
+    const seconds = Number.isFinite(minutes) && minutes > 0 ? minutes * 60 : 0;
     setBusy(true);
     setErr(null);
     try {
