@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { usePagePermissions, type PageConfig } from '@/lib/PagePermissions';
 import { db } from '@/lib/db';
 import PageGuard from '@/lib/PageGuard';
+import { ALUMNI_ADMIN_PATHS } from '@/lib/alumni-admin-paths';
 import PageViewers from './PageViewers';
 import { PresenceCursors } from '@/components/PresenceCursors';
 import CommandPalette from '@/components/CommandPalette';
@@ -581,7 +582,7 @@ function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
 }
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin, isSuperAdmin, departmentId, status, userKind, sidebarRecentPaths, sidebarClickCount, recordSidebarVisit, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
+  const { user, loading, isAdmin, isSuperAdmin, isAlumniAdmin, departmentId, status, userKind, sidebarRecentPaths, sidebarClickCount, recordSidebarVisit, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
   const isAlumni = userKind === 'alumni';
   const { navPages, popupPages, isPageAllowedForDepartment, isPageAllowedForDepartmentSet, userOverrides, userExtraDepartmentIds } = usePagePermissions();
   const pathname = usePathname();
@@ -677,8 +678,14 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     // above) or in the cross-portal allowlist. Everything else
     // in /app is staff-facing.
     if (isAlumni) return false;
-    if (item.adminOnly && !isAdmin) return false;
-    if (isAdmin) return true;
+    // Alumni Admins get sidebar visibility on the canonical alumni-
+    // administration surfaces (Incoming Users, User Permissions,
+    // Alumni roster) even when is_admin is false. Same list the
+    // route-level PageGuard honors so navigation matches what the
+    // sidebar shows.
+    const alumniAdminPass = isAlumniAdmin && ALUMNI_ADMIN_PATHS.has(item.path);
+    if (item.adminOnly && !isAdmin && !alumniAdminPass) return false;
+    if (isAdmin || alumniAdminPass) return true;
     // Effective dept set = primary department_id + any extras a super
     // admin granted via /app/user-permissions → Departments tab.
     return isPageAllowedForDepartmentSet(item.path, [departmentId, ...userExtraDepartmentIds]);

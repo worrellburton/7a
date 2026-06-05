@@ -173,6 +173,12 @@ export const defaultPages: PageConfig[] = [
   // in directly bounces back via the runtime is_admin check in the
   // page itself.
   { path: '/app/alumni/moderation', label: 'Alumni moderation', adminOnly: true, section: 'popup', sort_order: 107, allowedDepartments: [], departmentId: null },
+  // Staff-facing alumni roster. adminOnly + an entry in
+  // lib/alumni-admin-paths.ts so alumni admins (is_alumni_admin)
+  // also see it in their sidebar even when is_admin is false.
+  // Lives at /app/alumni-roster (not under /app/alumni/*) so it
+  // doesn't confuse the alumni-portal namespace.
+  { path: '/app/alumni-roster', label: 'Alumni', adminOnly: true, section: 'nav', sort_order: 28, allowedDepartments: [], departmentId: null },
   // Super-admin gate is enforced inside the page itself + on every
   // /api/incoming-users/* route. adminOnly here keeps the link out
   // of regular admins' popup; the page bounces non-super admins to
