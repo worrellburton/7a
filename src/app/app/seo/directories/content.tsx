@@ -3209,6 +3209,20 @@ interface DirectoryStateRow {
   requires_ein: boolean;
   requires_ein_set_by: string | null;
   requires_ein_set_at: string | null;
+  // SEO backlink-tracking fields. Each directory listing usually
+  // ends up with one backlink: where it lives on the directory site
+  // (backlink_url), where it points back to on the canonical site
+  // (target_url), and the exact anchor text that was used. All
+  // free-text; all nullable until the team backfills.
+  backlink_url: string | null;
+  backlink_url_set_by: string | null;
+  backlink_url_set_at: string | null;
+  target_url: string | null;
+  target_url_set_by: string | null;
+  target_url_set_at: string | null;
+  anchor_text: string | null;
+  anchor_text_set_by: string | null;
+  anchor_text_set_at: string | null;
 }
 
 interface UserLite {
@@ -3229,7 +3243,7 @@ function useDirectoryStates() {
       const rows = await db({
         action: 'select',
         table: 'directory_states',
-        select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at, hidden, hidden_set_by, hidden_set_at, nap_name, nap_address, nap_phone, nap_set_by, nap_set_at, requires_2fa, requires_2fa_set_by, requires_2fa_set_at, requires_ein, requires_ein_set_by, requires_ein_set_at',
+        select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at, hidden, hidden_set_by, hidden_set_at, nap_name, nap_address, nap_phone, nap_set_by, nap_set_at, requires_2fa, requires_2fa_set_by, requires_2fa_set_at, requires_ein, requires_ein_set_by, requires_ein_set_at, backlink_url, backlink_url_set_by, backlink_url_set_at, target_url, target_url_set_by, target_url_set_at, anchor_text, anchor_text_set_by, anchor_text_set_at',
       }).catch(() => null);
       if (cancelled) return;
       const map: Record<string, DirectoryStateRow> = {};
@@ -3278,7 +3292,7 @@ function useDirectoryStates() {
           const fresh = await db({
             action: 'select',
             table: 'directory_states',
-            select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at, hidden, hidden_set_by, hidden_set_at, nap_name, nap_address, nap_phone, nap_set_by, nap_set_at, requires_2fa, requires_2fa_set_by, requires_2fa_set_at, requires_ein, requires_ein_set_by, requires_ein_set_at',
+            select: 'directory_id, status, link, link_set_by, link_set_at, status_set_by, status_set_at, paid, paid_amount, paid_set_by, paid_set_at, hidden, hidden_set_by, hidden_set_at, nap_name, nap_address, nap_phone, nap_set_by, nap_set_at, requires_2fa, requires_2fa_set_by, requires_2fa_set_at, requires_ein, requires_ein_set_by, requires_ein_set_at, backlink_url, backlink_url_set_by, backlink_url_set_at, target_url, target_url_set_by, target_url_set_at, anchor_text, anchor_text_set_by, anchor_text_set_at',
           }).catch(() => null);
           if (!cancelled && Array.isArray(fresh)) {
             const next: Record<string, DirectoryStateRow> = {};
@@ -3352,6 +3366,9 @@ function useDirectoryStates() {
       patch.nap_name !== undefined || patch.nap_address !== undefined || patch.nap_phone !== undefined;
     const twofaChanged = patch.requires_2fa !== undefined;
     const einChanged = patch.requires_ein !== undefined;
+    const backlinkChanged = patch.backlink_url !== undefined;
+    const targetChanged = patch.target_url !== undefined;
+    const anchorChanged = patch.anchor_text !== undefined;
     const next: DirectoryStateRow = {
       directory_id: id,
       status: patch.status ?? existing?.status ?? 'todo',
@@ -3382,6 +3399,27 @@ function useDirectoryStates() {
       requires_ein: patch.requires_ein !== undefined ? patch.requires_ein : (existing?.requires_ein ?? false),
       requires_ein_set_by: einChanged ? user.id : (existing?.requires_ein_set_by ?? null),
       requires_ein_set_at: einChanged ? new Date().toISOString() : (existing?.requires_ein_set_at ?? null),
+      backlink_url: patch.backlink_url !== undefined ? patch.backlink_url : (existing?.backlink_url ?? null),
+      backlink_url_set_by: backlinkChanged
+        ? (patch.backlink_url ? user.id : null)
+        : (existing?.backlink_url_set_by ?? null),
+      backlink_url_set_at: backlinkChanged
+        ? (patch.backlink_url ? new Date().toISOString() : null)
+        : (existing?.backlink_url_set_at ?? null),
+      target_url: patch.target_url !== undefined ? patch.target_url : (existing?.target_url ?? null),
+      target_url_set_by: targetChanged
+        ? (patch.target_url ? user.id : null)
+        : (existing?.target_url_set_by ?? null),
+      target_url_set_at: targetChanged
+        ? (patch.target_url ? new Date().toISOString() : null)
+        : (existing?.target_url_set_at ?? null),
+      anchor_text: patch.anchor_text !== undefined ? patch.anchor_text : (existing?.anchor_text ?? null),
+      anchor_text_set_by: anchorChanged
+        ? (patch.anchor_text ? user.id : null)
+        : (existing?.anchor_text_set_by ?? null),
+      anchor_text_set_at: anchorChanged
+        ? (patch.anchor_text ? new Date().toISOString() : null)
+        : (existing?.anchor_text_set_at ?? null),
     };
     setById((prev) => ({ ...prev, [id]: next }));
     // Surface upsert errors instead of silently swallowing them.
@@ -4498,6 +4536,10 @@ export default function DirectoriesContent() {
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="twofa" widthClass="w-20">2FA</SortableTh>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="ein" widthClass="w-20">EIN</SortableTh>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="live" widthClass="w-28">Live link</SortableTh>
+                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-32">Website</th>
+                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-36">Backlinks URL</th>
+                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-36">Target URL</th>
+                <th className="text-left px-3 py-2.5 font-semibold border-b border-black/10 w-32">Anchor text</th>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="nap" widthClass="w-20">NAP</SortableTh>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="comments" widthClass="w-20">Comments</SortableTh>
                 <SortableTh sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} col="status" widthClass="w-28">Status</SortableTh>
@@ -4649,6 +4691,53 @@ export default function DirectoriesContent() {
                           ? (directoryStateUsers[directoryStates[d.id].link_set_by!]?.full_name ?? null)
                           : null}
                         setAt={directoryStates[d.id]?.link_set_at ?? null}
+                      />
+                    </td>
+                    {/* Website — read-only display of the directory's
+                        own URL from the curated DIRECTORIES list. Click
+                        opens in a new tab. Not editable here; the URL
+                        lives in the constant so changing it would
+                        require editing the source list. */}
+                    <td className="px-3 py-3">
+                      <a
+                        href={d.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        title={d.url}
+                        className="text-primary hover:underline text-[12px] truncate block max-w-[180px]"
+                      >
+                        {d.url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                      </a>
+                    </td>
+                    {/* Backlinks URL — where on the directory site the
+                        backlink to seven arrows actually lives. */}
+                    <td className="px-3 py-3">
+                      <EditableInlineCell
+                        value={directoryStates[d.id]?.backlink_url ?? null}
+                        onSave={(v) => upsertDirectoryState(d.id, { backlink_url: v })}
+                        kind="url"
+                        placeholder="https://…"
+                      />
+                    </td>
+                    {/* Target URL — the page on sevenarrowsrecoveryarizona.com
+                        the backlink points back to. */}
+                    <td className="px-3 py-3">
+                      <EditableInlineCell
+                        value={directoryStates[d.id]?.target_url ?? null}
+                        onSave={(v) => upsertDirectoryState(d.id, { target_url: v })}
+                        kind="url"
+                        placeholder="https://…"
+                      />
+                    </td>
+                    {/* Anchor text — the literal text used as the
+                        clickable link. Plain text, not a URL. */}
+                    <td className="px-3 py-3">
+                      <EditableInlineCell
+                        value={directoryStates[d.id]?.anchor_text ?? null}
+                        onSave={(v) => upsertDirectoryState(d.id, { anchor_text: v })}
+                        kind="text"
+                        placeholder="Add anchor"
                       />
                     </td>
                     <td className="px-3 py-3">
@@ -4955,6 +5044,51 @@ export default function DirectoriesContent() {
                       : null}
                     setAt={directoryStates[d.id]?.link_set_at ?? null}
                   />
+                </div>
+
+                <div className="mb-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <p className="text-[9px] font-semibold tracking-[0.18em] uppercase text-foreground/40 mb-1">Website</p>
+                    <a
+                      href={d.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-primary hover:underline text-[12px] truncate block"
+                    >
+                      {d.url.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                    </a>
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-semibold tracking-[0.18em] uppercase text-foreground/40 mb-1">Backlinks URL</p>
+                    <EditableInlineCell
+                      value={directoryStates[d.id]?.backlink_url ?? null}
+                      onSave={(v) => upsertDirectoryState(d.id, { backlink_url: v })}
+                      kind="url"
+                      placeholder="https://…"
+                      truncateWidthClass="max-w-full"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-semibold tracking-[0.18em] uppercase text-foreground/40 mb-1">Target URL</p>
+                    <EditableInlineCell
+                      value={directoryStates[d.id]?.target_url ?? null}
+                      onSave={(v) => upsertDirectoryState(d.id, { target_url: v })}
+                      kind="url"
+                      placeholder="https://…"
+                      truncateWidthClass="max-w-full"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-[9px] font-semibold tracking-[0.18em] uppercase text-foreground/40 mb-1">Anchor text</p>
+                    <EditableInlineCell
+                      value={directoryStates[d.id]?.anchor_text ?? null}
+                      onSave={(v) => upsertDirectoryState(d.id, { anchor_text: v })}
+                      kind="text"
+                      placeholder="Add anchor"
+                      truncateWidthClass="max-w-full"
+                    />
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between gap-2 pt-2 border-t border-black/5">
@@ -5934,6 +6068,107 @@ function NapField({ label, value }: { label: string; value: string | null }) {
 //   rose  = nothing matches
 //   gray  = nothing recorded yet
 // Hover the pill to see the full N/A/P in a tooltip.
+
+// Compact click-to-edit text/URL cell. Used for the three new SEO
+// backlink columns (Backlinks URL / Target URL / Anchor Text). For
+// URL kind the saved value is normalized to https:// when the user
+// types a naked domain — matches LinkCell's behaviour so a saved
+// "recovery.com" still resolves correctly in the bare <a> below.
+function EditableInlineCell({
+  value,
+  onSave,
+  kind = 'text',
+  placeholder = '',
+  truncateWidthClass = 'max-w-[180px]',
+}: {
+  value: string | null;
+  onSave: (next: string | null) => void;
+  kind?: 'text' | 'url';
+  placeholder?: string;
+  truncateWidthClass?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? '');
+  useEffect(() => {
+    if (!editing) setDraft(value ?? '');
+  }, [value, editing]);
+  function commit() {
+    const raw = draft.trim();
+    if (!raw) { setEditing(false); onSave(null); return; }
+    const next = kind === 'url' && !/^[a-z][a-z0-9+.-]*:/i.test(raw)
+      ? `https://${raw}`
+      : raw;
+    setEditing(false);
+    onSave(next);
+  }
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        type={kind === 'url' ? 'url' : 'text'}
+        value={draft}
+        placeholder={placeholder}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); commit(); }
+          else if (e.key === 'Escape') { e.preventDefault(); setEditing(false); setDraft(value ?? ''); }
+        }}
+        className="w-full rounded-md border border-black/10 bg-white px-2 py-1 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+      />
+    );
+  }
+  if (!value) {
+    return (
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+        className="inline-flex items-center px-2 py-1 rounded-md border border-dashed border-black/15 text-[11px] text-foreground/45 hover:border-primary/50 hover:text-primary hover:bg-primary/5"
+      >
+        {placeholder || 'Add'}
+      </button>
+    );
+  }
+  if (kind === 'url') {
+    const href = /^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`;
+    return (
+      <div className="flex items-center gap-1.5 min-w-0">
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          title={value}
+          className={`text-primary hover:underline text-[12px] truncate ${truncateWidthClass}`}
+        >
+          {value}
+        </a>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+          title="Edit"
+          className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded text-foreground/45 hover:text-foreground/80 hover:bg-black/5"
+        >
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+          </svg>
+        </button>
+      </div>
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+      title={value}
+      className={`text-left text-[12px] text-foreground/85 truncate ${truncateWidthClass} hover:text-primary`}
+    >
+      {value}
+    </button>
+  );
+}
 
 function NapCell({
   state,
