@@ -890,17 +890,15 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                           {/* Sobriety badge — opt-in, compact, anchored
                               at the avatar's top-right so it doesn't
                               collide with the bottom-right online dot.
-                              The whole pill sits OUTSIDE the avatar's
-                              clipped border but inside the orbit slot,
-                              so it scales with the avatar but doesn't
-                              get clipped to a circle. */}
+                              Just the duration in a green pill (no leaf
+                              emoji — at this size the leaf eats the
+                              number's readability). */}
                           {showSobrietyBadge && (
                             <span
                               aria-hidden="true"
-                              className="absolute -top-1.5 -right-2 inline-flex items-center gap-[1px] px-1 py-[1px] rounded-full bg-emerald-500 text-white text-[8px] font-bold leading-none border border-white shadow-[0_2px_6px_-1px_rgba(16,185,129,0.55)] whitespace-nowrap"
+                              className="absolute -top-1.5 -right-2 inline-flex items-center justify-center min-w-[18px] h-[14px] px-1 rounded-full bg-emerald-500 text-white text-[9px] font-bold leading-none border border-white shadow-[0_2px_6px_-1px_rgba(16,185,129,0.55)] whitespace-nowrap tabular-nums"
                             >
-                              <span className="text-[7px] leading-none">🌱</span>
-                              <span className="tabular-nums">{u.sobriety_short_label}</span>
+                              {u.sobriety_short_label}
                             </span>
                           )}
                         </span>
