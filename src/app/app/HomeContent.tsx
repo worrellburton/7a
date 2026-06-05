@@ -749,6 +749,12 @@ export default function HomeContent() {
                 </button>
               )
             )}
+            {/* Daily logs circle — sits left of the + button so the
+                day's count is always one tap away from the home
+                header. Compact 36-40px round button that links to
+                /app/logs; flips to a glowing amber 🔥 when today
+                clears the all-time record. */}
+            <HomeDailyLogsChip variant="circle" />
             <div ref={addMenuRef} className="relative">
               <button
                 type="button"
@@ -892,30 +898,21 @@ export default function HomeContent() {
 
         </div> {/* end centerpiece */}
 
-        {/* Live count of touchpoints logged today + the historical
-            daily record below it. Clicks through to /app/logs,
-            the dedicated surface with leaderboard + records. Sits
-            between the centerpiece and the Seven Arrows tagline so
-            the chip floats in clear space without crowding the
-            orbit's outer ring. Hidden on mobile because the orbit
-            there is fixed-positioned over the chip's spot. */}
-        <section
-          className="hidden sm:flex w-full max-w-4xl mx-auto justify-center px-4 pt-2"
-          aria-label="Daily logs shortcut"
-        >
-          <HomeDailyLogsChip />
-        </section>
+        {/* The desktop in-flow daily-logs chip used to live here, and
+            a separate mobile-only fixed chip lived just above the
+            "Also here" pill. Both are gone — the chip now sits in
+            the home header next to the + button (see the right
+            cluster of <header> above) so the same surface works on
+            every breakpoint and the centerpiece stays uncluttered. */}
 
         {/* Mission tagline — closes the home page with a quiet brand
             anchor below the team orbit. Bottom padding clears the
             globally-fixed "Also here" presence pill (PageViewers.tsx,
-            anchored at `bottom-20`) AND the mobile-only daily-logs
-            chip (anchored at `bottom-32` further down). On mobile we
-            need more pb than desktop because of those stacked
-            anchors. */}
+            anchored at `bottom-20`) so the headline reads above it
+            instead of being half-covered. */}
         <section
           aria-label="Mission tagline"
-          className="w-full max-w-4xl mx-auto pt-2 pb-52 sm:pb-24 px-4 flex flex-col items-center text-center"
+          className="w-full max-w-4xl mx-auto pt-2 pb-28 sm:pb-24 px-4 flex flex-col items-center text-center"
         >
           <p
             className="text-[10px] font-semibold tracking-[0.28em] uppercase text-foreground/45 mb-1.5"
@@ -941,15 +938,6 @@ export default function HomeContent() {
           </h2>
         </section>
 
-      </div>
-
-      {/* Mobile-only daily-logs chip. Anchored to its own fixed slot
-          (bottom-32) so it doesn't pull the orbit's centre downward
-          and so it sits clearly above the "Also here" presence pill
-          (bottom-20) instead of crashing into it. Hidden on sm+
-          where the desktop chip section above renders it in flow. */}
-      <div className="sm:hidden fixed bottom-32 left-1/2 -translate-x-1/2 z-40 pointer-events-auto">
-        <HomeDailyLogsChip />
       </div>
 
       <FeatureRequestModal open={featureRequestOpen} onClose={() => setFeatureRequestOpen(false)} />

@@ -22,7 +22,7 @@ function fmtRecordDate(yyyyMmDd: string): string {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export default function HomeDailyLogsChip() {
+export default function HomeDailyLogsChip({ variant = 'pill' }: { variant?: 'pill' | 'circle' } = {}) {
   const { session } = useAuth();
   const [data, setData] = useState<ChipPayload | null>(null);
 
@@ -45,6 +45,46 @@ export default function HomeDailyLogsChip() {
   if (!data) return null;
 
   const beatRecord = data.record != null && data.total > data.record.count && data.total > 0;
+
+  // Compact circle variant — used in the home header's right cluster
+  // next to the "+" button. Same payload + record-beat treatment as
+  // the pill, but compressed to a single round 36-40px button with
+  // the count centred and a small 🪵 / 🔥 floating in the corner.
+  // No "Daily record" caption underneath (the home header is tight
+  // already; the dedicated /app/logs page surfaces the record).
+  if (variant === 'circle') {
+    const ringResting = 'border border-emerald-500/40 bg-white/85 supports-[backdrop-filter]:bg-white/65 backdrop-blur-md hover:border-emerald-500/70 shadow-[0_6px_18px_-10px_rgba(16,84,57,0.45)]';
+    const ringFire = 'border-2 border-amber-400 bg-gradient-to-br from-amber-50 via-orange-50 to-amber-100 shadow-[0_0_22px_rgba(251,146,60,0.55)] hover:shadow-[0_0_30px_rgba(251,146,60,0.75)]';
+    return (
+      <Link
+        href="/app/logs"
+        title={
+          beatRecord
+            ? `🔥 New all-time daily record! ${data.total} logs · previous best ${data.record?.count ?? 0} on ${data.record ? fmtRecordDate(data.record.date) : ''}.`
+            : `${data.total} log${data.total === 1 ? '' : 's'} today · click for the full breakdown`
+        }
+        aria-label={`Daily logs: ${data.total}`}
+        className={`relative inline-flex items-center justify-center w-9 h-9 lg:w-10 lg:h-10 rounded-full transition-all ${beatRecord ? ringFire : ringResting}`}
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        {beatRecord && (
+          <span aria-hidden className="absolute -inset-1 rounded-full bg-amber-400/30 blur-md animate-pulse" />
+        )}
+        <span
+          className={`relative tabular-nums font-bold leading-none ${beatRecord ? 'text-amber-700' : 'text-emerald-700'} ${data.total >= 1000 ? 'text-[11px]' : 'text-[14px]'}`}
+        >
+          {data.total}
+        </span>
+        <span
+          aria-hidden
+          className={`absolute -bottom-0.5 -right-0.5 inline-flex items-center justify-center w-[18px] h-[18px] rounded-full text-[10px] leading-none border border-white shadow-sm ${beatRecord ? 'bg-amber-400 text-white animate-bounce' : 'bg-emerald-500/95 text-white'}`}
+          style={beatRecord ? { animationDuration: '1.4s' } : undefined}
+        >
+          {beatRecord ? '🔥' : '🪵'}
+        </span>
+      </Link>
+    );
+  }
 
   // When today beats the prior all-time daily record, swap the chip
   // styling from the resting emerald look to an "on fire" amber +
