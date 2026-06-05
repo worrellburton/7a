@@ -4,10 +4,10 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useEffect } from 'react';
 import { useAuth } from './AuthProvider';
 import { usePagePermissions } from './PagePermissions';
-import { ALUMNI_ADMIN_PATHS } from './alumni-admin-paths';
+import { ALUMNI_ADMIN_PATHS, ALUMNI_VIEWABLE_PATHS } from './alumni-admin-paths';
 
 export default function PageGuard({ children }: { children: React.ReactNode }) {
-  const { user, isAdmin, isAlumniAdmin, departmentId, loading: authLoading } = useAuth();
+  const { user, isAdmin, isAlumniAdmin, userKind, departmentId, loading: authLoading } = useAuth();
   const { isPageAdminOnly, isPageAllowedForDepartmentSet, userOverrides, userExtraDepartmentIds, loading: permLoading } = usePagePermissions();
   const pathname = usePathname();
   const router = useRouter();
@@ -18,8 +18,13 @@ export default function PageGuard({ children }: { children: React.ReactNode }) {
   // (primary + extras granted via /app/user-permissions).
   const override = userOverrides[pathname];
   const alumniAdminPass = isAlumniAdmin && ALUMNI_ADMIN_PATHS.has(pathname);
-  const deniedAdmin = isPageAdminOnly(pathname) && !isAdmin && !alumniAdminPass;
-  const deniedDept = !isAdmin && !alumniAdminPass && !isPageAllowedForDepartmentSet(pathname, [departmentId, ...userExtraDepartmentIds]);
+  // Alumni users get past adminOnly on the small list of pages that
+  // are explicitly "admin-managed but useful to alumni" — e.g. the
+  // alumni roster doubles as a peer directory for alumni themselves.
+  const alumniViewerPass = userKind === 'alumni' && ALUMNI_VIEWABLE_PATHS.has(pathname);
+  const passAdminGate = isAdmin || alumniAdminPass || alumniViewerPass;
+  const deniedAdmin = isPageAdminOnly(pathname) && !passAdminGate;
+  const deniedDept = !passAdminGate && !isPageAllowedForDepartmentSet(pathname, [departmentId, ...userExtraDepartmentIds]);
   const denied = override === false ? true : override === true ? false : (deniedAdmin || deniedDept);
 
   useEffect(() => {
