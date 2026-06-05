@@ -755,15 +755,14 @@ export default function HomeContent() {
           <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed sm:absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
             <div className="pointer-events-auto flex flex-col items-center gap-3">
               <HomeOnlineOrbit users={recentUsers} alumni={recentAlumni} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
-              {/* Mobile-only chip — the desktop chip sits between the
-                  centerpiece and the Seven Arrows tagline (further
-                  down), but on mobile the orbit is fixed-positioned
-                  over that spot, so we render the chip directly under
-                  the ring to keep it reachable. Hidden on sm+ so the
-                  desktop placement isn't duplicated. */}
-              <div className="sm:hidden">
-                <HomeDailyLogsChip />
-              </div>
+              {/* The mobile daily-logs chip used to sit inside this
+                  fixed orbit section, right below the ring. That
+                  pulled the section's centre down (so the 7A medallion
+                  drifted above true viewport-centre) and put the chip
+                  near the "Also here" presence pill (bottom-20),
+                  causing visual collision. It's now rendered as its
+                  own fixed element further down, anchored above the
+                  pill so the two never overlap. */}
             </div>
           </section>
         )}
@@ -826,11 +825,13 @@ export default function HomeContent() {
         {/* Mission tagline — closes the home page with a quiet brand
             anchor below the team orbit. Bottom padding clears the
             globally-fixed "Also here" presence pill (PageViewers.tsx,
-            anchored at `bottom-20`) so the headline always reads above
-            it instead of being half-covered. */}
+            anchored at `bottom-20`) AND the mobile-only daily-logs
+            chip (anchored at `bottom-32` further down). On mobile we
+            need more pb than desktop because of those stacked
+            anchors. */}
         <section
           aria-label="Mission tagline"
-          className="w-full max-w-4xl mx-auto pt-2 pb-24 px-4 flex flex-col items-center text-center"
+          className="w-full max-w-4xl mx-auto pt-2 pb-52 sm:pb-24 px-4 flex flex-col items-center text-center"
         >
           <p
             className="text-[10px] font-semibold tracking-[0.28em] uppercase text-foreground/45 mb-1.5"
@@ -856,6 +857,15 @@ export default function HomeContent() {
           </h2>
         </section>
 
+      </div>
+
+      {/* Mobile-only daily-logs chip. Anchored to its own fixed slot
+          (bottom-32) so it doesn't pull the orbit's centre downward
+          and so it sits clearly above the "Also here" presence pill
+          (bottom-20) instead of crashing into it. Hidden on sm+
+          where the desktop chip section above renders it in flow. */}
+      <div className="sm:hidden fixed bottom-32 left-1/2 -translate-x-1/2 z-40 pointer-events-auto">
+        <HomeDailyLogsChip />
       </div>
 
       <FeatureRequestModal open={featureRequestOpen} onClose={() => setFeatureRequestOpen(false)} />
