@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import { AuthProvider } from '@/lib/AuthProvider';
@@ -7,6 +8,13 @@ import { GoogleAnalytics } from '@/components/GoogleAnalytics';
 import { JsonLd } from '@/components/JsonLd';
 import { buildMedicalBusinessSchema, buildWebSiteSchema, RANCH_GOOGLE_MAP_URL } from '@/lib/seo/schema';
 import './globals.css';
+
+// Hotjar site id. Hard-coded here so it's auditable in source rather
+// than buried in env config that can drift between preview / prod.
+// If we ever need a per-env split, switch this to a NEXT_PUBLIC_HOTJAR_ID
+// and reference it from the inline script below.
+const HOTJAR_ID = 5269906;
+const HOTJAR_SV = 6;
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://sevenarrowsrecoveryarizona.com'),
@@ -103,6 +111,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-screen flex flex-col antialiased">
         <GoogleAnalytics />
+        {/* Hotjar — session recording + heatmaps. afterInteractive so
+            it doesn't block hydration; the vendor script itself
+            lazy-loads the actual recorder. Identical to the snippet
+            Hotjar ships, just lifted into next/script so we get the
+            framework's load-order guarantees. */}
+        <Script id="hotjar" strategy="afterInteractive">
+          {`(function(h,o,t,j,a,r){
+            h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};
+            h._hjSettings={hjid:${HOTJAR_ID},hjsv:${HOTJAR_SV}};
+            a=o.getElementsByTagName('head')[0];
+            r=o.createElement('script');r.async=1;
+            r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv;
+            a.appendChild(r);
+          })(window,document,'https://static.hotjar.com/c/hotjar-','.js?sv=');`}
+        </Script>
         <AuthProvider>
           <ModalProvider>
             {children}
