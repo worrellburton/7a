@@ -16,6 +16,7 @@ import Link from '@/components/HoverPrefetchLink';
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
+import { useModal } from '@/lib/ModalProvider';
 import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface CampaignRow {
@@ -629,6 +630,7 @@ function CampaignRowItem({
   analytics?: { recipients: number; opened: number; clicked: number; openRate: number; clickRate: number };
 }) {
   const { session } = useAuth();
+  const modal = useModal();
   const [deleting, setDeleting] = useState(false);
   const subject = c.generated_subject?.trim() || c.prompt?.trim().slice(0, 80) || 'Untitled campaign';
   const tone = STATUS_TONE[c.status] ?? STATUS_TONE.draft;
@@ -650,10 +652,15 @@ function CampaignRowItem({
   // analytics in one shot — there's no undo from the UI side.
   const onDelete = async () => {
     if (deleting) return;
-    const confirmMsg = c.status === 'sent' || c.status === 'failed' || c.status === 'sending'
-      ? `Delete "${subject}"?\n\nThis permanently removes the campaign AND every analytic that goes with it (recipient list, send log, opens, clicks, bounces). The contact_logs entries that were already written to each recipient stay in place. This cannot be undone.`
-      : `Delete "${subject}"?\n\nThis permanently removes the draft and any recipients you've picked. Cannot be undone.`;
-    if (!window.confirm(confirmMsg)) return;
+    const isLive = c.status === 'sent' || c.status === 'failed' || c.status === 'sending';
+    const ok = await modal.confirm(`Delete "${subject}"?`, {
+      message: isLive
+        ? 'Permanently removes the campaign AND every analytic that goes with it (recipient list, send log, opens, clicks, bounces). The contact_logs entries that were already written to each recipient stay in place. This cannot be undone.'
+        : "Permanently removes the draft and any recipients you've picked. Cannot be undone.",
+      confirmLabel: 'Delete campaign',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setDeleting(true);
     try {
       const res = await fetch(`/api/email-campaigns/${c.id}`, {
@@ -662,12 +669,16 @@ function CampaignRowItem({
       });
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
       if (!res.ok || json.ok === false) {
-        window.alert(`Couldn't delete: ${json.error ?? `HTTP ${res.status}`}`);
+        await modal.alert("Couldn't delete campaign", {
+          message: json.error ?? `HTTP ${res.status}`,
+        });
         return;
       }
       onDeleted(c.id);
     } catch (err) {
-      window.alert(`Couldn't delete: ${err instanceof Error ? err.message : String(err)}`);
+      await modal.alert("Couldn't delete campaign", {
+        message: err instanceof Error ? err.message : String(err),
+      });
     } finally {
       setDeleting(false);
     }

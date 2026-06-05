@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
+import { useModal } from '@/lib/ModalProvider';
 
 // Time-sober card. Self-contained: reads + writes the viewer's own
 // alumni_profiles row. A master toggle turns the feature on/off; when
@@ -92,6 +93,7 @@ export function soberMilestoneLabel(sobrietyDate: string | null, nowMs = Date.no
 
 export default function TimeSoberCard() {
   const { user, session } = useAuth();
+  const modal = useModal();
   const [profile, setProfile] = useState<SoberProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -138,9 +140,13 @@ export default function TimeSoberCard() {
 
   const checkIn = useCallback(async (reset: boolean) => {
     if (!session?.access_token) return;
-    if (reset && !window.confirm(
-      'Reset your sober date to today?\n\nRecovery isn’t linear — a reset is a fresh start, not a failure. Your check-in streak keeps going.'
-    )) return;
+    if (reset) {
+      const ok = await modal.confirm('Reset your sober date to today?', {
+        message: 'Recovery isn’t linear — a reset is a fresh start, not a failure. Your check-in streak keeps going.',
+        confirmLabel: 'Reset to today',
+      });
+      if (!ok) return;
+    }
     setBusy(true);
     try {
       const res = await fetch('/api/alumni/check-in', {
@@ -152,7 +158,7 @@ export default function TimeSoberCard() {
     } finally {
       setBusy(false);
     }
-  }, [session?.access_token, load]);
+  }, [session?.access_token, load, modal]);
 
   const anchor = profile?.sobriety_date ? anchorMs(profile.sobriety_date) : null;
   const counter = useMemo(() => {

@@ -14,6 +14,7 @@
 // placeholders so the timeline doesn't gap mid-thread.
 
 import { useAuth } from '@/lib/AuthProvider';
+import { useModal } from '@/lib/ModalProvider';
 import { supabase } from '@/lib/supabase';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -40,6 +41,7 @@ const ROOM = 'general';
 
 export default function ChatContent() {
   const { user, session, userKind, isSuperAdmin, avatarUrl: myAvatarFromAuth } = useAuth();
+  const modal = useModal();
   // OAuth metadata's full_name + avatar_url can be stale (or empty)
   // for any teammate who edited their profile via /app/profile —
   // those edits land on public.users, not the auth metadata. Pull
@@ -218,10 +220,17 @@ export default function ChatContent() {
 
   async function deleteMessage(messageId: string, asSuperAdmin = false) {
     if (!session?.access_token) return;
-    const prompt = asSuperAdmin
-      ? 'Hard-delete this message? It will be removed from the database with no placeholder.'
-      : 'Delete this message?';
-    if (!window.confirm(prompt)) return;
+    const ok = asSuperAdmin
+      ? await modal.confirm('Hard-delete this message?', {
+          message: 'Removed from the database with no placeholder. Cannot be undone.',
+          confirmLabel: 'Hard delete',
+          tone: 'danger',
+        })
+      : await modal.confirm('Delete this message?', {
+          confirmLabel: 'Delete',
+          tone: 'danger',
+        });
+    if (!ok) return;
     const res = await fetch(`/api/chat/messages/${messageId}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${session.access_token}` },

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
+import { useModal } from '@/lib/ModalProvider';
 import Switch from './Switch';
 
 // Reset-Connect-4-tournament switch.
@@ -11,10 +12,11 @@ import Switch from './Switch';
 // the entrant rows, and zeros every user's `tournament_wins` count.
 // Casual non-tournament matches + Elo / W-L-D stay intact.
 //
-// Two confirmation gates: a window.confirm before the API call so
-// a mis-click can't nuke the bracket, and the switch UI itself —
-// it has to be deliberately flipped, not bumped. The result of the
-// API call surfaces in a one-line summary under the switch.
+// Two confirmation gates: an in-app confirm modal before the API
+// call so a mis-click can't nuke the bracket, and the switch UI
+// itself — it has to be deliberately flipped, not bumped. The
+// result of the API call surfaces in a one-line summary under
+// the switch.
 
 interface ResetSummary {
   tournamentsDeleted: number;
@@ -26,20 +28,19 @@ interface ResetSummary {
 
 export default function ResetConnect4Switch() {
   const { session } = useAuth();
+  const modal = useModal();
   const [flipping, setFlipping] = useState(false);
   const [lastResult, setLastResult] = useState<ResetSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const onFlip = async () => {
     if (flipping || !session?.access_token) return;
-    const confirmed = window.confirm(
-      'Reset the Connect-4 tournament?\n\n'
-      + 'This will permanently delete every tournament row, every '
-      + 'bracket cell, every match that was tied to a bracket, and '
-      + 'zero out the 🏆 tournament-win count on the leaderboard.\n\n'
-      + 'Casual matches + Elo / W-L-D records stay intact. There '
-      + 'is no undo.',
-    );
+    const confirmed = await modal.confirm('Reset the Connect-4 tournament?', {
+      message:
+        'Permanently deletes every tournament row, every bracket cell, every match tied to a bracket, and zeros the 🏆 tournament-win count on the leaderboard. Casual matches + Elo / W-L-D records stay intact. There is no undo.',
+      confirmLabel: 'Reset tournament',
+      tone: 'danger',
+    });
     if (!confirmed) return;
 
     setFlipping(true);

@@ -14,6 +14,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
+import { useModal } from '@/lib/ModalProvider';
 import { BuildProgress } from '../../BuildProgress';
 import { CancelButton } from '../../new/content';
 
@@ -64,6 +65,7 @@ const STATUS_BADGE: Record<string, string> = {
 
 export default function FinalizeContent({ campaignId }: { campaignId: string }) {
   const { session, isAdmin, isSuperAdmin } = useAuth();
+  const modal = useModal();
   // The "Super Admin" toggle on /app/admin/user-permissions writes
   // users.is_admin (not is_super_admin), so this surface accepts
   // either. Keeping a single canSend flag means the banner, button
@@ -334,7 +336,10 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
     if (!session?.access_token || sending) return;
     const failedNow = recipients.filter((r) => r.send_status === 'failed').length;
     if (failedNow === 0) return;
-    const ok = window.confirm(`Resend this email to the ${failedNow} failed recipient${failedNow === 1 ? '' : 's'}?`);
+    const ok = await modal.confirm(`Resend to ${failedNow} failed recipient${failedNow === 1 ? '' : 's'}?`, {
+      message: 'Marks those rows pending and re-fires the send. Successful rows stay sent.',
+      confirmLabel: 'Resend',
+    });
     if (!ok) return;
     setError(null);
     setSending(true);
