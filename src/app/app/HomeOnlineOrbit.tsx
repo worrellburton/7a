@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { toAvatarThumb } from '@/lib/avatarThumb';
@@ -55,6 +55,17 @@ interface OrbitUser {
   // opted to share it. Shown as a line in the hover tooltip. The
   // staff dashboard never sets this.
   sobriety_label?: string | null;
+  // Compact form of the sobriety label rendered AS A BADGE on the
+  // alumni avatar bubble itself ("47d", "3mo", "2y"). Same opt-in
+  // rule as sobriety_label — only present when the alum chose to
+  // share their date.
+  sobriety_short_label?: string | null;
+  // Last-time the alum hit the "Check in" affordance on their
+  // alumni-portal home, plus the running consecutive-days streak.
+  // Drives the avatar's first-time-since-last-login glow + the
+  // streak / "last checked in" lines in the hover tooltip.
+  last_check_in_at?: string | null;
+  check_in_streak?: number;
 }
 
 const ON_FIRE_THRESHOLD = 10;
@@ -210,6 +221,21 @@ function OrbitTooltip({
                   🌱 {hovered.user.sobriety_label}
                 </p>
               )}
+              {/* Alumni check-in details — separate line per data
+                  point so a streak-but-no-recent-checkin (paused for
+                  a day) and a recent-checkin-but-no-streak both
+                  render cleanly. Only shown when the alum has the
+                  data, so staff rows stay quiet. */}
+              {hovered.user.last_check_in_at && (
+                <p className="text-emerald-200/85 leading-tight mt-0.5">
+                  Last check-in {timeAgo(hovered.user.last_check_in_at)}
+                </p>
+              )}
+              {(hovered.user.check_in_streak ?? 0) > 0 && (
+                <p className="text-orange-200/90 font-semibold leading-tight mt-0.5">
+                  🔥 {hovered.user.check_in_streak}-day check-in streak
+                </p>
+              )}
               {hovered.viewing && (
                 <p className="text-emerald-300 leading-tight mt-0.5">
                   Viewing {hovered.viewing}
@@ -297,9 +323,62 @@ function OrbitTooltip({
   );
 }
 
+// localStorage key holding a map of `alumni_user_id -> last_check_in_at`
+// we've already shown the "fresh check-in" glow for. Lets us flash an
+// alumni's bubble the first time a viewer logs in after that alum
+// checked in, then suppress the glow on every subsequent visit until
+// the next check-in.
+const FRESH_CHECKIN_STORAGE_KEY = 'sa-orbit-seen-checkins';
+
+function readSeenCheckins(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(FRESH_CHECKIN_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeSeenCheckins(map: Record<string, string>) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(FRESH_CHECKIN_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    /* localStorage unavailable — fall back to always-flash on next mount */
+  }
+}
+
 export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathLabelFor, highlightUserId = null }: Props) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  // Snapshot of which alumni rows had a NEW check-in vs. what we'd
+  // already seen in localStorage at the moment the orbit first
+  // rendered. Captured once so the glow animation persists for the
+  // whole session even after we mark the new value as "seen" —
+  // otherwise the bubble would stop glowing the instant the storage
+  // write landed. Recomputed when the alumni roster prop changes
+  // (e.g. a fresh users-query result).
+  const freshCheckinIds = useMemo(() => {
+    const seen = readSeenCheckins();
+    const fresh = new Set<string>();
+    const next: Record<string, string> = { ...seen };
+    let dirty = false;
+    for (const a of alumni) {
+      const ts = a.last_check_in_at;
+      if (!ts) continue;
+      const prev = seen[a.id];
+      if (!prev || Date.parse(ts) > Date.parse(prev)) {
+        fresh.add(a.id);
+        next[a.id] = ts;
+        dirty = true;
+      }
+    }
+    if (dirty) writeSeenCheckins(next);
+    return fresh;
+  }, [alumni]);
   // Tooltips were previously pinned under the 7A medallion to dodge
   // overflow clipping. We now portal them to <body> with computed
   // fixed positioning, so they can attach directly to the hovered
@@ -756,6 +835,8 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                 ['--angle' as string]: `${angle}deg`,
                 ['--enter-delay' as string]: `${500 + i * 65}ms`,
               };
+              const freshCheckin = freshCheckinIds.has(u.id);
+              const showSobrietyBadge = !!u.sobriety_short_label;
               return (
                 <div key={`alum-${u.id}`} className="orbit-slot" style={slotStyle}>
                   <button
@@ -777,7 +858,7 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                   >
                     <span className={`motion-reduce:!animate-none ${mounted ? 'orbit-counter-rev' : ''}`}>
                       <span className="block" style={{ transform: `rotate(${-angle}deg)` }}>
-                        <span className="relative block">
+                        <span className={`relative block ${freshCheckin ? 'orbit-fresh-checkin' : ''}`}>
                           {u.avatar_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
@@ -805,6 +886,22 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                           )}
                           {online && (
                             <span aria-hidden="true" className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-violet-400 border-2 border-white" />
+                          )}
+                          {/* Sobriety badge — opt-in, compact, anchored
+                              at the avatar's top-right so it doesn't
+                              collide with the bottom-right online dot.
+                              The whole pill sits OUTSIDE the avatar's
+                              clipped border but inside the orbit slot,
+                              so it scales with the avatar but doesn't
+                              get clipped to a circle. */}
+                          {showSobrietyBadge && (
+                            <span
+                              aria-hidden="true"
+                              className="absolute -top-1.5 -right-2 inline-flex items-center gap-[1px] px-1 py-[1px] rounded-full bg-emerald-500 text-white text-[8px] font-bold leading-none border border-white shadow-[0_2px_6px_-1px_rgba(16,185,129,0.55)] whitespace-nowrap"
+                            >
+                              <span className="text-[7px] leading-none">🌱</span>
+                              <span className="tabular-nums">{u.sobriety_short_label}</span>
+                            </span>
                           )}
                         </span>
                       </span>
@@ -1028,6 +1125,23 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
         @keyframes orbit-fire-scale {
           0%, 100% { transform: scale(1); }
           50%      { transform: scale(1.15); }
+        }
+        /* Fresh sobriety check-in glow — applied to an alumni's avatar
+           the FIRST time the viewer's session sees a newer
+           last_check_in_at than they previously saw (tracked in
+           localStorage). A slow emerald pulse that breathes around
+           the avatar's circle for ~6s, then settles. The glow uses
+           drop-shadow on the wrapper so it doesn't push layout. */
+        @keyframes orbit-fresh-glow {
+          0%   { filter: drop-shadow(0 0 0px rgba(16,185,129,0)); }
+          25%  { filter: drop-shadow(0 0 9px rgba(16,185,129,0.85)); }
+          50%  { filter: drop-shadow(0 0 4px rgba(16,185,129,0.45)); }
+          75%  { filter: drop-shadow(0 0 9px rgba(16,185,129,0.85)); }
+          100% { filter: drop-shadow(0 0 0px rgba(16,185,129,0)); }
+        }
+        .orbit-fresh-checkin {
+          animation: orbit-fresh-glow 2.6s ease-in-out 0s 3;
+          will-change: filter;
         }
         @keyframes orbit-fire-halo {
           0%, 100% { opacity: 0.55; }
