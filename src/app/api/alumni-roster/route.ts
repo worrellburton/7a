@@ -1,19 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAdminSupabase } from '@/lib/supabase-server';
-import { requireSuperOrAlumniAdmin } from '@/lib/api-gates';
+import { getAdminSupabase, getUserFromRequest } from '@/lib/supabase-server';
 
 // GET /api/alumni-roster
 //
-// Staff-facing roster of every user_kind='alumni' row, with their
-// alumni_profiles fields joined in. Powers /app/alumni-roster.
+// Roster of every user_kind='alumni' row with their alumni_profiles
+// fields joined in. Powers /app/alumni-roster, which is a
+// cross-portal page:
 //
-// Gated by requireSuperOrAlumniAdmin — only super admins, regular
-// admins (via is_admin), and alumni admins reach this. Privacy
-// opt-ins on the alum's profile (phone_visible, email_visible,
-// sobriety_public) DO NOT apply here — admins managing the roster
-// need to see everything to spot incomplete profiles, stale
-// sobriety dates, etc. The alumni-facing surfaces still respect
-// the visibility flags.
+//   * Staff (super admin / admin / alumni admin) get every field
+//     raw so they can spot incomplete profiles, stale sobriety
+//     dates, missing opt-ins, etc.
+//   * Alumni get a privacy-filtered view: per-row visibility flags
+//     (phone_visible, email_visible, sobriety_public) are honored,
+//     and admin-only fields (status, last_sign_in, last_seen_at)
+//     are dropped entirely.
+//
+// Any user_kind other than alumni who isn't on one of those staff
+// roles gets 403.
 //
 // One round-trip, no pagination — alumni count is small (tens, not
 // thousands), so client-side sort + search is faster than refetching.
@@ -23,14 +26,9 @@ export const dynamic = 'force-dynamic';
 interface RosterRow {
   id: string;
   fullName: string | null;
-  email: string | null;
   avatarUrl: string | null;
   jobTitle: string | null;
-  status: 'active' | 'on_hold' | 'denied' | null;
   createdAt: string;
-  lastSignIn: string | null;
-  lastSeenAt: string | null;
-  // alumni_profiles join — null fields if no row yet.
   city: string | null;
   state: string | null;
   bio: string | null;
@@ -49,13 +47,33 @@ interface RosterRow {
   checkInStreak: number;
   lastCheckInAt: string | null;
   profileUpdatedAt: string | null;
+  // Admin-only fields — null in alumni mode so the client renders
+  // empty cells / hides the corresponding columns.
+  email: string | null;
+  status: 'active' | 'on_hold' | 'denied' | null;
+  lastSignIn: string | null;
+  lastSeenAt: string | null;
 }
 
 export async function GET(req: NextRequest) {
-  const gate = await requireSuperOrAlumniAdmin(req);
-  if (gate instanceof NextResponse) return gate;
+  const caller = await getUserFromRequest(req);
+  if (!caller) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const admin = getAdminSupabase();
+  const { data: callerRow } = await admin
+    .from('users')
+    .select('is_admin, is_super_admin, is_alumni_admin, user_kind')
+    .eq('id', caller.id)
+    .maybeSingle();
+
+  const isStaffAdmin =
+    callerRow?.is_super_admin === true ||
+    callerRow?.is_admin === true ||
+    callerRow?.is_alumni_admin === true;
+  const isAlumni = callerRow?.user_kind === 'alumni';
+  if (!isStaffAdmin && !isAlumni) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
 
   // Two parallel reads — users + alumni_profiles. A LEFT JOIN via
   // PostgREST nested select would work too, but two indexed point
@@ -115,26 +133,30 @@ export async function GET(req: NextRequest) {
     last_seen_at: string | null;
   };
 
+  const mode: 'admin' | 'alumni' = isStaffAdmin ? 'admin' : 'alumni';
+
   const rows: RosterRow[] = ((usersRes.data ?? []) as UserRow[]).map((u) => {
     const p = profileByUserId.get(u.id);
+    // Apply per-row privacy opt-ins for an alumni viewer; admins
+    // see everything raw. Sobriety, phone, email all gate on the
+    // alum's own visibility flag.
+    const showPhone = isStaffAdmin || p?.phone_visible === true;
+    const showEmail = isStaffAdmin || p?.email_visible === true;
+    const showSobriety = isStaffAdmin || p?.sobriety_public === true;
     return {
       id: u.id,
       fullName: u.full_name,
-      email: u.email,
       avatarUrl: u.avatar_url,
       jobTitle: u.job_title,
-      status: u.status,
       createdAt: u.created_at,
-      lastSignIn: u.last_sign_in,
-      lastSeenAt: u.last_seen_at,
       city: p?.city ?? null,
       state: p?.state ?? null,
       bio: p?.bio ?? null,
       interests: Array.isArray(p?.interests) ? (p!.interests as string[]) : [],
       availableFor: Array.isArray(p?.available_for) ? (p!.available_for as string[]) : [],
-      phone: p?.phone ?? null,
-      emailForAlumni: p?.email_for_alumni ?? null,
-      sobrietyDate: p?.sobriety_date ?? null,
+      phone: showPhone ? (p?.phone ?? null) : null,
+      emailForAlumni: showEmail ? (p?.email_for_alumni ?? null) : null,
+      sobrietyDate: showSobriety ? (p?.sobriety_date ?? null) : null,
       sobrietyPublic: p?.sobriety_public === true,
       trackSobriety: p?.track_sobriety === true,
       onMap: p?.on_map === true,
@@ -145,8 +167,13 @@ export async function GET(req: NextRequest) {
       checkInStreak: typeof p?.check_in_streak === 'number' ? p!.check_in_streak : 0,
       lastCheckInAt: p?.last_check_in_at ?? null,
       profileUpdatedAt: p?.updated_at ?? null,
+      // Admin-only fields — null in alumni mode.
+      email: isStaffAdmin ? u.email : null,
+      status: isStaffAdmin ? u.status : null,
+      lastSignIn: isStaffAdmin ? u.last_sign_in : null,
+      lastSeenAt: isStaffAdmin ? u.last_seen_at : null,
     };
   });
 
-  return NextResponse.json({ rows });
+  return NextResponse.json({ mode, rows });
 }

@@ -92,15 +92,20 @@ function formatRelative(iso: string | null): string {
 }
 
 export default function AlumniRosterContent() {
-  const { session, user, isAdmin, isSuperAdmin, isAlumniAdmin, profileLoading } = useAuth();
+  const { session, user, isAdmin, isSuperAdmin, isAlumniAdmin, userKind, profileLoading } = useAuth();
   const [rows, setRows] = useState<RosterRow[]>([]);
+  const [mode, setMode] = useState<'admin' | 'alumni'>('admin');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
 
-  const canSee = isSuperAdmin || isAdmin || isAlumniAdmin;
+  // Alumni see a privacy-filtered version of the same page. Admin
+  // columns (status, last sign-in, last seen) are dropped; per-row
+  // contact fields are already pre-filtered by the API.
+  const canSee = isSuperAdmin || isAdmin || isAlumniAdmin || userKind === 'alumni';
+  const isAlumniViewer = userKind === 'alumni' && !(isSuperAdmin || isAdmin || isAlumniAdmin);
 
   const load = useCallback(async () => {
     if (!session?.access_token) return;
@@ -113,6 +118,7 @@ export default function AlumniRosterContent() {
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
       setRows((json.rows ?? []) as RosterRow[]);
+      setMode((json.mode === 'alumni' ? 'alumni' : 'admin') as 'admin' | 'alumni');
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -211,8 +217,8 @@ export default function AlumniRosterContent() {
         <p className="text-xs uppercase tracking-[0.22em] text-foreground/45 mb-2">Alumni</p>
         <h1 className="text-2xl font-bold text-foreground mb-3" style={{ fontFamily: 'var(--font-display)' }}>Alumni roster</h1>
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-6 text-sm text-amber-900 leading-relaxed">
-          <p className="font-semibold mb-1">Admin access required.</p>
-          <p>The alumni roster is gated to super admins, admins, and alumni admins.</p>
+          <p className="font-semibold mb-1">Not available for your account.</p>
+          <p>The alumni roster is for alumni community members and the staff who support them.</p>
         </div>
       </div>
     );
@@ -221,12 +227,16 @@ export default function AlumniRosterContent() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8" style={{ fontFamily: 'var(--font-body)' }}>
       <header className="mb-6">
-        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-primary mb-1.5">Roster</p>
+        <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-primary mb-1.5">
+          {isAlumniViewer ? 'Community' : 'Roster'}
+        </p>
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
           Alumni
         </h1>
         <p className="mt-1 text-[13.5px] text-foreground/55">
-          Every user marked alumni. Click a row to open their profile.
+          {isAlumniViewer
+            ? 'Find other alumni in the community. Tap a name for their profile.'
+            : 'Every user marked alumni. Click a row to open their profile.'}
         </p>
       </header>
 
@@ -238,7 +248,7 @@ export default function AlumniRosterContent() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by name, email, city, interest…"
+            placeholder={isAlumniViewer ? 'Search by name, city, interest…' : 'Search by name, email, city, interest…'}
             className="w-full pl-9 pr-3 py-2 rounded-lg border border-black/10 bg-white text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/40"
           />
         </div>
@@ -277,12 +287,16 @@ export default function AlumniRosterContent() {
               <th className="text-left font-semibold px-4 py-3">Visibility</th>
               <th className="text-left font-semibold px-4 py-3">Contact</th>
               <th className="text-left font-semibold px-4 py-3">Interests</th>
-              <th className="text-left font-semibold px-4 py-3">Status</th>
-              <th className="text-left font-semibold px-4 py-3">
-                <button type="button" onClick={() => toggleSort('lastSignIn')} className="inline-flex items-center gap-1 hover:text-foreground">
-                  Last sign-in {sortArrow('lastSignIn')}
-                </button>
-              </th>
+              {mode === 'admin' && (
+                <>
+                  <th className="text-left font-semibold px-4 py-3">Status</th>
+                  <th className="text-left font-semibold px-4 py-3">
+                    <button type="button" onClick={() => toggleSort('lastSignIn')} className="inline-flex items-center gap-1 hover:text-foreground">
+                      Last sign-in {sortArrow('lastSignIn')}
+                    </button>
+                  </th>
+                </>
+              )}
               <th className="text-left font-semibold px-4 py-3">
                 <button type="button" onClick={() => toggleSort('created')} className="inline-flex items-center gap-1 hover:text-foreground">
                   Joined {sortArrow('created')}
@@ -293,16 +307,16 @@ export default function AlumniRosterContent() {
           <tbody className="divide-y divide-black/5">
             {loading ? (
               <tr>
-                <td colSpan={10} className="px-4 py-12 text-center italic text-foreground/55">Loading…</td>
+                <td colSpan={mode === 'admin' ? 10 : 8} className="px-4 py-12 text-center italic text-foreground/55">Loading…</td>
               </tr>
             ) : visibleRows.length === 0 ? (
               <tr>
-                <td colSpan={10} className="px-4 py-12 text-center italic text-foreground/55">
+                <td colSpan={mode === 'admin' ? 10 : 8} className="px-4 py-12 text-center italic text-foreground/55">
                   {rows.length === 0 ? 'No alumni yet.' : 'No matches.'}
                 </td>
               </tr>
             ) : (
-              visibleRows.map((r) => <RosterTableRow key={r.id} r={r} />)
+              visibleRows.map((r) => <RosterTableRow key={r.id} r={r} mode={mode} />)
             )}
           </tbody>
         </table>
@@ -316,14 +330,14 @@ export default function AlumniRosterContent() {
             {rows.length === 0 ? 'No alumni yet.' : 'No matches.'}
           </li>
         ) : (
-          visibleRows.map((r) => <RosterCard key={r.id} r={r} />)
+          visibleRows.map((r) => <RosterCard key={r.id} r={r} mode={mode} />)
         )}
       </ul>
     </div>
   );
 }
 
-function RosterTableRow({ r }: { r: RosterRow }) {
+function RosterTableRow({ r, mode }: { r: RosterRow; mode: 'admin' | 'alumni' }) {
   const initial = (r.fullName || r.email || '?').charAt(0).toUpperCase();
   const milestone = soberMilestone(r.sobrietyDate);
   const location = [r.city, r.state].filter(Boolean).join(', ') || '—';
@@ -426,13 +440,17 @@ function RosterTableRow({ r }: { r: RosterRow }) {
           </div>
         )}
       </td>
-      <td className="px-4 py-3 align-top">
-        <StatusBadge status={r.status} />
-      </td>
-      <td className="px-4 py-3 align-top text-foreground/65 whitespace-nowrap">
-        <span className="block text-[12px]">{formatRelative(r.lastSignIn)}</span>
-        <span className="block text-[10.5px] text-foreground/45">{formatDate(r.lastSignIn)}</span>
-      </td>
+      {mode === 'admin' && (
+        <>
+          <td className="px-4 py-3 align-top">
+            <StatusBadge status={r.status} />
+          </td>
+          <td className="px-4 py-3 align-top text-foreground/65 whitespace-nowrap">
+            <span className="block text-[12px]">{formatRelative(r.lastSignIn)}</span>
+            <span className="block text-[10.5px] text-foreground/45">{formatDate(r.lastSignIn)}</span>
+          </td>
+        </>
+      )}
       <td className="px-4 py-3 align-top text-foreground/65 whitespace-nowrap text-[12px]">
         {formatDate(r.createdAt)}
       </td>
@@ -440,7 +458,7 @@ function RosterTableRow({ r }: { r: RosterRow }) {
   );
 }
 
-function RosterCard({ r }: { r: RosterRow }) {
+function RosterCard({ r, mode }: { r: RosterRow; mode: 'admin' | 'alumni' }) {
   const initial = (r.fullName || r.email || '?').charAt(0).toUpperCase();
   const milestone = soberMilestone(r.sobrietyDate);
   const location = [r.city, r.state].filter(Boolean).join(', ');
@@ -463,7 +481,7 @@ function RosterCard({ r }: { r: RosterRow }) {
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <span className="font-semibold text-foreground truncate">{r.fullName || '(no name)'}</span>
-            <StatusBadge status={r.status} />
+            {mode === 'admin' && <StatusBadge status={r.status} />}
           </div>
           {r.email && <p className="text-[12px] text-foreground/55 truncate">{r.email}</p>}
           {location && <p className="text-[12px] text-foreground/65 mt-0.5">📍 {location}</p>}
@@ -482,7 +500,9 @@ function RosterCard({ r }: { r: RosterRow }) {
             )}
           </div>
           <p className="mt-2 text-[11px] text-foreground/45">
-            Last sign-in {formatRelative(r.lastSignIn)} · joined {formatDate(r.createdAt)}
+            {mode === 'admin'
+              ? <>Last sign-in {formatRelative(r.lastSignIn)} · joined {formatDate(r.createdAt)}</>
+              : <>Joined {formatDate(r.createdAt)}</>}
           </p>
         </div>
       </Link>

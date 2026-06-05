@@ -19,3 +19,13 @@ export const ALUMNI_ADMIN_PATHS: ReadonlySet<string> = new Set<string>([
   // page day-to-day, so they must reach it without is_admin.
   '/app/alumni-roster',
 ]);
+
+// Pages that are admin-only on the staff side BUT also visible to
+// alumni users on the alumni-portal side. /app/alumni-roster is the
+// classic case — it's a staff-managed directory, and it doubles as
+// an "other alumni" lookup for alumni themselves. Privacy on the
+// API side strips admin-only fields (status, last_sign_in) and
+// applies per-row opt-in flags when the caller is an alumnus.
+export const ALUMNI_VIEWABLE_PATHS: ReadonlySet<string> = new Set<string>([
+  '/app/alumni-roster',
+]);
