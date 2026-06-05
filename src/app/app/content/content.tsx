@@ -57,8 +57,8 @@ const STATUS_TONES: Record<DbBlog['status'], string> = {
 };
 
 export default function ContentLanding() {
-  const { user, isAdmin, isSuperAdmin, departmentId, session } = useAuth();
-  const { userOverrides, userExtraDepartmentIds } = usePagePermissions();
+  const { user, isAdmin, isSuperAdmin, departmentId, session, profileLoading } = useAuth();
+  const { userOverrides, userExtraDepartmentIds, loading: permLoading } = usePagePermissions();
   // Five access paths — matches the server gate in
   // src/lib/content-server.ts requireSuperAdmin exactly:
   //   (a) is_super_admin OR is_admin
@@ -269,6 +269,18 @@ export default function ContentLanding() {
   }, [session?.access_token, analyticsFor]);
 
   if (!user) return null;
+  // Wait for the profile + per-user permission rows to actually load
+  // before deciding. Without this, departmentId === null on first
+  // paint (loadProfile is async-after-setLoading-false) and the gate
+  // flashes "Content access required" for a marketer who's actually
+  // in Marketing & Admissions — see the Jeremy Manné bug.
+  if (profileLoading || permLoading) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center text-foreground/55" style={{ fontFamily: 'var(--font-body)' }}>
+        Loading…
+      </div>
+    );
+  }
   if (!hasContentAccess) {
     return (
       <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center" style={{ fontFamily: 'var(--font-body)' }}>
