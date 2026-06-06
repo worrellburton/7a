@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
+import { requireAdmin } from '@/lib/api-gates';
 import { discoverSitemap } from '@/lib/seo/sitemap';
 import { crawlPage, type CrawledPage } from '@/lib/seo/crawl';
 import { crawlAll } from '@/lib/seo/runner';
@@ -52,16 +52,8 @@ export const maxDuration = 300;
 const DEFAULT_ORIGIN = 'https://sevenarrowsrecoveryarizona.com';
 
 export async function POST(req: Request) {
-  const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: row } = await supabase
-    .from('users')
-    .select('is_admin')
-    .eq('id', user.id)
-    .maybeSingle();
-  if (!row?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const gate = await requireAdmin();
+  if (gate instanceof NextResponse) return gate;
 
   let origin = DEFAULT_ORIGIN;
   try {
@@ -333,14 +325,13 @@ export async function POST(req: Request) {
   // Non-fatal: if the table isn't reachable or the write fails, we still
   // return the computed result to the user. The admin client bypasses RLS.
   try {
-    const admin = getAdminSupabase();
-    const { error: insertErr } = await admin.from('seo_audits').insert({
+    const { error: insertErr } = await gate.admin.from('seo_audits').insert({
       origin,
       score: agg.score,
       grade: agg.band,
       payload: result,
       duration_ms: result.durationMs,
-      ran_by: user.id,
+      ran_by: gate.userId,
     });
     if (insertErr) {
       console.warn('[seo-audit] persist failed, returning anyway', insertErr.message);

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
+import { requireAdminOrDepartment, MARKETING_DEPT_ID } from '@/lib/api-gates';
 
 // GET /api/email-campaigns/recent-recipients?days=7
 //
@@ -16,25 +16,15 @@ import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: row } = await supabase
-    .from('users')
-    .select('is_admin, department_id')
-    .eq('id', user.id)
-    .maybeSingle();
-  const MARKETING_DEPT = 'dfde0b96-c605-40dd-84e5-281af2f6d8e9';
-  if (!row?.is_admin && row?.department_id !== MARKETING_DEPT) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const gate = await requireAdminOrDepartment(MARKETING_DEPT_ID, req);
+  if (gate instanceof NextResponse) return gate;
 
   const url = new URL(req.url);
   const requestedDays = Number(url.searchParams.get('days') ?? '7');
   const days = Number.isFinite(requestedDays) && requestedDays > 0 ? Math.min(90, requestedDays) : 7;
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
-  const admin = getAdminSupabase();
+  const admin = gate.admin;
   // Pull recipient rows that landed (or made it past Resend's queue)
   // in the window. We exclude 'queued'/'failed' so a campaign that
   // never actually sent doesn't generate a false-positive warning.

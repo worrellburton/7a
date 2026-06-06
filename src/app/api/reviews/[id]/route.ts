@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
+import { requireAdmin } from '@/lib/api-gates';
 
 // PATCH  /api/reviews/[id]?source=google|curated — update flags / fields
 // DELETE /api/reviews/[id]?source=curated         — only curated; google
@@ -7,15 +7,6 @@ import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 //                                                   by the next sync.
 
 export const dynamic = 'force-dynamic';
-
-async function requireAdmin() {
-  const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
-  const { data: row } = await supabase.from('users').select('is_admin').eq('id', user.id).maybeSingle();
-  if (!row?.is_admin) return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
-  return { error: null as null };
-}
 
 interface PatchBody {
   // Curation flags — both tables.
@@ -36,8 +27,8 @@ function tableForSource(source: string | null): 'google_reviews' | 'curated_revi
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const guard = await requireAdmin();
-  if (guard.error) return guard.error;
+  const gate = await requireAdmin(req);
+  if (gate instanceof NextResponse) return gate;
 
   const { id } = await ctx.params;
   const url = new URL(req.url);
@@ -76,7 +67,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
   }
 
-  const admin = getAdminSupabase();
+  const admin = gate.admin;
   const { data, error } = await admin
     .from(table)
     .update(updates)
@@ -90,8 +81,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const guard = await requireAdmin();
-  if (guard.error) return guard.error;
+  const gate = await requireAdmin(req);
+  if (gate instanceof NextResponse) return gate;
 
   const { id } = await ctx.params;
   const url = new URL(req.url);
@@ -103,7 +94,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
     );
   }
 
-  const admin = getAdminSupabase();
+  const admin = gate.admin;
   const { error } = await admin.from('curated_reviews').delete().eq('id', id);
   if (error) return NextResponse.json({ error: `delete failed: ${error.message}` }, { status: 500 });
   return NextResponse.json({ ok: true });

@@ -4,7 +4,7 @@ import {
   listStoredTokens,
   getStoredToken,
 } from '@/lib/quickbooks';
-import { getServerSupabase } from '@/lib/supabase-server';
+import { requireAdmin } from '@/lib/api-gates';
 
 // GET /api/quickbooks/data?report=<type>&realm_id=<id>&...
 //
@@ -32,17 +32,6 @@ import { getServerSupabase } from '@/lib/supabase-server';
 
 const MINOR_VERSION = '75';
 
-function adminGuard() {
-  return async () => {
-    const supabase = await getServerSupabase();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { ok: false as const, res: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
-    const { data: row } = await supabase.from('users').select('is_admin').eq('id', user.id).maybeSingle();
-    if (!row?.is_admin) return { ok: false as const, res: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
-    return { ok: true as const };
-  };
-}
-
 function buildReportPath(
   report: string,
   params: URLSearchParams,
@@ -65,8 +54,8 @@ function buildReportPath(
 }
 
 export async function GET(req: NextRequest) {
-  const guard = await adminGuard()();
-  if (!guard.ok) return guard.res;
+  const gate = await requireAdmin(req);
+  if (gate instanceof NextResponse) return gate;
 
   const url = new URL(req.url);
   const report = url.searchParams.get('report') || '';
