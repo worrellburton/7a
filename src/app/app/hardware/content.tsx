@@ -103,6 +103,7 @@ export default function HardwareContent() {
   const [typeOrder, setTypeOrder] = useState<Record<string, number>>({});
   const [draggingType, setDraggingType] = useState<string | null>(null);
   const [dragOverType, setDragOverType] = useState<string | null>(null);
+  const [addOpen, setAddOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -518,16 +519,31 @@ export default function HardwareContent() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-[1800px] mx-auto">
-      <header className="mb-5">
-        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">
-          Operations · Inventory
-        </p>
-        <h1 className="mt-1 text-2xl font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
-          Hardware
-        </h1>
-        <p className="mt-1 text-[13px] text-foreground/55" style={{ fontFamily: 'var(--font-body)' }}>
-          Every laptop, monitor, dock, scanner, and accessory in the field — who has it and where it lives.
-        </p>
+      <header className="mb-5 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">
+            Operations · Inventory
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+            Hardware
+          </h1>
+          <p className="mt-1 text-[13px] text-foreground/55" style={{ fontFamily: 'var(--font-body)' }}>
+            Every laptop, monitor, dock, scanner, and accessory in the field — who has it and where it lives.
+          </p>
+        </div>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => setAddOpen(true)}
+            className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-foreground text-white text-[12px] font-semibold uppercase tracking-[0.12em] hover:bg-foreground/85 transition-colors shadow-[0_8px_22px_-12px_rgba(40,30,25,0.45)]"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Add hardware
+          </button>
+        )}
       </header>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
@@ -855,6 +871,29 @@ export default function HardwareContent() {
             })}
           </div>
         </>
+      )}
+
+      {addOpen && (
+        <AddHardwareModal
+          types={types}
+          locations={locations}
+          team={team}
+          teamByLowerName={teamByLowerName}
+          rooms={rooms}
+          onClose={() => setAddOpen(false)}
+          onCreated={(row) => {
+            // Optimistic insert into local state; realtime will
+            // dedupe via the id check inside the hardware-items
+            // realtime hook.
+            setItems((cur) => (cur ? [...cur, row].sort((a, b) => {
+              const t = a.type.localeCompare(b.type);
+              if (t !== 0) return t;
+              const ai = a.type_index ?? Number.POSITIVE_INFINITY;
+              const bi = b.type_index ?? Number.POSITIVE_INFINITY;
+              return ai - bi;
+            }) : [row]));
+          }}
+        />
       )}
     </div>
   );
@@ -1239,6 +1278,492 @@ function CardField({ label, children }: { label: string; children: React.ReactNo
       <p className="text-[9.5px] font-bold uppercase tracking-[0.18em] text-foreground/45">{label}</p>
       <div className="text-[12.5px] min-h-[1.4rem]">{children}</div>
     </div>
+  );
+}
+
+// Add hardware modal — two paths:
+//   * Manual: fill the form directly.
+//   * From screenshot: drop / pick an Amazon (or other) product
+//     page screenshot, /api/hardware/extract-from-image runs it
+//     through Claude vision, and the resulting fields drop into
+//     the same form (which the user reviews + edits before Save).
+// Portaled to <body> to escape any containing-block-creating
+// ancestors on the hardware page, same trick the home check-in
+// modal uses.
+function AddHardwareModal({
+  types,
+  locations,
+  team,
+  teamByLowerName,
+  rooms,
+  onClose,
+  onCreated,
+}: {
+  types: string[];
+  locations: string[];
+  team: TeamMember[];
+  teamByLowerName: Map<string, TeamMember>;
+  rooms: string[];
+  onClose: () => void;
+  onCreated: (row: HardwareItem) => void;
+}) {
+  const [tab, setTab] = useState<'manual' | 'screenshot'>('manual');
+  const [type, setType] = useState('');
+  const [model, setModel] = useState('');
+  const [assignedTo, setAssignedTo] = useState<string | null>(null);
+  const [location, setLocation] = useState('');
+  // Stored as a string in the input + coerced to cents on save.
+  // Empty / NaN means "no value tracked".
+  const [valueDollars, setValueDollars] = useState('');
+  const [statusValue, setStatusValue] = useState('');
+  const [account, setAccount] = useState('');
+  const [notes, setNotes] = useState('');
+  const [isPC, setIsPC] = useState(false);
+  // Screenshot tab state.
+  const [imageData, setImageData] = useState<{ data: string; mediaType: string; preview: string } | null>(null);
+  const [extracting, setExtracting] = useState(false);
+  const [extractError, setExtractError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [portalReady, setPortalReady] = useState(false);
+  useEffect(() => { setPortalReady(true); }, []);
+
+  // Esc closes the modal anywhere it has focus.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  async function handleFile(file: File) {
+    if (!/^image\//i.test(file.type)) {
+      setExtractError('Only image files are accepted (PNG, JPEG, GIF, WebP).');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setExtractError('Image is too large (max 5MB). Please re-export at a smaller size.');
+      return;
+    }
+    setExtractError(null);
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = () => reject(r.error);
+      r.readAsDataURL(file);
+    });
+    // dataUrl is "data:<mime>;base64,<data>". Split it.
+    const comma = dataUrl.indexOf(',');
+    const header = dataUrl.slice(0, comma);
+    const data = dataUrl.slice(comma + 1);
+    const mediaType = header.match(/^data:([^;]+)/)?.[1] || 'image/jpeg';
+    setImageData({ data, mediaType, preview: dataUrl });
+  }
+
+  async function runExtract() {
+    if (!imageData) return;
+    setExtracting(true);
+    setExtractError(null);
+    try {
+      const res = await fetch('/api/hardware/extract-from-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: { data: imageData.data, mediaType: imageData.mediaType } }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setExtractError(json.error || `HTTP ${res.status}`);
+        return;
+      }
+      const f = json.fields as {
+        type: string | null;
+        model: string | null;
+        value_price_cents: number | null;
+        is_personal_computer: boolean;
+        notes: string | null;
+      };
+      if (f.type) setType(f.type);
+      if (f.model) setModel(f.model);
+      if (typeof f.value_price_cents === 'number') {
+        setValueDollars((f.value_price_cents / 100).toFixed(2));
+      }
+      if (f.is_personal_computer) setIsPC(true);
+      if (f.notes) setNotes(f.notes);
+      // Switch back to the manual form so the user can review +
+      // tweak before saving.
+      setTab('manual');
+    } catch (err) {
+      setExtractError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setExtracting(false);
+    }
+  }
+
+  async function save() {
+    setSaveError(null);
+    const trimmedType = type.trim();
+    const trimmedModel = model.trim();
+    if (!trimmedType) { setSaveError('Type is required.'); return; }
+    const dollars = parseFloat(valueDollars);
+    const cents = Number.isFinite(dollars) && dollars > 0 ? Math.round(dollars * 100) : null;
+    setSaving(true);
+    try {
+      // Pick a type_index one above the current max for this type so
+      // the new row lands at the bottom of its card instead of
+      // colliding with row #1.
+      const { data: maxRow } = await supabase
+        .from('hardware_items')
+        .select('type_index')
+        .eq('type', trimmedType)
+        .order('type_index', { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
+      const nextIndex = ((maxRow?.type_index as number | null) ?? 0) + 1;
+      const payload = {
+        type: trimmedType,
+        type_index: nextIndex,
+        is_personal_computer: isPC,
+        model: trimmedModel,
+        assigned_to: assignedTo,
+        location: location.trim() || null,
+        value_price_cents: cents,
+        status: statusValue.trim() || null,
+        account: account.trim() || null,
+        pin: null,
+        notes: notes.trim() || null,
+      };
+      const { data, error } = await supabase
+        .from('hardware_items')
+        .insert(payload)
+        .select('id, type, type_index, is_personal_computer, model, assigned_to, location, value_price_cents, status, account, pin, notes, updated_at')
+        .maybeSingle();
+      if (error || !data) {
+        setSaveError(error?.message || 'Could not save.');
+        return;
+      }
+      onCreated(data as HardwareItem);
+      onClose();
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!portalReady || typeof document === 'undefined') return null;
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="add-hardware-title"
+      className="fixed inset-0 z-[90] flex items-center justify-center overflow-y-auto"
+      style={{
+        padding: 'max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom))',
+      }}
+    >
+      <div
+        className="absolute inset-0 bg-foreground/40 backdrop-blur-md"
+        onClick={onClose}
+      />
+      <div
+        className="relative w-full max-w-xl my-auto rounded-3xl overflow-hidden bg-white/85 supports-[backdrop-filter]:bg-white/65 supports-[backdrop-filter]:backdrop-blur-xl supports-[backdrop-filter]:backdrop-saturate-150 border border-white/70 shadow-[0_24px_60px_-20px_rgba(40,30,25,0.45)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex flex-col max-h-[85vh]">
+          <header className="shrink-0 px-6 sm:px-7 pt-6 pb-3 flex items-start justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/55">Operations · Inventory</p>
+              <h2 id="add-hardware-title" className="text-lg font-bold text-foreground leading-snug" style={{ fontFamily: 'var(--font-display)' }}>
+                Add hardware
+              </h2>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-full text-foreground/55 hover:bg-warm-bg/60 hover:text-foreground"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </header>
+
+          <div className="shrink-0 px-6 sm:px-7 pb-3">
+            <div role="tablist" className="inline-flex p-0.5 rounded-full bg-warm-bg/60 border border-black/8 text-[11.5px] font-semibold">
+              <button
+                role="tab"
+                aria-selected={tab === 'manual'}
+                onClick={() => setTab('manual')}
+                className={`px-3 py-1.5 rounded-full transition-colors ${tab === 'manual' ? 'bg-white text-foreground shadow-[0_2px_8px_-3px_rgba(40,30,25,0.20)]' : 'text-foreground/55 hover:text-foreground'}`}
+              >
+                Fill in manually
+              </button>
+              <button
+                role="tab"
+                aria-selected={tab === 'screenshot'}
+                onClick={() => setTab('screenshot')}
+                className={`px-3 py-1.5 rounded-full transition-colors ${tab === 'screenshot' ? 'bg-white text-foreground shadow-[0_2px_8px_-3px_rgba(40,30,25,0.20)]' : 'text-foreground/55 hover:text-foreground'}`}
+              >
+                From a screenshot
+              </button>
+            </div>
+          </div>
+
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 sm:px-7 pb-5 overscroll-contain">
+            {tab === 'screenshot' && (
+              <div className="space-y-3">
+                <p className="text-[12.5px] text-foreground/65 leading-relaxed">
+                  Drop in (or paste) a screenshot of the product page — Amazon, Apple Store, Best Buy, anything with the product title and price visible. We&apos;ll extract Type, Model, Value, and Notes; the rest stays on the manual tab for you to fill in.
+                </p>
+                <div
+                  onDragOver={(e) => { e.preventDefault(); }}
+                  onDrop={async (e) => {
+                    e.preventDefault();
+                    const f = e.dataTransfer.files?.[0];
+                    if (f) await handleFile(f);
+                  }}
+                  className="rounded-2xl border-2 border-dashed border-foreground/15 bg-white/40 px-4 py-6 flex flex-col items-center gap-2 text-center"
+                >
+                  {imageData ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={imageData.preview} alt="Screenshot preview" className="max-h-56 rounded-lg border border-black/10 shadow-sm object-contain" />
+                  ) : (
+                    <>
+                      <span className="text-3xl" aria-hidden>📸</span>
+                      <p className="text-[12.5px] text-foreground/65">
+                        Drag an image here, or
+                      </p>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center px-3 py-1.5 rounded-full bg-foreground text-white text-[11.5px] font-semibold uppercase tracking-[0.12em] hover:bg-foreground/85 transition-colors"
+                  >
+                    {imageData ? 'Choose a different image' : 'Choose a screenshot'}
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const f = e.target.files?.[0];
+                      if (f) await handleFile(f);
+                    }}
+                  />
+                </div>
+                {extractError && (
+                  <p className="text-[12px] text-rose-700 bg-rose-50 border border-rose-200 rounded-md px-2.5 py-1.5" role="alert">
+                    {extractError}
+                  </p>
+                )}
+                {imageData && (
+                  <button
+                    type="button"
+                    onClick={runExtract}
+                    disabled={extracting}
+                    className={`w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-[12.5px] font-semibold transition-colors ${extracting ? 'bg-primary/40 text-white cursor-wait' : 'bg-primary text-white hover:bg-primary-dark'}`}
+                  >
+                    {extracting ? (
+                      <>
+                        <span className="inline-block w-3 h-3 border-2 border-white/70 border-t-white rounded-full animate-spin" />
+                        Decoding…
+                      </>
+                    ) : (
+                      <>
+                        ✨ Decode this screenshot
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {tab === 'manual' && (
+              <div className="space-y-3">
+                <ModalField label="Type" required hint="Used to group rows on the page (e.g. Laptop, Keyboard).">
+                  <DatalistTextInput
+                    value={type}
+                    onChange={setType}
+                    options={types}
+                    placeholder="Laptop, Keyboard, Dock…"
+                  />
+                </ModalField>
+                <ModalField label="Model" hint="Full product name as it'll show on the row.">
+                  <input
+                    type="text"
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    placeholder="Apple MacBook Pro 14, M3 Pro, 18GB / 512GB"
+                    className="w-full px-3 py-2 rounded-md border border-black/15 bg-white text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/35"
+                  />
+                </ModalField>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <ModalField label="Assignee">
+                    <AssigneeCell
+                      value={assignedTo}
+                      team={team}
+                      teamByLowerName={teamByLowerName}
+                      rooms={rooms}
+                      editable={true}
+                      onSave={setAssignedTo}
+                    />
+                  </ModalField>
+                  <ModalField label="Location">
+                    <DatalistTextInput
+                      value={location}
+                      onChange={setLocation}
+                      options={locations}
+                      placeholder="Admin Building, Lodge…"
+                    />
+                  </ModalField>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <ModalField label="Value (USD)">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/45 text-[12.5px]">$</span>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={valueDollars}
+                        onChange={(e) => setValueDollars(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full pl-6 pr-3 py-2 rounded-md border border-black/15 bg-white text-[12.5px] tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/35"
+                      />
+                    </div>
+                  </ModalField>
+                  <ModalField label="Status">
+                    <input
+                      type="text"
+                      value={statusValue}
+                      onChange={(e) => setStatusValue(e.target.value)}
+                      placeholder="Active, Loaner, In storage…"
+                      className="w-full px-3 py-2 rounded-md border border-black/15 bg-white text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/35"
+                    />
+                  </ModalField>
+                </div>
+                <ModalField label="Account" hint="Login or service account (if applicable).">
+                  <input
+                    type="text"
+                    value={account}
+                    onChange={(e) => setAccount(e.target.value)}
+                    placeholder="e.g. shared sign-in"
+                    className="w-full px-3 py-2 rounded-md border border-black/15 bg-white text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/35"
+                  />
+                </ModalField>
+                <ModalField label="Notes">
+                  <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    rows={3}
+                    placeholder="Color, serial, anything else worth tracking."
+                    className="w-full px-3 py-2 rounded-md border border-black/15 bg-white text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/35 resize-none"
+                  />
+                </ModalField>
+                <label className="flex items-center gap-2 text-[12.5px] text-foreground/80 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isPC}
+                    onChange={(e) => setIsPC(e.target.checked)}
+                    className="accent-primary w-4 h-4"
+                  />
+                  This is a personal computer (laptop / desktop someone logs into)
+                </label>
+              </div>
+            )}
+          </div>
+
+          <footer className="shrink-0 px-6 sm:px-7 py-3 border-t border-black/5 bg-warm-bg/40 flex items-center justify-end gap-2">
+            {saveError && (
+              <p className="text-[12px] text-rose-700 mr-auto" role="alert">{saveError}</p>
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-1.5 rounded-full text-[11.5px] font-semibold uppercase tracking-[0.12em] text-foreground/70 hover:bg-warm-bg/60"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={save}
+              disabled={saving || !type.trim()}
+              className={`px-4 py-1.5 rounded-full text-[11.5px] font-semibold uppercase tracking-[0.12em] text-white transition-colors ${saving || !type.trim() ? 'bg-primary/40 cursor-not-allowed' : 'bg-primary hover:bg-primary-dark'}`}
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              {saving ? 'Saving…' : 'Save hardware'}
+            </button>
+          </footer>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function ModalField({
+  label,
+  required = false,
+  hint,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  hint?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <label className="text-[10px] font-bold uppercase tracking-[0.16em] text-foreground/55">
+        {label}
+        {required && <span className="ml-0.5 text-rose-700">*</span>}
+      </label>
+      {children}
+      {hint && <p className="text-[10.5px] text-foreground/45 leading-snug">{hint}</p>}
+    </div>
+  );
+}
+
+// Tiny "type or pick" input. Native <datalist> renders the dropdown
+// suggestions; users can still type a brand-new value. Matches the
+// spirit of SearchSelectCell without the heavier portal popup since
+// the modal isn't space-constrained.
+function DatalistTextInput({
+  value,
+  onChange,
+  options,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+  placeholder?: string;
+}) {
+  const id = `dl-${Math.random().toString(36).slice(2, 8)}`;
+  return (
+    <>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        list={id}
+        placeholder={placeholder}
+        className="w-full px-3 py-2 rounded-md border border-black/15 bg-white text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/35"
+      />
+      <datalist id={id}>
+        {options.slice(0, 200).map((o) => (
+          <option key={o} value={o} />
+        ))}
+      </datalist>
+    </>
   );
 }
 
