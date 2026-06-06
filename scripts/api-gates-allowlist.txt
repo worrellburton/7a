@@ -84,17 +84,10 @@ src/app/api/games/connect4/tournaments/route.ts
 src/app/api/geo/audit/history/route.ts
 src/app/api/geo/audit/latest/route.ts
 src/app/api/geo/audit/run/route.ts
-src/app/api/google/bp-discover/route.ts
 src/app/api/google/diagnose/route.ts
-src/app/api/google/gemini-debug/route.ts
-src/app/api/google/gemini-models/route.ts
 src/app/api/google/oauth/callback/route.ts
-src/app/api/google/oauth/start/route.ts
 src/app/api/google/page-analytics/route.ts
-src/app/api/google/places-debug/route.ts
-src/app/api/google/places-seed/route.ts
 src/app/api/google/places-sync/route.ts
-src/app/api/google/reviews-db-debug/route.ts
 src/app/api/google/visits-summary/route.ts
 src/app/api/hipaa/evidence/route.ts
 src/app/api/hipaa/scan/route.ts
@@ -113,7 +106,6 @@ src/app/api/levers/log-report/schedule/route.ts
 src/app/api/levers/log-report/test/route.ts
 src/app/api/media/touch/route.ts
 src/app/api/outings/load-photos/route.ts
-src/app/api/outings/preheat/route.ts
 src/app/api/outreach/geocode/route.ts
 src/app/api/outreach/place-autocomplete/route.ts
 src/app/api/outreach/place-details/route.ts
@@ -132,7 +124,6 @@ src/app/api/policies/import/route.ts
 src/app/api/quickbooks/auth/route.ts
 src/app/api/quickbooks/callback/route.ts
 src/app/api/quickbooks/data/route.ts
-src/app/api/quickbooks/disconnect/route.ts
 src/app/api/reviews/[id]/route.ts
 src/app/api/reviews/random/route.ts
 src/app/api/reviews/route.ts
@@ -164,8 +155,6 @@ src/app/api/seo/serp-audit/run/route.ts
 src/app/api/seo/serp-audit/runs/route.ts
 src/app/api/seo/sitemap/run/route.ts
 src/app/api/seo/source-health/route.ts
-src/app/api/seo/speed/history/route.ts
-src/app/api/seo/speed/latest/route.ts
 src/app/api/seo/speed/run/route.ts
 src/app/api/sidebar/visit/route.ts
 src/app/api/social-media/accounts/route.ts

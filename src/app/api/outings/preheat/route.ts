@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
+import { requireAdmin } from '@/lib/api-gates';
 import { OUTINGS } from '@/lib/outings';
 import { generateOutingImage } from '@/lib/outing-image';
 
@@ -30,11 +30,8 @@ interface PreheatItem {
 }
 
 export async function POST(req: Request) {
-  const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: row } = await supabase.from('users').select('is_admin').eq('id', user.id).maybeSingle();
-  if (!row?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const gate = await requireAdmin();
+  if (gate instanceof NextResponse) return gate;
 
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
@@ -47,7 +44,7 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => ({}))) as { force?: boolean };
   const force = !!body.force;
 
-  const admin = getAdminSupabase();
+  const admin = gate.admin;
   const results: PreheatItem[] = [];
   let generated = 0;
   let cached = 0;
