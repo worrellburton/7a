@@ -204,10 +204,11 @@ function HardwareCheckInModal({
   }, [onClose]);
 
   return (
-    // Outer overlay — flex center horizontally + vertically. Uses
-    // safe-area-inset padding so iOS notch / home indicator don't
-    // clip the modal's header or footer when the keyboard / status
-    // bar push the visible viewport.
+    // Outer overlay covers the viewport. Centers the card both
+    // axes via flex; allows overflow-y-auto so very long lists on
+    // small screens can still scroll into view without getting
+    // clipped behind the iOS notch / home indicator (handled by
+    // the safe-area padding below).
     <div
       role="dialog"
       aria-modal="true"
@@ -221,22 +222,19 @@ function HardwareCheckInModal({
         className="absolute inset-0 bg-foreground/35 backdrop-blur-md"
         onClick={onClose}
       />
-      {/* Card — explicit flex column with max-h-full so the inner
-          scroll area can actually claim flex-1. The previous
-          structure nested an extra wrapper between the max-h and
-          the flex-1 child, so the scrollable middle had no height
-          to fill and the header + footer were stacking on top of
-          each other / clipping above the viewport. */}
+      {/* Card wrapper carries the glass surface + drop shadow but
+          doesn't set its own height. The flex column with the
+          explicit max-h-[85vh] sits INSIDE it — that's the layer
+          flex-1 + min-h-0 can actually claim a height from. Doing
+          it on this outer wrapper with max-h-full collapsed the
+          card to its header height on desktop, pinning the whole
+          modal to the top of the viewport. */}
       <div
-        className="relative w-full max-w-lg max-h-full rounded-3xl overflow-hidden flex flex-col"
+        className="relative w-full max-w-lg my-auto rounded-3xl overflow-hidden bg-white/85 supports-[backdrop-filter]:bg-white/60 supports-[backdrop-filter]:backdrop-blur-xl supports-[backdrop-filter]:backdrop-saturate-150 border border-white/70 shadow-[0_24px_60px_-20px_rgba(40,30,25,0.45)]"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Glass fill — absolute layer behind the flex content. */}
-        <div
-          aria-hidden
-          className="absolute inset-0 bg-white/85 supports-[backdrop-filter]:bg-white/60 supports-[backdrop-filter]:backdrop-blur-xl supports-[backdrop-filter]:backdrop-saturate-150 border border-white/70 rounded-3xl shadow-[0_24px_60px_-20px_rgba(40,30,25,0.45)]"
-        />
-        <header className="relative shrink-0 px-6 sm:px-7 pt-6 pb-4 border-b border-black/5 flex items-start gap-3">
+      <div className="flex flex-col max-h-[85vh]">
+        <header className="shrink-0 px-6 sm:px-7 pt-6 pb-4 border-b border-black/5 flex items-start gap-3">
             <div className="shrink-0">
               {avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -274,7 +272,7 @@ function HardwareCheckInModal({
             </button>
         </header>
 
-        <div className="relative flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 py-3 overscroll-contain">
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 py-3 overscroll-contain">
           <ul className="space-y-2">
               {items.map((item) => {
                 const decision = decisions[item.id];
@@ -331,7 +329,7 @@ function HardwareCheckInModal({
           </ul>
         </div>
 
-        <footer className="relative shrink-0 px-6 py-3 border-t border-black/5 bg-warm-bg/40 flex items-center justify-between gap-2">
+        <footer className="shrink-0 px-6 py-3 border-t border-black/5 bg-warm-bg/40 flex items-center justify-between gap-2">
           <p className="text-[11px] text-foreground/55">
             {flaggedSoFar > 0
               ? `${flaggedSoFar} flag${flaggedSoFar === 1 ? '' : 's'} sent to the Hardware page`
@@ -346,6 +344,7 @@ function HardwareCheckInModal({
             Done
           </button>
         </footer>
+      </div>
       </div>
     </div>
   );
