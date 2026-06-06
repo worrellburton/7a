@@ -17,7 +17,6 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
 import { useModal } from '@/lib/ModalProvider';
 import { SearchSelectCell } from '@/components/SearchSelectCell';
-import FloatingScrollbar from '@/components/FloatingScrollbar';
 import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface HardwareItem {
@@ -60,7 +59,6 @@ export default function HardwareContent() {
   const [filterLocation, setFilterLocation] = useState<string>(ALL);
   const [filterAssignee, setFilterAssignee] = useState<string>(ALL);
   const [query, setQuery] = useState('');
-  const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -145,7 +143,6 @@ export default function HardwareContent() {
   const assignees = useMemo(() => Array.from(new Set((items ?? []).map((i) => i.assigned_to ?? '').filter(Boolean))).sort(), [items]);
   const statuses = useMemo(() => Array.from(new Set((items ?? []).map((i) => i.status ?? '').filter(Boolean))).sort(), [items]);
   const accounts = useMemo(() => Array.from(new Set((items ?? []).map((i) => i.account ?? '').filter(Boolean))).sort(), [items]);
-  const pins = useMemo(() => Array.from(new Set((items ?? []).map((i) => i.pin ?? '').filter(Boolean))).sort(), [items]);
 
   // Pre-build the user-by-name map so the assignee renderer can
   // light up the avatar + name treatment whenever the stored value
@@ -195,6 +192,28 @@ export default function HardwareContent() {
     () => filtered.reduce((sum, i) => sum + (i.value_price_cents ?? 0), 0),
     [filtered],
   );
+
+  // Group the filtered rows by type so each type renders as its
+  // own card (Desktops, Keyboards, Docks, …). Order matches the
+  // overall `types` list so cards stay in the same alphabetical
+  // order on every render. Each group also carries the sum of
+  // value_price_cents so the card header can show its subtotal
+  // without recomputing during render.
+  const groupedByType = useMemo(() => {
+    const buckets = new Map<string, HardwareItem[]>();
+    for (const r of filtered) {
+      const arr = buckets.get(r.type) ?? [];
+      arr.push(r);
+      buckets.set(r.type, arr);
+    }
+    return Array.from(buckets.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([type, rows]) => ({
+        type,
+        rows,
+        totalCents: rows.reduce((sum, r) => sum + (r.value_price_cents ?? 0), 0),
+      }));
+  }, [filtered]);
 
   const saveField = useCallback(async (id: string, field: EditableField, next: string | null) => {
     let prev: HardwareItem | undefined;
@@ -265,7 +284,7 @@ export default function HardwareContent() {
   }, [modal]);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-10 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-10 max-w-[1800px] mx-auto">
       <header className="mb-5">
         <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">
           Operations · Inventory
@@ -341,170 +360,151 @@ export default function HardwareContent() {
             ))}
           </div>
 
-          {/* Desktop — sheet with a sticky-right Delete column and a
-              floating horizontal scrollbar that drives the
-              overflow-x container. min-w forces each column to ask
-              for the room it needs; the parent's overflow-x-auto
-              then lets the table scroll sideways. The native
-              scrollbar is hidden via scrollbar-width: none — the
-              floating one is the visible affordance. */}
-          <div className="hidden md:block relative">
-            <FloatingScrollbar tableRef={tableScrollRef} engagedSelector="[data-hardware-table]" />
-            <div
-              ref={tableScrollRef}
-              data-hardware-table
-              className="rounded-2xl border border-black/10 bg-white overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            >
-              <table className="min-w-[1500px] text-[12px]" style={{ fontFamily: 'var(--font-body)' }}>
-                <thead className="sticky top-0 z-10 bg-warm-bg/60 backdrop-blur-sm text-[10px] uppercase tracking-wider text-foreground/55">
-                  <tr>
-                    <th className="text-left px-3 py-2 w-[110px]">Type</th>
-                    <th className="text-left px-3 py-2 w-10">#</th>
-                    <th className="text-left px-3 py-2 w-[280px]">Model</th>
-                    <th className="text-left px-3 py-2 w-[220px]">Assignee</th>
-                    <th className="text-left px-3 py-2 w-[160px]">Location</th>
-                    <th className="text-right px-3 py-2 w-24">Value</th>
-                    <th className="text-left px-3 py-2 w-[140px]">Status</th>
-                    <th className="text-left px-3 py-2 w-[200px]">Account</th>
-                    <th className="text-left px-3 py-2 w-20">PIN</th>
-                    <th
-                      className="sticky right-0 z-20 bg-warm-bg/80 backdrop-blur-md backdrop-saturate-150 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-2 py-2 w-12"
-                      aria-label="Actions"
-                    />
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-black/5">
-                  {filtered.map((r) => (
-                    <tr key={r.id} className="group hover:bg-warm-bg/30 align-middle">
-                      <td className="px-3 py-1.5">
-                        {isAdmin ? (
-                          <SearchSelectCell
-                            value={r.type}
-                            options={types}
-                            onSave={(next) => saveField(r.id, 'type', next || r.type)}
-                            onRenameOption={(from, to) => bulkRename('type', from, to)}
-                            placeholder="Set type…"
-                          />
-                        ) : (
-                          <span className="text-foreground/85">{r.type}</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-1.5 text-foreground/45 tabular-nums">{r.type_index ?? '—'}</td>
-                      <td className="px-3 py-1.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          {isAdmin ? (
-                            <SearchSelectCell
-                              value={r.model}
-                              options={models}
-                              onSave={(next) => saveField(r.id, 'model', next || r.model)}
-                              onRenameOption={(from, to) => bulkRename('model', from, to)}
-                              placeholder="Set model…"
-                              className="text-foreground/85"
+          {/* Desktop — grouped by type into per-type cards. Each
+              card is its own self-contained sheet with its own
+              header (type label · item count · sum value) and a
+              full row of editable columns underneath. The wider
+              page container (max-w-[1800px]) gives every column
+              room to breathe so Type is no longer truncated — and
+              since each card IS already a single type, we drop
+              the Type column inside the rows entirely. */}
+          <div className="hidden md:block space-y-4">
+            {groupedByType.map(({ type, rows, totalCents }) => (
+              <section
+                key={type}
+                className="rounded-2xl border border-black/10 bg-white overflow-hidden shadow-[0_2px_8px_-4px_rgba(40,30,25,0.10)]"
+              >
+                <header className="flex items-baseline justify-between gap-3 px-5 py-3 border-b border-black/5 bg-warm-bg/40">
+                  <div className="flex items-baseline gap-2 min-w-0">
+                    <h2 className="text-[14px] font-semibold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+                      {type}
+                    </h2>
+                    <span className="text-[11px] tabular-nums text-foreground/55">
+                      {rows.length} {rows.length === 1 ? 'item' : 'items'}
+                    </span>
+                  </div>
+                  <span className="text-[11.5px] tabular-nums text-foreground/65 font-semibold">
+                    {formatPrice(totalCents)}
+                  </span>
+                </header>
+                <div className="overflow-x-auto [scrollbar-width:thin]">
+                  <table className="w-full text-[12px]" style={{ fontFamily: 'var(--font-body)' }}>
+                    <thead className="text-[10px] uppercase tracking-wider text-foreground/55">
+                      <tr>
+                        <th className="text-left px-3 py-2 w-10">#</th>
+                        <th className="text-left px-3 py-2 w-[320px]">Model</th>
+                        <th className="text-left px-3 py-2 w-[240px]">Assignee</th>
+                        <th className="text-left px-3 py-2 w-[200px]">Location</th>
+                        <th className="text-right px-3 py-2 w-28">Value</th>
+                        <th className="text-left px-3 py-2 w-[160px]">Status</th>
+                        <th className="text-left px-3 py-2 w-[220px]">Account</th>
+                        <th className="px-2 py-2 w-12" aria-label="Actions" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-black/5">
+                      {rows.map((r) => (
+                        <tr key={r.id} className="group hover:bg-warm-bg/30 align-middle">
+                          <td className="px-3 py-1.5 text-foreground/45 tabular-nums">{r.type_index ?? '—'}</td>
+                          <td className="px-3 py-1.5">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              {isAdmin ? (
+                                <SearchSelectCell
+                                  value={r.model}
+                                  options={models}
+                                  onSave={(next) => saveField(r.id, 'model', next || r.model)}
+                                  onRenameOption={(from, to) => bulkRename('model', from, to)}
+                                  placeholder="Set model…"
+                                  className="text-foreground/85"
+                                />
+                              ) : (
+                                <span className="text-foreground/85">{r.model || '—'}</span>
+                              )}
+                              {r.is_personal_computer && (
+                                <span className="shrink-0 inline-block px-1 py-0.5 rounded text-[8.5px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wider">PC</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-3 py-1.5">
+                            <AssigneeCell
+                              value={r.assigned_to}
+                              team={team}
+                              teamByLowerName={teamByLowerName}
+                              rooms={rooms}
+                              editable={isAdmin}
+                              onSave={(next) => saveField(r.id, 'assigned_to', next)}
                             />
-                          ) : (
-                            <span className="text-foreground/85">{r.model || '—'}</span>
-                          )}
-                          {r.is_personal_computer && (
-                            <span className="shrink-0 inline-block px-1 py-0.5 rounded text-[8.5px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wider">PC</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-3 py-1.5">
-                        <AssigneeCell
-                          value={r.assigned_to}
-                          team={team}
-                          teamByLowerName={teamByLowerName}
-                          rooms={rooms}
-                          editable={isAdmin}
-                          onSave={(next) => saveField(r.id, 'assigned_to', next)}
-                        />
-                      </td>
-                      <td className="px-3 py-1.5">
-                        {isAdmin ? (
-                          <SearchSelectCell
-                            value={r.location}
-                            options={locations}
-                            onSave={(next) => saveField(r.id, 'location', next)}
-                            onRenameOption={(from, to) => bulkRename('location', from, to)}
-                            onDeleteOption={(v) => bulkRename('location', v, null)}
-                            placeholder="Set location…"
-                            className="text-foreground/65"
-                          />
-                        ) : (
-                          <span className="text-foreground/65">{r.location || '—'}</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-1.5 text-right tabular-nums text-foreground/65">{formatPrice(r.value_price_cents)}</td>
-                      <td className="px-3 py-1.5">
-                        {isAdmin ? (
-                          <SearchSelectCell
-                            value={r.status}
-                            options={statuses}
-                            onSave={(next) => saveField(r.id, 'status', next)}
-                            onRenameOption={(from, to) => bulkRename('status', from, to)}
-                            onDeleteOption={(v) => bulkRename('status', v, null)}
-                            placeholder="Set status…"
-                            className="text-foreground/65"
-                          />
-                        ) : (
-                          <span className="text-foreground/65 text-[11.5px]">{r.status || ''}</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-1.5">
-                        {isAdmin ? (
-                          <SearchSelectCell
-                            value={r.account}
-                            options={accounts}
-                            onSave={(next) => saveField(r.id, 'account', next)}
-                            onRenameOption={(from, to) => bulkRename('account', from, to)}
-                            onDeleteOption={(v) => bulkRename('account', v, null)}
-                            placeholder="Set account…"
-                            className="text-foreground/65"
-                          />
-                        ) : (
-                          <span className="text-foreground/65 text-[11.5px] truncate inline-block max-w-[180px] align-middle" title={r.account ?? undefined}>{r.account || ''}</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-1.5">
-                        {isAdmin ? (
-                          <SearchSelectCell
-                            value={r.pin}
-                            options={pins}
-                            onSave={(next) => saveField(r.id, 'pin', next)}
-                            onRenameOption={(from, to) => bulkRename('pin', from, to)}
-                            onDeleteOption={(v) => bulkRename('pin', v, null)}
-                            placeholder="Set PIN…"
-                            className="text-foreground/55 tabular-nums"
-                          />
-                        ) : (
-                          <span className="text-foreground/55 tabular-nums text-[11.5px]">{r.pin || ''}</span>
-                        )}
-                      </td>
-                      <td
-                        className="sticky right-0 z-10 bg-white/70 backdrop-blur-md backdrop-saturate-150 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-2 py-1.5"
-                      >
-                        {isAdmin && (
-                          <button
-                            type="button"
-                            onClick={() => deleteItem(r)}
-                            aria-label={`Delete ${r.model || r.type}`}
-                            title="Delete this hardware item"
-                            className="inline-flex items-center justify-center w-8 h-8 rounded-md text-foreground/45 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 border border-transparent transition-colors"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                              <polyline points="3 6 5 6 21 6" />
-                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                              <path d="M10 11v6M14 11v6" />
-                              <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
-                            </svg>
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                          </td>
+                          <td className="px-3 py-1.5">
+                            {isAdmin ? (
+                              <SearchSelectCell
+                                value={r.location}
+                                options={locations}
+                                onSave={(next) => saveField(r.id, 'location', next)}
+                                onRenameOption={(from, to) => bulkRename('location', from, to)}
+                                onDeleteOption={(v) => bulkRename('location', v, null)}
+                                placeholder="Set location…"
+                                className="text-foreground/65"
+                              />
+                            ) : (
+                              <span className="text-foreground/65">{r.location || '—'}</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-1.5 text-right tabular-nums text-foreground/65">{formatPrice(r.value_price_cents)}</td>
+                          <td className="px-3 py-1.5">
+                            {isAdmin ? (
+                              <SearchSelectCell
+                                value={r.status}
+                                options={statuses}
+                                onSave={(next) => saveField(r.id, 'status', next)}
+                                onRenameOption={(from, to) => bulkRename('status', from, to)}
+                                onDeleteOption={(v) => bulkRename('status', v, null)}
+                                placeholder="Set status…"
+                                className="text-foreground/65"
+                              />
+                            ) : (
+                              <span className="text-foreground/65 text-[11.5px]">{r.status || ''}</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-1.5">
+                            {isAdmin ? (
+                              <SearchSelectCell
+                                value={r.account}
+                                options={accounts}
+                                onSave={(next) => saveField(r.id, 'account', next)}
+                                onRenameOption={(from, to) => bulkRename('account', from, to)}
+                                onDeleteOption={(v) => bulkRename('account', v, null)}
+                                placeholder="Set account…"
+                                className="text-foreground/65"
+                              />
+                            ) : (
+                              <span className="text-foreground/65 text-[11.5px] truncate inline-block max-w-[200px] align-middle" title={r.account ?? undefined}>{r.account || ''}</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-1.5 text-right">
+                            {isAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => deleteItem(r)}
+                                aria-label={`Delete ${r.model || r.type}`}
+                                title="Delete this hardware item"
+                                className="inline-flex items-center justify-center w-8 h-8 rounded-md text-foreground/45 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 border border-transparent transition-colors"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <polyline points="3 6 5 6 21 6" />
+                                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                  <path d="M10 11v6M14 11v6" />
+                                  <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+                                </svg>
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            ))}
           </div>
         </>
       )}
@@ -866,35 +866,20 @@ function HardwareCard({
         </CardField>
       </div>
 
-      {(item.account || item.pin || isAdmin) && (
-        <div className="grid grid-cols-2 gap-2">
-          <CardField label="Account">
-            {isAdmin ? (
-              <SearchSelectCell
-                value={item.account}
-                options={[]}
-                onSave={(next) => onSaveField(item.id, 'account', next)}
-                placeholder="Set account…"
-                className="text-foreground/75 text-[12.5px]"
-              />
-            ) : (
-              <span className="text-foreground/75 text-[12.5px] truncate inline-block" title={item.account ?? undefined}>{item.account || '—'}</span>
-            )}
-          </CardField>
-          <CardField label="PIN">
-            {isAdmin ? (
-              <SearchSelectCell
-                value={item.pin}
-                options={[]}
-                onSave={(next) => onSaveField(item.id, 'pin', next)}
-                placeholder="Set PIN…"
-                className="text-foreground/75 tabular-nums text-[12.5px]"
-              />
-            ) : (
-              <span className="text-foreground/75 tabular-nums text-[12.5px]">{item.pin || '—'}</span>
-            )}
-          </CardField>
-        </div>
+      {(item.account || isAdmin) && (
+        <CardField label="Account">
+          {isAdmin ? (
+            <SearchSelectCell
+              value={item.account}
+              options={[]}
+              onSave={(next) => onSaveField(item.id, 'account', next)}
+              placeholder="Set account…"
+              className="text-foreground/75 text-[12.5px]"
+            />
+          ) : (
+            <span className="text-foreground/75 text-[12.5px] truncate inline-block" title={item.account ?? undefined}>{item.account || '—'}</span>
+          )}
+        </CardField>
       )}
     </article>
   );
