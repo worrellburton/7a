@@ -204,26 +204,39 @@ function HardwareCheckInModal({
   }, [onClose]);
 
   return (
+    // Outer overlay — flex center horizontally + vertically. Uses
+    // safe-area-inset padding so iOS notch / home indicator don't
+    // clip the modal's header or footer when the keyboard / status
+    // bar push the visible viewport.
     <div
       role="dialog"
       aria-modal="true"
       aria-labelledby="hardware-checkin-title"
-      className="fixed inset-0 z-[90] flex items-center justify-center px-4"
+      className="fixed inset-0 z-[90] flex items-center justify-center overflow-y-auto"
+      style={{
+        padding: 'max(1rem, env(safe-area-inset-top)) 1rem max(1rem, env(safe-area-inset-bottom))',
+      }}
     >
       <div
         className="absolute inset-0 bg-foreground/35 backdrop-blur-md"
         onClick={onClose}
       />
+      {/* Card — explicit flex column with max-h-full so the inner
+          scroll area can actually claim flex-1. The previous
+          structure nested an extra wrapper between the max-h and
+          the flex-1 child, so the scrollable middle had no height
+          to fill and the header + footer were stacking on top of
+          each other / clipping above the viewport. */}
       <div
-        className="relative w-full max-w-lg max-h-[85vh] rounded-3xl overflow-hidden flex flex-col"
+        className="relative w-full max-w-lg max-h-full rounded-3xl overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Glass fill — absolute layer behind the flex content. */}
         <div
           aria-hidden
           className="absolute inset-0 bg-white/85 supports-[backdrop-filter]:bg-white/60 supports-[backdrop-filter]:backdrop-blur-xl supports-[backdrop-filter]:backdrop-saturate-150 border border-white/70 rounded-3xl shadow-[0_24px_60px_-20px_rgba(40,30,25,0.45)]"
         />
-        <div className="relative flex flex-col overflow-hidden">
-          <header className="px-6 sm:px-7 pt-6 pb-4 border-b border-black/5 flex items-start gap-3">
+        <header className="relative shrink-0 px-6 sm:px-7 pt-6 pb-4 border-b border-black/5 flex items-start gap-3">
             <div className="shrink-0">
               {avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -259,10 +272,10 @@ function HardwareCheckInModal({
                 <line x1="6" y1="6" x2="18" y2="18" />
               </svg>
             </button>
-          </header>
+        </header>
 
-          <div className="relative overflow-y-auto px-3 sm:px-4 py-3 flex-1 min-h-0">
-            <ul className="space-y-2">
+        <div className="relative flex-1 min-h-0 overflow-y-auto px-3 sm:px-4 py-3 overscroll-contain">
+          <ul className="space-y-2">
               {items.map((item) => {
                 const decision = decisions[item.id];
                 return (
@@ -315,25 +328,24 @@ function HardwareCheckInModal({
                   </li>
                 );
               })}
-            </ul>
-          </div>
-
-          <footer className="px-6 py-3 border-t border-black/5 bg-warm-bg/40 flex items-center justify-between gap-2">
-            <p className="text-[11px] text-foreground/55">
-              {flaggedSoFar > 0
-                ? `${flaggedSoFar} flag${flaggedSoFar === 1 ? '' : 's'} sent to the Hardware page`
-                : 'Tap a button on each row to log your decision'}
-            </p>
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-1.5 rounded-full text-[11.5px] font-semibold uppercase tracking-[0.12em] bg-foreground text-white hover:bg-foreground/85 transition-colors"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              Done
-            </button>
-          </footer>
+          </ul>
         </div>
+
+        <footer className="relative shrink-0 px-6 py-3 border-t border-black/5 bg-warm-bg/40 flex items-center justify-between gap-2">
+          <p className="text-[11px] text-foreground/55">
+            {flaggedSoFar > 0
+              ? `${flaggedSoFar} flag${flaggedSoFar === 1 ? '' : 's'} sent to the Hardware page`
+              : 'Tap a button on each row to log your decision'}
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-1.5 rounded-full text-[11.5px] font-semibold uppercase tracking-[0.12em] bg-foreground text-white hover:bg-foreground/85 transition-colors"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Done
+          </button>
+        </footer>
       </div>
     </div>
   );
