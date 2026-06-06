@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { useModal } from '@/lib/ModalProvider';
@@ -203,12 +204,21 @@ function HardwareCheckInModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  return (
-    // Outer overlay covers the viewport. Centers the card both
-    // axes via flex; allows overflow-y-auto so very long lists on
-    // small screens can still scroll into view without getting
-    // clipped behind the iOS notch / home indicator (handled by
-    // the safe-area padding below).
+  // SSR guard: createPortal needs document.body, which doesn't exist
+  // during server render. Returning null on the first pass is safe
+  // because the modal only mounts after the user clicks the chip
+  // (post-hydration, fully client-side).
+  if (typeof document === 'undefined') return null;
+
+  return createPortal(
+    // Outer overlay covers the viewport. We portal this to <body>
+    // because somewhere up the home-page ancestor chain there's a
+    // transform / filter / will-change that creates a containing
+    // block — that turned the modal's `fixed inset-0` into a
+    // "fixed relative to the home header" effectively pinning the
+    // whole dialog into a thin band at the top of the page. Body
+    // is the cleanest containing block; the dialog now spans the
+    // real viewport regardless of what's between it and root.
     <div
       role="dialog"
       aria-modal="true"
@@ -346,6 +356,7 @@ function HardwareCheckInModal({
         </footer>
       </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
