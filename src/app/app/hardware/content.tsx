@@ -11,7 +11,7 @@
 // The whole table is realtime-synced — adds, edits, and deletes
 // land on every connected user without a refresh.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
@@ -32,6 +32,22 @@ interface HardwareItem {
   account: string | null;
   pin: string | null;
   notes: string | null;
+  updated_at: string | null;
+}
+
+// Open flag against a hardware row, filed by a user via the
+// home-screen Hardware check-in. Surfaced as a red banner on the
+// affected row of /app/hardware so admins can triage; cleared via
+// the row's "mark resolved" affordance.
+interface HardwareFlag {
+  id: string;
+  item_id: string;
+  flagged_by: string | null;
+  status: 'open' | 'resolved';
+  message: string | null;
+  reported_assigned_to: string | null;
+  created_at: string;
+  flagged_by_name?: string | null;
 }
 
 interface TeamMember {
@@ -49,11 +65,32 @@ function formatPrice(cents: number | null): string {
   return `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+// Short relative-time helper for the Last updated column. Falls
+// back to a calendar date once we're past two weeks so the column
+// stays readable without truncation.
+function formatRelativeTime(iso: string | null): string {
+  if (!iso) return '—';
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return '—';
+  const diff = Date.now() - ms;
+  if (diff < 0) return 'just now';
+  if (diff < 60_000) return 'just now';
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}d ago`;
+  if (diff < 14 * 86_400_000) return `${Math.floor(diff / 86_400_000)}d ago`;
+  return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 export default function HardwareContent() {
   const { isAdmin } = useAuth();
   const modal = useModal();
   const [items, setItems] = useState<HardwareItem[] | null>(null);
   const [team, setTeam] = useState<TeamMember[]>([]);
+  // Open flags grouped by item_id. The hardware page surfaces these
+  // as red banners on the row + a "mark resolved" action; the home
+  // hardware check-in writes to the same table.
+  const [openFlags, setOpenFlags] = useState<Record<string, HardwareFlag[]>>({});
   const [error, setError] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string>(ALL);
   const [filterLocation, setFilterLocation] = useState<string>(ALL);
@@ -72,7 +109,7 @@ export default function HardwareContent() {
     void (async () => {
       const { data, error } = await supabase
         .from('hardware_items')
-        .select('id, type, type_index, is_personal_computer, model, assigned_to, location, value_price_cents, status, account, pin, notes')
+        .select('id, type, type_index, is_personal_computer, model, assigned_to, location, value_price_cents, status, account, pin, notes, updated_at')
         .order('type', { ascending: true })
         .order('type_index', { ascending: true, nullsFirst: false });
       if (cancelled) return;
@@ -179,6 +216,87 @@ export default function HardwareContent() {
             if (cur[n.type] === n.sort_order) return cur;
             return { ...cur, [n.type]: n.sort_order };
           });
+        },
+      )
+      .subscribe();
+    return () => { void supabase.removeChannel(ch); cancelled = true; };
+  }, []);
+
+  // Open flags load + realtime. We only care about status='open'
+  // here — resolved flags get archived from the UI immediately so
+  // admins aren't staring at stale red banners. Grouped by item_id
+  // for O(1) lookup during render.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from('hardware_flags')
+        .select('id, item_id, flagged_by, status, message, reported_assigned_to, created_at, users:flagged_by(full_name)')
+        .eq('status', 'open')
+        .order('created_at', { ascending: false });
+      if (cancelled || !Array.isArray(data)) return;
+      const next: Record<string, HardwareFlag[]> = {};
+      // The `users:flagged_by(full_name)` nested select can come
+      // back either as an object or a single-element array
+      // depending on supabase-js version; coerce both shapes.
+      type RawRow = HardwareFlag & {
+        users: { full_name: string | null } | { full_name: string | null }[] | null;
+      };
+      for (const r of data as unknown as RawRow[]) {
+        const u = Array.isArray(r.users) ? r.users[0] : r.users;
+        const flag: HardwareFlag = {
+          id: r.id,
+          item_id: r.item_id,
+          flagged_by: r.flagged_by,
+          status: r.status,
+          message: r.message,
+          reported_assigned_to: r.reported_assigned_to,
+          created_at: r.created_at,
+          flagged_by_name: u?.full_name ?? null,
+        };
+        (next[flag.item_id] ||= []).push(flag);
+      }
+      setOpenFlags(next);
+    })();
+    const ch = supabase
+      .channel('hardware-flags-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'hardware_flags' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const n = payload.new as HardwareFlag;
+            if (n.status !== 'open') return;
+            setOpenFlags((cur) => {
+              const arr = cur[n.item_id] ?? [];
+              if (arr.some((f) => f.id === n.id)) return cur;
+              return { ...cur, [n.item_id]: [n, ...arr] };
+            });
+          } else if (payload.eventType === 'UPDATE') {
+            const n = payload.new as HardwareFlag;
+            setOpenFlags((cur) => {
+              const arr = (cur[n.item_id] ?? []).filter((f) => f.id !== n.id);
+              if (n.status === 'open') arr.unshift(n);
+              if (arr.length === 0) {
+                const copy = { ...cur };
+                delete copy[n.item_id];
+                return copy;
+              }
+              return { ...cur, [n.item_id]: arr };
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const o = payload.old as { id?: string; item_id?: string };
+            if (!o.id || !o.item_id) return;
+            setOpenFlags((cur) => {
+              const arr = (cur[o.item_id!] ?? []).filter((f) => f.id !== o.id);
+              if (arr.length === 0) {
+                const copy = { ...cur };
+                delete copy[o.item_id!];
+                return copy;
+              }
+              return { ...cur, [o.item_id!]: arr };
+            });
+          }
         },
       )
       .subscribe();
@@ -344,6 +462,28 @@ export default function HardwareContent() {
       setError(`Couldn't delete: ${error.message}`);
     }
   }, [modal]);
+
+  // Mark every open flag on an item as resolved. Triggered by the
+  // "Mark resolved" affordance inside the per-row alert banner.
+  // Optimistic — wipes the item's entry from openFlags before the
+  // PATCH lands.
+  const resolveFlagsForItem = useCallback(async (itemId: string) => {
+    const flags = openFlags[itemId];
+    if (!flags || flags.length === 0) return;
+    const ids = flags.map((f) => f.id);
+    setOpenFlags((cur) => {
+      const copy = { ...cur };
+      delete copy[itemId];
+      return copy;
+    });
+    const { error } = await supabase
+      .from('hardware_flags')
+      .update({ status: 'resolved', resolved_at: new Date().toISOString() })
+      .in('id', ids);
+    if (error) {
+      setError(`Couldn't resolve flag: ${error.message}`);
+    }
+  }, [openFlags]);
 
   // Reorder the type cards by dropping a dragged type before or
   // after a target. Compacts every visible type into a fresh 0..N
@@ -558,12 +698,14 @@ export default function HardwareContent() {
                         <th className="text-right px-3 py-2 w-28">Value</th>
                         <th className="text-left px-3 py-2 w-[160px]">Status</th>
                         <th className="text-left px-3 py-2 w-[220px]">Account</th>
+                        <th className="text-left px-3 py-2 w-[120px]">Last updated</th>
                         <th className="px-2 py-2 w-12" aria-label="Actions" />
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-black/5">
                       {rows.map((r) => (
-                        <tr key={r.id} className="group hover:bg-warm-bg/30 align-middle">
+                        <Fragment key={r.id}>
+                        <tr className="group hover:bg-warm-bg/30 align-middle">
                           <td className="px-3 py-1.5 text-foreground/45 tabular-nums">{r.type_index ?? '—'}</td>
                           <td className="px-3 py-1.5">
                             <div className="flex items-center gap-1.5 min-w-0">
@@ -640,6 +782,9 @@ export default function HardwareContent() {
                               <span className="text-foreground/65 text-[11.5px] truncate inline-block max-w-[200px] align-middle" title={r.account ?? undefined}>{r.account || ''}</span>
                             )}
                           </td>
+                          <td className="px-3 py-1.5 text-foreground/55 text-[11.5px] tabular-nums" title={r.updated_at ?? undefined}>
+                            {formatRelativeTime(r.updated_at)}
+                          </td>
                           <td className="px-2 py-1.5 text-right">
                             {isAdmin && (
                               <button
@@ -659,6 +804,48 @@ export default function HardwareContent() {
                             )}
                           </td>
                         </tr>
+                        {/* Flag banner — surfaces every open flag
+                            filed against this row. Spans every
+                            column; admins get a "Mark resolved"
+                            affordance, everyone else just sees the
+                            reporter + their note. */}
+                        {(openFlags[r.id] ?? []).length > 0 && (
+                          <tr className="bg-rose-50/60">
+                            <td colSpan={9} className="px-3 py-2 border-b border-rose-200/60">
+                              <div className="flex flex-col gap-1.5">
+                                {(openFlags[r.id] ?? []).map((f) => (
+                                  <div key={f.id} className="flex items-center justify-between gap-2 text-[11.5px] text-rose-800">
+                                    <span className="inline-flex items-center gap-1.5 min-w-0">
+                                      <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                        <path d="M12 9v4" />
+                                        <path d="M12 17h.01" />
+                                        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                                      </svg>
+                                      <span className="font-semibold">Flagged{f.flagged_by_name ? ` by ${f.flagged_by_name}` : ''}</span>
+                                      <span className="text-rose-700/85">· {formatRelativeTime(f.created_at)}</span>
+                                      {f.message && (
+                                        <span className="text-rose-900/90 truncate">— &ldquo;{f.message}&rdquo;</span>
+                                      )}
+                                      {f.reported_assigned_to && (
+                                        <span className="text-rose-700/70 truncate">(was: {f.reported_assigned_to})</span>
+                                      )}
+                                    </span>
+                                    {isAdmin && (
+                                      <button
+                                        type="button"
+                                        onClick={() => void resolveFlagsForItem(r.id)}
+                                        className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-semibold uppercase tracking-wider text-rose-800 hover:bg-rose-100 border border-rose-200"
+                                      >
+                                        Mark resolved
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        </Fragment>
                       ))}
                     </tbody>
                   </table>

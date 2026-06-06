@@ -15,6 +15,7 @@ import JdSignatureNagModal from './JdSignatureNagModal';
 // import HomeClientsRow from './HomeClientsRow';
 import HomeOnlineOrbit, { type OrbitHorse } from './HomeOnlineOrbit';
 import HomeDailyLogsChip from './HomeDailyLogsChip';
+import HomeHardwareChip from './HomeHardwareChip';
 import HomeConnect4Nudge from './HomeConnect4Nudge';
 
 interface RecentUser {
@@ -755,6 +756,12 @@ export default function HomeContent() {
                 /app/logs; flips to a glowing amber 🔥 when today
                 clears the all-time record. */}
             <HomeDailyLogsChip variant="circle" />
+            {/* Hardware check-in chip — same 36-40px round shape,
+                sits left of the daily logs chip. Shows how many
+                hardware rows are assigned to the signed-in user;
+                clicking opens the per-row "looks good / isn't
+                right" check-in. Auto-hides when count == 0. */}
+            <HomeHardwareChip />
             <div ref={addMenuRef} className="relative">
               <button
                 type="button"
