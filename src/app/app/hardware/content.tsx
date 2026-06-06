@@ -59,6 +59,13 @@ export default function HardwareContent() {
   const [filterLocation, setFilterLocation] = useState<string>(ALL);
   const [filterAssignee, setFilterAssignee] = useState<string>(ALL);
   const [query, setQuery] = useState('');
+  // Persisted per-type ordering for the cards. Keyed by `type`, the
+  // value is an arbitrary integer — smaller renders earlier. Loaded
+  // from public.hardware_type_order once on mount and kept fresh
+  // via the same realtime channel pattern as the items themselves.
+  const [typeOrder, setTypeOrder] = useState<Record<string, number>>({});
+  const [draggingType, setDraggingType] = useState<string | null>(null);
+  const [dragOverType, setDragOverType] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -137,6 +144,47 @@ export default function HardwareContent() {
     return () => { void supabase.removeChannel(ch); };
   }, []);
 
+  // Card ordering: load every saved row on mount, then subscribe so
+  // a drag-and-reorder by another admin updates the local order
+  // live. Same channel-name-as-table convention as the items hook.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from('hardware_type_order')
+        .select('type, sort_order');
+      if (cancelled || !Array.isArray(data)) return;
+      const next: Record<string, number> = {};
+      for (const r of data as Array<{ type: string; sort_order: number }>) {
+        next[r.type] = r.sort_order;
+      }
+      setTypeOrder(next);
+    })();
+    const ch = supabase
+      .channel('hardware-type-order-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'hardware_type_order' },
+        (payload) => {
+          setTypeOrder((cur) => {
+            if (payload.eventType === 'DELETE') {
+              const o = payload.old as { type?: string };
+              if (!o.type) return cur;
+              const next = { ...cur };
+              delete next[o.type];
+              return next;
+            }
+            const n = payload.new as { type: string; sort_order: number };
+            if (!n.type) return cur;
+            if (cur[n.type] === n.sort_order) return cur;
+            return { ...cur, [n.type]: n.sort_order };
+          });
+        },
+      )
+      .subscribe();
+    return () => { void supabase.removeChannel(ch); cancelled = true; };
+  }, []);
+
   const types = useMemo(() => Array.from(new Set((items ?? []).map((i) => i.type).filter(Boolean))).sort(), [items]);
   const models = useMemo(() => Array.from(new Set((items ?? []).map((i) => i.model).filter(Boolean))).sort(), [items]);
   const locations = useMemo(() => Array.from(new Set((items ?? []).map((i) => i.location ?? '').filter(Boolean))).sort(), [items]);
@@ -194,11 +242,13 @@ export default function HardwareContent() {
   );
 
   // Group the filtered rows by type so each type renders as its
-  // own card (Desktops, Keyboards, Docks, …). Order matches the
-  // overall `types` list so cards stay in the same alphabetical
-  // order on every render. Each group also carries the sum of
-  // value_price_cents so the card header can show its subtotal
-  // without recomputing during render.
+  // own card (Desktops, Keyboards, Docks, …). Order uses the
+  // persisted `typeOrder` map from hardware_type_order — types
+  // without a saved row sort by name AFTER any ordered ones, so
+  // newly-added types just stack at the bottom until an admin
+  // drags them up. Each group carries the sum of value_price_cents
+  // so the card header can show its subtotal without recomputing
+  // during render.
   const groupedByType = useMemo(() => {
     const buckets = new Map<string, HardwareItem[]>();
     for (const r of filtered) {
@@ -207,13 +257,25 @@ export default function HardwareContent() {
       buckets.set(r.type, arr);
     }
     return Array.from(buckets.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
+      .sort(([a], [b]) => {
+        const oa = typeOrder[a];
+        const ob = typeOrder[b];
+        const hasA = oa != null;
+        const hasB = ob != null;
+        if (hasA && hasB) {
+          if (oa !== ob) return oa - ob;
+          return a.localeCompare(b);
+        }
+        if (hasA) return -1;
+        if (hasB) return 1;
+        return a.localeCompare(b);
+      })
       .map(([type, rows]) => ({
         type,
         rows,
         totalCents: rows.reduce((sum, r) => sum + (r.value_price_cents ?? 0), 0),
       }));
-  }, [filtered]);
+  }, [filtered, typeOrder]);
 
   const saveField = useCallback(async (id: string, field: EditableField, next: string | null) => {
     let prev: HardwareItem | undefined;
@@ -282,6 +344,37 @@ export default function HardwareContent() {
       setError(`Couldn't delete: ${error.message}`);
     }
   }, [modal]);
+
+  // Reorder the type cards by dropping a dragged type before or
+  // after a target. Compacts every visible type into a fresh 0..N
+  // sequence and upserts the whole list in one round-trip so a
+  // stale row from a deleted type doesn't keep sorting itself to
+  // the front forever. Optimistic — flips local typeOrder before
+  // the network write so the cards reorder instantly.
+  const reorderType = useCallback(async (draggedType: string, targetType: string) => {
+    if (draggedType === targetType) return;
+    const ordered = groupedByType.map((g) => g.type);
+    const fromIdx = ordered.indexOf(draggedType);
+    const toIdx = ordered.indexOf(targetType);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const next = ordered.slice();
+    next.splice(fromIdx, 1);
+    // When moving down, the splice removed an earlier index so the
+    // target moves one slot up — adjust accordingly.
+    next.splice(fromIdx < toIdx ? toIdx : toIdx, 0, draggedType);
+    const nextOrder: Record<string, number> = {};
+    next.forEach((t, i) => { nextOrder[t] = i; });
+    const prevOrder = typeOrder;
+    setTypeOrder(nextOrder);
+    const rows = next.map((t, i) => ({ type: t, sort_order: i, updated_at: new Date().toISOString() }));
+    const { error } = await supabase
+      .from('hardware_type_order')
+      .upsert(rows, { onConflict: 'type' });
+    if (error) {
+      setTypeOrder(prevOrder);
+      setError(`Couldn't save card order: ${error.message}`);
+    }
+  }, [groupedByType, typeOrder]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-[1800px] mx-auto">
@@ -369,13 +462,74 @@ export default function HardwareContent() {
               since each card IS already a single type, we drop
               the Type column inside the rows entirely. */}
           <div className="hidden md:block space-y-4">
-            {groupedByType.map(({ type, rows, totalCents }) => (
+            {groupedByType.map(({ type, rows, totalCents }) => {
+              const isDragging = draggingType === type;
+              const isDropTarget = dragOverType === type && draggingType && draggingType !== type;
+              return (
               <section
                 key={type}
-                className="rounded-2xl border border-black/10 bg-white overflow-hidden shadow-[0_2px_8px_-4px_rgba(40,30,25,0.10)]"
+                onDragOver={isAdmin && draggingType ? (e) => {
+                  e.preventDefault();
+                  if (dragOverType !== type) setDragOverType(type);
+                } : undefined}
+                onDragLeave={isAdmin && draggingType ? (e) => {
+                  // Only clear the highlight when the pointer truly
+                  // left this section (not when it crossed into a
+                  // child). Comparing relatedTarget against the
+                  // section's bounding box would be flaky during
+                  // fast moves; rely on the next dragover to
+                  // re-paint instead.
+                  if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node | null)) {
+                    if (dragOverType === type) setDragOverType(null);
+                  }
+                } : undefined}
+                onDrop={isAdmin && draggingType ? (e) => {
+                  e.preventDefault();
+                  const dropped = draggingType;
+                  setDraggingType(null);
+                  setDragOverType(null);
+                  if (dropped && dropped !== type) void reorderType(dropped, type);
+                } : undefined}
+                className={`rounded-2xl border bg-white overflow-hidden shadow-[0_2px_8px_-4px_rgba(40,30,25,0.10)] transition-all ${
+                  isDragging ? 'opacity-50 border-primary/40' :
+                  isDropTarget ? 'border-primary ring-2 ring-primary/35 shadow-[0_8px_24px_-8px_rgba(188,107,74,0.35)]' :
+                  'border-black/10'
+                }`}
               >
-                <header className="flex items-baseline justify-between gap-3 px-5 py-3 border-b border-black/5 bg-warm-bg/40">
+                <header
+                  draggable={isAdmin}
+                  onDragStart={isAdmin ? (e) => {
+                    setDraggingType(type);
+                    e.dataTransfer.effectAllowed = 'move';
+                    // dataTransfer.setData is required for Firefox
+                    // to actually fire the drop event; the payload
+                    // itself is unused since we track via state.
+                    e.dataTransfer.setData('text/plain', type);
+                  } : undefined}
+                  onDragEnd={isAdmin ? () => {
+                    setDraggingType(null);
+                    setDragOverType(null);
+                  } : undefined}
+                  className={`flex items-baseline justify-between gap-3 px-5 py-3 border-b border-black/5 bg-warm-bg/40 ${isAdmin ? 'cursor-move select-none' : ''}`}
+                  title={isAdmin ? 'Drag to reorder cards' : undefined}
+                >
                   <div className="flex items-baseline gap-2 min-w-0">
+                    {isAdmin && (
+                      <span
+                        aria-hidden="true"
+                        className="self-center text-foreground/30 hover:text-foreground/60 transition-colors"
+                        title="Drag to reorder"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+                          <circle cx="9" cy="6" r="1.5" />
+                          <circle cx="15" cy="6" r="1.5" />
+                          <circle cx="9" cy="12" r="1.5" />
+                          <circle cx="15" cy="12" r="1.5" />
+                          <circle cx="9" cy="18" r="1.5" />
+                          <circle cx="15" cy="18" r="1.5" />
+                        </svg>
+                      </span>
+                    )}
                     <h2 className="text-[14px] font-semibold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
                       {type}
                     </h2>
@@ -388,7 +542,13 @@ export default function HardwareContent() {
                   </span>
                 </header>
                 <div className="overflow-x-auto [scrollbar-width:thin]">
-                  <table className="w-full text-[12px]" style={{ fontFamily: 'var(--font-body)' }}>
+                  {/* table-fixed forces every per-type card to use
+                      the exact column widths declared in <thead>,
+                      independent of row content. Without it the
+                      Assignee column drifts left or right depending
+                      on how long the Model strings are in that
+                      particular card. */}
+                  <table className="w-full table-fixed text-[12px]" style={{ fontFamily: 'var(--font-body)' }}>
                     <thead className="text-[10px] uppercase tracking-wider text-foreground/55">
                       <tr>
                         <th className="text-left px-3 py-2 w-10">#</th>
@@ -504,7 +664,8 @@ export default function HardwareContent() {
                   </table>
                 </div>
               </section>
-            ))}
+              );
+            })}
           </div>
         </>
       )}
