@@ -113,7 +113,7 @@ export default function EmailCampaignsContent() {
   // Per-campaign open/click totals, keyed by campaign id. Populated
   // by one bulk fetch after the campaign rows load so the Sent
   // archive can render rate circles without N round-trips.
-  const [analytics, setAnalytics] = useState<Record<string, { recipients: number; opened: number; clicked: number; openRate: number; clickRate: number }>>({});
+  const [analytics, setAnalytics] = useState<Record<string, { recipients: number; sent: number; opened: number; clicked: number; openRate: number; clickRate: number }>>({});
 
   useEffect(() => {
     let cancelled = false;
@@ -627,7 +627,7 @@ function CampaignRowItem({
   /** Pre-fetched rates from /api/email-campaigns/analytics-bulk so the
    *  Sent row can render open / click circles without each row firing
    *  its own request. Only meaningful when c.status === 'sent'. */
-  analytics?: { recipients: number; opened: number; clicked: number; openRate: number; clickRate: number };
+  analytics?: { recipients: number; sent: number; opened: number; clicked: number; openRate: number; clickRate: number };
 }) {
   const { session } = useAuth();
   const modal = useModal();
@@ -732,7 +732,7 @@ function CampaignRowItem({
             )}
           </p>
         </div>
-        {c.status === 'sent' && analytics && analytics.recipients > 0 && (
+        {c.status === 'sent' && analytics && analytics.sent > 0 && (
           <div className="shrink-0 flex items-center gap-2.5">
             <RateRing label="Open" rate={analytics.openRate} color="#1f8a4c" />
             <RateRing label="Click" rate={analytics.clickRate} color="#a45a18" />
