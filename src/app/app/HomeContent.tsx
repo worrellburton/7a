@@ -125,7 +125,7 @@ export default function HomeContent() {
   const [recentAlumni, setRecentAlumni] = useState<RecentUser[]>([]);
   const [horses, setHorses] = useState<OrbitHorse[]>([]);
   const [pendingSignatures, setPendingSignatures] = useState<PendingSignature[]>([]);
-  const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string; pdfUrl: string | null } | null>(null);
+  const [signedJds, setSignedJds] = useState<Array<{ id: string; title: string; pdfUrl: string | null }>>([]);
   const [loaded, setLoaded] = useState(false);
   const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
   // Combined "+" menu in the hero: holds the Feature request and
@@ -522,7 +522,7 @@ export default function HomeContent() {
   useEffect(() => {
     if (!session?.access_token || !user?.id) return;
     let cancelled = false;
-    async function loadLatestSigned() {
+    async function loadSignedJds() {
       const sigs = await db({
         action: 'select',
         table: 'jd_signatures',
@@ -531,21 +531,42 @@ export default function HomeContent() {
         order: { column: 'signed_at', ascending: false },
       }).catch(() => []);
       if (cancelled || !Array.isArray(sigs)) return;
-      const signed = (sigs as Array<{ job_description_id: string; signed_at: string | null; pdf_storage_path: string | null }>).find((s) => !!s.signed_at);
-      if (!signed) return;
-      const jd = await db({
-        action: 'select',
-        table: 'job_descriptions',
-        match: { id: signed.job_description_id },
-        select: 'id, title',
-      }).catch(() => null);
-      if (cancelled) return;
-      if (Array.isArray(jd) && jd.length > 0) {
-        const row = jd[0] as { id: string; title: string };
-        setLatestSignedJd({ id: row.id, title: row.title, pdfUrl: signed.pdf_storage_path || null });
+      // Most-recent signed copy wins per job_description_id, so an
+      // old superseded version doesn't clutter the header.
+      const signedRows = (sigs as Array<{ job_description_id: string; signed_at: string | null; pdf_storage_path: string | null }>)
+        .filter((s) => !!s.signed_at);
+      const latestByJob = new Map<string, { pdfUrl: string | null }>();
+      for (const s of signedRows) {
+        if (!latestByJob.has(s.job_description_id)) {
+          latestByJob.set(s.job_description_id, { pdfUrl: s.pdf_storage_path || null });
+        }
       }
+      const jobIds = Array.from(latestByJob.keys());
+      if (jobIds.length === 0) {
+        setSignedJds([]);
+        return;
+      }
+      const { data: jdRows } = await supabase
+        .from('job_descriptions')
+        .select('id, title')
+        .in('id', jobIds);
+      if (cancelled) return;
+      const titleById = new Map(
+        ((jdRows ?? []) as Array<{ id: string; title: string }>).map((j) => [j.id, j.title]),
+      );
+      // Preserve the signed-at order from the original query.
+      const seen = new Set<string>();
+      const ordered: Array<{ id: string; title: string; pdfUrl: string | null }> = [];
+      for (const s of signedRows) {
+        if (seen.has(s.job_description_id)) continue;
+        seen.add(s.job_description_id);
+        const title = titleById.get(s.job_description_id);
+        if (!title) continue;
+        ordered.push({ id: s.job_description_id, title, pdfUrl: s.pdf_storage_path || null });
+      }
+      setSignedJds(ordered);
     }
-    loadLatestSigned();
+    loadSignedJds();
     return () => { cancelled = true; };
   }, [session, user?.id]);
 
@@ -677,20 +698,47 @@ export default function HomeContent() {
                 <h1 className="text-xl lg:text-2xl font-bold text-foreground leading-tight" style={{ fontFamily: 'var(--font-display)' }}>
                   {firstName}
                 </h1>
+                {signedJds.length > 0 && (
+                  <div
+                    className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[11px] text-foreground/55 leading-snug"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {signedJds.map((jd, i) => (
+                      <span key={jd.id} className="inline-flex items-baseline">
+                        {i > 0 && <span aria-hidden className="mr-1.5 text-foreground/30">·</span>}
+                        {jd.pdfUrl ? (
+                          <a
+                            href={jd.pdfUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-foreground hover:underline underline-offset-2"
+                          >
+                            {jd.title}
+                          </a>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/app/job-descriptions/${jd.id}`)}
+                            className="hover:text-foreground hover:underline underline-offset-2"
+                          >
+                            {jd.title}
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Right cluster — JD icon + create (+) button. The
-                signed-JD pill used to render as a full-width card
-                under the orbit which was getting visually crashed
-                by the spinning avatar ring. Compacting it to a
-                small document icon next to the + keeps the
-                quick-access without invading the orbit. */}
+            {/* Right cluster — pending-signature pill + create (+)
+                button. The signed-JD titles live inline under the
+                user's name in the left cluster so the right side
+                stays focused on action items. */}
             <div className={`shrink-0 flex items-center gap-2 ${userKind === 'alumni' ? 'hidden' : ''}`}>
-            {/* Pending-signature pill — amber, urgent, sits LEFT
-                of the signed-JD pill so the eye reads 'need to
-                sign' first. If multiple pending, only the first
-                title shows; count chip indicates the rest. */}
+            {/* Pending-signature pill — amber, urgent. If multiple
+                pending, only the first title shows; count chip
+                indicates the rest. */}
             {pendingSignatures.length > 0 && (
               <button
                 type="button"
@@ -715,40 +763,6 @@ export default function HomeContent() {
                   </span>
                 )}
               </button>
-            )}
-            {latestSignedJd && (
-              latestSignedJd.pdfUrl ? (
-                <a
-                  href={latestSignedJd.pdfUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={`Open my signed job description: ${latestSignedJd.title}`}
-                  aria-label={`Open my signed job description: ${latestSignedJd.title}`}
-                  className="inline-flex items-center gap-1.5 h-9 lg:h-10 pl-3 pr-3.5 rounded-full bg-white/70 supports-[backdrop-filter]:bg-white/55 backdrop-blur-md border border-white/80 text-foreground hover:bg-white hover:border-primary/45 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 max-w-[14rem] sm:max-w-xs"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  <svg className="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-                    <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
-                  </svg>
-                  <span className="text-[12px] font-semibold truncate">{latestSignedJd.title}</span>
-                </a>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => router.push(`/app/job-descriptions/${latestSignedJd.id}`)}
-                  title={`Open my signed job description: ${latestSignedJd.title}`}
-                  aria-label={`Open my signed job description: ${latestSignedJd.title}`}
-                  className="inline-flex items-center gap-1.5 h-9 lg:h-10 pl-3 pr-3.5 rounded-full bg-white/70 supports-[backdrop-filter]:bg-white/55 backdrop-blur-md border border-white/80 text-foreground hover:bg-white hover:border-primary/45 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 max-w-[14rem] sm:max-w-xs"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  <svg className="w-4 h-4 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-                    <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
-                  </svg>
-                  <span className="text-[12px] font-semibold truncate">{latestSignedJd.title}</span>
-                </button>
-              )
             )}
             {/* Daily logs circle — sits left of the + button so the
                 day's count is always one tap away from the home
@@ -867,9 +881,9 @@ export default function HomeContent() {
         <HomeConnect4Nudge onOpponentChange={setC4OpponentId} />
 
         {/* Phase 6: action stack — pending signatures only.
-            (latestSignedJd moved up next to the + button in the
+            Signed JDs live inline under the user's name in the
             header so the orbit isn't visually crashed by a wide
-            card sitting on top of it.) */}
+            card sitting on top of it. */}
         {pendingSignatures.length > 0 && (
           <section className="w-full max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-3">
             <div className="md:col-span-2">
