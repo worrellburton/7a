@@ -139,6 +139,21 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M12 17.5v-11" />
     </svg>
   ),
+  '/app/mercury': (
+    // Stylised bank / vault — Mercury's brand uses a thunderbolt, but
+    // we want the rail icon to read as "bookkeeping" first, brand
+    // second. Columned facade keeps it instantly recognisable at the
+    // 20px sidebar size.
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 10 12 4l9 6" />
+      <path d="M4 10v9" />
+      <path d="M20 10v9" />
+      <path d="M8 10v9" />
+      <path d="M12 10v9" />
+      <path d="M16 10v9" />
+      <path d="M3 20h18" />
+    </svg>
+  ),
   '/app/fleet': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <rect x="1" y="11" width="16" height="7" rx="2" />

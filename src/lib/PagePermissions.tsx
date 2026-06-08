@@ -124,6 +124,13 @@ export const defaultPages: PageConfig[] = [
   // to /app, and every /api/kaizen/* route enforces super-admin
   // server-side via requireSuperAdmin.
   { path: '/app/kaizen', label: 'Kaizen', adminOnly: true, section: 'nav', sort_order: 90, allowedDepartments: [], departmentId: null },
+  // Mercury — super-admin-only bookkeeping mirror. The page
+  // registered as adminOnly here keeps it out of the rail for
+  // non-admins; a runtime is_super_admin check inside content.tsx
+  // bounces an admin (non-super) who navigates in directly, and
+  // every /api/mercury/* route enforces requireSuperAdmin
+  // server-side.
+  { path: '/app/mercury', label: 'Mercury', adminOnly: true, section: 'nav', sort_order: 9.5, allowedDepartments: [], departmentId: null },
   // HIPAA technical-safeguards audit. Super-admin-gated at the
   // route level (the page itself renders a locked panel for
   // non-super-admins), and the /api/hipaa/scan endpoint enforces
