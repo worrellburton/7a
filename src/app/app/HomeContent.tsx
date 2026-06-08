@@ -4,7 +4,7 @@ import { useAuth, notifyAvatarChanged } from '@/lib/AuthProvider';
 import { usePagePermissions } from '@/lib/PagePermissions';
 import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
-import { uploadFile, compressImage } from '@/lib/upload';
+import { uploadFile, compressImage, generateAvatarThumbDataUrl } from '@/lib/upload';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import FeatureRequestModal from './kingdom-requests/FeatureRequestModal';
@@ -22,6 +22,10 @@ interface RecentUser {
   id: string;
   full_name: string | null;
   avatar_url: string | null;
+  // Pre-rendered 60×60 WebP as a data URL. Populated on upload + by
+  // the admin backfill endpoint. Drives the orbit so it paints with
+  // zero per-avatar HTTP fetches.
+  avatar_thumb: string | null;
   last_sign_in: string | null;
   job_title: string | null;
   last_path: string | null;
@@ -191,7 +195,17 @@ export default function HomeContent() {
         console.error('Avatar upload failed:', error);
         return;
       }
-      await db({ action: 'update', table: 'users', data: { avatar_url: url }, match: { id: user.id } });
+      // Inline 60×60 WebP for the home orbit so it paints without a
+      // per-avatar HTTP fetch. Generated from the same compressed
+      // buffer we just uploaded — null on browser failure is fine,
+      // the orbit falls back to avatar_url.
+      const thumb = await generateAvatarThumbDataUrl(compressed);
+      await db({
+        action: 'update',
+        table: 'users',
+        data: { avatar_url: url, avatar_thumb: thumb },
+        match: { id: user.id },
+      });
       await supabase.auth.updateUser({ data: { avatar_url: url } });
       setAvatarUrl(url);
       // Tell every avatar surface (sidebar, mobile drawer) that the
@@ -323,7 +337,7 @@ export default function HomeContent() {
     if (!session?.access_token) return;
     let cancelled = false;
     async function fetchRecentUsers() {
-      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, last_sign_in, last_seen_at, last_path, job_title, status, user_kind', order: { column: 'last_sign_in', ascending: false } });
+      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, avatar_thumb, last_sign_in, last_seen_at, last_path, job_title, status, user_kind', order: { column: 'last_sign_in', ascending: false } });
       if (cancelled || !Array.isArray(data)) {
         setTimeout(() => setLoaded(true), 100);
         return;
