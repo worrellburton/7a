@@ -16,7 +16,10 @@ import { requireSuperAdmin } from '@/lib/api-gates';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const gate = await requireSuperAdmin(req);
+  // Cookie-session gate (no req arg). Browser fetches send the
+  // Supabase auth cookie but not a Bearer header, so passing req
+  // here would route through getUserFromRequest and 401 every call.
+  const gate = await requireSuperAdmin();
   if (gate instanceof NextResponse) return gate;
 
   const url = new URL(req.url);
@@ -29,7 +32,7 @@ export async function GET(req: NextRequest) {
 
   const { data: accounts, error: aErr } = await gate.admin
     .from('mercury_accounts')
-    .select('id, nickname, name, kind, type, account_number_last4, status, balance, available_balance, currency, dashboard_link, last_synced_at')
+    .select('id, nickname, name, kind, type, account_number_last4, status, balance, available_balance, currency, dashboard_link, last_synced_at, sync_transactions')
     .order('name', { ascending: true });
   if (aErr) {
     return NextResponse.json({ error: `accounts: ${aErr.message}` }, { status: 500 });

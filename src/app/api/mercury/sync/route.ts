@@ -26,6 +26,7 @@ interface SyncResultItem {
   name: string;
   transactions_fetched: number;
   transactions_upserted: number;
+  skipped?: boolean;
   error?: string;
 }
 
@@ -68,15 +69,25 @@ export async function POST() {
     last_synced_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }));
-  const { error: accountsErr } = await gate.admin
+  // Upsert + read back the current sync_transactions flag for each
+  // account in one round-trip. The upsert payload omits the flag so
+  // existing values are preserved across syncs; new accounts inherit
+  // the column default (true) and start fully tracked.
+  const { data: upsertedAccounts, error: accountsErr } = await gate.admin
     .from('mercury_accounts')
-    .upsert(accountRows, { onConflict: 'id' });
+    .upsert(accountRows, { onConflict: 'id' })
+    .select('id, sync_transactions');
   if (accountsErr) {
     return NextResponse.json(
       { error: `accounts upsert failed: ${accountsErr.message}` },
       { status: 500 },
     );
   }
+  const syncFlagById = new Map<string, boolean>(
+    ((upsertedAccounts ?? []) as Array<{ id: string; sync_transactions: boolean }>).map(
+      (r) => [r.id, r.sync_transactions !== false],
+    ),
+  );
 
   // Walk transactions per account. Mercury returns all txns
   // (pending + posted) in one feed, so the upsert handles status
@@ -84,6 +95,18 @@ export async function POST() {
   const results: SyncResultItem[] = [];
   let totalUpserted = 0;
   for (const account of accounts) {
+    // Honour the per-account toggle. Skipped accounts still got
+    // their balance refreshed above; we just don't pull transactions.
+    if (syncFlagById.get(account.id) === false) {
+      results.push({
+        account_id: account.id,
+        name: account.name,
+        transactions_fetched: 0,
+        transactions_upserted: 0,
+        skipped: true,
+      });
+      continue;
+    }
     let txns: MercuryTransaction[] = [];
     try {
       txns = await listAllTransactions(account.id);

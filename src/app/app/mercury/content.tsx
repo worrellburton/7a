@@ -24,6 +24,7 @@ interface AccountRow {
   currency: string | null;
   dashboard_link: string | null;
   last_synced_at: string;
+  sync_transactions: boolean;
 }
 
 interface TxnRow {
@@ -164,6 +165,25 @@ export default function MercuryContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offset]);
 
+  const toggleSync = useCallback(async (accountId: string, next: boolean) => {
+    if (!session?.access_token) return;
+    // Optimistic update so the toggle feels immediate.
+    setAccounts((prev) => prev.map((a) => (a.id === accountId ? { ...a, sync_transactions: next } : a)));
+    try {
+      const res = await fetch(`/api/mercury/accounts/${encodeURIComponent(accountId)}`, {
+        method: 'PATCH',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sync_transactions: next }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    } catch (e) {
+      // Revert on failure.
+      setAccounts((prev) => prev.map((a) => (a.id === accountId ? { ...a, sync_transactions: !next } : a)));
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [session?.access_token]);
+
   const runSync = useCallback(async () => {
     if (!session?.access_token || syncing) return;
     setSyncing(true);
@@ -278,18 +298,28 @@ export default function MercuryContent() {
         <div className="mb-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {accounts.map((a) => {
             const active = accountFilter === a.id;
+            const tracked = a.sync_transactions !== false;
             return (
-              <button
+              <div
                 key={a.id}
-                type="button"
                 onClick={() => setAccountFilter(active ? null : a.id)}
-                className={`text-left p-4 rounded-xl border transition-colors ${
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setAccountFilter(active ? null : a.id);
+                  }
+                }}
+                className={`relative text-left p-4 rounded-xl border transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
                   active
                     ? 'bg-foreground text-white border-foreground shadow-md'
-                    : 'bg-white/70 supports-[backdrop-filter]:bg-white/55 backdrop-blur-md border-white/80 hover:border-primary/45'
+                    : tracked
+                      ? 'bg-white/70 supports-[backdrop-filter]:bg-white/55 backdrop-blur-md border-white/80 hover:border-primary/45'
+                      : 'bg-white/40 supports-[backdrop-filter]:bg-white/30 backdrop-blur-md border-white/60 hover:border-primary/30 opacity-70'
                 }`}
               >
-                <div className="flex items-baseline justify-between gap-2">
+                <div className="flex items-baseline justify-between gap-2 pr-16">
                   <span className="text-sm font-semibold truncate">
                     {a.nickname || a.name}
                   </span>
@@ -304,8 +334,34 @@ export default function MercuryContent() {
                 </div>
                 <div className={`text-[11px] ${active ? 'text-white/70' : 'text-foreground/55'}`}>
                   {a.type || a.kind || 'account'}{a.status ? ` · ${a.status}` : ''}
+                  {!tracked && (
+                    <span className={`ml-2 ${active ? 'text-white/85' : 'text-amber-700'}`}>· not synced</span>
+                  )}
                 </div>
-              </button>
+                {/* Track toggle — pill in the top-right. Stops
+                    propagation so clicking it doesn't also fire the
+                    card's filter click. */}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleSync(a.id, !tracked);
+                  }}
+                  title={tracked ? 'Click to stop syncing this account\'s transactions' : 'Click to start syncing this account\'s transactions'}
+                  aria-pressed={tracked}
+                  className={`absolute top-3 right-3 text-[10px] font-semibold uppercase tracking-[0.14em] px-2 py-1 rounded-full border transition-colors ${
+                    tracked
+                      ? active
+                        ? 'bg-white/15 border-white/40 text-white hover:bg-white/25'
+                        : 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100'
+                      : active
+                        ? 'bg-white/10 border-white/30 text-white/80 hover:bg-white/20'
+                        : 'bg-foreground/5 border-foreground/15 text-foreground/55 hover:bg-foreground/10'
+                  }`}
+                >
+                  {tracked ? 'Synced' : 'Paused'}
+                </button>
+              </div>
             );
           })}
         </div>
