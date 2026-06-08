@@ -61,7 +61,7 @@ export async function POST() {
     account_number_last4: a.accountNumber ? a.accountNumber.slice(-4) : null,
     routing_number: a.routingNumber ?? null,
     status: a.status ?? null,
-    balance: a.balance,
+    balance: a.currentBalance,
     available_balance: a.availableBalance ?? null,
     currency: a.currency ?? 'USD',
     dashboard_link: a.dashboardLink ?? null,

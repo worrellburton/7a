@@ -59,7 +59,12 @@ export interface MercuryAccount {
   accountNumber?: string | null;
   routingNumber?: string | null;
   status?: string | null;
-  balance: number;
+  // Mercury's account object exposes `currentBalance` and
+  // `availableBalance` — there is no plain `balance` field. Both
+  // are dollar-denominated numbers (e.g. 7891.76). An earlier draft
+  // of this file expected `balance`, which produced null on every
+  // row and rendered as $0.00 in the orbit cards.
+  currentBalance: number;
   availableBalance?: number | null;
   currency?: string | null;
   dashboardLink?: string | null;
