@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase } from '@/lib/supabase-server';
+import { requireAdmin } from '@/lib/api-gates';
 import { hasGoogleOAuth, mbAccounts, mbLocations } from '@/lib/google';
 
 // GET /api/google/bp-discover
@@ -11,12 +11,8 @@ import { hasGoogleOAuth, mbAccounts, mbLocations } from '@/lib/google';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: row } = await supabase.from('users').select('is_admin').eq('id', user.id).maybeSingle();
-  if (!row?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const gate = await requireAdmin();
+  if (gate instanceof NextResponse) return gate;
 
   if (!hasGoogleOAuth()) {
     return NextResponse.json({ error: 'Google OAuth env not configured' }, { status: 412 });

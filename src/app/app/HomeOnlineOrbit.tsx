@@ -25,6 +25,11 @@ interface OrbitUser {
   id: string;
   full_name: string | null;
   avatar_url: string | null;
+  // Pre-rendered 60×60 WebP as a `data:image/webp;base64,...` URL.
+  // Prefer this over avatar_url so the orbit paints without per-avatar
+  // HTTP requests. Falls back to avatar_url when null (legacy rows
+  // before the backfill ran).
+  avatar_thumb: string | null;
   last_sign_in: string | null;
   last_seen_at: string | null;
   last_path: string | null;
@@ -730,7 +735,7 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                         {u.avatar_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
+                            src={u.avatar_thumb ?? toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
                             alt={u.full_name || ''}
                             referrerPolicy="no-referrer"
                             width={48}
@@ -862,7 +867,7 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                           {u.avatar_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
-                              src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
+                              src={u.avatar_thumb ?? toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
                               alt={u.full_name || ''}
                               referrerPolicy="no-referrer"
                               width={40}

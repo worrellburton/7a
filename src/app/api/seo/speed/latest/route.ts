@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase } from '@/lib/supabase-server';
+import { requireAdmin } from '@/lib/api-gates';
 
 // GET /api/seo/speed/latest
 //
@@ -29,21 +29,13 @@ interface SpeedRunRow {
 }
 
 export async function GET() {
-  const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: row } = await supabase
-    .from('users')
-    .select('is_admin')
-    .eq('id', user.id)
-    .maybeSingle();
-  if (!row?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const gate = await requireAdmin();
+  if (gate instanceof NextResponse) return gate;
 
   // Pull a generous slice of recent rows (the dedup is done in-memory
   // because Supabase doesn't support DISTINCT ON without a function).
   // 200 rows handles ~50 distinct URL/strategy pairs comfortably.
-  const { data, error } = await supabase
+  const { data, error } = await gate.admin
     .from('seo_speed_runs')
     .select('id, ran_at, ran_by, url, strategy, performance, fcp, lcp, cls, tbt, si, opportunities, fetch_ms, ok, error')
     .order('ran_at', { ascending: false })

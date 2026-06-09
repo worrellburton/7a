@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
+import { requireAdmin } from '@/lib/api-gates';
 
 // GET  /api/reviews — list every row from google_reviews + curated_reviews
 //                     (admin-only, includes hidden rows so admins can unhide)
@@ -11,20 +11,11 @@ import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
-async function requireAdmin() {
-  const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
-  const { data: row } = await supabase.from('users').select('is_admin').eq('id', user.id).maybeSingle();
-  if (!row?.is_admin) return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
-  return { error: null as null };
-}
-
 export async function GET() {
-  const guard = await requireAdmin();
-  if (guard.error) return guard.error;
+  const gate = await requireAdmin();
+  if (gate instanceof NextResponse) return gate;
 
-  const admin = getAdminSupabase();
+  const admin = gate.admin;
 
   const [googleRes, curatedRes] = await Promise.all([
     admin
@@ -66,8 +57,8 @@ interface CreateBody {
 }
 
 export async function POST(req: NextRequest) {
-  const guard = await requireAdmin();
-  if (guard.error) return guard.error;
+  const gate = await requireAdmin(req);
+  if (gate instanceof NextResponse) return gate;
 
   let body: CreateBody;
   try {
@@ -85,7 +76,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'rating must be 1-5' }, { status: 400 });
   }
 
-  const admin = getAdminSupabase();
+  const admin = gate.admin;
   const { data, error } = await admin
     .from('curated_reviews')
     .insert({
