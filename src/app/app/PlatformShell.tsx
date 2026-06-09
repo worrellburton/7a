@@ -1411,15 +1411,23 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       keeps the row out of non-admin sidebars. */}
                   {item.superAdminOnly && (
                     <span
-                      title="Only for super admins"
                       aria-label="Only for super admins"
-                      className="ml-1 inline-flex items-center text-amber-600 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200"
+                      className="relative ml-1 inline-flex items-center text-amber-600 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 group/sa"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <path d="M3 11c0-1 1-2 2-2h14c1 0 2 1 2 2v1c0 1-1 2-2 2h-3.2c-.4 1.6-1.9 2.7-3.8 2.7s-3.4-1.1-3.8-2.7H5c-1 0-2-1-2-2v-1z" />
                         <circle cx="8.5" cy="11.5" r="1" fill="currentColor" stroke="none" />
                         <circle cx="15.5" cy="11.5" r="1" fill="currentColor" stroke="none" />
                       </svg>
+                      {/* Instant tooltip — no native title delay.
+                          Sits above the icon, right-anchored so it
+                          doesn't get clipped on narrow rails. */}
+                      <span
+                        role="tooltip"
+                        className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1 whitespace-nowrap rounded-md bg-foreground/95 text-white text-[10px] font-semibold uppercase tracking-[0.12em] px-2 py-1 shadow-lg opacity-0 group-hover/sa:opacity-100 transition-opacity duration-100 z-50"
+                      >
+                        Only for super admins
+                      </span>
                     </span>
                   )}
                   {/* Super-admin-only "ALUMNI" tag · added so a
@@ -1752,15 +1760,20 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                           <span className="flex-1">{item.label}</span>
                           {item.superAdminOnly && (
                             <span
-                              title="Only for super admins"
                               aria-label="Only for super admins"
-                              className="inline-flex items-center text-amber-600"
+                              className="relative inline-flex items-center text-amber-600 group/sa"
                             >
                               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                                 <path d="M3 11c0-1 1-2 2-2h14c1 0 2 1 2 2v1c0 1-1 2-2 2h-3.2c-.4 1.6-1.9 2.7-3.8 2.7s-3.4-1.1-3.8-2.7H5c-1 0-2-1-2-2v-1z" />
                                 <circle cx="8.5" cy="11.5" r="1" fill="currentColor" stroke="none" />
                                 <circle cx="15.5" cy="11.5" r="1" fill="currentColor" stroke="none" />
                               </svg>
+                              <span
+                                role="tooltip"
+                                className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1 whitespace-nowrap rounded-md bg-foreground/95 text-white text-[10px] font-semibold uppercase tracking-[0.12em] px-2 py-1 shadow-lg opacity-0 group-hover/sa:opacity-100 transition-opacity duration-100 z-50"
+                              >
+                                Only for super admins
+                              </span>
                             </span>
                           )}
                           {(navBadges[item.path] ?? 0) > 0 && (
