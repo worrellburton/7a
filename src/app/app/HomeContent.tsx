@@ -17,6 +17,7 @@ import HomeOnlineOrbit, { type OrbitHorse } from './HomeOnlineOrbit';
 import HomeDailyLogsChip from './HomeDailyLogsChip';
 import HomeHardwareChip from './HomeHardwareChip';
 import HomeMercuryBalanceChip from './HomeMercuryBalanceChip';
+import HomeChipCluster from './HomeChipCluster';
 import HomeConnect4Nudge from './HomeConnect4Nudge';
 
 interface RecentUser {
@@ -779,25 +780,32 @@ export default function HomeContent() {
                 )}
               </button>
             )}
-            {/* Mercury 7A bank-balance pill — super-admin only.
-                RLS on mercury_accounts hides the read for everyone
-                else, and the component itself returns null when
-                !isSuperAdmin so a non-super-admin doesn't even pay
-                the mount cost. Tooltip + mask icon mirror the
-                sidebar super-admin badge. */}
-            <HomeMercuryBalanceChip />
-            {/* Daily logs circle — sits left of the + button so the
-                day's count is always one tap away from the home
-                header. Compact 36-40px round button that links to
-                /app/logs; flips to a glowing amber 🔥 when today
-                clears the all-time record. */}
-            <HomeDailyLogsChip variant="circle" />
-            {/* Hardware check-in chip — same 36-40px round shape,
-                sits left of the daily logs chip. Shows how many
-                hardware rows are assigned to the signed-in user;
-                clicking opens the per-row "looks good / isn't
-                right" check-in. Auto-hides when count == 0. */}
-            <HomeHardwareChip />
+            {/* Right-cluster info chips. On desktop they render
+                inline (Mercury balance · daily logs · hardware
+                check-in). On mobile the cluster collapses into a
+                single dot-menu trigger so the WELCOME BACK headline
+                isn't crowded; tapping the trigger opens a dropdown
+                with all the chips stacked. The chips themselves
+                only render once — the cluster swaps layout via
+                class toggles. */}
+            <HomeChipCluster>
+              {/* Mercury 7A bank-balance pill — super-admin only.
+                  RLS on mercury_accounts hides the read for everyone
+                  else, and the component itself returns null when
+                  !isSuperAdmin so a non-super-admin doesn't even pay
+                  the mount cost. */}
+              <HomeMercuryBalanceChip />
+              {/* Daily logs circle — compact 36-40px round button
+                  that links to /app/logs; flips to a glowing amber 🔥
+                  when today clears the all-time record. */}
+              <HomeDailyLogsChip variant="circle" />
+              {/* Hardware check-in chip — same 36-40px round shape,
+                  shows how many hardware rows are assigned to the
+                  signed-in user; clicking opens the per-row "looks
+                  good / isn't right" check-in. Auto-hides when
+                  count == 0. */}
+              <HomeHardwareChip />
+            </HomeChipCluster>
             <div ref={addMenuRef} className="relative">
               <button
                 type="button"
