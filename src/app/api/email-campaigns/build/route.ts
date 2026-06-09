@@ -220,24 +220,35 @@ export async function POST(req: NextRequest) {
   if (includePhone) {
     ctxLines.push(`PHONE NUMBER: ${ADMISSIONS_PHONE}. Surface it inside the email as either: (a) a small uppercase eyebrow strip directly under the logo ("ADMISSIONS · (866) 718-1665"), or (b) a quiet line directly under the CTA button ("Or call (866) 718-1665"), tel: link with href="tel:+18667181665". Pick ONE placement, not both. Format as styled text, not a button. Always use the exact format "(866) 718-1665" in the visible copy.`);
   }
-  // Insurance accepted strip — short logo row near the top of the
-  // email so coverage is visible at a glance. Brandfetch CDN serves
-  // these PNGs reliably; we pin width to 80px so the row stays
-  // restrained even on a 600px-wide email. If a logo doesn't load,
-  // Claude's <img alt="..."> falls back to the alt text.
+  // Insurance accepted strip — short carrier list near the top of
+  // the email so coverage is visible at a glance.
+  //
+  // Earlier versions rendered each carrier as an <img> sourced from
+  // Brandfetch's CDN (cdn.brandfetch.io). That broke: Brandfetch's
+  // free client IDs aren't authorised for hotlinking, so every
+  // request 302-redirected to their "no hotlinking" docs page and
+  // the email rendered five colour-block placeholders instead of
+  // real logos. Email clients also strip / proxy / lazy-load
+  // external <img>s aggressively, so any external-image strategy
+  // has a long tail of failure modes (Outlook, dark-mode proxies,
+  // image blocking by default in Gmail, etc.).
+  //
+  // The fix: text. A tight uppercase carrier strip with elegant
+  // dividers reads as deliberately editorial — same energy as the
+  // "AS SEEN IN" line in a newsletter — and can't break in any
+  // mail client. If we ever want true logo art back, the upgrade
+  // path is to host PNG/SVG copies under /public/email-assets/
+  // /insurance/ on the marketing site and update the carrier list
+  // below with image URLs, NOT to re-introduce a 3rd-party CDN.
   if (includeInsuranceStrip) {
     ctxLines.push(
       `INCLUDE INSURANCE STRIP: yes. Render a quiet "Insurance accepted" module BELOW the header / hero and ABOVE the body copy. Treatment:
   - A small uppercase eyebrow that reads "IN-NETWORK WITH" (10.5px, letter-spacing 0.22em, color Copper #b87333), centered, 56px above + 28px below.
-  - A single <table> row containing five logo cells, each cell padding 0 12px, vertical-align middle, text-align center. Logos render as <img width="80" height="32" style="display:inline-block;max-width:80px;max-height:32px;width:auto;height:auto;border:0;" /> so the row reads as five evenly spaced marks across the inner 600px container. Drop opacity to roughly 0.78 so the row reads as a quiet credibility cue, not a sales pitch.
+  - One centered text row, NO IMAGES, listing the carriers separated by middle-dot dividers. Carrier names render in Ink (#3a3a3a) at 13px, font-weight 600, letter-spacing 0.04em, in small-caps via text-transform:uppercase. Dividers render as ${'`'}·${'`'} (U+00B7) wrapped in a span with color #c8b89c (warm taupe) and padding 0 10px. Whole row wrapped in a single <a href="${SITE_URL.replace(/\/$/, '')}/insurance" style="text-decoration:none;color:inherit;"> so a tap on the row opens the insurance landing page.
   - Underneath the row, one single 11px Ink line (italic optional), centered: "Most major plans accepted. Curious about yours? Reply to this email or call (866) 718-1665."
-  Carriers (use these exact image URLs; never invent or substitute):
-    1. Aetna · https://cdn.brandfetch.io/aetna.com/fallback/404/w/240/h/80/logo?c=1id3n10pdBTarCHI0db
-    2. Blue Cross Blue Shield · https://cdn.brandfetch.io/bcbs.com/fallback/404/w/240/h/80/logo?c=1id3n10pdBTarCHI0db
-    3. Cigna · https://cdn.brandfetch.io/cigna.com/fallback/404/w/240/h/80/logo?c=1id3n10pdBTarCHI0db
-    4. Humana · https://cdn.brandfetch.io/humana.com/fallback/404/w/240/h/80/logo?c=1id3n10pdBTarCHI0db
-    5. TRICARE · https://cdn.brandfetch.io/tricare.mil/fallback/404/w/240/h/80/logo?c=1id3n10pdBTarCHI0db
-  Each <img> alt attribute is the carrier name verbatim. Each cell wraps the <img> in an <a href="${SITE_URL.replace(/\/$/, '')}/insurance"> so a tap on any logo opens the insurance landing page.`,
+  Carrier names (USE EXACTLY these, in this order — do not abbreviate or expand):
+    Aetna · BCBS · Cigna · Humana · TRICARE
+  Do NOT use <img>, do NOT reference Brandfetch, Clearbit, Logo.dev, or any external logo CDN — the carrier names are TEXT only. This is intentional: external image hotlinking breaks across email clients and was the source of broken placeholders in the previous template version.`,
     );
   }
   // Social footer row — IG/FB/LinkedIn icons in the closing block.
