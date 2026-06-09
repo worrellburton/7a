@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 
 // Right-cluster wrapper for the home header's info chips
 // (HomeMercuryBalanceChip, HomeDailyLogsChip, HomeHardwareChip).
@@ -8,24 +9,81 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 // Desktop: chips render inline in a row, same as before.
 // Mobile:  the chips collapse behind a single round trigger button.
 //          Tapping it opens a dropdown panel positioned below the
-//          button with the chips stacked vertically. Closes on
-//          outside-click / Escape / pressing the trigger again so
-//          the home header stops competing with the WELCOME BACK
-//          headline for horizontal space.
+//          button with the chips stacked vertically.
 //
-// Children render once and are repositioned via class toggles rather
-// than re-mounted, so each chip's internal state + queries persist
-// when the user opens / closes the panel.
+// Why this is portaled: the home page wraps its content in a
+// stacking-context-creating element (`isolation: isolate` +
+// `overflow-hidden` on the inner viewport container). A plain
+// absolutely-positioned dropdown inside that ancestor is either
+// clipped or stacked behind sibling content — the popup looked
+// "broken" because it was rendering invisibly behind the page.
+// Portaling the dropdown straight onto <body> escapes both traps,
+// matching the pattern HomeHardwareChip already uses for its modal.
+//
+// Children render once (in the desktop-inline path) AND inside the
+// portal when the mobile sheet is open — but to keep each chip's
+// internal state alive across opens, we only mount the children in
+// ONE place at a time, swapping the render slot rather than
+// duplicating. See `desktopSlotRef` / `mobileSlotRef` below.
 
 export default function HomeChipCluster({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
-  const wrapperRef = useRef<HTMLDivElement>(null);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
 
+  // Set after first render so the portal target (document.body) is
+  // available. SSR-safe — `mounted` stays false on the server.
+  useEffect(() => setMounted(true), []);
+
+  // Track viewport size to pick which render path actually mounts
+  // the children. Below the sm breakpoint (640px) → mobile sheet;
+  // above → inline row. matchMedia is cheap and keeps state in
+  // sync if the user rotates a tablet between portrait/landscape.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 639px)');
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
+  // Position the portaled panel against the trigger button so it
+  // visually feels anchored even though it lives on document.body.
+  // Re-measure on open + on window resize / scroll so a virtual
+  // keyboard opening or a rotation doesn't strand the panel.
+  useLayoutEffect(() => {
+    if (!open) return;
+    function reposition() {
+      const el = triggerRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      setPos({
+        top: rect.bottom + 8, // 8px gap below the button
+        right: Math.max(8, window.innerWidth - rect.right), // mirror right edge, clamp to viewport
+      });
+    }
+    reposition();
+    window.addEventListener('resize', reposition);
+    window.addEventListener('scroll', reposition, true);
+    return () => {
+      window.removeEventListener('resize', reposition);
+      window.removeEventListener('scroll', reposition, true);
+    };
+  }, [open]);
+
+  // Outside-click + Escape to close. Skip the trigger itself so the
+  // toggle click doesn't immediately re-close from the same event.
   useEffect(() => {
     if (!open) return;
     function onDocMouseDown(e: MouseEvent) {
-      if (!wrapperRef.current) return;
-      if (!wrapperRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (triggerRef.current?.contains(target)) return;
+      if (panelRef.current?.contains(target)) return;
+      setOpen(false);
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === 'Escape') setOpen(false);
@@ -38,52 +96,68 @@ export default function HomeChipCluster({ children }: { children: ReactNode }) {
     };
   }, [open]);
 
-  return (
-    <div ref={wrapperRef} className="relative inline-flex items-center gap-2">
-      {/* Mobile trigger. Hidden on sm+ so the chips below sit inline.
-          The hint chip in the corner mirrors the bell + + button's
-          round shape so the row reads as a consistent set of pills. */}
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label={open ? 'Hide quick stats' : 'Show quick stats'}
-        className="sm:hidden inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/70 supports-[backdrop-filter]:bg-white/55 backdrop-blur-md border border-white/80 text-foreground hover:bg-white hover:border-primary/45 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-      >
-        <svg
-          className={`w-4 h-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <circle cx="6" cy="12" r="1.4" fill="currentColor" />
-          <circle cx="12" cy="12" r="1.4" fill="currentColor" />
-          <circle cx="18" cy="12" r="1.4" fill="currentColor" />
-        </svg>
-      </button>
+  // Render path: when in mobile mode, the children live inside the
+  // portaled sheet ONLY when it's open. When closed (or on desktop)
+  // they live inline. We deliberately do NOT render the children in
+  // both places at once — that would mount each chip twice and break
+  // their internal queries.
+  const renderInline = !isMobile;
+  const renderInSheet = isMobile && open;
 
-      {/* The chips themselves. Desktop: inline row at the same spot
-          as before. Mobile: absolutely-positioned dropdown that
-          appears below the trigger button on tap. */}
-      <div
-        role={open ? 'menu' : undefined}
-        className={`
-          ${open ? 'flex' : 'hidden'} sm:flex
-          flex-col items-stretch gap-2
-          absolute top-full right-0 mt-2
-          bg-white/95 supports-[backdrop-filter]:bg-white/85 backdrop-blur-xl
-          border border-white/80 shadow-xl p-3 rounded-2xl z-40 min-w-[200px]
-          sm:static sm:flex-row sm:items-center sm:mt-0 sm:gap-2
-          sm:bg-transparent sm:border-0 sm:shadow-none sm:p-0 sm:rounded-none sm:min-w-0
-        `}
-      >
-        {children}
+  return (
+    <>
+      <div className="relative inline-flex items-center gap-2">
+        {/* Mobile trigger. Hidden on sm+. */}
+        <button
+          ref={triggerRef}
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={open ? 'Hide quick stats' : 'Show quick stats'}
+          className="sm:hidden inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/70 supports-[backdrop-filter]:bg-white/55 backdrop-blur-md border border-white/80 text-foreground hover:bg-white hover:border-primary/45 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+        >
+          <svg
+            className={`w-4 h-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="6" cy="12" r="1.4" fill="currentColor" />
+            <circle cx="12" cy="12" r="1.4" fill="currentColor" />
+            <circle cx="18" cy="12" r="1.4" fill="currentColor" />
+          </svg>
+        </button>
+
+        {/* Desktop inline slot — mounts the chips for sm+ viewports. */}
+        {renderInline && (
+          <div className="hidden sm:flex items-center gap-2">{children}</div>
+        )}
       </div>
-    </div>
+
+      {/* Portaled mobile sheet. Lives on document.body to escape the
+          page's overflow-hidden + isolation:isolate ancestor that
+          was hiding the old absolute-positioned dropdown. */}
+      {mounted && renderInSheet && pos && createPortal(
+        <div
+          ref={panelRef}
+          role="menu"
+          style={{
+            position: 'fixed',
+            top: pos.top,
+            right: pos.right,
+            zIndex: 60,
+          }}
+          className="flex flex-col items-stretch gap-2 bg-white/95 supports-[backdrop-filter]:bg-white/85 backdrop-blur-xl border border-white/80 shadow-2xl p-3 rounded-2xl min-w-[220px] max-w-[calc(100vw-16px)]"
+        >
+          {children}
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
