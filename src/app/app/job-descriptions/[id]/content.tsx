@@ -1,12 +1,14 @@
 'use client';
 
 import { useAuth } from '@/lib/AuthProvider';
+import { useModal } from '@/lib/ModalProvider';
 import { db, getAuthToken } from '@/lib/db';
 import { logActivity } from '@/lib/activity';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 // A textarea that grows with its content. Used for responsibilities and
 // requirements so long sentences wrap cleanly instead of overflowing a
@@ -129,6 +131,7 @@ interface SignatureRow {
 
 export default function JobDescriptionDetailContent() {
   const { user, session, isAdmin } = useAuth();
+  const modal = useModal();
   // Editing is superadmin-only. Everyone else sees a read-only view.
   const canEdit = isAdmin;
   const params = useParams<{ id: string }>();
@@ -381,7 +384,11 @@ export default function JobDescriptionDetailContent() {
       await patchJob({ archived_at: null }, 'Unarchived role');
       return;
     }
-    if (!window.confirm(`Archive "${job.title}"? It will be hidden from the default list but not deleted.`)) return;
+    const archiveOk = await modal.confirm(`Archive "${job.title}"?`, {
+      message: "Hidden from the default list but not deleted. You can unarchive it later.",
+      confirmLabel: 'Archive',
+    });
+    if (!archiveOk) return;
     await patchJob({ archived_at: new Date().toISOString() }, 'Archived role');
     router.push('/app/job-descriptions');
   }
@@ -389,14 +396,21 @@ export default function JobDescriptionDetailContent() {
   async function deletePermanently() {
     if (!job) return;
     if (!job.archived_at) return;
-    if (!window.confirm(`Permanently delete "${job.title}"? This cannot be undone.`)) return;
+    const ok = await modal.confirm(`Permanently delete "${job.title}"?`, {
+      message: 'This cannot be undone.',
+      confirmLabel: 'Delete forever',
+      tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await db({ action: 'delete', table: 'jd_signatures', match: { job_description_id: job.id } }).catch(() => {});
       await db({ action: 'delete', table: 'job_descriptions', match: { id: job.id } });
       if (user) logActivity({ userId: user.id, type: 'jd.deleted', targetKind: 'job_description', targetId: job.id, targetLabel: job.title, targetPath: '/app/job-descriptions' });
       router.push('/app/job-descriptions');
     } catch (err) {
-      window.alert(`Delete failed: ${err instanceof Error ? err.message : String(err)}`);
+      await modal.alert('Delete failed', {
+        message: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
@@ -995,7 +1009,7 @@ export default function JobDescriptionDetailContent() {
                 >
                   {u.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={u.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                    <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
                   ) : (
                     <span className="w-5 h-5 rounded-full bg-foreground/10 flex items-center justify-center text-[9px] font-semibold text-foreground/60">
                       {(u.full_name || '?').charAt(0).toUpperCase()}
@@ -1052,7 +1066,7 @@ export default function JobDescriptionDetailContent() {
                         >
                           {u.avatar_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={u.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                            <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
                           ) : (
                             <span className="w-5 h-5 rounded-full bg-foreground/10 flex items-center justify-center text-[9px] font-semibold text-foreground/60">
                               {(u.full_name || '?').charAt(0).toUpperCase()}
@@ -1380,7 +1394,7 @@ export default function JobDescriptionDetailContent() {
                     <span className={`w-2 h-2 rounded-full shrink-0 ${s.signed_at ? 'bg-emerald-500' : 'bg-amber-400'}`} />
                     {signerUser?.avatar_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={signerUser.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
+                      <img src={toAvatarThumb(signerUser.avatar_url, 200) ?? signerUser.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0" />
                     ) : (
                       <span className="w-7 h-7 rounded-full bg-foreground/10 flex items-center justify-center text-[11px] font-semibold text-foreground/60 shrink-0">
                         {(s.signer_name || signerUser?.full_name || '?').charAt(0).toUpperCase()}
@@ -1672,7 +1686,7 @@ export default function JobDescriptionDetailContent() {
                       >
                         {u.avatar_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
-                          <img src={u.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover" />
+                          <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover" />
                         ) : (
                           <span className="w-6 h-6 rounded-full bg-foreground/10 flex items-center justify-center text-[10px] font-semibold text-foreground/60">
                             {(u.full_name || '?').charAt(0).toUpperCase()}

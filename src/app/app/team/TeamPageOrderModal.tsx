@@ -4,6 +4,7 @@ import { Fragment, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { db } from '@/lib/db';
 import { useAuth } from '@/lib/AuthProvider';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface FetchedRow {
   id: string;
@@ -395,7 +396,7 @@ export default function TeamPageOrderModal({
                       {m.avatar_url ? (
                         /* eslint-disable-next-line @next/next/no-img-element */
                         <img
-                          src={m.avatar_url}
+                          src={toAvatarThumb(m.avatar_url, 200) ?? m.avatar_url}
                           alt=""
                           referrerPolicy="no-referrer"
                           draggable={false}

@@ -2,8 +2,10 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface ActivityRow {
   id: string;
@@ -34,6 +36,28 @@ function timeAgo(iso: string): string {
   return `${days}d ago`;
 }
 
+// Same threshold the Home orbit uses (HomeOnlineOrbit.tsx). >10
+// activity_log rows in the current Phoenix day → user is "on fire".
+const ON_FIRE_THRESHOLD = 10;
+
+// Today's start in Phoenix time, returned as an ISO string. Used to
+// gate which rows count toward on-fire. The site is hosted in
+// America/Phoenix and the Home orbit uses the same boundary.
+function startOfPhoenixDayIso(): string {
+  const now = new Date();
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Phoenix',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hour12: false,
+  });
+  const parts = Object.fromEntries(fmt.formatToParts(now).map((p) => [p.type, p.value])) as Record<string, string>;
+  // Phoenix is UTC-7 year-round (no DST). Reconstruct midnight Phoenix
+  // as UTC by subtracting 7 hours.
+  const y = parts.year, m = parts.month, d = parts.day;
+  return new Date(`${y}-${m}-${d}T00:00:00-07:00`).toISOString();
+}
+
 function describe(row: ActivityRow): { verb: string; accent: string } {
   switch (row.type) {
     case 'jd.signed':
@@ -62,8 +86,25 @@ function describe(row: ActivityRow): { verb: string; accent: string } {
       return { verb: 'reported facilities issue', accent: 'text-primary' };
     case 'facilities.chat_message':
       return { verb: 'commented on facilities issue', accent: 'text-foreground' };
+    case 'contact.created':
+      return { verb: 'added new contact', accent: 'text-emerald-600' };
+    case 'contact.logged': {
+      const method = typeof row.metadata?.method === 'string' ? row.metadata.method as string : null;
+      const verb = method ? `logged ${method.toLowerCase()} with` : 'logged a touchpoint with';
+      return { verb, accent: 'text-primary' };
+    }
     case 'user.signed_in':
       return { verb: 'signed in', accent: 'text-emerald-600' };
+    case 'social.posted': {
+      const platforms = Array.isArray(row.metadata?.platforms) ? (row.metadata.platforms as string[]) : [];
+      const where = platforms.length > 0 ? ` to ${platforms.join(', ')}` : '';
+      return { verb: `posted${where}`, accent: 'text-primary' };
+    }
+    case 'social.scheduled': {
+      const platforms = Array.isArray(row.metadata?.platforms) ? (row.metadata.platforms as string[]) : [];
+      const where = platforms.length > 0 ? ` to ${platforms.join(', ')}` : '';
+      return { verb: `scheduled a post${where}`, accent: 'text-foreground' };
+    }
     default:
       return { verb: row.type.replace(/[._]/g, ' '), accent: 'text-foreground' };
   }
@@ -84,6 +125,12 @@ export default function ActivityContent() {
     }
   }, [session, isAdmin, router]);
 
+  // Cursor for incremental polls. After the initial full pull we
+  // only ask Supabase for rows created since the newest row we
+  // already hold — usually 0-2 rows per tick instead of the whole
+  // table.
+  const newestSeenRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (!session?.access_token) return;
 
@@ -98,20 +145,59 @@ export default function ActivityContent() {
       setUsers(data as UserLite[]);
     }
 
-    async function loadActivity() {
-      const data = await db({
-        action: 'select',
-        table: 'activity_log',
-        order: { column: 'created_at', ascending: false },
-      }).catch(() => []);
-      if (cancelled || !Array.isArray(data)) return;
-      setRows((data as ActivityRow[]).filter((r) => r.type !== 'user.signed_in').slice(0, 500));
+    // Initial load: pull the most recent 500 rows server-side
+    // (used to pull the entire table then slice client-side, which
+    // grew unbounded with activity_log).
+    async function loadActivityInitial() {
+      const { data } = await supabase
+        .from('activity_log')
+        .select('id, user_id, type, target_kind, target_id, target_label, target_path, metadata, created_at')
+        .neq('type', 'user.signed_in')
+        .order('created_at', { ascending: false })
+        .limit(500);
+      if (cancelled || !data) return;
+      const rows = data as ActivityRow[];
+      setRows(rows);
+      if (rows[0]?.created_at) newestSeenRef.current = rows[0].created_at;
       setLoading(false);
     }
 
+    // Incremental tick: only ask for rows newer than what we have,
+    // and pause entirely when the tab isn't visible.
+    async function loadActivityIncremental() {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      const since = newestSeenRef.current;
+      if (!since) return loadActivityInitial();
+      const { data } = await supabase
+        .from('activity_log')
+        .select('id, user_id, type, target_kind, target_id, target_label, target_path, metadata, created_at')
+        .neq('type', 'user.signed_in')
+        .gt('created_at', since)
+        .order('created_at', { ascending: false })
+        .limit(200);
+      if (cancelled || !data || data.length === 0) return;
+      const fresh = data as ActivityRow[];
+      newestSeenRef.current = fresh[0].created_at;
+      setRows((prev) => {
+        // Keep the most recent 500 across new + existing.
+        const merged = [...fresh, ...prev];
+        const seen = new Set<string>();
+        const deduped: ActivityRow[] = [];
+        for (const r of merged) {
+          if (seen.has(r.id)) continue;
+          seen.add(r.id);
+          deduped.push(r);
+          if (deduped.length >= 500) break;
+        }
+        return deduped;
+      });
+    }
+
     loadUsers();
-    loadActivity();
-    const interval = setInterval(loadActivity, 5 * 1000);
+    loadActivityInitial();
+    // 15s instead of 5s — incremental polls are cheap but a 5s
+    // cadence is overkill for a feed that humans read.
+    const interval = setInterval(loadActivityIncremental, 15 * 1000);
     return () => {
       cancelled = true;
       clearInterval(interval);
@@ -123,6 +209,21 @@ export default function ActivityContent() {
     for (const u of users) m.set(u.id, u);
     return m;
   }, [users]);
+
+  // Per-user count of TODAY's activity_log rows. Drives the on-fire
+  // 🔥 badge in the feed. Recomputed every time the rows poll picks
+  // up new activity so the badge appears the moment a teammate
+  // crosses the threshold.
+  const actionsToday = useMemo(() => {
+    const startIso = startOfPhoenixDayIso();
+    const counts: Record<string, number> = {};
+    for (const r of rows) {
+      if (!r.user_id) continue;
+      if (r.created_at < startIso) continue;
+      counts[r.user_id] = (counts[r.user_id] ?? 0) + 1;
+    }
+    return counts;
+  }, [rows]);
 
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -175,6 +276,8 @@ export default function ActivityContent() {
               const { verb, accent } = describe(row);
               const clickable = !!row.target_path;
               const Wrapper: 'button' | 'div' = clickable ? 'button' : 'div';
+              const userActions = row.user_id ? actionsToday[row.user_id] ?? 0 : 0;
+              const onFire = userActions > ON_FIRE_THRESHOLD;
               return (
                 <Wrapper
                   key={row.id}
@@ -182,17 +285,40 @@ export default function ActivityContent() {
                   className={`w-full text-left flex items-center gap-3 px-3 py-3 border-b border-gray-100 transition-colors ${clickable ? 'hover:bg-warm-bg/50 cursor-pointer' : ''}`}
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
-                  {u?.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={u.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0 ring-1 ring-gray-100" />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full shrink-0 bg-primary text-white flex items-center justify-center text-xs font-bold">
-                      {(u?.full_name || u?.email || '?').charAt(0).toUpperCase()}
-                    </div>
-                  )}
+                  <div className="relative shrink-0">
+                    {u?.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
+                        alt=""
+                        className={`w-8 h-8 rounded-full object-cover ring-1 ${onFire ? 'ring-2 ring-amber-400 shadow-[0_0_10px_rgba(251,146,60,0.55)]' : 'ring-gray-100'}`}
+                      />
+                    ) : (
+                      <div className={`w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-xs font-bold ${onFire ? 'ring-2 ring-amber-400 shadow-[0_0_10px_rgba(251,146,60,0.55)]' : ''}`}>
+                        {(u?.full_name || u?.email || '?').charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    {onFire && (
+                      <span
+                        aria-label={`On a streak — ${userActions} actions today`}
+                        title={`On a streak — ${userActions} actions today`}
+                        className="absolute -bottom-1 -right-1 inline-flex items-center justify-center w-4 h-4 rounded-full bg-white text-[10px] leading-none shadow"
+                      >
+                        🔥
+                      </span>
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-foreground truncate">
                       <span className="font-semibold">{u?.full_name || u?.email || 'Someone'}</span>
+                      {onFire && (
+                        <span
+                          className="ml-1.5 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-amber-800 text-[10px] font-bold uppercase tracking-wider align-middle"
+                          title={`${userActions} actions today`}
+                        >
+                          🔥 {userActions}
+                        </span>
+                      )}
                       <span className={`ml-1 font-medium ${accent}`}>{verb}</span>
                       {row.target_label && (
                         <span className="ml-1 text-foreground/80">&quot;{row.target_label}&quot;</span>

@@ -28,19 +28,19 @@ interface HeroSlide {
 
 const HERO_SLIDES: HeroSlide[] = [
   {
-    src: '/images/group-sunset-desert.jpg',
+    src: '/hero/group-sunset-desert.jpg',
     from: { s: 1.08, x: -2, y: -1 },
     to:   { s: 1.22, x:  3, y:  2 },
     caption: { title: 'A brotherhood forged at sunset.', subtitle: 'Seven Arrows Recovery' },
   },
   {
-    src: '/images/horses-grazing.jpg',
+    src: '/hero/horses-grazing.jpg',
     from: { s: 1.10, x:  2, y:  1 },
     to:   { s: 1.24, x: -3, y: -2 },
     caption: { title: 'The herd is waiting.', subtitle: 'Equine-assisted therapy' },
   },
   {
-    src: '/images/sign-night-sky-milky-way.jpg',
+    src: '/hero/sign-night-sky-milky-way.jpg',
     from: { s: 1.15, x:  0, y:  3 },
     to:   { s: 1.28, x:  0, y: -2 },
     caption: { title: 'Under a sky full of second chances.' },
@@ -52,25 +52,25 @@ const HERO_SLIDES: HeroSlide[] = [
     caption: { title: 'Ceremony. Circle. Come home.' },
   },
   {
-    src: '/images/facility-exterior-mountains.jpg',
+    src: '/hero/facility-exterior-mountains.jpg',
     from: { s: 1.06, x:  2, y: -2 },
     to:   { s: 1.20, x: -2, y:  2 },
     caption: { title: 'Where the mountains hold the work.' },
   },
   {
-    src: '/images/equine-therapy-portrait.jpg',
+    src: '/hero/equine-therapy-portrait.jpg',
     from: { s: 1.14, x:  0, y: -2 },
     to:   { s: 1.28, x:  0, y:  2 },
     caption: { title: 'Connection before conversation.' },
   },
   {
-    src: '/images/covered-porch-desert-view.jpg',
+    src: '/hero/covered-porch-desert-view.jpg',
     from: { s: 1.08, x:  3, y:  1 },
     to:   { s: 1.22, x: -3, y: -1 },
     caption: { title: 'Slow mornings. Long horizons.' },
   },
   {
-    src: '/images/embrace-connection.jpg',
+    src: '/hero/embrace-connection.jpg',
     from: { s: 1.10, x: -2, y:  2 },
     to:   { s: 1.24, x:  3, y: -2 },
     caption: { title: 'You are not doing this alone.' },
@@ -249,16 +249,43 @@ function AnimatedLogo() {
           }}
           aria-hidden="true"
         />
-        <img
-          src="/images/logo.png"
-          alt="Seven Arrows Recovery"
-          className="relative z-10 w-full h-auto"
+        {/* Feather wordmark — replaces the round Seven Arrows logo
+            with the same feather glyph used in the platform sidebar
+            so the login + the in-app chrome share an identity. The
+            copper feather glyph stays prominent on the dark slides;
+            the "feather" word below it pairs the mark with the
+            product name. Drop-shadow lifts the SVG off any slide. */}
+        <div
+          className="relative z-10 flex flex-col items-center justify-center gap-3"
           style={{
-            // A strong dual drop-shadow lifts the mark off any slide.
             filter:
               'drop-shadow(0 2px 4px rgba(0,0,0,0.55)) drop-shadow(0 6px 18px rgba(0,0,0,0.5))',
           }}
-        />
+        >
+          <svg
+            aria-label="feather"
+            role="img"
+            width="96"
+            height="96"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.6}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="text-primary w-20 h-20 sm:w-24 sm:h-24"
+          >
+            <path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z" />
+            <line x1="16" y1="8" x2="2" y2="22" />
+            <line x1="17.5" y1="15" x2="9" y2="15" />
+          </svg>
+          <span
+            className="text-white/95 text-3xl sm:text-4xl font-semibold tracking-tight lowercase"
+            style={{ fontFamily: 'var(--font-display)' }}
+          >
+            feather
+          </span>
+        </div>
       </div>
 
       <style jsx global>{`
@@ -693,8 +720,8 @@ function upgradeGoogleAvatar(url: string | null): string | null {
 // Two horse photos ship in /public/images and stand in for the equine
 // table (which is auth-gated and can't be read pre-login).
 const HORSE_TILES: FaceTile[] = [
-  { key: 'horse-portrait', name: 'The herd', role: 'Equine therapy', src: '/images/equine-therapy-portrait.jpg', kind: 'horse' },
-  { key: 'horse-grazing',  name: 'Grazing',  role: 'Morning pasture', src: '/images/horses-grazing.jpg', kind: 'horse' },
+  { key: 'horse-portrait', name: 'The herd', role: 'Equine therapy', src: '/hero/equine-therapy-portrait.jpg', kind: 'horse' },
+  { key: 'horse-grazing',  name: 'Grazing',  role: 'Morning pasture', src: '/hero/horses-grazing.jpg', kind: 'horse' },
 ];
 
 /**

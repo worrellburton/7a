@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "How to Practice Self Care" },
         ]}
         description="Self-care is an essential practice that promotes overall well-being, helps manage stress, and enhances our physical, emotional, and mental health. In today’s fast-paced and demanding world, taking time for self-care is more…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

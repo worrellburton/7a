@@ -1,5 +1,12 @@
 import type { Metadata } from 'next';
 
+// 1-hour ISR — marketing pages are otherwise fully static; this lets the
+// edge cache hold the rendered HTML so TTFB drops from ~250ms (cold SSR)
+// to ~30ms (edge hit). Editorial copy + image swaps go live within an hour
+// of merging; if you need sub-hour freshness on a specific page, override
+// with a smaller value or remove this line.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'Forward-Facing® Accelerated Recovery | Seven Arrows Recovery',
   description:
@@ -59,7 +66,7 @@ export default function TraumAddictionPage() {
           { label: 'Forward-Facing Accelerated Recovery' },
         ]}
         description="Forward-Facing® Accelerated Recovery is our integrated model for treating trauma and substance use together — not as separate conditions, but as deeply interconnected challenges that require a unified, salutogenic approach."
-        image="/images/embrace-connection.jpg"
+        image="/hero/embrace-connection.jpg"
         ctas={[
           {
             kind: 'phone',
@@ -205,7 +212,7 @@ export default function TraumAddictionPage() {
               Forward-Facing® Accelerated Recovery (FF-AR)
             </p>
             <h2 className="text-3xl lg:text-4xl font-bold mb-6">
-              Stabilize. Understand. Grow.
+              Awareness. Capacity. Meaning.
             </h2>
             <p
               className="text-white/70 leading-relaxed text-lg"
@@ -288,6 +295,19 @@ export default function TraumAddictionPage() {
               Contact Us Online
             </Link>
           </div>
+        </div>
+      </section>
+
+      {/* FF-AR attribution. Per Lindsay + Dr. Gentry: the page must
+          cite the co-ownership of the adapted model so external readers
+          (and other clinicians citing the framework) trace it back to
+          the right primary source. */}
+      <section className="bg-warm-bg/60 border-t border-black/10">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8 py-8">
+          <p className="text-[12px] leading-relaxed text-foreground/65" style={{ fontFamily: 'var(--font-body)' }}>
+            <span className="font-semibold text-foreground/80">Citation.</span>{' '}
+            Forward-Facing Accelerated Recovery (FF-AR) is an adapted application of the Forward-Facing Freedom&reg; model developed by J. Eric Gentry. The FF-AR model was collaboratively developed and is jointly owned by Dr. Eric Gentry and Lindsay Rothschild for use in trauma and addiction recovery settings.
+          </p>
         </div>
       </section>
     </>

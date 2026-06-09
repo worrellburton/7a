@@ -259,7 +259,7 @@ export default function PageContent() {
           { label: 'What Actually Happens in Equine Therapy' },
         ]}
         description="The honest, minute-by-minute version of equine therapy — no marketing gloss, no horse-whispering mystique. Just what really happens in the arena and why it so often reaches places talk therapy cannot."
-        image="/images/equine-therapy-portrait.jpg"
+        image="/hero/equine-therapy-portrait.jpg"
         width="narrow"
       />
 
@@ -335,7 +335,7 @@ export default function PageContent() {
             {/* Image break */}
             <div className="my-12 rounded-2xl overflow-hidden aspect-[16/7]">
               <img
-                src="/images/horses-grazing.jpg"
+                src="/hero/horses-grazing.jpg"
                 alt="Horses grazing in the pasture at Seven Arrows Recovery, where equine therapy sessions take place."
                 className="w-full h-full object-cover"
                 loading="lazy"

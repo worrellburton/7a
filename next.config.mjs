@@ -1,7 +1,37 @@
+import withBundleAnalyzerFactory from '@next/bundle-analyzer';
+import { withSentryConfig } from '@sentry/nextjs';
+
+// Bundle analyzer — enabled when ANALYZE=true is set on a build,
+// otherwise a no-op wrapper. Run with `ANALYZE=true npm run build`
+// to dump a treemap of every route's first-load JS into a browser
+// tab. Useful for catching regressions before they ship.
+const withBundleAnalyzer = withBundleAnalyzerFactory({
+  enabled: process.env.ANALYZE === 'true',
+  openAnalyzer: true,
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Force next.config.mjs itself into the serverless bundle for the two
+  // routes that read it at runtime (the public download + the 6 AM
+  // snapshot cron). Without this @vercel/nft wouldn't trace a plain
+  // fs.readFile of a path built from process.cwd().
+  outputFileTracingIncludes: {
+    '/api/seo/next-config': ['./next.config.mjs'],
+    '/api/cron/seo/next-config-snapshot': ['./next.config.mjs'],
+  },
+
   images: {
-    unoptimized: true,
+    // Next-image optimizer ON. The two heroes we hand-rolled via
+    // <picture> still work (they don't go through next/image). Any
+    // future <Image> usage will automatically serve AVIF / WebP /
+    // responsive srcset variants from the same source file.
+    // Audited in phase 6: only `BlogPostMeta.tsx` currently imports
+    // next/image, and it uses no remote hosts — so flipping the
+    // flag is safe without an `remotePatterns` allowlist today.
+    // Add remote hosts here when a future <Image src=https://...>
+    // ships (Supabase storage, Brandfetch, etc.).
+    formats: ['image/avif', 'image/webp'],
   },
 
   // Tell Next.js NOT to auto-redirect trailing slashes (its default
@@ -156,10 +186,6 @@ const nextConfig = {
       { source: '/category/uncategorized', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
       { source: '/category/addiction-treatment', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
       { source: '/blog', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
-      // Email-campaign slug that was sent before the post landed.
-      // Points to the closest thematic match (salutogenic frame =
-      // "stop fighting the self, start listening to what's underneath").
-      { source: '/who-we-are/blog/recovery-through-self-connection', destination: '/who-we-are/blog/salutogenic-not-pathological', statusCode: 301 },
       { source: '/self-care-addiction-recovery', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
       { source: '/what-to-expect-during-rehab', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
       { source: '/getting-through-the-holidays-sober', destination: '/who-we-are/recovery-roadmap', statusCode: 301 },
@@ -179,8 +205,67 @@ const nextConfig = {
       { source: '/private-rehabs-in-arizona', destination: '/', statusCode: 301 },
       { source: '/privacy-policy-2', destination: '/', statusCode: 301 },
       { source: '/thank-you', destination: '/contact', statusCode: 301 },
+
+      // ── Phase 11: Internal app routes renamed ───────────────────
+      // /app/outreach → /app/contacts (the dir was renamed; this
+      // catches old bookmarks, activity-feed deep links, and any
+      // external dashboards that linked into the old surface).
+      { source: '/app/outreach', destination: '/app/contacts', statusCode: 308 },
+    ];
+  },
+
+  // ── Response headers for Next.js build assets ──────────────────
+  // Two goals:
+  //   1. Tell Google not to index JS chunks as standalone URLs
+  //      (they appear in GSC under "Crawled - currently not indexed"
+  //      because Google discovers them in rendered HTML and crawls
+  //      them, then correctly decides they aren't pages). The
+  //      X-Robots-Tag: noindex moves them out of that bucket into
+  //      "Excluded by 'noindex' tag", which is the correct state.
+  //      Per Google docs, noindex on resources does NOT block the
+  //      WRS from fetching them for page rendering — it only
+  //      affects indexing.
+  //   2. Mark all /_next/static/ assets as immutable so Google (and
+  //      browsers) don't re-crawl them across deploys. Next.js
+  //      content-hashes these filenames, so immutable is safe.
+  // Scope is intentionally narrow: noindex applies only to the
+  // chunks subdir, not to /_next/static/css/ or /_next/static/media/,
+  // to minimise blast radius.
+  async headers() {
+    return [
+      {
+        source: '/_next/static/chunks/:path*',
+        headers: [
+          { key: 'X-Robots-Tag', value: 'noindex' },
+        ],
+      },
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
     ];
   },
 };
 
-export default nextConfig;
+// Sentry wrap. Tunnels client error reports through a same-origin
+// route so ad-blockers (which heavily target sentry.io domains)
+// don't drop them silently. Source map upload only happens when
+// SENTRY_AUTH_TOKEN is present; locally it's a no-op.
+const withSentry = (cfg) =>
+  withSentryConfig(cfg, {
+    // CLI flags
+    silent: true,
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    // SDK behavior
+    widenClientFileUpload: true,
+    tunnelRoute: '/monitoring/sentry',
+    hideSourceMaps: true,
+    disableLogger: true,
+    automaticVercelMonitors: false,
+  });
+
+export default withSentry(withBundleAnalyzer(nextConfig));

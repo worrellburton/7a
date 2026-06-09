@@ -4,7 +4,7 @@ import { useAuth, notifyAvatarChanged } from '@/lib/AuthProvider';
 import { usePagePermissions } from '@/lib/PagePermissions';
 import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
-import { uploadFile, compressImage } from '@/lib/upload';
+import { uploadFile, compressImage, generateAvatarThumbDataUrl } from '@/lib/upload';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import FeatureRequestModal from './kingdom-requests/FeatureRequestModal';
@@ -14,17 +14,28 @@ import JdSignatureNagModal from './JdSignatureNagModal';
 // import in source so the re-enable diff is one line.
 // import HomeClientsRow from './HomeClientsRow';
 import HomeOnlineOrbit, { type OrbitHorse } from './HomeOnlineOrbit';
+import HomeDailyLogsChip from './HomeDailyLogsChip';
+import HomeHardwareChip from './HomeHardwareChip';
+import HomeMercuryBalanceChip from './HomeMercuryBalanceChip';
+import HomeChipCluster from './HomeChipCluster';
 import HomeConnect4Nudge from './HomeConnect4Nudge';
 
 interface RecentUser {
   id: string;
   full_name: string | null;
   avatar_url: string | null;
+  // Pre-rendered 60×60 WebP as a data URL. Populated on upload + by
+  // the admin backfill endpoint. Drives the orbit so it paints with
+  // zero per-avatar HTTP fetches.
+  avatar_thumb: string | null;
   last_sign_in: string | null;
   job_title: string | null;
   last_path: string | null;
   last_seen_at: string | null;
   status: 'active' | 'on_hold' | 'denied' | null;
+  // 'staff' / 'alumni' / 'guest' — drives the staff-vs-alumni
+  // ring split on the orbit. Null treated as staff.
+  user_kind?: 'staff' | 'alumni' | 'guest' | null;
   // Activity-feed counters, joined in client-side after the user
   // list loads. > 10 today flips the avatar into "on fire" mode in
   // the orbit; the tooltip shows the count + a few recent actions.
@@ -43,6 +54,18 @@ interface RecentUser {
     start_time: string | null;
     end_time: string | null;
   }>;
+  // Sobriety data — populated for alumni rows only, sourced from
+  // public.alumni_profiles after the users query lands. Only set
+  // when the alum has sobriety_public=true. `sobriety_short_label`
+  // is a compact "47d / 3mo / 2y" form for the bubble badge;
+  // `sobriety_label` is the longer "47 days sober" form used in
+  // the tooltip. `last_check_in_at` + `check_in_streak` drive the
+  // first-time-seeing-it glow on the avatar bubble and the
+  // tooltip's check-in details.
+  sobriety_short_label?: string | null;
+  sobriety_label?: string | null;
+  last_check_in_at?: string | null;
+  check_in_streak?: number;
 }
 
 interface PendingSignature {
@@ -50,6 +73,39 @@ interface PendingSignature {
   job_description_id: string;
   sent_at: string;
   title: string;
+}
+
+// Phoenix-anchored day count since sobriety_date. Phoenix has no DST,
+// so anchoring the start day at midnight Phoenix avoids the off-by-one
+// drift that happens when crossing UTC midnight.
+function soberDayCount(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const start = Date.parse(`${iso}T00:00:00-07:00`);
+  if (!Number.isFinite(start)) return null;
+  const days = Math.floor((Date.now() - start) / 86_400_000);
+  return days < 0 ? null : days;
+}
+
+function soberShortLabel(iso: string | null | undefined): string | null {
+  const days = soberDayCount(iso);
+  if (days == null) return null;
+  if (days === 0) return '1d';
+  if (days < 30) return `${days}d`;
+  if (days < 365) return `${Math.floor(days / 30)}mo`;
+  return `${Math.floor(days / 365)}y`;
+}
+
+function soberLongLabel(iso: string | null | undefined): string | null {
+  const days = soberDayCount(iso);
+  if (days == null) return null;
+  if (days === 0) return 'Day 1 sober';
+  if (days < 30) return `${days} days sober`;
+  if (days < 365) {
+    const m = Math.floor(days / 30);
+    return `${m} ${m === 1 ? 'month' : 'months'} sober`;
+  }
+  const y = Math.floor(days / 365);
+  return `${y} ${y === 1 ? 'year' : 'years'} sober`;
 }
 
 function isOnlineNow(lastSeen: string | null): boolean {
@@ -72,9 +128,10 @@ export default function HomeContent() {
   const { pages } = usePagePermissions();
   const router = useRouter();
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
+  const [recentAlumni, setRecentAlumni] = useState<RecentUser[]>([]);
   const [horses, setHorses] = useState<OrbitHorse[]>([]);
   const [pendingSignatures, setPendingSignatures] = useState<PendingSignature[]>([]);
-  const [latestSignedJd, setLatestSignedJd] = useState<{ id: string; title: string; pdfUrl: string | null } | null>(null);
+  const [signedJds, setSignedJds] = useState<Array<{ id: string; title: string; pdfUrl: string | null }>>([]);
   const [loaded, setLoaded] = useState(false);
   const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
   // Combined "+" menu in the hero: holds the Feature request and
@@ -140,7 +197,17 @@ export default function HomeContent() {
         console.error('Avatar upload failed:', error);
         return;
       }
-      await db({ action: 'update', table: 'users', data: { avatar_url: url }, match: { id: user.id } });
+      // Inline 60×60 WebP for the home orbit so it paints without a
+      // per-avatar HTTP fetch. Generated from the same compressed
+      // buffer we just uploaded — null on browser failure is fine,
+      // the orbit falls back to avatar_url.
+      const thumb = await generateAvatarThumbDataUrl(compressed);
+      await db({
+        action: 'update',
+        table: 'users',
+        data: { avatar_url: url, avatar_thumb: thumb },
+        match: { id: user.id },
+      });
       await supabase.auth.updateUser({ data: { avatar_url: url } });
       setAvatarUrl(url);
       // Tell every avatar surface (sidebar, mobile drawer) that the
@@ -198,18 +265,30 @@ export default function HomeContent() {
           select: 'id, name, image_url, age, weight, works_in, rideable',
           order: { column: 'name', ascending: true },
         }).catch(() => []),
-        db({
-          action: 'select',
-          table: 'equine_weight_logs',
-          select: 'horse_id, weight_lbs, logged_at',
-          order: { column: 'logged_at', ascending: false },
-        }).catch(() => []),
-        db({
-          action: 'select',
-          table: 'equine_feed_logs',
-          select: 'horse_id, feed_type, amount, unit, logged_at',
-          order: { column: 'logged_at', ascending: false },
-        }).catch(() => []),
+        // Equine weight + feed logs grow unbounded. The dashboard only
+        // needs the LATEST per horse, so cap to the last 60 days +
+        // 2000 rows — that fits ~15-20 horses with multiple daily
+        // entries each and lops gigabytes of egress over time.
+        (async () => {
+          const since = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+          const { data } = await supabase
+            .from('equine_weight_logs')
+            .select('horse_id, weight_lbs, logged_at')
+            .gte('logged_at', since)
+            .order('logged_at', { ascending: false })
+            .limit(2000);
+          return data ?? [];
+        })().catch(() => []),
+        (async () => {
+          const since = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
+          const { data } = await supabase
+            .from('equine_feed_logs')
+            .select('horse_id, feed_type, amount, unit, logged_at')
+            .gte('logged_at', since)
+            .order('logged_at', { ascending: false })
+            .limit(2000);
+          return data ?? [];
+        })().catch(() => []),
       ]);
       if (cancelled || !Array.isArray(hs)) return;
 
@@ -260,7 +339,7 @@ export default function HomeContent() {
     if (!session?.access_token) return;
     let cancelled = false;
     async function fetchRecentUsers() {
-      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, last_sign_in, last_seen_at, last_path, job_title, status', order: { column: 'last_sign_in', ascending: false } });
+      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, avatar_thumb, last_sign_in, last_seen_at, last_path, job_title, status, user_kind', order: { column: 'last_sign_in', ascending: false } });
       if (cancelled || !Array.isArray(data)) {
         setTimeout(() => setLoaded(true), 100);
         return;
@@ -276,8 +355,55 @@ export default function HomeContent() {
           u.last_sign_in &&
           new Date(u.last_sign_in) >= today,
       );
-      setRecentUsers(filtered);
+      // Split staff vs. alumni so the orbit can render them as
+      // separate rings (alumni become the outermost ring around
+      // employees + horses). user_kind null defaults to staff so
+      // legacy rows from before the column existed still appear
+      // on the employee ring.
+      const staff = filtered.filter((u) => u.user_kind !== 'alumni');
+      const alumni = filtered.filter((u) => u.user_kind === 'alumni');
+      setRecentUsers(staff);
+      setRecentAlumni(alumni);
       setTimeout(() => setLoaded(true), 100);
+
+      // Side fetch: alumni_profiles for the alumni on the ring so each
+      // bubble can render a sobriety badge + the tooltip can show
+      // last-check-in details. RLS on alumni_profiles allows any
+      // signed-in user to read sobriety fields the alum opted in to
+      // share (sobriety_public), plus the per-row check-in fields.
+      // Failure is non-fatal — the orbit just loses the badge.
+      if (alumni.length > 0) {
+        void (async () => {
+          const { data: profiles, error: profErr } = await supabase
+            .from('alumni_profiles')
+            .select('user_id, sobriety_date, sobriety_public, last_check_in_at, check_in_streak')
+            .in('user_id', alumni.map((a) => a.id));
+          if (cancelled || profErr || !Array.isArray(profiles)) return;
+          type ProfileRow = {
+            user_id: string;
+            sobriety_date: string | null;
+            sobriety_public: boolean | null;
+            last_check_in_at: string | null;
+            check_in_streak: number | null;
+          };
+          const byId = new Map<string, ProfileRow>();
+          for (const p of profiles as ProfileRow[]) byId.set(p.user_id, p);
+          setRecentAlumni((prev) =>
+            prev.map((a) => {
+              const p = byId.get(a.id);
+              if (!p) return a;
+              const sobrietyOk = p.sobriety_public === true && !!p.sobriety_date;
+              return {
+                ...a,
+                sobriety_short_label: sobrietyOk ? soberShortLabel(p.sobriety_date) : null,
+                sobriety_label: sobrietyOk ? soberLongLabel(p.sobriety_date) : null,
+                last_check_in_at: p.last_check_in_at,
+                check_in_streak: typeof p.check_in_streak === 'number' ? p.check_in_streak : 0,
+              };
+            }),
+          );
+        })();
+      }
 
       // Second pass: pull today's activity_log rows and join them
       // onto the recent users. The orbit uses these counts to flip
@@ -381,19 +507,24 @@ export default function HomeContent() {
         setPendingSignatures([]);
         return;
       }
-      const jobs = await Promise.all(
-        pending.map((p) =>
-          db({ action: 'select', table: 'job_descriptions', match: { id: p.job_description_id }, select: 'id, title' })
-            .then((r) => (Array.isArray(r) && r.length > 0 ? (r[0] as { id: string; title: string }) : null))
-            .catch(() => null)
-        )
-      );
+      // Single round-trip for all pending JDs instead of one fetch
+      // per signature. Was an N+1 — a user with 5 pending JDs hit
+      // /api/db 5 times sequentially before the nag modal could
+      // render.
+      const jobIds = Array.from(new Set(pending.map((p) => p.job_description_id)));
+      const { data: jobRows } = await supabase
+        .from('job_descriptions')
+        .select('id, title')
+        .in('id', jobIds);
       if (cancelled) return;
+      const titleById = new Map(
+        ((jobRows ?? []) as Array<{ id: string; title: string }>).map((j) => [j.id, j.title]),
+      );
       const merged: PendingSignature[] = pending
-        .map((p, i) => {
-          const j = jobs[i];
-          if (!j) return null;
-          return { id: p.id, job_description_id: p.job_description_id, sent_at: p.sent_at, title: j.title };
+        .map((p) => {
+          const title = titleById.get(p.job_description_id);
+          if (!title) return null;
+          return { id: p.id, job_description_id: p.job_description_id, sent_at: p.sent_at, title };
         })
         .filter((x): x is PendingSignature => x !== null);
       setPendingSignatures(merged);
@@ -407,7 +538,7 @@ export default function HomeContent() {
   useEffect(() => {
     if (!session?.access_token || !user?.id) return;
     let cancelled = false;
-    async function loadLatestSigned() {
+    async function loadSignedJds() {
       const sigs = await db({
         action: 'select',
         table: 'jd_signatures',
@@ -416,21 +547,42 @@ export default function HomeContent() {
         order: { column: 'signed_at', ascending: false },
       }).catch(() => []);
       if (cancelled || !Array.isArray(sigs)) return;
-      const signed = (sigs as Array<{ job_description_id: string; signed_at: string | null; pdf_storage_path: string | null }>).find((s) => !!s.signed_at);
-      if (!signed) return;
-      const jd = await db({
-        action: 'select',
-        table: 'job_descriptions',
-        match: { id: signed.job_description_id },
-        select: 'id, title',
-      }).catch(() => null);
-      if (cancelled) return;
-      if (Array.isArray(jd) && jd.length > 0) {
-        const row = jd[0] as { id: string; title: string };
-        setLatestSignedJd({ id: row.id, title: row.title, pdfUrl: signed.pdf_storage_path || null });
+      // Most-recent signed copy wins per job_description_id, so an
+      // old superseded version doesn't clutter the header.
+      const signedRows = (sigs as Array<{ job_description_id: string; signed_at: string | null; pdf_storage_path: string | null }>)
+        .filter((s) => !!s.signed_at);
+      const latestByJob = new Map<string, { pdfUrl: string | null }>();
+      for (const s of signedRows) {
+        if (!latestByJob.has(s.job_description_id)) {
+          latestByJob.set(s.job_description_id, { pdfUrl: s.pdf_storage_path || null });
+        }
       }
+      const jobIds = Array.from(latestByJob.keys());
+      if (jobIds.length === 0) {
+        setSignedJds([]);
+        return;
+      }
+      const { data: jdRows } = await supabase
+        .from('job_descriptions')
+        .select('id, title')
+        .in('id', jobIds);
+      if (cancelled) return;
+      const titleById = new Map(
+        ((jdRows ?? []) as Array<{ id: string; title: string }>).map((j) => [j.id, j.title]),
+      );
+      // Preserve the signed-at order from the original query.
+      const seen = new Set<string>();
+      const ordered: Array<{ id: string; title: string; pdfUrl: string | null }> = [];
+      for (const s of signedRows) {
+        if (seen.has(s.job_description_id)) continue;
+        seen.add(s.job_description_id);
+        const title = titleById.get(s.job_description_id);
+        if (!title) continue;
+        ordered.push({ id: s.job_description_id, title, pdfUrl: s.pdf_storage_path || null });
+      }
+      setSignedJds(ordered);
     }
-    loadLatestSigned();
+    loadSignedJds();
     return () => { cancelled = true; };
   }, [session, user?.id]);
 
@@ -466,7 +618,11 @@ export default function HomeContent() {
   }
 
   return (
-    <div data-home-no-scroll className="relative flex flex-col min-h-full overflow-x-clip">
+    // `isolation: isolate` scopes the negative z-index used by the
+    // ambient backdrop + the mobile log-rain layer to this stacking
+    // context so they stay BEHIND home-content elements rather than
+    // disappearing behind the body's background.
+    <div data-home-no-scroll className="relative flex flex-col min-h-full overflow-x-clip isolation-auto" style={{ isolation: 'isolate' }}>
       {/* Phase 3: ambient backdrop. Three soft warm orbs sit behind
           everything so the glass surfaces have something colorful to
           refract. Pointer-events off so they never trap clicks. */}
@@ -476,14 +632,16 @@ export default function HomeContent() {
         <div className="absolute bottom-0 left-1/3 w-[480px] h-[480px] rounded-full bg-amber-200/35 blur-[130px]" />
       </div>
 
-      {/* On lg+ the global `app-shell` applies zoom: 0.82, so a plain
-          h-[100vh] CSS height renders at only 82% of the actual
-          viewport — which would sit the orbit ~85px above true centre
-          on a 1080p display. Mirror the sidebar's compensation pattern
-          (`h-[calc(100vh/0.82)]`) so the wrapper fills the real screen
-          and `justify-center` on the centerpiece below lands the
-          orbit at the visual middle of the viewport. */}
-      <div className="relative flex-1 flex flex-col h-[calc(100svh-1px)] max-h-[calc(100svh-1px)] lg:h-[calc((100vh-1px)/0.82)] lg:max-h-[calc((100vh-1px)/0.82)] overflow-hidden px-4 sm:px-6 lg:px-10 py-3 lg:py-6">
+      {/* Wrapper height = viewport height (1px subtracted to defeat
+          a Chrome subpixel rounding quirk that otherwise produces a
+          1px stray scrollbar). The old lg: divisor of `/0.82` was
+          compensating for an `app-shell { zoom: 0.82 }` rule that
+          got dropped in 41bfd939 — without that zoom, dividing the
+          viewport by 0.82 produced a ~122vh container, and the
+          overflow-hidden then clipped the daily-logs chip + mission
+          tagline out of frame. Uniform 100svh across breakpoints
+          restores the one-viewport home page. */}
+      <div className="relative flex-1 flex flex-col h-[calc(100svh-1px)] max-h-[calc(100svh-1px)] overflow-hidden px-4 sm:px-6 lg:px-10 py-3 lg:py-6">
 
         {/* Phase 4: hero — no glass card; the avatar/greeting and the
             create-menu button float on the page background. The hero
@@ -556,15 +714,99 @@ export default function HomeContent() {
                 <h1 className="text-xl lg:text-2xl font-bold text-foreground leading-tight" style={{ fontFamily: 'var(--font-display)' }}>
                   {firstName}
                 </h1>
+                {signedJds.length > 0 && (
+                  <div
+                    className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[11px] text-foreground/55 leading-snug"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {signedJds.map((jd, i) => (
+                      <span key={jd.id} className="inline-flex items-baseline">
+                        {i > 0 && <span aria-hidden className="mr-1.5 text-foreground/30">·</span>}
+                        {jd.pdfUrl ? (
+                          <a
+                            href={jd.pdfUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="hover:text-foreground hover:underline underline-offset-2"
+                          >
+                            {jd.title}
+                          </a>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => router.push(`/app/job-descriptions/${jd.id}`)}
+                            className="hover:text-foreground hover:underline underline-offset-2"
+                          >
+                            {jd.title}
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* RIGHT (top row): single "+" button that opens a small
-                dropdown with the two creation entry points. Hidden
-                for alumni — Feature Request + New Facilities are
-                staff-only flows and don't apply to the alumni home
-                experience. */}
-            <div ref={addMenuRef} className={`relative shrink-0 ${userKind === 'alumni' ? 'hidden' : ''}`}>
+            {/* Right cluster — pending-signature pill + create (+)
+                button. The signed-JD titles live inline under the
+                user's name in the left cluster so the right side
+                stays focused on action items. */}
+            <div className={`shrink-0 flex items-center gap-2 ${userKind === 'alumni' ? 'hidden' : ''}`}>
+            {/* Pending-signature pill — amber, urgent. If multiple
+                pending, only the first title shows; count chip
+                indicates the rest. */}
+            {pendingSignatures.length > 0 && (
+              <button
+                type="button"
+                onClick={() => router.push(`/app/sign/${pendingSignatures[0].id}`)}
+                title={pendingSignatures.length === 1
+                  ? `Sign: ${pendingSignatures[0].title}`
+                  : `${pendingSignatures.length} job descriptions waiting for your signature — open the first.`}
+                aria-label={`${pendingSignatures.length} pending signature${pendingSignatures.length === 1 ? '' : 's'} — open ${pendingSignatures[0].title}`}
+                className="inline-flex items-center gap-1.5 h-9 lg:h-10 pl-3 pr-3.5 rounded-full bg-amber-100/85 border border-amber-300 text-amber-900 hover:bg-amber-100 hover:border-amber-400 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 max-w-[14rem] sm:max-w-xs"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                <svg className="w-4 h-4 text-amber-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 113 3L7 19l-4 1 1-4 12.5-12.5z" />
+                </svg>
+                <span className="text-[12px] font-semibold truncate">
+                  Sign: {pendingSignatures[0].title}
+                </span>
+                {pendingSignatures.length > 1 && (
+                  <span className="shrink-0 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-amber-700 text-white text-[10px] font-bold tabular-nums">
+                    {pendingSignatures.length}
+                  </span>
+                )}
+              </button>
+            )}
+            {/* Right-cluster info chips. On desktop they render
+                inline (Mercury balance · daily logs · hardware
+                check-in). On mobile the cluster collapses into a
+                single dot-menu trigger so the WELCOME BACK headline
+                isn't crowded; tapping the trigger opens a dropdown
+                with all the chips stacked. The chips themselves
+                only render once — the cluster swaps layout via
+                class toggles. */}
+            <HomeChipCluster>
+              {/* Mercury 7A bank-balance pill — super-admin only.
+                  RLS on mercury_accounts hides the read for everyone
+                  else, and the component itself returns null when
+                  !isSuperAdmin so a non-super-admin doesn't even pay
+                  the mount cost. */}
+              <HomeMercuryBalanceChip />
+              {/* Daily logs circle — compact 36-40px round button
+                  that links to /app/logs; flips to a glowing amber 🔥
+                  when today clears the all-time record. */}
+              <HomeDailyLogsChip variant="circle" />
+              {/* Hardware check-in chip — same 36-40px round shape,
+                  shows how many hardware rows are assigned to the
+                  signed-in user; clicking opens the per-row "looks
+                  good / isn't right" check-in. Auto-hides when
+                  count == 0. */}
+              <HomeHardwareChip />
+            </HomeChipCluster>
+            <div ref={addMenuRef} className="relative">
               <button
                 type="button"
                 onClick={() => setAddMenuOpen((v) => !v)}
@@ -620,6 +862,7 @@ export default function HomeContent() {
                 </div>
               )}
             </div>
+            </div> {/* end toggle + create cluster */}
 
             </div> {/* end TOP ROW */}
 
@@ -628,125 +871,99 @@ export default function HomeContent() {
 
         {/* Centerpiece — flex-1 so it eats the leftover vertical space
             between the absolutely-positioned hero (top) and the WIP
-            footer pill (bottom), and `justify-center` parks the orbit
-            + Ask Policies stack at the dead center of that space. */}
-        <div className="relative flex-1 flex flex-col items-stretch justify-center gap-4 sm:gap-6 lg:gap-8 mt-2 lg:mt-0">
+            footer pill (bottom). The orbit is absolute-positioned to
+            this column's geometric centre (see below) so the 7A
+            medallion always lands dead-centre. The remaining children
+            (Connect-4 nudge, action stack) flow with `justify-end` so
+            they stack at the bottom of the centerpiece instead of
+            colliding with the absolutely-positioned orbit. */}
+        <div className="relative flex-1 flex flex-col items-stretch justify-end gap-4 sm:gap-6 lg:gap-8 mt-2 lg:mt-0">
 
         {/* Centered, slowly-rotating ring of teammates active in the
             last 24 hours, with the horse roster orbiting in the inner
             ring. See HomeOnlineOrbit.tsx for the anatomy + animation.
             Mobile: fixed-positioned so it pins to the visible
-            viewport's centre — using `absolute` would only centre it
-            inside the centerpiece flex column, which sits below the
-            welcome header and so isn't actually in the middle of the
-            screen. sm+: returns to normal flex flow. */}
+            viewport's centre. Desktop: absolute-positioned to the
+            centerpiece's geometric centre so the 7A medallion sits
+            dead-centre regardless of how many siblings (Connect-4
+            nudge, signature stack, etc.) flow below it — leaving the
+            orbit in normal flex flow lets sibling height push the
+            orbit upward off the visual centre, which is exactly the
+            bug we kept hitting. `pointer-events-none` on the section
+            so the click-through area around the orbit doesn't block
+            anything below; the inner content opts back in to clicks. */}
         {recentUsers.length > 0 && (
-          <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 sm:relative sm:top-auto sm:left-auto sm:translate-x-0 sm:translate-y-0 pointer-events-none sm:pointer-events-auto">
-            <div className="pointer-events-auto">
-              <HomeOnlineOrbit users={recentUsers} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
+          <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed sm:absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
+            <div className="pointer-events-auto flex flex-col items-center gap-3">
+              <HomeOnlineOrbit users={recentUsers} alumni={recentAlumni} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
+              {/* The mobile daily-logs chip used to sit inside this
+                  fixed orbit section, right below the ring. That
+                  pulled the section's centre down (so the 7A medallion
+                  drifted above true viewport-centre) and put the chip
+                  near the "Also here" presence pill (bottom-20),
+                  causing visual collision. It's now rendered as its
+                  own fixed element further down, anchored above the
+                  pill so the two never overlap. */}
             </div>
           </section>
         )}
+
         <HomeConnect4Nudge onOpponentChange={setC4OpponentId} />
 
-        {/* Phase 6: action stack — pending signatures + signed JD,
-            uniform glass cards. Renders only when there's something
-            to show; otherwise the space below the pulse stays clean. */}
-        {(pendingSignatures.length > 0 || latestSignedJd) && (
+        {/* Phase 6: action stack — pending signatures only.
+            Signed JDs live inline under the user's name in the
+            header so the orbit isn't visually crashed by a wide
+            card sitting on top of it. */}
+        {pendingSignatures.length > 0 && (
           <section className="w-full max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-3">
-            {pendingSignatures.length > 0 && (
-              <div className="md:col-span-2">
-                <p
-                  className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2 px-1"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  Waiting for your signature
-                </p>
-                <div className="grid grid-cols-1 gap-2">
-                  {pendingSignatures.map((p) => (
-                    <button
-                      key={p.id}
-                      onClick={() => router.push(`/app/sign/${p.id}`)}
-                      className="relative w-full text-left rounded-2xl border border-white/70 bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-xl px-4 py-3 hover:border-primary/45 hover:shadow-md transition-all flex items-center justify-between gap-3 shadow-[0_8px_24px_-16px_rgba(60,48,42,0.22)]"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      <div
-                        aria-hidden="true"
-                        className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-2xl bg-gradient-to-r from-transparent via-white/90 to-transparent"
-                      />
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-foreground truncate">{p.title}</p>
-                        <p className="text-xs text-foreground/55">is waiting to be signed</p>
-                      </div>
-                      <span className="text-xs font-semibold text-primary whitespace-nowrap">Sign now →</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {latestSignedJd && (
-              <div className={pendingSignatures.length === 0 ? 'md:col-span-2' : 'md:col-span-2'}>
-                <p
-                  className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2 px-1"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  Your signed job description
-                </p>
-                {latestSignedJd.pdfUrl ? (
-                  <a
-                    href={latestSignedJd.pdfUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="relative block rounded-2xl border border-white/70 bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-xl px-4 py-3 hover:border-primary/45 hover:shadow-md transition-all shadow-[0_8px_24px_-16px_rgba(60,48,42,0.22)]"
-                    style={{ fontFamily: 'var(--font-body)' }}
-                    title="Open signed PDF"
-                  >
-                    <div
-                      aria-hidden="true"
-                      className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-2xl bg-gradient-to-r from-transparent via-white/90 to-transparent"
-                    />
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        <svg className="w-5 h-5 text-primary shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M14 3v4a1 1 0 0 0 1 1h4" />
-                          <path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z" />
-                        </svg>
-                        <span className="text-sm font-semibold text-foreground truncate">{latestSignedJd.title}</span>
-                      </div>
-                      <span className="uppercase tracking-wider text-[11px] font-bold text-primary/70 shrink-0">PDF</span>
-                    </div>
-                  </a>
-                ) : (
+            <div className="md:col-span-2">
+              <p
+                className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2 px-1"
+                style={{ fontFamily: 'var(--font-body)' }}
+              >
+                Waiting for your signature
+              </p>
+              <div className="grid grid-cols-1 gap-2">
+                {pendingSignatures.map((p) => (
                   <button
-                    onClick={() => router.push(`/app/job-descriptions/${latestSignedJd.id}`)}
+                    key={p.id}
+                    onClick={() => router.push(`/app/sign/${p.id}`)}
                     className="relative w-full text-left rounded-2xl border border-white/70 bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-xl px-4 py-3 hover:border-primary/45 hover:shadow-md transition-all flex items-center justify-between gap-3 shadow-[0_8px_24px_-16px_rgba(60,48,42,0.22)]"
                     style={{ fontFamily: 'var(--font-body)' }}
-                    title="Open my signed job description"
                   >
                     <div
                       aria-hidden="true"
                       className="pointer-events-none absolute inset-x-0 top-0 h-px rounded-t-2xl bg-gradient-to-r from-transparent via-white/90 to-transparent"
                     />
-                    <span className="text-sm font-semibold text-foreground truncate">{latestSignedJd.title}</span>
-                    <span className="text-xs font-semibold text-primary whitespace-nowrap">Open →</span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">{p.title}</p>
+                      <p className="text-xs text-foreground/55">is waiting to be signed</p>
+                    </div>
+                    <span className="text-xs font-semibold text-primary whitespace-nowrap">Sign now →</span>
                   </button>
-                )}
+                ))}
               </div>
-            )}
+            </div>
           </section>
         )}
 
         </div> {/* end centerpiece */}
 
+        {/* The desktop in-flow daily-logs chip used to live here, and
+            a separate mobile-only fixed chip lived just above the
+            "Also here" pill. Both are gone — the chip now sits in
+            the home header next to the + button (see the right
+            cluster of <header> above) so the same surface works on
+            every breakpoint and the centerpiece stays uncluttered. */}
+
         {/* Mission tagline — closes the home page with a quiet brand
             anchor below the team orbit. Bottom padding clears the
             globally-fixed "Also here" presence pill (PageViewers.tsx,
-            anchored at `bottom-20`) so the headline always reads above
-            it instead of being half-covered. */}
+            anchored at `bottom-20`) so the headline reads above it
+            instead of being half-covered. */}
         <section
           aria-label="Mission tagline"
-          className="w-full max-w-4xl mx-auto pt-2 pb-24 px-4 flex flex-col items-center text-center"
+          className="w-full max-w-4xl mx-auto pt-2 pb-28 sm:pb-24 px-4 flex flex-col items-center text-center"
         >
           <p
             className="text-[10px] font-semibold tracking-[0.28em] uppercase text-foreground/45 mb-1.5"

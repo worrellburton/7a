@@ -4,6 +4,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 export interface Client {
   id: string;
@@ -204,7 +205,7 @@ export default function ClientsContent() {
                       <div className="flex items-center gap-3">
                         {c.avatar_url ? (
                           /* eslint-disable-next-line @next/next/no-img-element */
-                          <img src={c.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+                          <img src={toAvatarThumb(c.avatar_url, 200) ?? c.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
                         ) : (
                           <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold text-xs shrink-0">
                             {c.name.charAt(0)}
@@ -249,7 +250,7 @@ export default function ClientsContent() {
               <div className="flex items-center gap-3 mb-3">
                 {c.avatar_url ? (
                   /* eslint-disable-next-line @next/next/no-img-element */
-                  <img src={c.avatar_url} alt="" className="w-12 h-12 rounded-full object-cover" />
+                  <img src={toAvatarThumb(c.avatar_url, 200) ?? c.avatar_url} alt="" className="w-12 h-12 rounded-full object-cover" />
                 ) : (
                   <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
                     {c.name.charAt(0)}

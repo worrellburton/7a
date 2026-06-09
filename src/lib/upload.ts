@@ -49,9 +49,10 @@ export async function compressImage(
 
 // SEO-focused compression for the Images gallery. Outputs WebP when the
 // browser supports it (~40% smaller than JPEG at equivalent visual quality),
-// falls back to JPEG otherwise. Targets a tight 350 KB per image, max edge
-// 1600px — plenty for retina display at 800px rendered width. Returns stats
-// alongside the compressed file so the UI can surface savings.
+// falls back to JPEG otherwise. Max edge 2048px / ~1 MB target with a 0.75
+// quality floor — high enough that gallery images reused for social posts
+// stay crisp after Instagram/Ayrshare re-compress them, while still cutting
+// most originals down meaningfully for the website.
 export interface CompressStats {
   file: File;
   originalBytes: number;
@@ -67,8 +68,8 @@ export async function compressForSeo(
   file: File,
   opts: { maxEdge?: number; targetBytes?: number; baseName?: string } = {}
 ): Promise<CompressStats> {
-  const maxEdge = opts.maxEdge ?? 1600;
-  const targetBytes = opts.targetBytes ?? 350 * 1024;
+  const maxEdge = opts.maxEdge ?? 2048;
+  const targetBytes = opts.targetBytes ?? 1024 * 1024;
 
   // Non-image: pass through untouched.
   if (!file.type.startsWith('image/')) {
@@ -130,7 +131,12 @@ export async function compressForSeo(
       return blob;
     }
 
-    const qualitySteps = [0.85, 0.82, 0.78, 0.72, 0.65, 0.58];
+    // Quality floor raised to 0.75 — below that, photos posted to social
+    // show visible JPEG/WebP artifacts once the platform re-compresses.
+    // If a huge original can't fit the ~1 MB target even at 0.75, we keep
+    // the 0.75 encode rather than degrading further; the larger file is an
+    // acceptable trade for not shipping a mushy image to Instagram.
+    const qualitySteps = [0.9, 0.85, 0.8, 0.75];
     let best: { blob: Blob; quality: number; format: 'webp' | 'jpeg' } | null = null;
 
     // Prefer WebP if supported.
@@ -191,6 +197,55 @@ export async function compressForSeo(
       width: 0,
       height: 0,
     };
+  }
+}
+
+// Generate a tiny 60×60 WebP avatar from an image File and return it as
+// a `data:image/webp;base64,...` string. Stored on users.avatar_thumb so
+// the home orbit can paint without per-avatar HTTP fetches.
+//
+// Square-center-crops the source so portrait + landscape sources both
+// fill the circle. Quality 0.6 keeps the result under ~3 KB while still
+// looking sharp at the rendered 28-48px sizes. Falls back to null on
+// any browser/canvas hiccup — caller should not error, the orbit
+// already degrades gracefully to avatar_url.
+export async function generateAvatarThumbDataUrl(
+  file: Blob,
+  size = 60,
+): Promise<string | null> {
+  if (typeof document === 'undefined') return null;
+  try {
+    const bitmap = await createImageBitmap(file).catch(() => null);
+    if (!bitmap) return null;
+    const srcEdge = Math.min(bitmap.width, bitmap.height);
+    const sx = Math.floor((bitmap.width - srcEdge) / 2);
+    const sy = Math.floor((bitmap.height - srcEdge) / 2);
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bitmap, sx, sy, srcEdge, srcEdge, 0, 0, size, size);
+    bitmap.close?.();
+    const blob: Blob | null = await new Promise((res) =>
+      canvas.toBlob(res, 'image/webp', 0.6),
+    );
+    if (!blob || blob.type !== 'image/webp') return null;
+    const buf = await blob.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    // Base64-encode via a chunked btoa so we don't blow the call stack
+    // on String.fromCharCode(...big_array). 60×60 WebP is small enough
+    // that this is almost always a single chunk.
+    let binary = '';
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+    }
+    return `data:image/webp;base64,${btoa(binary)}`;
+  } catch {
+    return null;
   }
 }
 

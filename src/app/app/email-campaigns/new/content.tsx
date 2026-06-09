@@ -22,7 +22,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
+import { touchMedia } from '@/lib/touchMedia';
 import { BuildProgress } from '../BuildProgress';
+import { SITE_PAGES, SITE_PAGE_GROUPS, findSitePage, type SitePage } from '@/lib/site-pages';
+import { Toggle, ModalShell } from '@/components/ui';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface LibraryImage {
   id: string;
@@ -30,31 +34,10 @@ interface LibraryImage {
   filename: string | null;
 }
 
-interface BlogOption {
-  id: string;
-  title: string;
-  slug: string | null;
-  // First blog_images row (lowest position). Used as the cover
-  // image on the picker + the inline FeaturedBlogCard so the
-  // marketer can recognise the post visually before reading the
-  // title.
-  coverImageUrl: string | null;
-  coverImageAlt: string | null;
-}
-
-interface EmployeeOption {
-  id: string;
-  full_name: string;
-  job_title: string | null;
-  avatar_url: string | null;
-}
-
-interface HorseOption {
-  id: string;
-  name: string;
-  image_url: string | null;
-  works_in: string | null;
-}
+// Shared types now live in ./types so the FeaturedX cards can
+// import them from a stable location.
+import type { BlogOption, EmployeeOption, HorseOption } from './types';
+import { FeaturedBlogCard, FeaturedEmployeeCard, FeaturedHorseCard, FeaturedPageCard } from './FeaturedCards';
 
 interface CampaignDraft {
   id?: string;
@@ -68,11 +51,42 @@ interface CampaignDraft {
   // Picks a top Google review and renders it as a block-quote
   // section. Persisted on email_campaigns.include_quote.
   includeQuote: boolean;
+  // Renders a small Aetna / BCBS / Cigna / Humana / TRICARE logo
+  // strip near the top of the email so coverage is visible at a
+  // glance. Persisted on email_campaigns.include_insurance_strip.
+  includeInsuranceStrip: boolean;
+  // Adds an Instagram / Facebook / LinkedIn icon row to the
+  // closing footer. Persisted on email_campaigns.include_social_footer.
+  includeSocialFooter: boolean;
+  // Flips the email body's palette: light (Sand background, Ink
+  // text) ↔ dark (Desert Dusk background, Bone text). Read by
+  // Claude at build time as a top-of-prompt directive. Persisted
+  // on email_campaigns.dark_mode.
+  darkMode: boolean;
   featuredBlogId: string | null;
+  // Slug of a static Recovery Roadmap episode when one is featured.
+  // Mutually exclusive with featuredBlogId — picking either of them
+  // clears the other in setFeaturedBlogChoice() below.
+  featuredEpisodeSlug: string | null;
+  /** Site-relative path of the featured inner page, e.g. /admissions. */
+  featuredPagePath: string | null;
+  /** Library image URL paired with the featured page. Required
+   *  whenever featuredPagePath is set — the page picker forces a
+   *  picture pick as its second step. */
+  featuredPageImageUrl: string | null;
   featuredEmployeeId: string | null;
   featuredEquineId: string | null;
   generatedHtml: string | null;
   generatedSubject: string | null;
+  // Persisted status loaded from email_campaigns.status. Drives the
+  // save-handler's decision whether to leave the campaign on its
+  // current rail (e.g. 'scheduled') or promote a fresh draft to
+  // 'recipients'. Null on a brand-new campaign.
+  originalStatus: string | null;
+  // ISO timestamp from email_campaigns.scheduled_send_at. Surfaced
+  // in the editor header so the marketer can see "you're editing a
+  // campaign scheduled for X" and trust that saving won't drop it.
+  scheduledSendAt: string | null;
 }
 
 interface DraftText {
@@ -97,11 +111,19 @@ export default function NewEmailCampaignContent() {
     linkToWebsite: true,
     includePhone: false,
     includeQuote: false,
+    includeInsuranceStrip: false,
+    includeSocialFooter: false,
+    darkMode: false,
     featuredBlogId: null,
+    featuredEpisodeSlug: null,
+    featuredPagePath: null,
+    featuredPageImageUrl: null,
     featuredEmployeeId: null,
     featuredEquineId: null,
     generatedHtml: null,
     generatedSubject: null,
+    originalStatus: null,
+    scheduledSendAt: null,
   });
   const [libraryAssets, setLibraryAssets] = useState<LibraryImage[]>([]);
   const [blogs, setBlogs] = useState<BlogOption[]>([]);
@@ -110,11 +132,27 @@ export default function NewEmailCampaignContent() {
   const [blogPickerOpen, setBlogPickerOpen] = useState(false);
   const [employeePickerOpen, setEmployeePickerOpen] = useState(false);
   const [horsePickerOpen, setHorsePickerOpen] = useState(false);
+  const [pagePickerOpen, setPagePickerOpen] = useState(false);
   // The Preview pane shows a "Replace images" button that opens
   // this picker; on confirm the selection swap is committed AND a
   // fresh rebuild is kicked off so the marketer never has to
   // remember the second step.
   const [replaceImagesOpen, setReplaceImagesOpen] = useState(false);
+  // Per-image swap state. Click on an image in the rendered preview
+  // posts {type:'img:click', src} from the iframe bridge — we record
+  // that src here and open the SwapImageModal, which is a single-
+  // select picker over the same library. Confirming sends an
+  // {type:'img:swap', from, to} message back into the iframe; the
+  // bridge swaps and reposts updated HTML. No full rebuild required.
+  const [swapImageFor, setSwapImageFor] = useState<string | null>(null);
+  // Inline text editing on the preview iframe. When the marketer
+  // clicks "Edit text" we ask the iframe to flip its <body> to
+  // contentEditable; every input event there posts the updated
+  // outerHTML back to this window via postMessage, which we splice
+  // into draft.generatedHtml so Save persists the edits. Click
+  // "Done editing" (or trigger any rebuild) to commit + flip back.
+  const [editingPreview, setEditingPreview] = useState(false);
+  const previewIframeRef = useRef<HTMLIFrameElement | null>(null);
   const [iterateNote, setIterateNote] = useState('');
   const [building, setBuilding] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -152,7 +190,7 @@ export default function NewEmailCampaignContent() {
     void (async () => {
       const { data } = await supabase
         .from('email_campaigns')
-        .select('id, prompt, image_urls, use_logos, link_to_website, include_phone, include_quote, featured_blog_id, featured_employee_id, featured_equine_id, generated_html, generated_subject')
+        .select('id, prompt, image_urls, use_logos, link_to_website, include_phone, include_quote, include_insurance_strip, include_social_footer, dark_mode, featured_blog_id, featured_episode_slug, featured_page_path, featured_page_image_url, featured_employee_id, featured_equine_id, generated_html, generated_subject, status, scheduled_send_at')
         .eq('id', editingId)
         .maybeSingle();
       if (cancelled || !data) return;
@@ -164,11 +202,19 @@ export default function NewEmailCampaignContent() {
         linkToWebsite: !!data.link_to_website,
         includePhone: !!data.include_phone,
         includeQuote: !!data.include_quote,
+        includeInsuranceStrip: !!data.include_insurance_strip,
+        includeSocialFooter: !!data.include_social_footer,
+        darkMode: !!data.dark_mode,
         featuredBlogId: data.featured_blog_id ?? null,
+        featuredEpisodeSlug: data.featured_episode_slug ?? null,
+        featuredPagePath: data.featured_page_path ?? null,
+        featuredPageImageUrl: (data as { featured_page_image_url?: string | null }).featured_page_image_url ?? null,
         featuredEmployeeId: data.featured_employee_id ?? null,
         featuredEquineId: data.featured_equine_id ?? null,
         generatedHtml: data.generated_html ?? null,
         generatedSubject: data.generated_subject ?? null,
+        originalStatus: (data.status as string | null) ?? null,
+        scheduledSendAt: (data.scheduled_send_at as string | null) ?? null,
       });
       // Resuming a previously-started draft drops straight into the
       // compose step so the marketer can keep iterating instead of
@@ -182,18 +228,19 @@ export default function NewEmailCampaignContent() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const [imagesRes, blogsRes, blogImagesRes, usersRes, horsesRes] = await Promise.all([
+      // Episodes come from the merged endpoint (static EPISODES +
+      // published AI blogs, newest first, hidden-slug filtered) so
+      // the blog picker can show the full Recovery Roadmap catalogue
+      // with episode numbers, not just the AI-pipeline subset.
+      const [imagesRes, episodesRes, usersRes, horsesRes] = await Promise.all([
         supabase.from('site_images')
           .select('id, public_url, filename')
+          // Recently-used assets bubble to the top across every
+          // surface that picks images.
+          .order('last_used_at', { ascending: false, nullsFirst: false })
           .order('created_at', { ascending: false })
           .limit(200),
-        supabase.from('blogs')
-          .select('id, title, slug')
-          .order('created_at', { ascending: false })
-          .limit(50),
-        supabase.from('blog_images')
-          .select('blog_id, url, alt, position')
-          .order('position', { ascending: true }),
+        fetch('/api/episodes/list', { credentials: 'include', cache: 'no-store' }),
         supabase.from('users')
           .select('id, full_name, job_title, avatar_url, status')
           .eq('status', 'active')
@@ -208,34 +255,198 @@ export default function NewEmailCampaignContent() {
       const imageRows = (imagesRes.data ?? []) as Array<{ id: string; public_url: string; filename: string | null }>;
       setLibraryAssets(imageRows.map((r) => ({ id: r.id, url: r.public_url, filename: r.filename })));
 
-      // Build a blog_id → first image map. blog_images is already
-      // sorted by position ascending so the first row we see for a
-      // given blog is its cover.
-      const blogImageRows = (blogImagesRes.data ?? []) as Array<{ blog_id: string; url: string; alt: string | null; position: number }>;
-      const coverByBlogId = new Map<string, { url: string; alt: string | null }>();
-      for (const r of blogImageRows) {
-        if (!coverByBlogId.has(r.blog_id)) coverByBlogId.set(r.blog_id, { url: r.url, alt: r.alt });
+      let episodeRows: Array<{
+        number: number;
+        slug: string;
+        title: string;
+        href: string;
+        blog_id: string | null;
+        coverImageUrl: string | null;
+        coverImageAlt: string | null;
+      }> = [];
+      try {
+        if (episodesRes.ok) {
+          const json = (await episodesRes.json()) as { rows: typeof episodeRows };
+          if (Array.isArray(json.rows)) episodeRows = json.rows;
+        }
+      } catch {
+        /* fallthrough — empty list, picker just shows nothing */
       }
-      const blogRows = (blogsRes.data ?? []) as Array<{ id: string; title: string; slug: string | null }>;
-      setBlogs(blogRows.map((b): BlogOption => {
-        const cover = coverByBlogId.get(b.id);
-        return {
-          id: b.id,
-          title: b.title,
-          slug: b.slug,
-          coverImageUrl: cover?.url ?? null,
-          coverImageAlt: cover?.alt ?? null,
-        };
-      }));
+      setBlogs(episodeRows.map((ep): BlogOption => ({
+        // DB-backed episodes use the blogs.id UUID so the existing
+        // featured_blog_id column keeps working. Static episodes use
+        // an "episode:" prefix so the lookup paths can't collide.
+        id: ep.blog_id ?? `episode:${ep.slug}`,
+        title: ep.title,
+        slug: ep.slug,
+        number: ep.number,
+        isStaticEpisode: ep.blog_id == null,
+        coverImageUrl: ep.coverImageUrl,
+        coverImageAlt: ep.coverImageAlt,
+      })));
       setEmployees((usersRes.data ?? []) as EmployeeOption[]);
       setHorses((horsesRes.data ?? []) as HorseOption[]);
     })();
     return () => { cancelled = true; };
   }, []);
 
-  const featuredBlog = useMemo(
-    () => blogs.find((b) => b.id === draft.featuredBlogId) ?? null,
-    [blogs, draft.featuredBlogId],
+  // Inject a small contenteditable bridge into the email HTML
+  // before handing it to the iframe srcDoc. The bridge:
+  //   1. Listens for {type: 'edit:on' | 'edit:off'} messages from
+  //      the parent window.
+  //   2. On edit:on, flips document.body to contentEditable and
+  //      draws a copper dashed outline so the editable surface is
+  //      visually obvious.
+  //   3. On every input (debounced ~250ms) posts the updated
+  //      outerHTML back to the parent so the draft stays in sync
+  //      without saving on every keystroke roundtrip.
+  // Defined once per generated_html change — the iframe's srcDoc
+  // re-mounts when the string changes, which means we re-inject
+  // the bridge after every rebuild. iframe is `sandbox="allow-
+  // scripts"` (no allow-same-origin, no allow-forms) — the bridge
+  // only needs script execution + postMessage, neither of which
+  // requires same-origin.
+  const editableHtml = useMemo(() => {
+    const html = draft.generatedHtml;
+    if (!html) return null;
+    const bridge = `
+<script>
+(function(){
+  var editing = false;
+  var debounceTimer = null;
+  function post(){
+    try {
+      parent.postMessage({ type: 'html:update', html: '<!DOCTYPE html>\\n' + document.documentElement.outerHTML }, '*');
+    } catch (e) { /* ignore postMessage failures */ }
+  }
+  function schedulePost(){
+    if (debounceTimer) clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(post, 250);
+  }
+  // Image hover affordance + click-to-swap. When the body isn't in
+  // contenteditable mode, hovering any <img> shows a primary-tinted
+  // outline + pointer cursor, and clicking posts {type:'img:click', src}
+  // so the parent can open the swap picker. We skip this when editing
+  // text so the bridge doesn't fight the contenteditable cursor.
+  var swapStyle = document.createElement('style');
+  swapStyle.textContent = 'body:not([contenteditable="true"]) img { cursor: pointer; transition: outline 120ms ease, box-shadow 120ms ease; } body:not([contenteditable="true"]) img:hover { outline: 3px solid #bc6b4a; outline-offset: 2px; box-shadow: 0 0 0 2px rgba(255,255,255,0.85); }';
+  document.head.appendChild(swapStyle);
+  document.addEventListener('click', function(e){
+    if (editing) return;
+    var t = e.target;
+    if (!t || t.tagName !== 'IMG') return;
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      parent.postMessage({ type: 'img:click', src: t.getAttribute('src') || '', alt: t.getAttribute('alt') || '' }, '*');
+    } catch (err) { /* noop */ }
+  }, true);
+  window.addEventListener('message', function(e){
+    var data = e && e.data;
+    if (!data) return;
+    if (data.type === 'edit:on') {
+      editing = true;
+      document.body.setAttribute('contenteditable', 'true');
+      document.body.style.outline = '2px dashed #bc6b4a';
+      document.body.style.outlineOffset = '-4px';
+      document.body.style.cursor = 'text';
+    } else if (data.type === 'edit:off') {
+      editing = false;
+      document.body.setAttribute('contenteditable', 'false');
+      document.body.style.outline = '';
+      document.body.style.outlineOffset = '';
+      document.body.style.cursor = '';
+      post();
+    } else if (data.type === 'img:swap' && typeof data.from === 'string' && typeof data.to === 'string') {
+      // Swap every <img src=from> AND any data-bg / inline
+      // style background-image references in case the layout uses
+      // CSS-painted images. Then post the updated HTML back.
+      var imgs = document.querySelectorAll('img');
+      var swapped = 0;
+      for (var i = 0; i < imgs.length; i++) {
+        if (imgs[i].getAttribute('src') === data.from) {
+          imgs[i].setAttribute('src', data.to);
+          swapped += 1;
+        }
+      }
+      // Also catch <a href> wrappers, srcset, and background-image:
+      // url(<from>) in inline styles, which Claude sometimes emits.
+      var srcsetNodes = document.querySelectorAll('[srcset]');
+      for (var s = 0; s < srcsetNodes.length; s++) {
+        var ss = srcsetNodes[s].getAttribute('srcset') || '';
+        if (ss.indexOf(data.from) >= 0) {
+          srcsetNodes[s].setAttribute('srcset', ss.split(data.from).join(data.to));
+        }
+      }
+      var styled = document.querySelectorAll('[style*="background"]');
+      for (var b = 0; b < styled.length; b++) {
+        var st = styled[b].getAttribute('style') || '';
+        if (st.indexOf(data.from) >= 0) {
+          styled[b].setAttribute('style', st.split(data.from).join(data.to));
+        }
+      }
+      post();
+      try { parent.postMessage({ type: 'img:swapped', from: data.from, to: data.to, count: swapped }, '*'); } catch (err) { /* noop */ }
+    }
+  });
+  document.addEventListener('input', function(){ if (editing) schedulePost(); }, true);
+  document.addEventListener('blur', function(){ if (editing) post(); }, true);
+})();
+<\/script>`;
+    // Inject just before </body> if present; otherwise append.
+    // Case-insensitive match because Claude sometimes emits BODY
+    // tags uppercase.
+    if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${bridge}</body>`);
+    return html + bridge;
+  }, [draft.generatedHtml]);
+
+  // Receive edit messages from the iframe and splice them back into
+  // the draft. The iframe always posts the FULL document outerHTML
+  // (with the bridge script attached), so before persisting we
+  // strip the bridge out again — otherwise it would compound on
+  // every render and the saved html would carry a dozen copies.
+  useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      const data = e.data as { type?: string; html?: string; src?: string } | null;
+      if (!data) return;
+      if (data.type === 'img:click' && typeof data.src === 'string' && data.src.length > 0) {
+        setSwapImageFor(data.src);
+        return;
+      }
+      if (data.type !== 'html:update' || typeof data.html !== 'string') return;
+      // Drop the bridge script (everything inside the inserted
+      // <script>...<\/script> wrapper). The bridge is the only
+      // <script> we ever insert, so a single regex match is safe.
+      const cleaned = data.html
+        .replace(/<script>\s*\(function\(\)\{[\s\S]*?\}\)\(\);\s*<\/script>/g, '')
+        .trim();
+      setDraft((p) => (p.generatedHtml === cleaned ? p : { ...p, generatedHtml: cleaned }));
+    }
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  // Helper: send the edit-on/edit-off message into the iframe.
+  // Wrapped so the button handlers stay one-liners.
+  const setIframeEditing = (on: boolean) => {
+    const win = previewIframeRef.current?.contentWindow;
+    if (!win) return;
+    win.postMessage({ type: on ? 'edit:on' : 'edit:off' }, '*');
+  };
+
+  // featuredBlog resolves whichever of the two storage slots is
+  // populated — featured_blog_id (UUID) for AI-pipeline posts, or
+  // featured_episode_slug for static Recovery Roadmap episodes. The
+  // picker writes one and clears the other so they can't both be
+  // set at once.
+  const featuredBlog = useMemo(() => {
+    if (draft.featuredBlogId) return blogs.find((b) => b.id === draft.featuredBlogId) ?? null;
+    if (draft.featuredEpisodeSlug) return blogs.find((b) => b.isStaticEpisode && b.slug === draft.featuredEpisodeSlug) ?? null;
+    return null;
+  }, [blogs, draft.featuredBlogId, draft.featuredEpisodeSlug]);
+  const featuredPage = useMemo(
+    () => findSitePage(draft.featuredPagePath),
+    [draft.featuredPagePath],
   );
   const featuredEmployee = useMemo(
     () => employees.find((e) => e.id === draft.featuredEmployeeId) ?? null,
@@ -246,9 +457,30 @@ export default function NewEmailCampaignContent() {
     [horses, draft.featuredEquineId],
   );
 
+  // Picker selection helpers — clear the sibling slot so featured
+  // blog ID + episode slug can never both be set, and the saved
+  // payload mirrors that constraint.
+  const setFeaturedBlogChoice = (chosen: BlogOption | null) => {
+    if (!chosen) {
+      setDraft((p) => ({ ...p, featuredBlogId: null, featuredEpisodeSlug: null }));
+      return;
+    }
+    if (chosen.isStaticEpisode) {
+      setDraft((p) => ({ ...p, featuredBlogId: null, featuredEpisodeSlug: chosen.slug ?? null }));
+    } else {
+      setDraft((p) => ({ ...p, featuredBlogId: chosen.id, featuredEpisodeSlug: null }));
+    }
+  };
+
   const toggleImage = (url: string) => {
     setDraft((prev) => {
       const has = prev.imageUrls.includes(url);
+      if (!has) {
+        // Recency bump on PICK only — find the id from the loaded
+        // library so the server endpoint gets a real uuid.
+        const hit = libraryAssets.find((a) => a.url === url);
+        if (hit?.id) touchMedia('image', hit.id);
+      }
       return {
         ...prev,
         imageUrls: has ? prev.imageUrls.filter((u) => u !== url) : [...prev.imageUrls, url],
@@ -282,7 +514,13 @@ export default function NewEmailCampaignContent() {
           linkToWebsite: draft.linkToWebsite,
           includePhone: draft.includePhone,
           includeQuote: draft.includeQuote,
+          includeInsuranceStrip: draft.includeInsuranceStrip,
+          includeSocialFooter: draft.includeSocialFooter,
+          darkMode: draft.darkMode,
           featuredBlogId: draft.featuredBlogId,
+          featuredEpisodeSlug: draft.featuredEpisodeSlug,
+          featuredPagePath: draft.featuredPagePath,
+          featuredPageImageUrl: draft.featuredPageImageUrl,
           featuredEmployeeId: draft.featuredEmployeeId,
           featuredEquineId: draft.featuredEquineId,
         }),
@@ -337,7 +575,13 @@ export default function NewEmailCampaignContent() {
           linkToWebsite: draft.linkToWebsite,
           includePhone: draft.includePhone,
           includeQuote: draft.includeQuote,
+          includeInsuranceStrip: draft.includeInsuranceStrip,
+          includeSocialFooter: draft.includeSocialFooter,
+          darkMode: draft.darkMode,
           featuredBlogId: draft.featuredBlogId,
+          featuredEpisodeSlug: draft.featuredEpisodeSlug,
+          featuredPagePath: draft.featuredPagePath,
+          featuredPageImageUrl: draft.featuredPageImageUrl,
           featuredEmployeeId: draft.featuredEmployeeId,
           featuredEquineId: draft.featuredEquineId,
           previousHtml: mode === 'iterate' ? draft.generatedHtml : null,
@@ -376,19 +620,37 @@ export default function NewEmailCampaignContent() {
     setError(null);
     setSaving(true);
     try {
-      const payload = {
+      // Status preservation: a campaign that already passed recipient
+      // picking and landed on a later rail (scheduled, finalizing,
+      // sending, sent, failed) should NOT get bounced back to
+      // 'recipients' just because the marketer tweaked the body or
+      // subject — that strips scheduled_send_at logic, breaks the
+      // queue, and forces them to re-walk the funnel. Only promote to
+      // 'recipients' on a brand-new campaign or one still earlier than
+      // that rail.
+      const PRESERVE_STATUSES = new Set(['scheduled', 'finalizing', 'sending', 'sent', 'failed']);
+      const nextStatus = draft.originalStatus && PRESERVE_STATUSES.has(draft.originalStatus)
+        ? draft.originalStatus
+        : 'recipients';
+      const payload: Record<string, unknown> = {
         prompt: draft.prompt,
         image_urls: draft.imageUrls,
         use_logos: draft.useLogos,
         link_to_website: draft.linkToWebsite,
         include_phone: draft.includePhone,
         include_quote: draft.includeQuote,
+        include_insurance_strip: draft.includeInsuranceStrip,
+        include_social_footer: draft.includeSocialFooter,
+        dark_mode: draft.darkMode,
         featured_blog_id: draft.featuredBlogId,
+        featured_episode_slug: draft.featuredEpisodeSlug,
+        featured_page_path: draft.featuredPagePath,
+        featured_page_image_url: draft.featuredPageImageUrl,
         featured_employee_id: draft.featuredEmployeeId,
         featured_equine_id: draft.featuredEquineId,
         generated_html: draft.generatedHtml,
         generated_subject: draft.generatedSubject,
-        status: 'recipients',
+        status: nextStatus,
         created_by: user?.id ?? null,
       };
       let id = draft.id;
@@ -407,7 +669,17 @@ export default function NewEmailCampaignContent() {
         if (insErr) throw new Error(insErr.message);
         id = data.id;
       }
-      router.push(`/app/email-campaigns/${id}/recipients`);
+      // Route the marketer to the right place for the status they're in:
+      // a preserved-status edit (e.g. scheduled) just bounces back to
+      // the campaigns list — there's nothing for them to do on the
+      // recipients picker, the queue is already set.
+      if (nextStatus === 'recipients') {
+        router.push(`/app/email-campaigns/${id}/recipients`);
+      } else if (nextStatus === 'scheduled') {
+        router.push('/app/email-campaigns/scheduled');
+      } else {
+        router.push(`/app/email-campaigns/${id}/finalize`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -420,7 +692,7 @@ export default function NewEmailCampaignContent() {
       <header className="mb-5 flex items-baseline justify-between flex-wrap gap-3">
         <div>
           <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">
-            Email Campaigns · {editingId ? 'Edit draft' : 'New campaign'}
+            Email Campaigns · {editingId ? (draft.originalStatus === 'scheduled' ? 'Edit scheduled' : 'Edit draft') : 'New campaign'}
           </p>
           <h1 className="mt-1 text-2xl font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
             Build the email
@@ -436,6 +708,34 @@ export default function NewEmailCampaignContent() {
           ← Back
         </Link>
       </header>
+
+      {/* Editing-a-scheduled-campaign banner. Saving will keep the
+          send time + recipient list intact; this just makes that
+          explicit so the marketer trusts the editor enough to tweak
+          a queued campaign without canceling + rescheduling. */}
+      {draft.originalStatus === 'scheduled' && (
+        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 flex items-start justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-amber-900/80" style={{ fontFamily: 'var(--font-body)' }}>
+              Editing a scheduled campaign
+            </p>
+            <p className="mt-1 text-[12.5px] text-amber-900 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+              {draft.scheduledSendAt ? (
+                <>This campaign is scheduled to send at <strong>{new Date(draft.scheduledSendAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</strong>. Your edits save in place — the send time and recipient list stay locked.</>
+              ) : (
+                <>This campaign is on the scheduled queue. Your edits save in place — the send time and recipient list stay locked.</>
+              )}
+            </p>
+          </div>
+          <Link
+            href="/app/email-campaigns/scheduled"
+            className="shrink-0 px-3 py-1.5 rounded-md border border-amber-300 bg-white text-amber-900 text-[11px] font-semibold uppercase tracking-wider hover:bg-amber-100"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            Reschedule
+          </Link>
+        </div>
+      )}
 
       {/* Prompt */}
       <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
@@ -618,6 +918,28 @@ export default function NewEmailCampaignContent() {
           on={draft.includeQuote}
           onChange={(v) => setDraft((p) => ({ ...p, includeQuote: v }))}
         />
+        <Toggle
+          label="Insurance strip"
+          description="Aetna, BCBS, Cigna, Humana, TRICARE logo row near the top so coverage reads at a glance."
+          on={draft.includeInsuranceStrip}
+          onChange={(v) => setDraft((p) => ({ ...p, includeInsuranceStrip: v }))}
+        />
+        <Toggle
+          label="Social row"
+          description="Instagram, Facebook, LinkedIn icons in the footer, linking to the 7A handles."
+          on={draft.includeSocialFooter}
+          onChange={(v) => setDraft((p) => ({ ...p, includeSocialFooter: v }))}
+        />
+        <Toggle
+          label={draft.darkMode ? 'Dark mode' : 'Light mode'}
+          description={
+            draft.darkMode
+              ? 'Body renders with the Desert Dusk background and Bone text.'
+              : 'Body renders with the Sand background and Ink text.'
+          }
+          on={draft.darkMode}
+          onChange={(v) => setDraft((p) => ({ ...p, darkMode: v }))}
+        />
       </section>
       )}
 
@@ -637,7 +959,7 @@ export default function NewEmailCampaignContent() {
           </button>
         </div>
         {featuredBlog ? (
-          <FeaturedBlogCard blog={featuredBlog} onClear={() => setDraft((p) => ({ ...p, featuredBlogId: null }))} />
+          <FeaturedBlogCard blog={featuredBlog} onClear={() => setFeaturedBlogChoice(null)} />
         ) : (
           <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
             Optional. Surface a blog post inside the email so readers have somewhere to land after the CTA.
@@ -697,6 +1019,38 @@ export default function NewEmailCampaignContent() {
         ) : (
           <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
             Optional. Spotlight a member of the herd. Claude works the horse's name into the copy and uses the herd photo.
+          </p>
+        )}
+      </section>
+      )}
+
+      {/* Featured page — pick any inner marketing page (admissions,
+          /our-program/equine-assisted, /what-we-treat/alcohol-
+          addiction, etc.) and Claude weaves a tasteful card under
+          the body that links to it. */}
+      {step === 'info' && (
+      <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
+        <div className="flex items-baseline justify-between gap-2 flex-wrap mb-2">
+          <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
+            Featured page
+          </p>
+          <button
+            type="button"
+            onClick={() => setPagePickerOpen(true)}
+            className="px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+          >
+            {featuredPage ? 'Change page' : '+ Feature a page'}
+          </button>
+        </div>
+        {featuredPage ? (
+          <FeaturedPageCard
+            page={featuredPage}
+            imageUrl={draft.featuredPageImageUrl}
+            onClear={() => setDraft((p) => ({ ...p, featuredPagePath: null, featuredPageImageUrl: null }))}
+          />
+        ) : (
+          <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
+            Optional. Surface an inner page of the site (admissions, our-program, what-we-treat, etc.) as a secondary destination under the body.
           </p>
         )}
       </section>
@@ -771,6 +1125,23 @@ export default function NewEmailCampaignContent() {
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
+                onClick={() => {
+                  // Toggle inline-edit mode on the preview iframe.
+                  // Going OFF first flushes any pending edits back
+                  // to the draft before the user clicks Rebuild /
+                  // Save / etc., so no keystroke is silently lost.
+                  const next = !editingPreview;
+                  setIframeEditing(next);
+                  setEditingPreview(next);
+                }}
+                disabled={building}
+                className={`px-2.5 py-1 rounded-md border text-[11px] font-semibold disabled:opacity-50 transition-colors ${editingPreview ? 'bg-primary text-white border-primary hover:bg-primary/90' : 'border-black/10 bg-white text-foreground/70 hover:bg-warm-bg/60'}`}
+                title={editingPreview ? 'Stop editing and commit changes' : 'Edit the email text inline'}
+              >
+                {editingPreview ? '✓ Done editing' : '✎ Edit text'}
+              </button>
+              <button
+                type="button"
                 onClick={() => setReplaceImagesOpen(true)}
                 disabled={building}
                 className="px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60 disabled:opacity-50"
@@ -779,7 +1150,15 @@ export default function NewEmailCampaignContent() {
               </button>
               <button
                 type="button"
-                onClick={() => onBuild('fresh')}
+                onClick={() => {
+                  // Flush pending edits before kicking off a rebuild
+                  // so Claude doesn't iterate against a stale draft.
+                  if (editingPreview) {
+                    setIframeEditing(false);
+                    setEditingPreview(false);
+                  }
+                  onBuild('fresh');
+                }}
                 disabled={building}
                 className="px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60 disabled:opacity-50"
               >
@@ -787,11 +1166,21 @@ export default function NewEmailCampaignContent() {
               </button>
             </div>
           </div>
+          {editingPreview && (
+            <p className="text-[10.5px] text-primary mb-2 px-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+              Editing mode on — click any text in the preview to change it. Changes save into the draft automatically; click <strong>Done editing</strong> to lock the layout back.
+            </p>
+          )}
           <div className="rounded-xl border border-black/10 overflow-hidden bg-warm-bg/30">
             <iframe
-              srcDoc={draft.generatedHtml}
+              ref={previewIframeRef}
+              srcDoc={editableHtml ?? draft.generatedHtml ?? ''}
               title="Email preview"
-              sandbox=""
+              // allow-scripts so the contenteditable bridge script
+              // can run + postMessage edits back to this window.
+              // No allow-same-origin so the iframe still can't
+              // access the parent's cookies / storage / DOM.
+              sandbox="allow-scripts"
               className="w-full h-[560px] bg-white"
             />
           </div>
@@ -847,16 +1236,20 @@ export default function NewEmailCampaignContent() {
           className="px-4 py-2 rounded-md bg-primary text-white text-[12px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50"
           style={{ fontFamily: 'var(--font-body)' }}
         >
-          {saving ? 'Saving…' : 'Save and continue →'}
+          {saving
+            ? 'Saving…'
+            : draft.originalStatus === 'scheduled'
+            ? 'Save changes (keep schedule)'
+            : 'Save and continue →'}
         </button>
       </div>
 
       {blogPickerOpen && (
         <BlogPicker
           blogs={blogs}
-          selectedId={draft.featuredBlogId}
-          onSelect={(id) => {
-            setDraft((p) => ({ ...p, featuredBlogId: id }));
+          selectedId={featuredBlog?.id ?? null}
+          onSelect={(chosen) => {
+            setFeaturedBlogChoice(chosen);
             setBlogPickerOpen(false);
           }}
           onClose={() => setBlogPickerOpen(false)}
@@ -884,6 +1277,18 @@ export default function NewEmailCampaignContent() {
           onClose={() => setHorsePickerOpen(false)}
         />
       )}
+      {pagePickerOpen && (
+        <PagePicker
+          selectedPath={draft.featuredPagePath}
+          selectedImageUrl={draft.featuredPageImageUrl}
+          assets={libraryAssets}
+          onSelect={(path, imageUrl) => {
+            setDraft((p) => ({ ...p, featuredPagePath: path, featuredPageImageUrl: imageUrl }));
+            setPagePickerOpen(false);
+          }}
+          onClose={() => setPagePickerOpen(false)}
+        />
+      )}
       {replaceImagesOpen && (
         <ReplaceImagesModal
           assets={libraryAssets}
@@ -896,6 +1301,23 @@ export default function NewEmailCampaignContent() {
             // update flushes first; otherwise onBuild would read
             // the stale imageUrls.
             window.setTimeout(() => { void onBuild('fresh'); }, 0);
+          }}
+        />
+      )}
+      {swapImageFor && (
+        <SwapImageModal
+          currentSrc={swapImageFor}
+          assets={libraryAssets}
+          onClose={() => setSwapImageFor(null)}
+          onPick={(newUrl) => {
+            // Post the swap to the iframe; the bridge updates the src
+            // and posts the new HTML back via html:update, which lands
+            // in setDraft through the existing handler.
+            const win = previewIframeRef.current?.contentWindow;
+            if (win) {
+              win.postMessage({ type: 'img:swap', from: swapImageFor, to: newUrl }, '*');
+            }
+            setSwapImageFor(null);
           }}
         />
       )}
@@ -921,145 +1343,186 @@ export function CancelButton({ onClick }: { onClick: () => void }) {
   );
 }
 
-function Toggle({
-  label, description, on, onChange,
-}: {
-  label: string;
-  description: string;
-  on: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onChange(!on)}
-      className={`flex items-start gap-3 rounded-xl border p-3 text-left transition-colors ${on ? 'border-primary bg-primary/5' : 'border-black/10 bg-white hover:bg-warm-bg/40'}`}
-    >
-      <span
-        className={`mt-0.5 inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors ${on ? 'bg-primary' : 'bg-foreground/20'}`}
-        aria-hidden
-      >
-        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${on ? 'translate-x-4' : 'translate-x-0.5'}`} />
-      </span>
-      <span className="flex-1 min-w-0">
-        <span className="block text-[12.5px] font-semibold text-foreground" style={{ fontFamily: 'var(--font-body)' }}>{label}</span>
-        <span className="block text-[11px] text-foreground/55 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>{description}</span>
-      </span>
-    </button>
-  );
-}
-
-function FeaturedBlogCard({ blog, onClear }: { blog: BlogOption; onClear: () => void }) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
-      {blog.coverImageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={blog.coverImageUrl}
-          alt={blog.coverImageAlt ?? ''}
-          className="w-14 h-14 rounded-md object-cover border border-black/10 shrink-0"
-        />
-      ) : (
-        <div className="w-14 h-14 rounded-md bg-warm-bg/60 border border-black/10 flex items-center justify-center text-foreground/35 text-[10px] shrink-0">
-          Blog
-        </div>
-      )}
-      <div className="flex-1 min-w-0">
-        <p className="text-[12.5px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{blog.title}</p>
-        {blog.slug && (
-          <p className="text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>/{blog.slug}</p>
-        )}
-      </div>
-      <button
-        type="button"
-        onClick={onClear}
-        className="text-[11px] text-foreground/55 hover:text-foreground"
-      >
-        Remove
-      </button>
-    </div>
-  );
-}
-
-function FeaturedEmployeeCard({ employee, onClear }: { employee: EmployeeOption; onClear: () => void }) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
-      {employee.avatar_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={employee.avatar_url} alt="" className="w-14 h-14 rounded-full object-cover border border-black/10" />
-      ) : (
-        <div className="w-14 h-14 rounded-full bg-warm-bg/60 border border-black/10" />
-      )}
-      <div className="flex-1 min-w-0">
-        <p className="text-[12.5px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{employee.full_name}</p>
-        {employee.job_title && (
-          <p className="text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>{employee.job_title}</p>
-        )}
-      </div>
-      <button
-        type="button"
-        onClick={onClear}
-        className="text-[11px] text-foreground/55 hover:text-foreground"
-      >
-        Remove
-      </button>
-    </div>
-  );
-}
-
-function ModalShell({ title, subtitle, onClose, children }: {
-  title: string;
-  subtitle?: string;
+function PagePicker({ selectedPath, selectedImageUrl, assets, onSelect, onClose }: {
+  selectedPath: string | null;
+  selectedImageUrl: string | null;
+  assets: LibraryImage[];
+  onSelect: (path: string, imageUrl: string) => void;
   onClose: () => void;
-  children: React.ReactNode;
 }) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-      role="dialog"
-      aria-modal="true"
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-3xl max-h-[80vh] rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <header className="px-5 py-3 border-b border-black/5 flex items-baseline justify-between">
-          <div>
-            <h3 className="text-sm font-bold text-foreground">{title}</h3>
-            {subtitle && (
-              <p className="text-[11.5px] text-foreground/55 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>{subtitle}</p>
-            )}
+  // Two-step wizard. Step 1: pick the page. Step 2: pick a picture
+  // to pair with it. The marketer can't bail out of step 2 without
+  // hitting "Back" — the featured-page card in the email requires
+  // both pieces. `pendingPath` carries the step-1 selection while
+  // step 2 is open so we don't commit until BOTH choices are in.
+  const [step, setStep] = useState<'page' | 'image'>(selectedPath && !selectedImageUrl ? 'image' : 'page');
+  const [pendingPath, setPendingPath] = useState<string | null>(selectedPath);
+  const [pendingImageUrl, setPendingImageUrl] = useState<string | null>(selectedImageUrl);
+  const [query, setQuery] = useState('');
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return SITE_PAGES;
+    return SITE_PAGES.filter((p) =>
+      p.title.toLowerCase().includes(q)
+      || p.path.toLowerCase().includes(q)
+      || p.blurb.toLowerCase().includes(q)
+      || p.group.toLowerCase().includes(q),
+    );
+  }, [query]);
+  const grouped = useMemo(() => {
+    const map = new Map<SitePage['group'], SitePage[]>();
+    for (const p of filtered) {
+      const slot = map.get(p.group) ?? [];
+      slot.push(p);
+      map.set(p.group, slot);
+    }
+    return SITE_PAGE_GROUPS.map((g) => ({ group: g, rows: map.get(g) ?? [] })).filter((s) => s.rows.length > 0);
+  }, [filtered]);
+  const pendingPage = useMemo(() => findSitePage(pendingPath), [pendingPath]);
+
+  // ── Step 1 ─ page list ──────────────────────────────────────
+  if (step === 'page') {
+    return (
+      <ModalShell title="Feature a page" subtitle={`${SITE_PAGES.length} marketing pages, grouped. Step 1 of 2.`} onClose={onClose}>
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search by title, path, or group…"
+          className="w-full mb-3 px-3 py-1.5 rounded-md border border-black/10 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+          style={{ fontFamily: 'var(--font-body)' }}
+        />
+        {filtered.length === 0 ? (
+          <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
+            No pages match that search.
+          </p>
+        ) : (
+          <div className="max-h-[60vh] overflow-y-auto pr-1 flex flex-col gap-3">
+            {grouped.map(({ group, rows }) => (
+              <div key={group}>
+                <p className="text-[9.5px] font-bold uppercase tracking-[0.2em] text-foreground/45 mb-1.5 px-0.5">
+                  {group}
+                </p>
+                <ul className="flex flex-col gap-1.5">
+                  {rows.map((p) => {
+                    const isSelected = p.path === pendingPath;
+                    return (
+                      <li key={p.path}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            // Lock the page choice into pending and
+                            // advance straight to step 2 — a single
+                            // click feels like one continuous flow
+                            // even though there are two choices.
+                            setPendingPath(p.path);
+                            setStep('image');
+                          }}
+                          className={`w-full flex items-center gap-3 rounded-xl border p-2.5 text-left transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-black/10 bg-white hover:bg-warm-bg/40'}`}
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="text-[13px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{p.title}</p>
+                            <p className="text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>{p.path}</p>
+                            <p className="text-[10.5px] text-foreground/45 truncate" style={{ fontFamily: 'var(--font-body)' }}>{p.blurb}</p>
+                          </div>
+                          {isSelected && (
+                            <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold" aria-label="Selected">✓</span>
+                          )}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))}
           </div>
-          <button type="button" onClick={onClose} className="text-[11px] text-foreground/55 hover:text-foreground">✕</button>
-        </header>
-        <div className="flex-1 overflow-y-auto p-4">{children}</div>
-      </div>
-    </div>
+        )}
+      </ModalShell>
+    );
+  }
+
+  // ── Step 2 ─ image picker for the chosen page ─────────────────
+  const subtitle = pendingPage
+    ? `Pair “${pendingPage.title}” with a picture. Step 2 of 2.`
+    : 'Pick a picture for this page. Step 2 of 2.';
+  return (
+    <ModalShell title="Pick a picture" subtitle={subtitle} onClose={onClose}>
+      {assets.length === 0 ? (
+        <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
+          Image library is empty. Upload images via /app/images first.
+        </p>
+      ) : (
+        <>
+          <ul className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 mb-4 max-h-[55vh] overflow-y-auto pr-1">
+            {assets.map((a) => {
+              const isSelected = a.url === pendingImageUrl;
+              return (
+                <li key={a.id}>
+                  <button
+                    type="button"
+                    onClick={() => setPendingImageUrl(a.url)}
+                    className={`relative w-full aspect-square rounded-md overflow-hidden border-2 transition-all ${isSelected ? 'border-primary ring-2 ring-primary/30' : 'border-black/10 hover:border-primary'}`}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={a.url} alt={a.filename ?? ''} className="w-full h-full object-cover" />
+                    {isSelected && (
+                      <span className="absolute top-1 right-1 px-1 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-primary text-white">
+                        Selected
+                      </span>
+                    )}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="flex items-center justify-between gap-2 sticky bottom-0 bg-white pt-2">
+            <button
+              type="button"
+              onClick={() => setStep('page')}
+              className="px-3 py-1.5 rounded-md border border-black/10 bg-white text-[11.5px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+            >
+              ← Back to page
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (!pendingPath || !pendingImageUrl) return;
+                onSelect(pendingPath, pendingImageUrl);
+              }}
+              disabled={!pendingPath || !pendingImageUrl}
+              className="px-4 py-1.5 rounded-md bg-primary text-white text-[11.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Use this picture
+            </button>
+          </div>
+        </>
+      )}
+    </ModalShell>
   );
 }
 
 function BlogPicker({ blogs, selectedId, onSelect, onClose }: {
   blogs: BlogOption[];
   selectedId: string | null;
-  onSelect: (id: string | null) => void;
+  onSelect: (option: BlogOption | null) => void;
   onClose: () => void;
 }) {
   return (
-    <ModalShell title="Feature a blog post" subtitle={`${blogs.length} post${blogs.length === 1 ? '' : 's'}.`} onClose={onClose}>
+    <ModalShell title="Feature a blog post" subtitle={`${blogs.length} episode${blogs.length === 1 ? '' : 's'}, newest first.`} onClose={onClose}>
       {blogs.length === 0 ? (
         <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
-          No blog posts yet. Publish one from /app/seo first.
+          No published episodes yet.
         </p>
       ) : (
-        <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        <ul className="flex flex-col gap-2 max-h-[60vh] overflow-y-auto pr-1">
           {blogs.map((b) => {
             const isSelected = b.id === selectedId;
             return (
               <li key={b.id}>
                 <button
                   type="button"
-                  onClick={() => onSelect(b.id)}
+                  onClick={() => onSelect(b)}
                   className={`w-full flex items-center gap-3 rounded-xl border p-2.5 text-left transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-black/10 bg-white hover:bg-warm-bg/40'}`}
                 >
                   {b.coverImageUrl ? (
@@ -1067,19 +1530,29 @@ function BlogPicker({ blogs, selectedId, onSelect, onClose }: {
                     <img
                       src={b.coverImageUrl}
                       alt={b.coverImageAlt ?? ''}
-                      className="w-12 h-12 rounded-md object-cover border border-black/10 shrink-0"
+                      className="w-14 h-14 rounded-md object-cover border border-black/10 shrink-0"
                     />
                   ) : (
-                    <div className="w-12 h-12 rounded-md bg-warm-bg/60 border border-black/10 shrink-0 flex items-center justify-center text-foreground/35 text-[10px]">
+                    <div className="w-14 h-14 rounded-md bg-warm-bg/60 border border-black/10 shrink-0 flex items-center justify-center text-foreground/35 text-[10px]">
                       Blog
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-[12.5px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{b.title}</p>
+                    <div className="flex items-center gap-2">
+                      {b.number != null && (
+                        <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-[0.14em] bg-primary/15 text-primary ring-1 ring-primary/25">
+                          Ep {b.number}
+                        </span>
+                      )}
+                      <p className="text-[13px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{b.title}</p>
+                    </div>
                     {b.slug && (
-                      <p className="text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>/{b.slug}</p>
+                      <p className="mt-0.5 text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>/{b.slug}</p>
                     )}
                   </div>
+                  {isSelected && (
+                    <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold" aria-label="Selected">✓</span>
+                  )}
                 </button>
               </li>
             );
@@ -1126,7 +1599,7 @@ function EmployeePicker({ employees, selectedId, onSelect, onClose }: {
               >
                 {e.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={e.avatar_url} alt="" className="w-12 h-12 rounded-full object-cover border border-black/10 shrink-0" />
+                  <img src={toAvatarThumb(e.avatar_url, 200) ?? e.avatar_url} alt="" className="w-12 h-12 rounded-full object-cover border border-black/10 shrink-0" />
                 ) : (
                   <div className="w-12 h-12 rounded-full bg-warm-bg/60 border border-black/10 shrink-0" />
                 )}
@@ -1142,36 +1615,6 @@ function EmployeePicker({ employees, selectedId, onSelect, onClose }: {
         })}
       </ul>
     </ModalShell>
-  );
-}
-
-function FeaturedHorseCard({ horse, onClear }: { horse: HorseOption; onClear: () => void }) {
-  return (
-    <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
-      {horse.image_url ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={horse.image_url}
-          alt={horse.name}
-          className="w-14 h-14 rounded-full object-cover border border-black/10 shrink-0"
-        />
-      ) : (
-        <div className="w-14 h-14 rounded-full bg-warm-bg/60 border border-black/10 shrink-0" />
-      )}
-      <div className="flex-1 min-w-0">
-        <p className="text-[12.5px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{horse.name}</p>
-        {horse.works_in && (
-          <p className="text-[11px] text-foreground/55 truncate" style={{ fontFamily: 'var(--font-body)' }}>{horse.works_in}</p>
-        )}
-      </div>
-      <button
-        type="button"
-        onClick={onClear}
-        className="text-[11px] text-foreground/55 hover:text-foreground"
-      >
-        Remove
-      </button>
-    </div>
   );
 }
 
@@ -1228,6 +1671,97 @@ function HorsePicker({ horses, selectedId, onSelect, onClose }: {
 // grid as the inline picker but inside a modal, with a Save
 // button that confirms the new selection so the parent can
 // kick off a fresh rebuild.
+// Single-image swap picker. Opens when a user clicks any image in
+// the rendered email preview — replaces just that image with the
+// one they pick from the library and re-posts updated HTML to the
+// parent without a full rebuild. Quick fix flow for "this picture
+// isn't right" without re-running the build.
+function SwapImageModal({
+  currentSrc, assets, onPick, onClose,
+}: {
+  currentSrc: string;
+  assets: LibraryImage[];
+  onPick: (url: string) => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return assets;
+    return assets.filter((a) => (a.filename ?? '').toLowerCase().includes(q));
+  }, [assets, query]);
+  return (
+    <ModalShell
+      title="Swap this image"
+      subtitle={`Pick a replacement · ${assets.length} in library`}
+      onClose={onClose}
+    >
+      {/* Show the current image at the top so it's clear which one
+          we're replacing — useful when the layout has repeats. */}
+      <div className="mb-4 flex items-center gap-3 rounded-lg border border-black/10 bg-warm-bg/40 p-2.5">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={currentSrc} alt="" className="w-14 h-14 rounded-md object-cover border border-black/10" />
+        <div className="min-w-0 flex-1">
+          <p className="text-[10.5px] font-bold uppercase tracking-[0.18em] text-foreground/55">Current</p>
+          <p className="text-[11.5px] text-foreground/60 truncate" title={currentSrc}>{currentSrc.split('/').pop() || currentSrc}</p>
+        </div>
+      </div>
+
+      <div className="mb-3">
+        <input
+          autoFocus
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Filter by filename…"
+          className="w-full rounded-md border border-black/10 bg-white px-3 py-1.5 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+      </div>
+
+      {filtered.length === 0 ? (
+        <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
+          {assets.length === 0 ? 'Library is empty. Upload images via /app/images first.' : 'No images match the filter.'}
+        </p>
+      ) : (
+        <ul className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2 mb-4">
+          {filtered.map((a) => {
+            const isCurrent = a.url === currentSrc;
+            return (
+              <li key={a.id}>
+                <button
+                  type="button"
+                  onClick={() => onPick(a.url)}
+                  disabled={isCurrent}
+                  className={`relative w-full aspect-square rounded-md overflow-hidden border-2 transition-all ${isCurrent ? 'border-primary ring-2 ring-primary/30 cursor-not-allowed opacity-60' : 'border-black/10 hover:border-primary hover:ring-2 hover:ring-primary/20'}`}
+                  title={isCurrent ? 'Already in the email' : `Swap with ${a.filename ?? 'this image'}`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={a.url} alt={a.filename ?? ''} className="w-full h-full object-cover" />
+                  {isCurrent && (
+                    <span className="absolute top-1 right-1 px-1 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-primary text-white">
+                      Current
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <div className="flex items-center justify-end gap-2 sticky bottom-0 bg-white pt-2 border-t border-black/5">
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-3 py-1.5 rounded-md border border-black/10 bg-white text-[11.5px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+        >
+          Cancel
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
 function ReplaceImagesModal({
   assets, initialSelected, onConfirm, onClose,
 }: {

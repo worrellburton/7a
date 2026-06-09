@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getAdminSupabase } from '@/lib/supabase-server';
+import { withCronLogging } from '@/lib/cron-observability';
 import { KEYWORDS, type Keyword } from '@/lib/seo/keywords';
 import {
   findRankInOrganic,
@@ -104,6 +105,7 @@ function authorized(req: Request): boolean {
 }
 
 export async function GET(req: Request) {
+  return withCronLogging('/api/cron/seo/weekly', async () => {
   if (!authorized(req)) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
@@ -294,5 +296,6 @@ export async function GET(req: Request) {
     ranAt: new Date(startedAt).toISOString(),
     durationMs: Date.now() - startedAt,
     summary,
+  });
   });
 }

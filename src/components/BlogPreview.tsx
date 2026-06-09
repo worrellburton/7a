@@ -1,96 +1,309 @@
 import Link from 'next/link';
 import { getAllEpisodesNewestFirst, episodeHref, episodeImage } from '@/lib/episodes';
+import { resolveAuthorAsync, resolveReviewer, type BlogAuthor } from '@/lib/blogAuthors';
 
 // Landing-page surfacing of the Recovery Roadmap series. Reads the
-// latest 3 episodes from the shared episode manifest plus any
-// published AI-pipeline blogs, so a freshly-published entry from
-// /app/content auto-pushes onto the homepage.
+// latest episodes from the shared episode manifest, including any
+// freshly-published AI-pipeline blogs from /app/content.
+//
+// Rebuild notes (from the "make this more dynamic + tell about the
+// series" ask):
+//   - Background flipped to `bg-warm-bg/60` so the section reads as
+//     its own panel rather than blending into the white admissions
+//     flow above it.
+//   - Lede paragraph below the heading explains what the series IS:
+//     an ongoing investigative thread about how addiction breaks and
+//     how recovery rebuilds. Without this line the audience reads
+//     three cards with no anchor.
+//   - Episode-count + cadence chip pulled from the manifest so the
+//     section signals depth ("50+ episodes, updated weekly") without
+//     a marketer having to hand-maintain the number.
+//   - Reading-time estimate on each card so the audience can pick a
+//     piece that fits the moment.
 
 export const revalidate = 60;
 
+// Tunable assumption — the avg Recovery Roadmap episode runs ~1,400
+// words. Refine if we ever start storing word_count on the manifest.
+const AVG_WORDS_PER_EPISODE = 1400;
+const WPM = 220;
+
 export default async function BlogPreview() {
   const all = await getAllEpisodesNewestFirst();
-  const latest = all.slice(0, 3);
+  // Resolve the author + reviewer for each surfaced episode. Async
+  // resolver hits the public_slug table when the slug points at a
+  // teammate, otherwise falls back to the BLOG_AUTHORS seed — same
+  // resolution the JSON-LD writer uses on the public blog page so
+  // E-E-A-T attribution stays in sync across surfaces. Resolved in
+  // parallel so we don't add a 5x roundtrip to the LCP.
+  // 5 episodes: 1 oversized featured on the left + a 2×2 grid of
+  // older episodes on the right. Was 3 equal cards.
+  const latest = all.slice(0, 5);
+  const total = all.length;
+  const bylines = await Promise.all(
+    latest.map(async (ep) => ({
+      author: await resolveAuthorAsync(ep.authorSlug),
+      reviewer: ep.reviewerSlug ? resolveReviewer(ep.reviewerSlug) : null,
+    })),
+  );
 
   return (
-    <section className="py-16 lg:py-20 bg-white" aria-labelledby="blog-preview-heading">
+    <section
+      className="relative py-20 lg:py-28 bg-gradient-to-b from-warm-bg/40 via-warm-bg/60 to-warm-bg/30"
+      aria-labelledby="blog-preview-heading"
+    >
+      {/* Soft top divider — a copper hairline that signals "new
+          section" without a heavy bg color change. */}
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent"
+      />
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-end justify-between mb-10">
+        {/* Header — two-column: lede on the left, meta + CTA right */}
+        <div className="grid lg:grid-cols-[1.4fr,1fr] gap-8 lg:gap-12 items-end mb-12 lg:mb-14">
           <div>
-            <p className="section-label mb-3">Investigative Series</p>
+            <p className="section-label mb-3">Investigative series</p>
             <h2
               id="blog-preview-heading"
-              className="text-2xl lg:text-3xl font-bold text-foreground"
+              className="text-3xl lg:text-[40px] font-bold text-foreground tracking-tight leading-[1.1]"
+              style={{ fontFamily: 'var(--font-display)' }}
             >
-              The Recovery Roadmap
+              The Recovery <em className="not-italic text-primary">Roadmap</em>
             </h2>
+            <p
+              className="mt-5 text-foreground/70 text-base lg:text-[17px] leading-relaxed max-w-2xl"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              An ongoing field journal from inside the work: what the
+              science actually says, what a real day in recovery
+              looks like, and the quiet moments where the rebuild
+              happens. Every episode is reported, edited, and
+              clinically reviewed at the ranch.
+            </p>
+
+            {/* Trust + cadence chips — pulled live from the manifest
+                so a freshly-published episode bumps the count. */}
+            <ul
+              className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-2 text-[11.5px] text-foreground/55"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <li className="inline-flex items-center gap-1.5">
+                <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-primary" />
+                {total} episode{total === 1 ? '' : 's'} so far
+              </li>
+              <li className="inline-flex items-center gap-1.5">
+                <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-primary" />
+                Clinically reviewed
+              </li>
+              <li className="inline-flex items-center gap-1.5">
+                <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full bg-primary" />
+                Free to read, no signup
+              </li>
+            </ul>
           </div>
-          <Link
-            href="/who-we-are/recovery-roadmap"
-            className="hidden sm:inline-flex text-sm font-semibold text-primary hover:text-primary-dark transition-colors"
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            View Full Series &rarr;
-          </Link>
+
+          <div className="lg:text-right">
+            <p
+              className="text-[10.5px] font-bold uppercase tracking-[0.22em] text-foreground/45 mb-2"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Start anywhere
+            </p>
+            <p
+              className="text-foreground/65 text-sm leading-relaxed lg:max-w-[320px] lg:ml-auto"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              The three pieces below are our newest. The full series
+              is sequenced for a first-time read — or pick the
+              episode whose title resonates today.
+            </p>
+            <Link
+              href="/who-we-are/recovery-roadmap"
+              className="hidden sm:inline-flex items-center gap-1.5 mt-4 text-sm font-semibold text-primary hover:text-primary-dark transition-colors group"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Browse all {total} episodes
+              <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">→</span>
+            </Link>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {latest.map((ep) => (
-            <Link
-              key={ep.slug}
-              href={episodeHref(ep.slug)}
-              className="bg-white rounded-xl overflow-hidden shadow-sm group block no-underline transition-all duration-500 hover:-translate-y-2 hover:shadow-[0_8px_30px_rgba(160,82,45,0.2)]"
-            >
-              <div className="relative">
-                <img
-                  src={episodeImage(ep)}
-                  alt={ep.imageAlt}
-                  className="h-48 w-full object-cover"
-                  loading="lazy"
-                />
-                <div
-                  className="absolute top-3 left-3 bg-primary text-white text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  Episode {ep.number}
+        {/* Episode cards · 1 oversized featured on the far left,
+            then a 2x2 grid of 4 older episodes on the right.
+            Layout: 3 columns on lg+, featured spans col 1 + both
+            rows; the four siblings fill cols 2-3 × rows 1-2.
+            Below lg: stacks single-column for thumb reading. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 lg:grid-rows-2 gap-5 lg:gap-6 lg:auto-rows-fr">
+          {latest.map((ep, idx) => {
+            const isFeatured = idx === 0;
+            const byline = bylines[idx];
+            return (
+              <Link
+                key={ep.slug}
+                href={episodeHref(ep.slug)}
+                className={`relative bg-white rounded-2xl overflow-hidden shadow-[0_8px_28px_-16px_rgba(60,40,30,0.18)] group block no-underline transition-all duration-500 hover:-translate-y-1.5 hover:shadow-[0_18px_44px_-18px_rgba(160,82,45,0.30)] flex flex-col ${
+                  isFeatured ? 'lg:row-span-2 lg:col-span-1' : ''
+                }`}
+              >
+                <div className={`relative ${isFeatured ? 'h-56 lg:h-[260px]' : 'h-40 lg:h-[150px]'}`}>
+                  <img
+                    src={episodeImage(ep)}
+                    alt={ep.imageAlt}
+                    className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 group-hover:scale-[1.03]"
+                    loading="lazy"
+                  />
+                  {/* Bottom-up scrim so the episode chip + title
+                      stay legible against any photo. */}
+                  <div
+                    aria-hidden="true"
+                    className="absolute inset-0"
+                    style={{
+                      background:
+                        'linear-gradient(180deg, transparent 50%, rgba(0,0,0,0.55) 100%)',
+                    }}
+                  />
+                  <div className="absolute top-3 left-3 flex items-center gap-2">
+                    <span
+                      className="bg-primary text-white text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      Episode {ep.number}
+                    </span>
+                    {isFeatured && (
+                      <span
+                        className="bg-white/95 text-primary text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        Newest
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-              <div className="p-5">
-                <div className="flex items-center gap-2 mb-2">
-                  <span
-                    className="text-primary text-[10px] font-semibold uppercase tracking-wider"
+                <div className={`flex-1 ${isFeatured ? 'p-5 lg:p-6' : 'p-4 lg:p-5'}`}>
+                  <div className="flex items-center gap-2 mb-2 text-[10.5px]">
+                    <span
+                      className="text-primary font-semibold uppercase tracking-[0.16em]"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      Recovery Roadmap
+                    </span>
+                    <span aria-hidden="true" className="text-foreground/30">·</span>
+                    <span className="text-foreground/45" style={{ fontFamily: 'var(--font-body)' }}>
+                      {ep.publishedDisplay}
+                    </span>
+                    <span aria-hidden="true" className="text-foreground/30">·</span>
+                    <span className="text-foreground/45 tabular-nums" style={{ fontFamily: 'var(--font-body)' }}>
+                      {Math.max(3, Math.round(AVG_WORDS_PER_EPISODE / WPM))} min read
+                    </span>
+                  </div>
+                  <h3
+                    className={`font-bold text-foreground mb-2 group-hover:text-primary transition-colors leading-snug ${
+                      isFeatured ? 'text-xl lg:text-2xl' : 'text-base lg:text-lg'
+                    }`}
+                    style={{ fontFamily: 'var(--font-display)' }}
+                  >
+                    {ep.title}
+                  </h3>
+                  <p
+                    className={`text-foreground/65 leading-relaxed ${
+                      isFeatured ? 'text-[14.5px] lg:text-[15.5px] line-clamp-4' : 'text-sm line-clamp-2'
+                    }`}
                     style={{ fontFamily: 'var(--font-body)' }}
                   >
-                    Recovery Roadmap
-                  </span>
-                  <span className="text-foreground/30 text-[10px]" style={{ fontFamily: 'var(--font-body)' }}>
-                    {ep.publishedDisplay}
-                  </span>
+                    {ep.blurb}
+                  </p>
+                  {/* Byline · author + medical reviewer photo +
+                      name. Pulls from resolveAuthorAsync /
+                      resolveReviewer at the top of this server
+                      component so the same Person attribution that
+                      the JSON-LD writer emits shows up visually. */}
+                  {(byline.author || byline.reviewer) && (
+                    <Byline author={byline.author} reviewer={byline.reviewer} featured={isFeatured} />
+                  )}
+                  <p
+                    className="mt-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-primary/85 group-hover:text-primary inline-flex items-center gap-1"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    Read episode
+                    <span aria-hidden="true" className="transition-transform group-hover:translate-x-1">→</span>
+                  </p>
                 </div>
-                <h3 className="text-base font-bold text-foreground mb-2 group-hover:text-primary transition-colors leading-snug">
-                  {ep.title}
-                </h3>
-                <p
-                  className="text-foreground/60 text-sm leading-relaxed line-clamp-2"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  {ep.blurb}
-                </p>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </div>
 
-        <div className="sm:hidden text-center mt-6">
+        <div className="sm:hidden text-center mt-8">
           <Link
             href="/who-we-are/recovery-roadmap"
-            className="text-sm font-semibold text-primary hover:text-primary-dark transition-colors"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:text-primary-dark transition-colors"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            View Full Series &rarr;
+            Browse all {total} episodes &rarr;
           </Link>
         </div>
       </div>
     </section>
+  );
+}
+
+// Per-card byline. Renders the author always; the medical reviewer
+// is appended after a small separator dot when present and
+// distinct from the author. Featured cards get the larger 28px
+// avatar; the four sibling cards get a 22px avatar so the byline
+// doesn't dominate their tighter layout.
+function Byline({
+  author,
+  reviewer,
+  featured,
+}: {
+  author: BlogAuthor | null;
+  reviewer: BlogAuthor | null;
+  featured: boolean;
+}) {
+  const dim = featured ? 28 : 22;
+  const showReviewer = !!reviewer && reviewer.slug !== author?.slug;
+  return (
+    <div className="mt-3 flex items-center gap-2">
+      {author && <AuthorChip author={author} dim={dim} role="By" />}
+      {showReviewer && (
+        <>
+          <span aria-hidden="true" className="text-foreground/25 text-[10px]">·</span>
+          <AuthorChip author={reviewer} dim={dim} role="Reviewed by" />
+        </>
+      )}
+    </div>
+  );
+}
+
+function AuthorChip({ author, dim, role }: { author: BlogAuthor; dim: number; role: string }) {
+  const initial = author.name.trim().charAt(0).toUpperCase() || '·';
+  return (
+    <span className="inline-flex items-center gap-1.5 min-w-0" aria-label={`${role} ${author.name}`}>
+      {author.avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={author.avatarUrl}
+          alt=""
+          width={dim}
+          height={dim}
+          className="rounded-full object-cover border border-black/10 shrink-0"
+          style={{ width: dim, height: dim }}
+        />
+      ) : (
+        <span
+          aria-hidden="true"
+          className="rounded-full bg-warm-bg flex items-center justify-center text-foreground/55 font-semibold shrink-0"
+          style={{ width: dim, height: dim, fontSize: dim * 0.42 }}
+        >
+          {initial}
+        </span>
+      )}
+      <span className="flex flex-col min-w-0 leading-tight" style={{ fontFamily: 'var(--font-body)' }}>
+        <span className="text-[9.5px] font-semibold uppercase tracking-[0.14em] text-foreground/45">{role}</span>
+        <span className="text-[11.5px] font-semibold text-foreground/80 truncate">{author.name}</span>
+      </span>
+    </span>
   );
 }

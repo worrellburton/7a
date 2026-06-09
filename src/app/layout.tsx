@@ -1,10 +1,20 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import { Analytics } from '@vercel/analytics/next';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import { AuthProvider } from '@/lib/AuthProvider';
 import ModalProvider from '@/lib/ModalProvider';
 import { GoogleAnalytics } from '@/components/GoogleAnalytics';
+import { JsonLd } from '@/components/JsonLd';
+import { buildMedicalBusinessSchema, buildWebSiteSchema, RANCH_GOOGLE_MAP_URL } from '@/lib/seo/schema';
 import './globals.css';
+
+// Hotjar site id. Hard-coded here so it's auditable in source rather
+// than buried in env config that can drift between preview / prod.
+// If we ever need a per-env split, switch this to a NEXT_PUBLIC_HOTJAR_ID
+// and reference it from the inline script below.
+const HOTJAR_ID = 5269906;
+const HOTJAR_SV = 6;
 
 export const metadata: Metadata = {
   metadataBase: new URL('https://sevenarrowsrecoveryarizona.com'),
@@ -28,7 +38,7 @@ export const metadata: Metadata = {
       'Premier drug and alcohol rehab in Arizona — residential treatment on a 160-acre ranch at the base of the Swisshelm Mountains. Call (866) 718-1665.',
     images: [
       {
-        url: '/images/facility-exterior-mountains.jpg',
+        url: '/hero/facility-exterior-mountains.jpg',
         width: 2000,
         height: 1235,
         alt: 'Seven Arrows Recovery - A Place to Heal',
@@ -40,7 +50,7 @@ export const metadata: Metadata = {
     title: 'Seven Arrows Recovery | Drug Rehab in Arizona',
     description:
       'Premier drug and alcohol rehab in Arizona — residential treatment on a 160-acre ranch at the base of the Swisshelm Mountains. Call (866) 718-1665.',
-    images: ['/images/facility-exterior-mountains.jpg'],
+    images: ['/hero/facility-exterior-mountains.jpg'],
   },
   robots: 'index, follow',
   other: {
@@ -54,59 +64,17 @@ export const metadata: Metadata = {
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
-  maximumScale: 1,
+  // No maximumScale — iOS Safari was trapping pinch-out attempts
+  // and re-interpreting the touch as a swipe-back gesture, which
+  // closed the page entirely when users tried to zoom out of a
+  // momentarily over-wide layout. Letting the user pinch is the
+  // right escape hatch even when the underlying layout is fixed.
 };
 
-const organizationSchema = {
-  '@context': 'https://schema.org',
-  '@type': 'Organization',
-  '@id': 'https://sevenarrowsrecoveryarizona.com/#organization',
-  name: 'Seven Arrows Recovery',
-  url: 'https://sevenarrowsrecoveryarizona.com',
-  logo: 'https://sevenarrowsrecoveryarizona.com/images/logo.png',
-  contactPoint: {
-    '@type': 'ContactPoint',
-    telephone: '+1-866-718-1665',
-    contactType: 'admissions',
-    areaServed: 'US',
-    availableLanguage: ['English', 'Spanish'],
-    hoursAvailable: {
-      '@type': 'OpeningHoursSpecification',
-      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-      opens: '00:00',
-      closes: '23:59',
-    },
-  },
-  sameAs: [
-    'https://www.facebook.com/sevenarrowsrecovery',
-    'https://www.instagram.com/sevenarrowsrecovery',
-  ],
-  address: {
-    '@type': 'PostalAddress',
-    streetAddress: '2491 W Jefferson Rd',
-    addressLocality: 'Elfrida',
-    addressRegion: 'AZ',
-    postalCode: '85610',
-    addressCountry: 'US',
-  },
-  foundingDate: '2020',
-  numberOfEmployees: { '@type': 'QuantitativeValue', minValue: 10, maxValue: 50 },
-  areaServed: [
-    { '@type': 'State', name: 'Arizona' },
-    { '@type': 'City', name: 'Phoenix' },
-    { '@type': 'City', name: 'Scottsdale' },
-    { '@type': 'City', name: 'Tucson' },
-    { '@type': 'City', name: 'Mesa' },
-  ],
-};
-
-const websiteSchema = {
-  '@context': 'https://schema.org',
-  '@type': 'WebSite',
-  name: 'Seven Arrows Recovery',
-  url: 'https://sevenarrowsrecoveryarizona.com',
-  publisher: { '@id': 'https://sevenarrowsrecoveryarizona.com/#organization' },
-};
+// Schemas now live in src/lib/seo/schema.ts so the NAP, social URLs,
+// geo, and opening hours stay in sync across every surface that
+// emits JSON-LD. Builders are pure functions; call them at render
+// time so the schema travels with the page.
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -127,17 +95,37 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             URLs category. (site)/layout.tsx now emits a per-request
             self-canonical via generateMetadata + the x-pathname
             header set in middleware.ts. */}
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
-        />
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+        {/* Global business object — combined Organization +
+            MedicalBusiness + LocalBusiness on the same @id so every
+            page on the site references the single canonical business
+            entity. medicalSpecialty, geo, address, openingHours,
+            telephone and contactPoint are all baked in by the
+            builder; pass hasMap so Google's Knowledge Panel surfaces
+            the maps deep-link. */}
+        <JsonLd
+          data={[
+            buildMedicalBusinessSchema({ hasMap: RANCH_GOOGLE_MAP_URL }),
+            buildWebSiteSchema(),
+          ]}
         />
       </head>
       <body className="min-h-screen flex flex-col antialiased">
         <GoogleAnalytics />
+        {/* Hotjar — session recording + heatmaps. afterInteractive so
+            it doesn't block hydration; the vendor script itself
+            lazy-loads the actual recorder. Identical to the snippet
+            Hotjar ships, just lifted into next/script so we get the
+            framework's load-order guarantees. */}
+        <Script id="hotjar" strategy="afterInteractive">
+          {`(function(h,o,t,j,a,r){
+            h.hj=h.hj||function(){(h.hj.q=h.hj.q||[]).push(arguments)};
+            h._hjSettings={hjid:${HOTJAR_ID},hjsv:${HOTJAR_SV}};
+            a=o.getElementsByTagName('head')[0];
+            r=o.createElement('script');r.async=1;
+            r.src=t+h._hjSettings.hjid+j+h._hjSettings.hjsv;
+            a.appendChild(r);
+          })(window,document,'https://static.hotjar.com/c/hotjar-','.js?sv=');`}
+        </Script>
         <AuthProvider>
           <ModalProvider>
             {children}

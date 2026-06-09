@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "How to Safely Detox from Xanax" },
         ]}
         description="Detoxing from Xanax can feel scary, but necessary at the same time. It’s an important step toward recovery, but many people worry about what will happen when they stop. Xanax, or alprazolam, is a benzodiazepine that’s often…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

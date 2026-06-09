@@ -32,6 +32,24 @@ body {
   line-height: 1.6;
 }
 
+/* Mobile horizontal-overflow guard. iOS Safari computes its layout
+   viewport from the widest element on the page — if any single
+   element (SVG with intrinsic viewBox width, a flex row with long
+   inline children, a pre overflowing its parent, etc.) exceeds the
+   device width, Safari widens the layout viewport to match and
+   renders the whole page at the resulting zoom-in scale. Capping
+   <html> and <body> at 100vw + clipping horizontal overflow makes
+   that mathematically impossible regardless of what an inner
+   component does wrong. Scoped to ≤768px so the desktop sidebar
+   overlay + hover transforms aren't affected. */
+@media (max-width: 768px) {
+  html,
+  body {
+    max-width: 100vw;
+    overflow-x: clip;
+  }
+}
+
 /* Tailwind v4 dropped the legacy `cursor: pointer` on buttons (and
    role="button") and never set one on interactive anchors. Restore the
    classic "if it does something on click, the cursor changes" UX
@@ -46,26 +64,16 @@ a[href] {
   cursor: pointer;
 }
 
-/* Admin portal: zoom everything ~20% smaller across the board on larger
-   viewports. Using `zoom` scales Tailwind rem utilities, px values,
-   spacing, and images together so pages feel 2-3 type-scale steps tighter
-   without touching every component. Public marketing pages are
-   unaffected.
-
-   Skip the zoom on mobile — phones already have limited real estate and
-   scaling down 18% more pushes text below comfortable reading size.
-
-   The min-height compensates for zoom so the shell still fills the full
-   viewport after scaling — otherwise zoom: 0.82 on a 100vh element would
-   render at only 82vh, leaving an empty white band at the bottom. */
+/* Admin portal scaling — previously this rule applied `zoom: 0.82` on
+   viewports ≥ 1024px to fit a tighter type scale without per-component
+   work. The side-effect was that big monitors + iPad-class viewports
+   rendered the whole shell visibly shrunken, and any pre-zoom mental
+   model from a previous session felt jarring on re-open. Removing the
+   transform so the platform renders at 100% on every breakpoint. The
+   `.app-shell { min-height: 100vh }` declaration stays so the shell
+   still fills the viewport. */
 .app-shell {
   min-height: 100vh;
-}
-@media (min-width: 1024px) {
-  .app-shell {
-    zoom: 0.82;
-    min-height: calc(100vh / 0.82);
-  }
 }
 
 @layer base {
@@ -409,10 +417,17 @@ html:has(:target) {
   /* Buttons that wrap multi-line content (e.g. the day-block
      buttons on /app/admissions) need block-level flex so the
      min-height stays honoured without breaking their column
-     layout — override the inline-flex above for them. */
+     layout — override the inline-flex above for them. Same
+     escape hatch applies to anchor links (mobile drawer nav rows,
+     full-width list cards) that need to stack vertically.
+     !important is required on the anchor override because the
+     a[href]:not(...):not(...):not(...) selector above wins the
+     specificity battle otherwise (3 classes/attrs + 3 elements
+     vs. our 2 classes/attrs + 1 element). */
   [data-platform-main] button.sa-tap-block,
-  [data-platform-main] [role="button"].sa-tap-block {
-    display: flex;
+  [data-platform-main] [role="button"].sa-tap-block,
+  [data-platform-main] a.sa-tap-block {
+    display: flex !important;
   }
   /* Native form controls should also clear 16px so iOS Safari
      doesn't zoom into the input on focus. */

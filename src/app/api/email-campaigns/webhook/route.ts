@@ -133,16 +133,72 @@ export async function POST(req: NextRequest) {
 
   const admin = getAdminSupabase();
 
-  // Resolve recipient + campaign from the message id via
-  // email_campaign_sends. There can be more than one send row for a
-  // re-sent recipient; take the most recent.
-  const { data: sendRow } = await admin
-    .from('email_campaign_sends')
-    .select('campaign_id, recipient_id')
-    .eq('provider_message_id', providerMessageId)
-    .order('sent_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Resolve recipient + campaign for this event. Two paths:
+  //   1. Transactional sends (legacy + future password-resets) put
+  //      provider_message_id on the email_campaign_sends row when we
+  //      send the request, so we can look up directly.
+  //   2. Broadcast sends only know the broadcast_id at send time —
+  //      Resend mints the per-recipient email_id at fan-out time and
+  //      we learn it from the FIRST webhook event for that email.
+  //      So we fall back to (broadcast_id + recipient email) when no
+  //      sends row matches the email_id, and patch the email_id in
+  //      so subsequent events for the same email hit the fast path.
+  let sendRow: { campaign_id: string; recipient_id: string | null; id?: string } | null = null;
+  {
+    const { data: byMessageId } = await admin
+      .from('email_campaign_sends')
+      .select('id, campaign_id, recipient_id')
+      .eq('provider_message_id', providerMessageId)
+      .order('sent_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (byMessageId) sendRow = byMessageId as unknown as typeof sendRow;
+  }
+  // Broadcast fallback. The Resend payload carries broadcast_id +
+  // the recipient address; look up the campaign by stored
+  // broadcast_id, then find the recipient by email within it. First
+  // event for a given email_id patches the sends row so the next
+  // event hits the fast path above.
+  if (!sendRow) {
+    const broadcastId = typeof data?.broadcast_id === 'string' ? data.broadcast_id : null;
+    const toRaw = Array.isArray(data?.to) ? data.to[0] : data?.to;
+    const toEmail = typeof toRaw === 'string' ? toRaw : null;
+    if (broadcastId && toEmail) {
+      const { data: camp } = await admin
+        .from('email_campaigns')
+        .select('id')
+        .eq('resend_broadcast_id', broadcastId)
+        .maybeSingle();
+      if (camp?.id) {
+        const { data: rec } = await admin
+          .from('email_campaign_recipients')
+          .select('id')
+          .eq('campaign_id', camp.id)
+          .eq('email', toEmail)
+          .maybeSingle();
+        sendRow = { campaign_id: camp.id, recipient_id: rec?.id ?? null };
+        // Backfill the sends row so subsequent events for the same
+        // email_id can use the fast lookup.
+        if (rec?.id) {
+          const { data: existingSend } = await admin
+            .from('email_campaign_sends')
+            .select('id')
+            .eq('recipient_id', rec.id)
+            .eq('campaign_id', camp.id)
+            .order('sent_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (existingSend?.id) {
+            await admin
+              .from('email_campaign_sends')
+              .update({ provider_message_id: providerMessageId })
+              .eq('id', existingSend.id)
+              .is('provider_message_id', null);
+          }
+        }
+      }
+    }
+  }
 
   const { error: insertErr } = await admin
     .from('email_campaign_events')
@@ -173,6 +229,75 @@ export async function POST(req: NextRequest) {
         send_error: shortType === 'bounced' ? 'Bounced (per Resend webhook).' : 'Marked as spam (per Resend webhook).',
       })
       .eq('id', sendRow.recipient_id);
+  }
+
+  // Resend's hosted unsubscribe page fires either `email.unsubscribed`
+  // (transactional) or `contact.unsubscribed` (Broadcasts/Audiences)
+  // when a recipient opts out. Mirror that to contacts.unsubscribed_at
+  // so future campaigns skip them and the contacts list shows the
+  // unsubscribed badge. Best-effort: try the recipient's email off
+  // sendRow's recipient first, else off data.email / data.to.
+  if (shortType === 'unsubscribed' || shortType === 'contact.unsubscribed' || event.type === 'contact.unsubscribed') {
+    try {
+      let unsubEmail: string | null = null;
+      if (sendRow?.recipient_id) {
+        const { data: rec } = await admin
+          .from('email_campaign_recipients')
+          .select('email')
+          .eq('id', sendRow.recipient_id)
+          .maybeSingle();
+        unsubEmail = rec?.email ?? null;
+      }
+      if (!unsubEmail) {
+        const toRaw = Array.isArray(data?.to) ? data.to[0] : data?.to;
+        if (typeof toRaw === 'string') unsubEmail = toRaw;
+        else if (typeof data?.email === 'string') unsubEmail = data.email;
+      }
+      if (unsubEmail) {
+        await admin
+          .from('contacts')
+          .update({
+            unsubscribed_at: new Date().toISOString(),
+            unsubscribed_source: 'resend-webhook',
+          })
+          .eq('email', unsubEmail)
+          .is('unsubscribed_at', null);
+      }
+    } catch (e) {
+      console.error('[resend webhook] unsubscribe mirror failed', e);
+    }
+  }
+
+  // Auto-prune dead addresses. On a HARD bounce (Resend bounce.type
+  // == "Permanent" — the mailbox doesn't exist / the domain rejects
+  // it for good), clear the email off the underlying contact so it's
+  // never emailed again. We deliberately skip transient/undetermined
+  // bounces (full inbox, server hiccup) since those can recover, and
+  // we only clear when the contact's email still matches the address
+  // that bounced so a since-corrected email isn't wiped. Wrapped so a
+  // failure here can never 500 the webhook (which would make Resend
+  // retry the delivery forever).
+  if (shortType === 'bounced' && sendRow?.recipient_id) {
+    const bounce = (data?.bounce ?? null) as { type?: string } | null;
+    const isHardBounce = (bounce?.type ?? '').toLowerCase() === 'permanent';
+    if (isHardBounce) {
+      try {
+        const { data: rec } = await admin
+          .from('email_campaign_recipients')
+          .select('contact_id, email')
+          .eq('id', sendRow.recipient_id)
+          .maybeSingle();
+        if (rec?.contact_id && rec.email) {
+          await admin
+            .from('contacts')
+            .update({ email: null })
+            .eq('id', rec.contact_id)
+            .eq('email', rec.email);
+        }
+      } catch (e) {
+        console.error('[resend webhook] hard-bounce email prune failed', e);
+      }
+    }
   }
 
   return NextResponse.json({ ok: true });

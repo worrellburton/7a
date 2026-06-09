@@ -28,7 +28,7 @@ import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
-const MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-4-6';
+const MODEL = process.env.ANTHROPIC_MODEL || 'claude-opus-4-8';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
 const STALE_AFTER_MS = 30 * 60 * 1000;

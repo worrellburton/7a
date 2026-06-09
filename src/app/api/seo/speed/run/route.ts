@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
+import { requireAdmin } from '@/lib/api-gates';
 import { runPsi, hasPsiKey, type PsiSnapshot, type PsiStrategy } from '@/lib/seo/psi';
 
 // POST /api/seo/speed/run
@@ -27,16 +27,8 @@ interface RunBody {
 }
 
 export async function POST(req: Request) {
-  const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: row } = await supabase
-    .from('users')
-    .select('is_admin')
-    .eq('id', user.id)
-    .maybeSingle();
-  if (!row?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const gate = await requireAdmin();
+  if (gate instanceof NextResponse) return gate;
 
   if (!hasPsiKey()) {
     return NextResponse.json(
@@ -85,9 +77,9 @@ export async function POST(req: Request) {
   // Persist every snapshot — including failures — so the timeline
   // shows when a URL was checked and went down. The admin client
   // bypasses RLS so we can write under the user's session.
-  const admin = getAdminSupabase();
+  const admin = gate.admin;
   const rows = snapshots.map((s) => ({
-    ran_by: user.id,
+    ran_by: gate.userId,
     url: s.url,
     strategy: s.strategy,
     performance: s.performance,

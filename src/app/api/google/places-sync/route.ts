@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase, getUserFromRequest } from '@/lib/supabase-server';
 import { fetchPlaceDetails, SEVEN_ARROWS_PLACE_ID } from '@/lib/places';
+import { withCronLogging } from '@/lib/cron-observability';
 
 // GET / POST /api/google/places-sync
 //
@@ -106,9 +107,9 @@ async function handle(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  return handle(req);
+  return withCronLogging('/api/google/places-sync', () => handle(req));
 }
 
 export async function GET(req: NextRequest) {
-  return handle(req);
+  return withCronLogging('/api/google/places-sync', () => handle(req));
 }

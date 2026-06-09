@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
+import { EPISODES, episodeHref } from '@/lib/episodes';
+import { findSitePage } from '@/lib/site-pages';
 
 // POST /api/email-campaigns/draft-text
 //
@@ -16,7 +18,7 @@ import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 // blank lines). The final build step renders it into a designed
 // HTML email.
 
-const DEFAULT_MODEL = 'claude-opus-4-7';
+const DEFAULT_MODEL = 'claude-opus-4-8';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
 const SITE_URL = 'https://www.sevenarrowsrecoveryarizona.com/';
@@ -28,6 +30,8 @@ interface DraftBody {
   includePhone?: unknown;
   includeQuote?: unknown;
   featuredBlogId?: unknown;
+  featuredEpisodeSlug?: unknown;
+  featuredPagePath?: unknown;
   featuredEmployeeId?: unknown;
   featuredEquineId?: unknown;
 }
@@ -49,6 +53,8 @@ export async function POST(req: NextRequest) {
   const includePhone = !!body.includePhone;
   const includeQuote = !!body.includeQuote;
   const featuredBlogId = typeof body.featuredBlogId === 'string' ? body.featuredBlogId : null;
+  const featuredEpisodeSlug = typeof body.featuredEpisodeSlug === 'string' ? body.featuredEpisodeSlug : null;
+  const featuredPagePath = typeof body.featuredPagePath === 'string' ? body.featuredPagePath : null;
   const featuredEmployeeId = typeof body.featuredEmployeeId === 'string' ? body.featuredEmployeeId : null;
   const featuredEquineId = typeof body.featuredEquineId === 'string' ? body.featuredEquineId : null;
 
@@ -75,7 +81,21 @@ export async function POST(req: NextRequest) {
   ctxLines.push(`LINK TO WEBSITE CTA: ${linkToWebsite ? `yes (goes to ${SITE_URL})` : 'no'}`);
   ctxLines.push(`INCLUDE PHONE NUMBER: ${includePhone ? `yes — ${ADMISSIONS_PHONE} (mention it once, naturally, in the body or postscript)` : 'no'}`);
   ctxLines.push(`INCLUDE QUOTE: ${includeQuote ? 'yes — a real Google review will be inserted as a separate pull-quote block between the body and the CTA at render time. Do NOT write a quote yourself, do not add quotation marks, and do not paraphrase a review in the body copy.' : 'no'}`);
-  if (blog) ctxLines.push(`FEATURED BLOG:\n  title: ${blog.title}\n  url: ${blog.slug ? `${SITE_URL}who-we-are/blog/${blog.slug}` : '(no link)'}\n  summary: ${blogSummary}`);
+  if (blog) {
+    ctxLines.push(`FEATURED BLOG:\n  title: ${blog.title}\n  url: ${blog.slug ? `${SITE_URL}who-we-are/blog/${blog.slug}` : '(no link)'}\n  summary: ${blogSummary}`);
+  } else if (featuredEpisodeSlug) {
+    const ep = EPISODES.find((e) => e.slug === featuredEpisodeSlug);
+    if (ep) {
+      const href = episodeHref(ep.slug);
+      const url = href.startsWith('http') ? href : `${SITE_URL.replace(/\/$/, '')}${href}`;
+      ctxLines.push(`FEATURED BLOG (Recovery Roadmap, Episode ${ep.number}):\n  title: ${ep.title}\n  url: ${url}\n  summary: ${ep.blurb}`);
+    }
+  }
+  const featuredPage = findSitePage(featuredPagePath);
+  if (featuredPage) {
+    const url = `${SITE_URL.replace(/\/$/, '')}${featuredPage.path}`;
+    ctxLines.push(`FEATURED PAGE (a secondary inner-site destination the email should sign-post toward; weave a short "if you want to learn more about ${featuredPage.title.toLowerCase()}, …" line into the body or postscript — do NOT make this the primary CTA):\n  title: ${featuredPage.title}\n  url: ${url}\n  description: ${featuredPage.blurb}`);
+  }
   if (emp) ctxLines.push(`FEATURED EMPLOYEE:\n  name: ${emp.full_name}\n  title: ${emp.job_title ?? ''}\n  url: ${emp.public_slug ? `${SITE_URL}who-we-are/meet-our-team/${emp.public_slug}` : '(no link)'}\n  bio: ${emp.bio ?? ''}`);
   if (horse) ctxLines.push(`FEATURED HORSE (work the horse's name + role into one paragraph; never reduce to mascot status):\n  name: ${horse.name}\n  works in: ${horse.works_in ?? ''}\n  notes: ${horseNotes}`);
 

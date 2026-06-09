@@ -21,7 +21,9 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const RESEND_URL = 'https://api.resend.com/emails';
-const MAX_PARALLEL = 6;
+const MAX_PARALLEL = 4;
+const RESEND_RPS = 4;
+const RESEND_WINDOW_MS = 1000;
 
 interface PullBody {
   recipientIds?: string[];
@@ -72,15 +74,36 @@ export async function POST(req: NextRequest) {
   let body: PullBody = {};
   try { body = (await req.json()) as PullBody; } catch { /* allow empty */ }
 
-  // Resolve recipient set. Explicit override wins; default = every
-  // super admin with a real email.
+  // Resolve recipient set in three tiers:
+  //   1. Explicit ids on the request body (a manual "send only to
+  //      these people" or a retry of a partial failure).
+  //   2. Persisted recipient list on lever_schedules.recipient_user_ids
+  //      (the Save button on the UI). Lets the manual pull stay in
+  //      sync with the saved cohort that the cron uses.
+  //   3. Fallback: every super admin with a real email (the
+  //      original default).
   const explicitIds = Array.isArray(body.recipientIds)
     ? body.recipientIds.filter((id) => typeof id === 'string' && id.length > 0)
     : null;
 
+  let savedIds: string[] = [];
+  if (!explicitIds || explicitIds.length === 0) {
+    const { data: scheduleRow } = await admin
+      .from('lever_schedules')
+      .select('recipient_user_ids')
+      .eq('lever_type', 'log-report')
+      .maybeSingle();
+    const raw = scheduleRow?.recipient_user_ids;
+    if (Array.isArray(raw)) {
+      savedIds = (raw as unknown[]).filter((v): v is string => typeof v === 'string' && v.length > 0);
+    }
+  }
+
   let recipientQuery = admin.from('users').select('id, full_name, email');
   if (explicitIds && explicitIds.length > 0) {
     recipientQuery = recipientQuery.in('id', explicitIds);
+  } else if (savedIds.length > 0) {
+    recipientQuery = recipientQuery.in('id', savedIds);
   } else {
     recipientQuery = recipientQuery.eq('is_super_admin', true);
   }
@@ -108,8 +131,24 @@ export async function POST(req: NextRequest) {
   const sentRows: Array<{ id: string; name: string | null; email: string; ok: boolean; error?: string }> = [];
 
   // Concurrent send pool — matches the email-campaign send route's
-  // pattern. 6 in-flight keeps wall time low without tripping
-  // Resend's rate limit.
+  // pattern. 4 in-flight + a 4-req/sec local rate limit stays under
+  // Resend's free-tier 5/sec cap; transient 429s are retried with
+  // exponential backoff before we declare the recipient failed.
+  const recentSends: number[] = [];
+  const acquireResendSlot = async () => {
+    while (true) {
+      const now = Date.now();
+      while (recentSends.length > 0 && now - recentSends[0] >= RESEND_WINDOW_MS) {
+        recentSends.shift();
+      }
+      if (recentSends.length < RESEND_RPS) {
+        recentSends.push(now);
+        return;
+      }
+      const wait = RESEND_WINDOW_MS - (now - recentSends[0]) + 5;
+      await new Promise((r) => setTimeout(r, Math.max(wait, 25)));
+    }
+  };
   let cursor = 0;
   const handleOne = async (r: typeof recipients[number]) => {
     let ok = false;
@@ -118,21 +157,35 @@ export async function POST(req: NextRequest) {
     if (simulated) {
       ok = true;
     } else {
-      try {
-        const res = await fetch(RESEND_URL, {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ from, to: [r.email], subject, html, reply_to: replyTo }),
-        });
-        const txt = await res.text();
-        if (res.ok) {
-          ok = true;
-          try { providerMessageId = (JSON.parse(txt) as { id?: string }).id ?? null; } catch { /* */ }
-        } else {
+      const MAX_ATTEMPTS = 4;
+      for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+        try {
+          await acquireResendSlot();
+          const res = await fetch(RESEND_URL, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ from, to: [r.email], subject, html, reply_to: replyTo }),
+          });
+          const txt = await res.text();
+          if (res.ok) {
+            ok = true;
+            errText = null;
+            try { providerMessageId = (JSON.parse(txt) as { id?: string }).id ?? null; } catch { /* */ }
+            break;
+          }
           errText = `HTTP ${res.status}: ${txt.slice(0, 1000)}`;
+          if (res.status !== 429 || attempt === MAX_ATTEMPTS) break;
+          const retryAfterHdr = res.headers.get('retry-after');
+          const retryAfterSec = retryAfterHdr ? Number(retryAfterHdr) : NaN;
+          const backoffMs = Number.isFinite(retryAfterSec) && retryAfterSec > 0
+            ? Math.min(retryAfterSec * 1000, 5000)
+            : 500 * 2 ** (attempt - 1);
+          await new Promise((res2) => setTimeout(res2, backoffMs));
+        } catch (e) {
+          errText = e instanceof Error ? e.message : String(e);
+          if (attempt === MAX_ATTEMPTS) break;
+          await new Promise((res2) => setTimeout(res2, 500 * 2 ** (attempt - 1)));
         }
-      } catch (e) {
-        errText = e instanceof Error ? e.message : String(e);
       }
     }
     if (ok) sent += 1; else failed += 1;

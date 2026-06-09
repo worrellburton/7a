@@ -35,7 +35,7 @@ export default function WhyFamilyMatters() {
             <figure className="relative aspect-[4/5] rounded-2xl overflow-hidden bg-dark-section shadow-xl">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/images/embrace-connection.jpg"
+                src="/hero/embrace-connection.jpg"
                 alt="A family reconnecting at Seven Arrows"
                 loading="lazy"
                 className="absolute inset-0 w-full h-full object-cover"

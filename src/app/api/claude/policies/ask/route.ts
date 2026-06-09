@@ -7,9 +7,9 @@ import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 // a grounded answer with citations (policy number / name).
 //
 // Required env: ANTHROPIC_API_KEY
-// Optional env: ANTHROPIC_MODEL (defaults to claude-opus-4-6)
+// Optional env: ANTHROPIC_MODEL (defaults to claude-opus-4-8)
 
-const DEFAULT_MODEL = 'claude-opus-4-6';
+const DEFAULT_MODEL = 'claude-opus-4-8';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
 

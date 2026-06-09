@@ -68,11 +68,11 @@ export default function RewardRewiring() {
               className="text-foreground/75 text-lg leading-relaxed mb-5"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              Most clients describe the moment around week four when
-              music starts to move them again. Or when a meal tastes
-              like a meal. Or when they notice the arc of a horse&rsquo;s
-              neck in the morning light and feel something that
-              isn&rsquo;t flat.
+              During treatment, most of our clients describe the
+              moment around week four when music starts to move them
+              again. Or when a meal tastes like a meal. Or when they
+              notice the arc of a horse&rsquo;s neck in the morning
+              light and feel something that isn&rsquo;t flat.
             </p>
             <p
               className="text-foreground/75 text-lg leading-relaxed"
@@ -80,9 +80,9 @@ export default function RewardRewiring() {
             >
               Those are the natural-reward circuits reporting back
               online. Sleep, movement, connection, and meaning are the
-              four pillars that carry the baseline upward — not
-              because they replace the drug, but because they rebuild
-              what the drug stole.
+              main four pillars that carry the baseline upward, not
+              because they are replaced by the drug, but because they
+              rebuild what the drug stole.
             </p>
           </div>
 

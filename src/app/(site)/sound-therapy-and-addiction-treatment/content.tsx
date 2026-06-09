@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Sound Therapy and Addiction Treatment: How It Aids the Recovery Process" },
         ]}
         description="Embarking on the path to addiction recovery is a courageous journey that requires a holistic approach to healing. At Seven Arrows Recovery, we integrate both traditional therapies and innovative practices like sound therapy and…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

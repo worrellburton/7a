@@ -27,6 +27,11 @@ interface PutBody {
   dayOfWeek?: number;       // 0..6, 0=Sunday — UTC
   hourUtc?: number;         // 0..23 — UTC
   displayTimezone?: string; // e.g. 'America/Phoenix'
+  // Saved recipient cohort. Empty / undefined leaves the existing
+  // saved list untouched so a schedule-only update doesn't wipe a
+  // separately-saved recipient list; pass an empty array via the
+  // separate POST recipients endpoint to explicitly clear it.
+  recipientUserIds?: string[];
 }
 
 export async function GET() {
@@ -44,7 +49,7 @@ export async function GET() {
   const admin = getAdminSupabase();
   const { data } = await admin
     .from('lever_schedules')
-    .select('lever_type, enabled, day_of_week, hour_utc, display_timezone, updated_at, updated_by')
+    .select('lever_type, enabled, day_of_week, hour_utc, display_timezone, updated_at, updated_by, recipient_user_ids')
     .eq('lever_type', LEVER_TYPE)
     .maybeSingle();
   return NextResponse.json({ schedule: data ?? null });

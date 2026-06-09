@@ -313,7 +313,8 @@ export default function SeoContent() {
           {/* Image + video sync moved off the Overview header — both
               flows now live inside the Media tab where they belong.
               Date range chooser is in its own analytics-style card
-              below. */}
+              below. The next.config.mjs download lives on the Sitemap
+              tab alongside the other downloadable site files. */}
         </div>
       </div>
 

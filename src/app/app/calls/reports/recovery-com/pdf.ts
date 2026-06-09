@@ -1,4 +1,9 @@
-import { jsPDF } from 'jspdf';
+// Type-only import — erased at build so jsPDF (~300 KB) stays out of
+// the bundle. The constructor is loaded lazily in
+// downloadRecoveryComPdf and cached in JsPdfCtor for newDoc().
+import type { jsPDF } from 'jspdf';
+
+let JsPdfCtor: typeof import('jspdf').jsPDF | null = null;
 import type { RecoveryReportPayload, CallLogRow, AnalyticsPayload } from './content';
 
 // Multi-page branded PDF for the Recovery.com report. We render
@@ -41,7 +46,8 @@ interface PageContext {
 }
 
 function newDoc(): PageContext {
-  const pdf = new jsPDF({ unit: 'pt', format: 'letter' });
+  if (!JsPdfCtor) throw new Error('jsPDF not loaded — downloadRecoveryComPdf must await the dynamic import first.');
+  const pdf = new JsPdfCtor({ unit: 'pt', format: 'letter' });
   return { pdf, cursorY: MARGIN_TOP, pageNumber: 1 };
 }
 
@@ -1238,6 +1244,7 @@ export async function downloadRecoveryComPdf(
   data: RecoveryReportPayload,
   analytics: AnalyticsPayload | null = null,
 ): Promise<void> {
+  JsPdfCtor ??= (await import('jspdf')).jsPDF;
   const ctx = newDoc();
   drawCoverPage(ctx, data);
   drawStatsPage(ctx, data);

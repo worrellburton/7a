@@ -58,7 +58,7 @@ export async function GET(req: NextRequest) {
   const admin = getAdminSupabase();
   const { data, error } = await admin
     .from('contacts')
-    .select('id, name, company, company_website, type, specialty, rating, role, phone, phone_cell, phone_office, email, location, formatted_address, place_id, tz, lat, lng, notes, source, source_partner_id, last_contact_at, last_contact_by, last_contact_method, last_contact_comments, created_at, updated_at')
+    .select('id, name, company, company_website, type, specialty, rating, role, phone, phone_cell, phone_office, email, location, formatted_address, place_id, tz, lat, lng, notes, source, source_partner_id, last_contact_at, last_contact_by, last_contact_method, last_contact_comments, unsubscribed_at, unsubscribed_source, created_at, updated_at')
     .order('last_contact_at', { ascending: false, nullsFirst: false })
     .order('name', { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -91,32 +91,33 @@ export async function GET(req: NextRequest) {
     last_contact_by: string | null;
     last_contact_method: string | null;
     last_contact_comments: string | null;
+    unsubscribed_at: string | null;
+    unsubscribed_source: string | null;
     created_at: string;
     updated_at: string;
   };
   const rows = (data ?? []) as Row[];
   const ids = Array.from(new Set(rows.map((r) => r.last_contact_by).filter((v): v is string => !!v)));
+  const contactIds = rows.map((r) => r.id);
+  // Fan out the two follow-up lookups in parallel and scope partners
+  // to only the contacts in the current page so the response doesn't
+  // shape with every partner row in the org.
+  const [usrsRes, partnerLinksRes] = await Promise.all([
+    ids.length > 0
+      ? admin.from('users').select('id, full_name, avatar_url').in('id', ids)
+      : Promise.resolve({ data: [] as Array<{ id: string; full_name: string | null; avatar_url: string | null }> }),
+    contactIds.length > 0
+      ? admin.from('partners').select('id, contact_id').in('contact_id', contactIds)
+      : Promise.resolve({ data: [] as Array<{ id: string; contact_id: string }> }),
+  ]);
   const userMap = new Map<string, { full_name: string | null; avatar_url: string | null }>();
-  if (ids.length > 0) {
-    const { data: usrs } = await admin
-      .from('users')
-      .select('id, full_name, avatar_url')
-      .in('id', ids);
-    for (const u of usrs ?? []) {
-      userMap.set(u.id as string, {
-        full_name: (u.full_name as string | null) ?? null,
-        avatar_url: (u.avatar_url as string | null) ?? null,
-      });
-    }
+  for (const u of usrsRes.data ?? []) {
+    userMap.set(u.id as string, {
+      full_name: (u.full_name as string | null) ?? null,
+      avatar_url: (u.avatar_url as string | null) ?? null,
+    });
   }
-  // Pull every partner.contact_id so the outreach grid knows which
-  // contacts already have a linked partner. Drives the "Add partner"
-  // vs. "View partner" affordance in the action menu — and lets us
-  // render a small badge in the row without a second round-trip.
-  const { data: partnerLinks } = await admin
-    .from('partners')
-    .select('id, contact_id')
-    .not('contact_id', 'is', null);
+  const partnerLinks = partnerLinksRes.data;
   const partnerByContact = new Map<string, string>();
   for (const p of (partnerLinks ?? []) as Array<{ id: string; contact_id: string }>) {
     if (p.contact_id) partnerByContact.set(p.contact_id, p.id);
@@ -160,5 +161,44 @@ export async function POST(req: NextRequest) {
     .select('*')
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Credit the adder with a 'New Contact' touchpoint so the add
+  // surfaces in the outreach activity feed (and the home log-rain).
+  // Distinct from 'Data Entry' (PATCH path / filling fields on an
+  // existing contact). Failure is logged but doesn't roll back the
+  // contact — losing the log row is less bad than refusing to
+  // create the contact.
+  if (data?.id) {
+    const nowIso = new Date().toISOString();
+    const { error: logErr } = await admin.from('contact_logs').insert({
+      contact_id: data.id,
+      method: 'New Contact',
+      comments: 'Contact added.',
+      contacted_by: user.id,
+      contacted_at: nowIso,
+      duration_seconds: 0,
+    });
+    if (logErr) console.warn('[contacts] new-contact log insert failed:', logErr.message);
+    await admin.from('contacts').update({
+      last_contact_at: nowIso,
+      last_contact_by: user.id,
+      last_contact_method: 'New Contact',
+      last_contact_comments: 'Contact added.',
+    }).eq('id', data.id);
+
+    // Also surface the new contact on the platform-wide /app/activity
+    // feed (separate from the contact_logs row above, which only
+    // drives the outreach log-rain + leaderboards).
+    await admin.from('activity_log').insert({
+      user_id: user.id,
+      type: 'contact.created',
+      target_kind: 'contact',
+      target_id: data.id,
+      target_label: data.name,
+      target_path: '/app/contacts',
+      metadata: { company: data.company ?? null },
+    });
+  }
+
   return NextResponse.json(data, { status: 201 });
 }

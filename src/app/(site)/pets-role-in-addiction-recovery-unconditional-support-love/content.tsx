@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Pets Role in Addiction Recovery Unconditional Support Love" },
         ]}
         description="Beginning the journey to recovery from addiction is a monumental step, and you’re not alone in this. Those on the journey know that support is foundational to a successful recovery, and support is not limited to people alone.…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

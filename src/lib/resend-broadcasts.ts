@@ -1,0 +1,334 @@
+// Resend Marketing/Broadcasts wrapper. Replaces the per-recipient
+// transactional /emails calls in email-campaigns-send.ts with a
+// single audience+broadcast pair per campaign. Two wins:
+//
+//   1. The transactional daily quota (100/day on Free, ~1k on Pro)
+//      no longer caps marketing sends. Broadcasts has its own pool,
+//      which is much larger.
+//
+//   2. We make 2 API calls per campaign instead of N. A 261-row
+//      campaign that used to take ~10 minutes to drain across cron
+//      ticks now goes out in seconds.
+//
+// What about per-recipient personalization? Each broadcast carries a
+// single HTML body. Resend substitutes its own merge tags (most
+// importantly {{{RESEND_UNSUBSCRIBE_URL}}}) per-recipient at send
+// time. We use that for unsubs going forward; the audience tracks
+// who's unsubscribed and Resend skips them on the next broadcast.
+//
+// Webhook events (delivered/opened/clicked/bounced/unsubscribed) fire
+// the same way they did for transactional sends — the payload carries
+// broadcast_id + the recipient's email so we can link each event back
+// to the right campaign + recipient row.
+
+const RESEND_API = 'https://api.resend.com';
+
+// PROCESS-WIDE Resend rate limiter. Resend caps every API key at
+// 5 requests/second (Pro + Free both). The old code only throttled
+// the per-campaign contacts-upsert loop — every other Resend call
+// (createAudience, createBroadcast, sendBroadcast, the unsubscribe
+// mirror that PATCHes one audience per past campaign on every
+// unsub click, the cron-driven schedule tick, the test-route VOB
+// path) fired with no throttle. So a single Send button click
+// could collide with: a scheduled-send cron, an unsubscribe sync
+// fanout, or its own contacts loop, and tip us past 5/sec.
+//
+// One sliding-window limiter at module scope means every Resend
+// call across the whole process — irrespective of which feature
+// triggered it — shares the budget. RESEND_RPS_LIMIT lets us tune
+// per environment if Resend ever bumps the plan.
+const RESEND_RPS = (() => {
+  const raw = Number(process.env.RESEND_RPS_LIMIT);
+  if (Number.isFinite(raw) && raw > 0 && raw <= 20) return Math.floor(raw);
+  // One under the plan cap so a momentary clock-skew burst with
+  // Resend's counter doesn't trip 429.
+  return 4;
+})();
+
+const rateRecent: number[] = [];
+async function acquireResendSlot(): Promise<void> {
+  // FIFO: each waiter polls + sleeps until the oldest entry inside
+  // the 1s window has aged out. Cheaper than a real semaphore for
+  // single-process Node and resilient to clock jumps.
+  while (true) {
+    const now = Date.now();
+    while (rateRecent.length > 0 && now - rateRecent[0] >= 1000) rateRecent.shift();
+    if (rateRecent.length < RESEND_RPS) {
+      rateRecent.push(now);
+      return;
+    }
+    const wait = 1000 - (now - rateRecent[0]) + 8;
+    await new Promise((r) => setTimeout(r, Math.max(wait, 20)));
+  }
+}
+
+// Marketing/Broadcasts API calls need a Full-access Resend API key
+// (Audiences + Broadcasts endpoints are gated). We keep that key on
+// its own env var so the send-only RESEND_API_KEY used for
+// transactional email (password resets, VOB delivery, log reports)
+// can stay locked-down — if either leaks the blast radius is small.
+// Falls back to RESEND_API_KEY for deploys that haven't split them
+// yet (which will fail at audience creation with restricted_api_key
+// and surface as a clear error on the finalize page).
+export function getBroadcastsApiKey(): string | undefined {
+  return process.env.RESEND_API_KEY_BROADCASTS || process.env.RESEND_API_KEY;
+}
+
+export interface ResendBroadcastContact {
+  email: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+export interface BroadcastEnvelope {
+  subject: string;
+  html: string;
+  from: string;
+  replyTo?: string;
+  /** Human-readable name shown in the Resend dashboard. */
+  name?: string;
+}
+
+export interface BroadcastResult {
+  audienceId: string;
+  broadcastId: string;
+  scheduledRecipients: number;
+  simulated: boolean;
+}
+
+interface ResendErrorBody {
+  name?: string;
+  message?: string;
+  statusCode?: number;
+}
+
+async function resendFetch(
+  path: string,
+  init: RequestInit & { apiKey: string },
+): Promise<{ ok: true; data: unknown } | { ok: false; status: number; error: string }> {
+  const { apiKey, headers, ...rest } = init;
+  // Retry budget covers BOTH rate-limit blips (429) and Resend-side
+  // transient failures (502/503/504, network hangs). Without the
+  // transient-error path here, a single 503 from Resend's edge on
+  // the lone createAudience call would still abort the campaign
+  // even with the rate-limiter in place. Every Resend caller
+  // inherits this — createAudience, contacts upsert, createBroadcast,
+  // sendBroadcast, unsubscribe mirror, anything new.
+  const MAX_ATTEMPTS = 5;
+  let lastError = 'Resend request failed without a response';
+  let lastStatus = 0;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    // Block until the process-wide budget has a slot. Every Resend
+    // caller hits this gate, so concurrent campaign sends + the
+    // unsubscribe mirror + a scheduled cron tick can't collectively
+    // exceed 5/sec the way they used to.
+    await acquireResendSlot();
+    let res: Response;
+    try {
+      res = await fetch(`${RESEND_API}${path}`, {
+        ...rest,
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          ...(headers ?? {}),
+        },
+      });
+    } catch (err) {
+      // Network failure (TLS reset, DNS hiccup, edge timeout). Treat
+      // as retryable — these are the most common cause of a single-
+      // shot Resend call failing on a busy edge.
+      lastError = `network: ${err instanceof Error ? err.message : String(err)}`;
+      lastStatus = 0;
+      if (attempt < MAX_ATTEMPTS) {
+        await new Promise((r) => setTimeout(r, Math.min(4000, 400 * 2 ** (attempt - 1))));
+        continue;
+      }
+      return { ok: false, status: 0, error: lastError };
+    }
+    const text = await res.text();
+    if (res.ok) {
+      try { return { ok: true, data: JSON.parse(text) }; }
+      catch { return { ok: true, data: text }; }
+    }
+    // 429 + 5xx → retryable. 429 respects Retry-After when Resend
+    // sets it; 5xx uses pure exponential backoff (capped at 4s).
+    // 4xx other than 429 is the caller's fault (bad payload, bad
+    // API key, missing audience) and aborts straight through.
+    const retryable = res.status === 429 || (res.status >= 500 && res.status < 600);
+    if (retryable && attempt < MAX_ATTEMPTS) {
+      const retryAfter = Number(res.headers.get('retry-after') ?? 0);
+      const headerMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 0;
+      const backoffMs = Math.min(4000, Math.max(headerMs, 350 * 2 ** (attempt - 1)));
+      await new Promise((r) => setTimeout(r, backoffMs));
+      continue;
+    }
+    let msg = text.slice(0, 1000);
+    try {
+      const body = JSON.parse(text) as ResendErrorBody;
+      msg = `${body.name ?? `HTTP ${res.status}`}: ${body.message ?? text.slice(0, 500)}`;
+    } catch { /* non-JSON body — fall through */ }
+    lastError = msg;
+    lastStatus = res.status;
+    return { ok: false, status: res.status, error: msg };
+  }
+  // Unreachable — the loop above always returns or retries — but TS
+  // can't see that, so satisfy the return type with the last error
+  // we recorded.
+  return { ok: false, status: lastStatus, error: lastError };
+}
+
+// Create a fresh audience for one campaign send. We don't reuse a
+// singleton audience because we want a clean unsubscribe filter per
+// campaign — we exclude unsubscribed contacts at upsert time and
+// Resend's audience-level unsub tracking layers on top.
+export async function createAudience(
+  apiKey: string,
+  name: string,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const r = await resendFetch('/audiences', {
+    apiKey,
+    method: 'POST',
+    body: JSON.stringify({ name }),
+  });
+  if (!r.ok) return { ok: false, error: r.error };
+  const id = (r.data as { id?: string }).id;
+  if (!id) return { ok: false, error: 'Resend did not return an audience id.' };
+  return { ok: true, id };
+}
+
+// Bulk-add contacts to an audience. Resend has no batch endpoint
+// for this (POST /audiences/{id}/contacts is one-contact-at-a-time).
+// The process-wide acquireResendSlot() inside resendFetch is what
+// keeps us under the 5/sec cap now; we just spin a small parallel
+// pool and let the global limiter throttle naturally. 429 retry
+// also lives in resendFetch, so the only thing we still handle
+// here is the 409/422 "already in audience" case.
+export async function addContactsToAudience(
+  apiKey: string,
+  audienceId: string,
+  contacts: ResendBroadcastContact[],
+  opts: { parallelism?: number } = {},
+): Promise<{ added: number; alreadyIn: number; failed: number; firstError?: string }> {
+  const parallelism = Math.max(1, Math.min(opts.parallelism ?? 4, 8));
+  let added = 0; let alreadyIn = 0; let failed = 0; let firstError: string | undefined;
+  let cursor = 0;
+
+  const upsertOne = async (c: ResendBroadcastContact): Promise<void> => {
+    const r = await resendFetch(`/audiences/${audienceId}/contacts`, {
+      apiKey,
+      method: 'POST',
+      body: JSON.stringify({
+        email: c.email,
+        first_name: c.firstName ?? undefined,
+        last_name: c.lastName ?? undefined,
+        unsubscribed: false,
+      }),
+    });
+    if (r.ok) { added += 1; return; }
+    // 409/422 → already in the audience.
+    if (r.status === 409 || r.status === 422) { alreadyIn += 1; return; }
+    failed += 1;
+    if (!firstError) firstError = r.error;
+  };
+
+  const worker = async () => {
+    while (cursor < contacts.length) {
+      const idx = cursor; cursor += 1;
+      const c = contacts[idx];
+      if (!c?.email) continue;
+      await upsertOne(c);
+    }
+  };
+  const workers: Array<Promise<void>> = [];
+  for (let i = 0; i < Math.min(parallelism, contacts.length); i += 1) workers.push(worker());
+  await Promise.all(workers);
+  return { added, alreadyIn, failed, firstError };
+}
+
+// Create a broadcast tied to an audience. The send is a separate call.
+//
+// Resend caps the broadcast `name` field at 70 characters (the
+// validation_error reads "Field `name` has a maximum of 70 items").
+// Callers truncate at slice(0, 100) which silently overshoots when a
+// subject line runs long — we defensively cap again here so a
+// single edit to the call-site truncation can't sneak the failure
+// back in. The name is only Resend's internal display label; the
+// actual recipient-visible subject is the separate `subject` field.
+const BROADCAST_NAME_MAX = 70;
+export async function createBroadcast(
+  apiKey: string,
+  audienceId: string,
+  envelope: BroadcastEnvelope,
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+  const r = await resendFetch('/broadcasts', {
+    apiKey,
+    method: 'POST',
+    body: JSON.stringify({
+      audience_id: audienceId,
+      from: envelope.from,
+      subject: envelope.subject,
+      html: envelope.html,
+      reply_to: envelope.replyTo,
+      name: envelope.name ? envelope.name.slice(0, BROADCAST_NAME_MAX) : undefined,
+    }),
+  });
+  if (!r.ok) return { ok: false, error: r.error };
+  const id = (r.data as { id?: string }).id;
+  if (!id) return { ok: false, error: 'Resend did not return a broadcast id.' };
+  return { ok: true, id };
+}
+
+// Trigger the actual fan-out. Resend queues and paces internally.
+export async function sendBroadcast(
+  apiKey: string,
+  broadcastId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const r = await resendFetch(`/broadcasts/${broadcastId}/send`, {
+    apiKey,
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true };
+}
+
+// Best-effort sync: mark a contact unsubscribed on every audience
+// we've shipped to. Called from POST /api/unsubscribe so a recipient
+// who clicks our internal unsub link is also flagged on Resend's
+// side, in case they're in any audience we'd otherwise re-broadcast
+// to. PATCH /audiences/{aid}/contacts/{email} accepts an
+// unsubscribed=true flag.
+export async function markUnsubscribedOnAudience(
+  apiKey: string,
+  audienceId: string,
+  email: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const r = await resendFetch(
+    `/audiences/${audienceId}/contacts/${encodeURIComponent(email)}`,
+    { apiKey, method: 'PATCH', body: JSON.stringify({ unsubscribed: true }) },
+  );
+  if (!r.ok) return { ok: false, error: r.error };
+  return { ok: true };
+}
+
+// Stitches the campaign HTML so per-recipient bits Resend supports
+// natively land in the body. Right now that's the
+// {{{RESEND_UNSUBSCRIBE_URL}}} merge tag in the footer — Resend
+// replaces it at send time with a recipient-specific opt-out URL
+// hosted on resend.com. Same URL is also used as the value for the
+// List-Unsubscribe header. We leave the rest of the HTML alone.
+export function prepareBroadcastHtml(html: string): string {
+  const unsub = '{{{RESEND_UNSUBSCRIBE_URL}}}';
+  const footer = `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#faf6f1;">
+  <tr>
+    <td align="center" style="padding:24px 16px 32px 16px;font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:11px;color:#8a7a6c;letter-spacing:0.04em;line-height:1.6;">
+      You're receiving this because you've worked with Seven Arrows Recovery.<br />
+      <a href="${unsub}" style="color:#b87333;text-decoration:underline;font-weight:600;">Unsubscribe from these emails</a>
+    </td>
+  </tr>
+</table>`;
+  return html.includes('</body>')
+    ? html.replace('</body>', `${footer}\n</body>`)
+    : `${html}\n${footer}`;
+}

@@ -6,6 +6,7 @@
 import Link from 'next/link';
 
 import PageHero from '@/components/PageHero';
+import LocationStatStrip from '@/components/LocationStatStrip';
 import { siteVideos } from '@/lib/siteVideos';
 import AdmissionsForm from '@/components/AdmissionsForm';
 import { useState } from 'react';
@@ -111,8 +112,14 @@ export default function PageContent() {
         ]}
         description="At Seven Arrows we have streamlined your admissions process. You will always have access to a live person to answer any concerns that you or your loved one might have — both prior to admission and throughout your stay."
         video={siteVideos.ranchLife}
-        image="/images/embrace-connection.jpg"
+        image="/hero/embrace-connection.jpg"
       />
+
+      {/* Location stat strip — three-up: 300+ sunny days · 45 min
+          from PHX Sky Harbor · Sonoran Desert setting. Reusable
+          server component (LocationStatStrip.tsx) so /about and
+          /contact can drop the same row in with one import. */}
+      <LocationStatStrip />
 
       {/* Intro + Call */}
       <section className="py-16 lg:py-24 bg-white">
@@ -145,7 +152,12 @@ export default function PageContent() {
               Your Path to Admission
             </h2>
 
-            {/* Tab buttons */}
+            {/* Tab buttons · wrapped in a flex justify-center so
+                the pill bar stays horizontally centered regardless
+                of the parent's text-align (text-center only honors
+                inline children, and inline-flex doesn't reliably
+                center on every browser). */}
+            <div className="flex justify-center">
             <div className="inline-flex rounded-full bg-white shadow-sm p-1.5 gap-1">
               <button
                 type="button"
@@ -171,6 +183,7 @@ export default function PageContent() {
               >
                 Help for a Loved One
               </button>
+            </div>
             </div>
           </div>
 
@@ -334,7 +347,7 @@ export default function PageContent() {
             </div>
             <div className="rounded-2xl overflow-hidden aspect-[4/3]">
               <img
-                src="/images/group-gathering-pavilion.jpg"
+                src="/hero/group-gathering-pavilion.jpg"
                 alt="Clients gathering at Seven Arrows Recovery"
                 className="w-full h-full object-cover"
                 loading="lazy"

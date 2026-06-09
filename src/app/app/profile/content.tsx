@@ -25,6 +25,8 @@ import {
 } from '@/lib/cursor-effects';
 import EffectTile from './EffectTile';
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
+import dynamicImport from 'next/dynamic';
 
 const CURSOR_COLORS: { label: string; value: string }[] = [
   { label: 'Red', value: '#ef4444' },
@@ -257,7 +259,7 @@ export default function ProfileContent() {
         setFavoriteSevenArrows(row.favorite_seven_arrows || '');
         setFacts(coerceFacts(row.interesting_facts));
         setAvatarUrl(row.avatar_url || user!.user_metadata?.avatar_url || null);
-        setPublicTeam(row.public_team !== false); // default true
+        setPublicTeam(row.public_team !== false); // legacy NULL → ON; column default is now false so new users land OFF
       }
       setLoaded(true);
     }
@@ -517,6 +519,14 @@ export default function ProfileContent() {
           );
         })}
       </nav>
+
+      {/* Alumni-only banner · top of the Info tab. Surfaces the
+          AlumniProfileEditor (map/phone-list opt-ins, bio, interests,
+          etc.) from one prominent place inside My Profile so alumni
+          have a single home for ALL their identity controls. */}
+      {userKind === 'alumni' && profileTab === 'info' && (
+        <AlumniProfileBanner />
+      )}
 
       {profileTab === 'cursor' ? (
         <ProfileCursorTab
@@ -1548,3 +1558,56 @@ function CursorEffectPreviewLayer({
   return dot;
 }
 
+
+// ── Alumni profile banner ──────────────────────────────────
+//
+// Surfaces the alumni-portal profile editor (map opt-in, peer-
+// support list, interests, bio) from inside My Profile so alumni
+// users have one home for every identity control instead of
+// hopping between /app/profile and /app/alumni. Imported lazily
+// so the staff/admin My Profile bundle doesn't carry the editor
+// + its tag pickers when nobody on this page is alumni.
+
+const AlumniProfileEditor = dynamicImport(
+  () => import('../alumni/_components/AlumniProfileEditor'),
+  { ssr: false },
+);
+
+function AlumniProfileBanner() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <div className="mb-6 rounded-2xl border-2 border-primary/25 bg-gradient-to-r from-primary/5 via-warm-bg/40 to-white p-5">
+        <div className="flex items-start gap-4 flex-wrap">
+          <div className="flex-1 min-w-[240px]">
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary mb-1.5">Alumni community</p>
+            <h2 className="text-lg font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+              Your alumni profile + map opt-ins
+            </h2>
+            <p className="mt-1 text-[12.5px] text-foreground/65 leading-relaxed">
+              Control what other alumni see — sobriety date, city, interests, whether you appear on the map
+              and the peer-support phone list. Everything starts private; nothing publishes until you toggle
+              it on.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-primary text-white text-[12.5px] font-semibold uppercase tracking-wider hover:bg-primary/90 transition-colors"
+            >
+              Edit alumni profile →
+            </button>
+            <Link
+              href="/app/alumni"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg border border-foreground/15 bg-white text-foreground/75 text-[12.5px] font-semibold hover:bg-warm-bg/60 transition-colors"
+            >
+              Alumni hub
+            </Link>
+          </div>
+        </div>
+      </div>
+      {open && <AlumniProfileEditor onClose={() => setOpen(false)} />}
+    </>
+  );
+}

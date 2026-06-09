@@ -96,6 +96,15 @@ export function findReviewerBySlug(slug: string | null | undefined): BlogAuthor 
 export const DEFAULT_AUTHOR_SLUG = 'lindsay-rothschild';
 export const DEFAULT_REVIEWER_SLUG = 'lindsay-rothschild';
 
+// Sentinel stored in blogs.author_slug / blogs.reviewer_slug when
+// the editor explicitly selected "None" in the Byline picker. The
+// live page reads it as "skip this byline entirely" — distinct from
+// null (which still falls back to the seeded default).
+export const NONE_SLUG = '__none__';
+export function isNoneSlug(slug: string | null | undefined): boolean {
+  return slug === NONE_SLUG;
+}
+
 // Resolver helpers that fall back to the defaults — call these
 // from render-time code so a missing `authorSlug` / `reviewerSlug`
 // still produces a valid Person node.
@@ -120,33 +129,48 @@ export function resolveReviewer(slug: string | null | undefined): BlogAuthor {
 // importable from client bundles — only the static portion of the
 // module is reached from 'use client' files.
 export async function resolveAuthorAsync(slug: string | null | undefined): Promise<BlogAuthor> {
-  if (slug) {
-    try {
-      const { getAdminSupabase } = await import('@/lib/supabase-server');
-      const admin = getAdminSupabase();
-      const { data } = await admin
-        .from('users')
-        .select('public_slug, full_name, job_title, credentials, bio, avatar_url, linkedin_url, is_blog_author, is_medical_reviewer')
-        .eq('public_slug', slug)
-        .maybeSingle();
-      if (data?.public_slug && data.full_name) {
-        return {
-          slug: data.public_slug as string,
-          name: data.full_name as string,
-          title: (data.job_title as string | null) ?? 'Team member',
-          credentials: (data.credentials as string | null) ?? undefined,
-          bio: (data.bio as string | null) ?? undefined,
-          avatarUrl: (data.avatar_url as string | null) ?? undefined,
-          sameAs: data.linkedin_url ? [data.linkedin_url as string] : undefined,
-          isMedicalReviewer: (data.is_medical_reviewer as boolean | null) === true,
-        };
-      }
-    } catch {
-      // DB unreachable — fall through to the synchronous resolver,
-      // which uses the BLOG_AUTHORS seed.
+  // Start with the synchronous seed answer so we have a name to
+  // fall back to when the DB lookup-by-slug misses. Lindsay's row,
+  // for example, has public_slug=NULL today, so the slug lookup
+  // returns nothing and the previous version returned a seed
+  // without an avatar. The two-pass below fixes that: try the
+  // slug first, then try the full_name from the seed entry,
+  // accepting whichever row resolves.
+  const seed = resolveAuthor(slug);
+  try {
+    const { getAdminSupabase } = await import('@/lib/supabase-server');
+    const admin = getAdminSupabase();
+    const select = 'public_slug, full_name, job_title, credentials, bio, avatar_url, linkedin_url, is_blog_author, is_medical_reviewer';
+    // Pass 1 — match on public_slug. Works for any teammate whose
+    // public_slug is populated.
+    let data: Record<string, unknown> | null = null;
+    if (slug) {
+      const r = await admin.from('users').select(select).eq('public_slug', slug).maybeSingle();
+      data = (r.data as Record<string, unknown> | null) ?? null;
     }
+    // Pass 2 — fall back to a case-insensitive full_name match.
+    // Catches teammates whose public_slug isn't set on the users
+    // row (HR data entry can lag the BLOG_AUTHORS seed by weeks).
+    if (!data && seed.name) {
+      const r = await admin.from('users').select(select).ilike('full_name', seed.name).maybeSingle();
+      data = (r.data as Record<string, unknown> | null) ?? null;
+    }
+    if (data && data.full_name) {
+      return {
+        slug: (data.public_slug as string | null) ?? seed.slug,
+        name: data.full_name as string,
+        title: (data.job_title as string | null) ?? seed.title,
+        credentials: (data.credentials as string | null) ?? seed.credentials,
+        bio: (data.bio as string | null) ?? seed.bio,
+        avatarUrl: (data.avatar_url as string | null) ?? seed.avatarUrl,
+        sameAs: data.linkedin_url ? [data.linkedin_url as string] : seed.sameAs,
+        isMedicalReviewer: (data.is_medical_reviewer as boolean | null) === true || seed.isMedicalReviewer === true,
+      };
+    }
+  } catch {
+    // DB unreachable — fall through to the synchronous seed.
   }
-  return resolveAuthor(slug);
+  return seed;
 }
 
 export async function resolveReviewerAsync(slug: string | null | undefined): Promise<BlogAuthor> {

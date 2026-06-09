@@ -38,7 +38,7 @@ export default function EvidenceHero() {
       <video
         ref={videoRef}
         src={siteVideos.swisshelm}
-        poster="/images/facility-exterior-mountains.jpg"
+        poster="/hero/facility-exterior-mountains.jpg"
         autoPlay
         muted
         loop

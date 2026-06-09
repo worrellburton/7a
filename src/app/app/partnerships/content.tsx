@@ -76,6 +76,7 @@ interface Partner {
   last_contact_comments: string | null;
   last_contact_by_name?: string | null;
   last_contact_by_avatar_url?: string | null;
+  follow_up_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -110,6 +111,7 @@ const ALL_COLUMNS: ColumnDef[] = [
   { key: 'insurance', label: 'Insurance' },
   { key: 'levels_of_care', label: 'Levels of care' },
   { key: 'rep', label: 'Rep' },
+  { key: 'follow_up', label: 'Follow up', width: '140px' },
   { key: 'notes', label: 'Notes' },
   { key: 'comments', label: 'Comments' },
 ];
@@ -166,6 +168,7 @@ const DEFAULT_COL_WIDTHS_PX: Record<string, number> = {
   insurance: 200,
   levels_of_care: 200,
   rep: 160,
+  follow_up: 140,
   notes: 280,
   comments: 280,
 };
@@ -186,6 +189,7 @@ export default function PartnershipsContent() {
   const [filterInsurance, setFilterInsurance] = useState<string>('');
   const [showCreate, setShowCreate] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [tierGuideOpen, setTierGuideOpen] = useState(false);
   const [showCols, setShowCols] = useState(false);
   const [editing, setEditing] = useState<Partner | null>(null);
   const [downgradeTarget, setDowngradeTarget] = useState<Partner | null>(null);
@@ -448,10 +452,14 @@ export default function PartnershipsContent() {
     }
   }
 
-  async function handleLogContact(target: Partner, method: ContactMethod, comments: string) {
+  async function handleLogContact(target: Partner, method: ContactMethod, comments: string, followUpDays: number | null) {
     if (!session?.access_token) return;
     const optimisticAt = new Date().toISOString();
     const trimmed = comments.trim() || null;
+    const optimisticFollowUp =
+      followUpDays != null && followUpDays > 0
+        ? new Date(Date.now() + followUpDays * 86400000).toISOString()
+        : target.follow_up_at;
     setRows((prev) =>
       prev.map((r) =>
         r.id === target.id
@@ -465,6 +473,7 @@ export default function PartnershipsContent() {
                 (user?.user_metadata?.full_name as string | undefined) ?? r.last_contact_by_name ?? null,
               last_contact_by_avatar_url:
                 (user?.user_metadata?.avatar_url as string | undefined) ?? r.last_contact_by_avatar_url ?? null,
+              follow_up_at: optimisticFollowUp,
             }
           : r,
       ),
@@ -473,7 +482,7 @@ export default function PartnershipsContent() {
     const res = await fetch(`/api/partnerships/${target.id}/log-contact`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ method, comments: trimmed ?? '' }),
+      body: JSON.stringify({ method, comments: trimmed ?? '', follow_up_days: followUpDays }),
     });
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
@@ -513,7 +522,7 @@ export default function PartnershipsContent() {
       </div>
       <header className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-foreground tracking-tight">BD Partnerships</h1>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight">Partners</h1>
           <p className="text-sm text-foreground/55 mt-0.5">
             Clinical partners and referral sources, grouped by specialty.
             {rows.length > 0 && (
@@ -547,6 +556,19 @@ export default function PartnershipsContent() {
               <path d="M7 15l4-6 4 4 5-9" />
             </svg>
             Insights
+          </button>
+          <button
+            type="button"
+            onClick={() => setTierGuideOpen(true)}
+            title="Open the tier framework: who counts as Tier 1 / 2 / 3 and how to work each"
+            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2 rounded-lg border border-black/10 bg-white text-foreground/70 text-xs font-semibold uppercase tracking-wider hover:border-foreground/30 hover:text-foreground transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M2 3h6l3 3 3-3h6v14H2z" />
+              <path d="M8 9h4" />
+              <path d="M8 13h4" />
+            </svg>
+            Tier guide
           </button>
           <button
             type="button"
@@ -679,7 +701,7 @@ export default function PartnershipsContent() {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-3 border-b border-black/10 shrink-0">
-              <h2 className="text-base font-semibold text-foreground">BD Partnerships insights</h2>
+              <h2 className="text-base font-semibold text-foreground">Partners insights</h2>
               <button
                 type="button"
                 onClick={() => setInsightsOpen(false)}
@@ -726,11 +748,14 @@ export default function PartnershipsContent() {
           onConfirm={confirmDowngrade}
         />
       )}
+      {tierGuideOpen && (
+        <TierGuideModal onClose={() => setTierGuideOpen(false)} />
+      )}
       {logTarget && (
         <LogContactModal
           partner={logTarget}
           onClose={() => setLogTarget(null)}
-          onSubmit={(method, comments) => handleLogContact(logTarget, method, comments)}
+          onSubmit={(method, comments, followUpDays) => handleLogContact(logTarget, method, comments, followUpDays)}
         />
       )}
       {historyTarget && (
@@ -914,7 +939,7 @@ function PartnersGrid({
                 </th>
               );
             })}
-            <th className="px-3 py-2 w-10" />
+            <th className="sticky right-0 z-10 bg-warm-bg/50 backdrop-blur-md px-3 py-2 w-[88px] text-right">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-black/5">
@@ -936,17 +961,28 @@ function PartnersGrid({
                     <CellRenderer column={c} partner={row} priority={priority} onEdit={onEdit} specialties={specialties} onInlineSpecialty={onInlineSpecialty} />
                   </td>
                 ))}
-                <td className="px-2 py-0 h-12 text-right relative align-middle">
-                  <button
-                    type="button"
-                    onClick={() => setActionMenuFor(actionMenuFor === row.id ? null : row.id)}
-                    className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/45 hover:text-foreground hover:bg-warm-bg"
-                    aria-label="Actions"
-                    aria-haspopup="menu"
-                    aria-expanded={actionMenuFor === row.id}
-                  >
-                    <DotsIcon />
-                  </button>
+                <td className="sticky right-0 z-10 backdrop-blur-md backdrop-saturate-150 bg-white/75 hover:bg-warm-bg/40 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-2 py-0 h-12 text-right relative align-middle">
+                  <div className="flex items-center justify-end gap-1">
+                    <button
+                      type="button"
+                      onClick={() => onLogContact(row)}
+                      aria-label="Log a contact"
+                      title="Log a contact"
+                      className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md bg-primary/10 text-primary text-[15px] leading-none border border-primary/20 hover:bg-primary/15 transition-colors"
+                    >
+                      <span aria-hidden>🪵</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setActionMenuFor(actionMenuFor === row.id ? null : row.id)}
+                      className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/45 hover:text-foreground hover:bg-warm-bg"
+                      aria-label="Actions"
+                      aria-haspopup="menu"
+                      aria-expanded={actionMenuFor === row.id}
+                    >
+                      <DotsIcon />
+                    </button>
+                  </div>
                   {actionMenuFor === row.id && (
                     <div
                       role="menu"
@@ -1141,6 +1177,8 @@ function CellRenderer({
     }
     case 'rep':
       return <span className="text-foreground/75 truncate block">{partner.rep || <Em />}</span>;
+    case 'follow_up':
+      return <FollowUpCell at={partner.follow_up_at} />;
     case 'notes':
       return partner.notes
         ? <span className="text-foreground/75 truncate block max-w-[320px]" title={partner.notes}>{partner.notes}</span>
@@ -1156,6 +1194,44 @@ function CellRenderer({
 
 function Em() {
   return <span className="text-foreground/30">—</span>;
+}
+
+// Renders a partner.follow_up_at as a compact pill —
+// "in N days" / "today" / "overdue Nd" with tones that mirror
+// the rest of the grid (warm-bg neutrals, primary for urgent).
+function FollowUpCell({ at }: { at: string | null }) {
+  if (!at) return <Em />;
+  const ms = new Date(at).getTime();
+  if (Number.isNaN(ms)) return <Em />;
+  const now = Date.now();
+  const dayMs = 86400000;
+  const diffDays = Math.round((ms - now) / dayMs);
+  let label: string;
+  let tone: string;
+  if (diffDays < 0) {
+    const overdueBy = Math.abs(diffDays);
+    label = `Overdue ${overdueBy}d`;
+    tone = 'bg-rose-50 text-rose-700 border-rose-200';
+  } else if (diffDays === 0) {
+    label = 'Today';
+    tone = 'bg-amber-50 text-amber-800 border-amber-200';
+  } else if (diffDays === 1) {
+    label = 'Tomorrow';
+    tone = 'bg-amber-50 text-amber-800 border-amber-200';
+  } else {
+    label = `In ${diffDays}d`;
+    tone = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+  }
+  const title = new Date(at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border whitespace-nowrap ${tone}`} title={title}>
+      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <path d="M16 2v4M8 2v4M3 10h18" />
+      </svg>
+      {label}
+    </span>
+  );
 }
 
 function PartnerMobileCard({
@@ -1864,11 +1940,14 @@ function LogContactModal({
 }: {
   partner: Partner;
   onClose: () => void;
-  onSubmit: (method: ContactMethod, comments: string) => Promise<void> | void;
+  onSubmit: (method: ContactMethod, comments: string, followUpDays: number | null) => Promise<void> | void;
 }) {
   const [method, setMethod] = useState<ContactMethod>('Phone');
   const [comments, setComments] = useState('');
+  const [followUpDays, setFollowUpDays] = useState<number | null>(null);
+  const [customDays, setCustomDays] = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
+  const QUICK_PICKS = [3, 7, 14, 30];
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-6" onClick={onClose}>
       <form
@@ -1877,7 +1956,7 @@ function LogContactModal({
           e.preventDefault();
           if (submitting) return;
           setSubmitting(true);
-          try { await onSubmit(method, comments); } finally { setSubmitting(false); }
+          try { await onSubmit(method, comments, followUpDays); } finally { setSubmitting(false); }
         }}
         className="w-full sm:max-w-md rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 pb-[max(1rem,env(safe-area-inset-bottom))]"
       >
@@ -1906,6 +1985,66 @@ function LogContactModal({
               placeholder="Anything worth remembering for next time…"
               className="w-full px-3 py-2.5 rounded-lg border border-black/10 bg-white text-base sm:text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
             />
+          </div>
+          <div>
+            <label className="block text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-2">
+              Schedule follow up
+            </label>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {QUICK_PICKS.map((days) => {
+                const active = followUpDays === days;
+                return (
+                  <button
+                    key={days}
+                    type="button"
+                    onClick={() => { setFollowUpDays(days); setCustomDays(''); }}
+                    className={`px-3 py-1.5 rounded-lg text-[12px] font-semibold border transition-colors ${
+                      active
+                        ? 'bg-primary text-white border-primary'
+                        : 'bg-white text-foreground/75 border-black/10 hover:border-foreground/30 hover:text-foreground'
+                    }`}
+                  >
+                    In {days}d
+                  </button>
+                );
+              })}
+              <div className="inline-flex items-center rounded-lg border border-black/10 bg-white overflow-hidden focus-within:ring-2 focus-within:ring-primary/40">
+                <span className="px-2 text-[11px] font-semibold text-foreground/45">In</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={customDays}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    setCustomDays(v);
+                    const n = parseInt(v, 10);
+                    if (Number.isFinite(n) && n > 0) setFollowUpDays(n);
+                    else if (v === '') setFollowUpDays(null);
+                  }}
+                  placeholder="—"
+                  className="w-12 py-1.5 text-center text-[12px] font-semibold text-foreground bg-transparent focus:outline-none"
+                />
+                <span className="pr-2 text-[11px] font-semibold text-foreground/45">d</span>
+              </div>
+              {followUpDays != null && (
+                <button
+                  type="button"
+                  onClick={() => { setFollowUpDays(null); setCustomDays(''); }}
+                  className="px-2.5 py-1.5 rounded-lg text-[12px] font-semibold text-foreground/55 hover:text-foreground hover:bg-warm-bg/60"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+            {followUpDays != null && followUpDays > 0 && (
+              <p className="mt-1.5 text-[11px] text-foreground/55">
+                Follow up on{' '}
+                <span className="font-semibold text-foreground/75">
+                  {new Date(Date.now() + followUpDays * 86400000).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                </span>
+              </p>
+            )}
           </div>
         </div>
         <footer className="px-5 sm:px-6 pt-1 pb-4 sm:pb-5 flex items-center justify-end gap-2 border-t border-black/5">
@@ -2490,4 +2629,192 @@ function CheckIcon() {
 }
 function CloseIcon() {
   return <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>;
+}
+
+// ── Partnership Tier Guide ─────────────────────────────────────────
+// Reference doc the BD team works from. Lives behind a modal on
+// /app/partnerships so it's never more than two clicks from a row
+// whose tier the user is deciding. Three tier sections, each with:
+//   - tier color + chip
+//   - one-line position description
+//   - role cards (small grid)
+//   - outreach cadence ribbon
+// Closes the loop with a 'key reminders' band at the bottom.
+
+interface TierRole { name: string; desc: string }
+interface TierBlock {
+  tier: 1 | 2 | 3;
+  title: string;
+  headline: string;
+  blurb: string;
+  roles: TierRole[];
+  cadence: string;
+  accent: string; // tailwind tone for chip / accent strip
+  badgeBg: string;
+}
+
+const TIER_BLOCKS: TierBlock[] = [
+  {
+    tier: 1,
+    title: 'Highest priority',
+    headline: 'Direct referral sources',
+    blurb: 'High-trust contacts who refer clients with private pay or commercial insurance. Fastest path to census.',
+    roles: [
+      { name: 'Interventionists', desc: 'ARISE, ARISE-certified, or independent. Refer urgently and repeatedly.' },
+      { name: 'Executive / concierge MDs', desc: 'Internists and psychiatrists serving upper-income patients.' },
+      { name: 'Private therapists & LCSWs', desc: 'Outpatient therapists treating high-functioning individuals with SUD.' },
+      { name: 'Employee Assistance Programs', desc: 'Corporate EAP coordinators at mid-to-large employers.' },
+      { name: 'Alumni & families', desc: 'Past clients and family members who experienced the program firsthand.' },
+      { name: 'Recovery coaches & sober companions', desc: 'High-end coaches working with affluent clients in crisis.' },
+    ],
+    cadence: 'Monthly personal outreach · Invite to facility tours and events · Send clinical updates and outcomes',
+    accent: 'border-emerald-300 bg-emerald-50',
+    badgeBg: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  },
+  {
+    tier: 2,
+    title: 'Strong pipeline',
+    headline: 'Professional & institutional referrers',
+    blurb: 'Relationships that take longer to cultivate but generate steady, qualified referrals over time.',
+    roles: [
+      { name: 'Psychiatrists & addiction MDs', desc: 'Physicians managing dual-diagnosis clients needing a higher level of care.' },
+      { name: 'Outpatient programs (IOPs/PHPs)', desc: 'Programs looking to step clients up to residential or receive step-downs.' },
+      { name: 'Luxury detox centers', desc: 'Facilities that need a residential partner after medical clearance.' },
+      { name: 'Estate & family law attorneys', desc: 'Handling divorces, custody, or estate matters where SUD is a factor.' },
+      { name: 'Wealth managers & financial advisors', desc: "Trusted advisors who see addiction's financial toll on HNW families." },
+      { name: 'Hospital social workers', desc: 'Discharge planners at hospitals serving higher-income catchments.' },
+    ],
+    cadence: 'Quarterly in-person visits · CE lunch & learns · Bi-monthly email touchpoints',
+    accent: 'border-amber-300 bg-amber-50',
+    badgeBg: 'bg-amber-100 text-amber-900 border-amber-300',
+  },
+  {
+    tier: 3,
+    title: 'Long-term cultivation',
+    headline: 'Community & awareness partners',
+    blurb: 'Brand-building relationships that increase visibility with your target demographic. Lower near-term ROI, important for the referral ecosystem.',
+    roles: [
+      { name: 'Concierge medical practices', desc: 'Boutique primary care serving affluent memberships — not yet referrers.' },
+      { name: 'Life coaches & wellness practitioners', desc: 'Holistic providers whose clientele overlaps with yours.' },
+      { name: 'Private schools & universities', desc: 'Student wellness offices and counselors with family connections.' },
+      { name: 'Country clubs & social orgs', desc: 'Discreet community access for awareness and word of mouth.' },
+      { name: 'Faith leaders & chaplains', desc: 'Trusted advisors where stigma prevents direct help-seeking.' },
+      { name: 'HR directors at large employers', desc: 'Awareness-level; may escalate to Tier 2 if EAP is involved.' },
+    ],
+    cadence: 'Quarterly newsletter · Community events & panels · LinkedIn presence and content',
+    accent: 'border-sky-300 bg-sky-50',
+    badgeBg: 'bg-sky-100 text-sky-900 border-sky-300',
+  },
+];
+
+function TierGuideModal({ onClose }: { onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Partnership Tier Guide"
+      onClick={onClose}
+      style={{ paddingTop: 'max(1rem, env(safe-area-inset-top))', paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+    >
+      <div
+        className="w-full max-w-3xl max-h-[90svh] rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        <header className="px-6 py-4 border-b border-black/5 flex items-start justify-between gap-3 shrink-0 bg-warm-bg/40">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-primary mb-1">Internal use only</p>
+            <h2 className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+              Partnership Tier Guide
+            </h2>
+            <p className="mt-1 text-[12px] text-foreground/60">
+              Seven Arrows Recovery · 20-bed OON residential · holistic · Elfrida, AZ
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/45 hover:text-foreground hover:bg-warm-bg/60 transition-colors"
+          >
+            <CloseIcon />
+          </button>
+        </header>
+
+        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6">
+          {TIER_BLOCKS.map((block) => (
+            <section
+              key={block.tier}
+              className={`rounded-xl border ${block.accent} p-4`}
+            >
+              <header className="flex items-baseline gap-2 mb-2 flex-wrap">
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10.5px] font-bold uppercase tracking-[0.16em] border ${block.badgeBg}`}
+                >
+                  Tier {block.tier} · {block.title}
+                </span>
+              </header>
+              <h3 className="text-[15px] font-bold text-foreground mb-1" style={{ fontFamily: 'var(--font-display)' }}>
+                {block.headline}
+              </h3>
+              <p className="text-[12.5px] text-foreground/70 leading-relaxed mb-3">{block.blurb}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-3">
+                {block.roles.map((role) => (
+                  <div
+                    key={role.name}
+                    className="rounded-lg bg-white/85 border border-black/5 px-3 py-2"
+                  >
+                    <p className="text-[12.5px] font-semibold text-foreground">{role.name}</p>
+                    <p className="mt-0.5 text-[11.5px] text-foreground/60 leading-snug">{role.desc}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground/55">
+                Outreach cadence
+              </p>
+              <p className="mt-1 text-[12.5px] text-foreground/75 leading-relaxed">{block.cadence}</p>
+            </section>
+          ))}
+
+          <section className="rounded-xl border border-primary/30 bg-primary/[0.04] p-4">
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.22em] text-primary mb-1">Key reminders</p>
+            <ul className="space-y-1.5 text-[12.5px] text-foreground/75 leading-relaxed list-disc ml-4">
+              <li>
+                Seven Arrows&rsquo; OON status means partners need to understand private pay and bridge-financing options.
+              </li>
+              <li>
+                Always lead with holistic differentiators (integrative care, setting, small census) when speaking to Tier 1 &amp; 2 contacts.
+              </li>
+              <li>
+                Bump a Tier 3 contact to Tier 2 the moment they make a warm referral or express clinical interest.
+              </li>
+            </ul>
+          </section>
+        </div>
+
+        <footer className="px-6 py-3 border-t border-black/5 flex items-center justify-between text-[10.5px] text-foreground/45 shrink-0">
+          <span>Internal use only · Seven Arrows Recovery · Elfrida, AZ</span>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-md bg-foreground text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-foreground/85"
+          >
+            Got it
+          </button>
+        </footer>
+      </div>
+    </div>
+  );
 }

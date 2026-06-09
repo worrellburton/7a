@@ -1,8 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import JdReminderModalPreview from './JdReminderModalPreview';
+import dynamic from 'next/dynamic';
 import Lever from './Lever';
+
+// Lazy: preview modal only opens when an admin clicks "Preview".
+// /app/levers ships the lever consoles + heavy options panels
+// regardless, so trimming the preview modal out of the initial
+// bundle is a small but free win.
+const JdReminderModalPreview = dynamic(() => import('./JdReminderModalPreview'), { ssr: false });
 
 // JD reminder lever — controlled visual lever wired to the cohort
 // preview + pull endpoints. The Lever component is the click target;

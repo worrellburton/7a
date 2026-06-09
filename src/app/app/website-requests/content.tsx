@@ -7,18 +7,20 @@ import { openEligibilityPdf } from './eligibility-pdf';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 
-// Single tabbed page combining the four formerly-separate Website
-// Requests views (Overview · VObs · Forms · Careers). Tab state is
-// reflected in ?tab=… so admins can deep-link / refresh and stay on
-// the same view.
+// Single tabbed page combining the Website Requests views
+// (Overview · Forms · Careers · Spam). Tab state is reflected in
+// ?tab=… so admins can deep-link / refresh and stay on the same view.
+//
+// VOBs used to be a tab here; they now route directly to the
+// admissions email group from /api/public/vob, so there's no admin
+// queue to surface. Deep links to ?tab=vobs fall back to overview.
 //
 // Each tab does its own data fetch on activation; the lists are
 // small enough that there's no value in pre-fetching all four.
 
-type Tab = 'overview' | 'vobs' | 'forms' | 'careers' | 'spam';
+type Tab = 'overview' | 'forms' | 'careers' | 'spam';
 const TABS: { id: Tab; label: string }[] = [
   { id: 'overview', label: 'Overview' },
-  { id: 'vobs', label: 'VOBs' },
   { id: 'forms', label: 'Forms' },
   { id: 'careers', label: 'Careers' },
   { id: 'spam', label: 'Spam' },
@@ -27,7 +29,6 @@ const TABS: { id: Tab; label: string }[] = [
 function isTab(v: string | null): v is Tab {
   return (
     v === 'overview'
-    || v === 'vobs'
     || v === 'forms'
     || v === 'careers'
     || v === 'spam'
@@ -86,10 +87,9 @@ export default function WebsiteRequestsContent() {
       </div>
 
       {tab === 'overview' && <OverviewPanel onJump={selectTab} />}
-      {tab === 'vobs' && <VobsPanel />}
-      {tab === 'forms' && <FormsPanel mode="forms" />}
+      {tab === 'forms' && <FormsPanel mode="forms" onSwitchTab={selectTab} />}
       {tab === 'careers' && <CareersPanel />}
-      {tab === 'spam' && <FormsPanel mode="spam" />}
+      {tab === 'spam' && <FormsPanel mode="spam" onSwitchTab={selectTab} />}
     </div>
   );
 }
@@ -142,35 +142,36 @@ function OverviewPanel({ onJump }: { onJump: (t: Tab) => void }) {
   if (!data) return <p className="text-sm text-foreground/50">Loading…</p>;
 
   return (
-    <div className="grid sm:grid-cols-2 gap-4">
-      <CategoryCard
-        title="VOBs"
-        onClick={() => onJump('vobs')}
-        description="Insurance verification requests from the admissions form."
-        total={data.vobs.total}
-        newCount={data.vobs.new}
-        tone="amber"
-        recent={data.vobs.recent.map((r) => ({
-          id: r.id,
-          line1: r.full_name,
-          line2: r.insurance_provider ?? '(no insurance listed)',
-          ts: r.received_at,
-        }))}
-      />
-      <CategoryCard
-        title="Forms"
-        onClick={() => onJump('forms')}
-        description="Contact, footer, and exit-intent submissions from the public site."
-        total={data.forms.total}
-        newCount={data.forms.new}
-        tone="blue"
-        recent={data.forms.recent.map((r) => ({
-          id: r.id,
-          line1: [r.first_name, r.last_name].filter(Boolean).join(' ') || r.email || '(no name)',
-          line2: `${r.source ?? 'unknown source'}${r.email && (r.first_name || r.last_name) ? ` · ${r.email}` : ''}`,
-          ts: r.created_at,
-        }))}
-      />
+    <div className="space-y-4">
+      {/* VOBs are no longer surfaced here — they route directly to
+          the admissions email group. The notice below is the only
+          breadcrumb left on the page so anyone hunting for the old
+          queue knows where it went. */}
+      <div className="rounded-xl border border-amber-200 bg-amber-50/60 px-4 py-3 text-[13px] text-amber-900">
+        <p className="font-semibold mb-0.5">VOBs are emailed directly to admissions.</p>
+        <p className="text-amber-900/80">
+          The VOBs queue was retired — every insurance-verification submission
+          now sends a complete email (cards included) to the admissions inbox
+          the moment it's submitted. No admin login required to act on one.
+        </p>
+      </div>
+
+      <div className="grid sm:grid-cols-1 gap-4">
+        <CategoryCard
+          title="Forms"
+          onClick={() => onJump('forms')}
+          description="Contact, footer, and exit-intent submissions from the public site."
+          total={data.forms.total}
+          newCount={data.forms.new}
+          tone="blue"
+          recent={data.forms.recent.map((r) => ({
+            id: r.id,
+            line1: [r.first_name, r.last_name].filter(Boolean).join(' ') || r.email || '(no name)',
+            line2: `${r.source ?? 'unknown source'}${r.email && (r.first_name || r.last_name) ? ` · ${r.email}` : ''}`,
+            ts: r.created_at,
+          }))}
+        />
+      </div>
     </div>
   );
 }
@@ -1963,6 +1964,7 @@ function CardImage({ url, label }: { url: string; label: string }) {
 interface FormRow extends RespondedFields {
   id: string;
   source: 'contact_page' | 'footer' | 'exit_intent' | 'careers' | 'other' | null;
+  subject: 'general_inquiry' | 'admissions' | null;
   first_name: string | null;
   last_name: string | null;
   telephone: string | null;
@@ -1978,6 +1980,11 @@ interface FormRow extends RespondedFields {
   is_spam: boolean;
 }
 
+const FORM_SUBJECT_LABELS: Record<'general_inquiry' | 'admissions', string> = {
+  general_inquiry: 'General Inquiry',
+  admissions: 'Admissions',
+};
+
 type FormSourceFilter = 'all' | 'contact_page' | 'footer' | 'exit_intent' | 'other';
 const FORM_SOURCE_LABELS: Record<Exclude<FormSourceFilter, 'all'>, string> = {
   contact_page: 'Contact Page',
@@ -1986,19 +1993,71 @@ const FORM_SOURCE_LABELS: Record<Exclude<FormSourceFilter, 'all'>, string> = {
   other: 'Other',
 };
 
-function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
+function FormsPanel({
+  mode = 'forms',
+  onSwitchTab,
+}: {
+  mode?: 'forms' | 'spam';
+  // Lets us drive the "Show spam → goes to the Spam tab" navigation
+  // from the Forms tab, and the "Mark not spam → jumps back to Forms"
+  // bounce from the Spam tab. The parent owns the tab state + the
+  // URL ?tab= sync, so we just hand the next tab name up.
+  onSwitchTab?: (next: Tab) => void;
+}) {
   const [rows, setRows] = useState<FormRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<FormSourceFilter>('all');
-  // showSpam toggle is only meaningful on the Forms tab. The Spam
-  // tab is itself the spam-only view, so we ignore the toggle there
-  // and force-show.
-  const [showSpam, setShowSpam] = useState(false);
   const isSpamView = mode === 'spam';
   const { respond, busyId } = useRespond('contact');
   const { remove, busyId: deletingId } = useDelete('contact');
   const { markSpam, busyId: spamId } = useMarkSpam();
+  // Status toggle (new → seen → closed). closeTarget holds the row
+  // the user is about to delete-on-close so the confirm modal shows
+  // the submitter's name.
+  const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
+  const [closeTarget, setCloseTarget] = useState<FormRow | null>(null);
+  const [closeBusy, setCloseBusy] = useState(false);
+
+  async function handleStatusCycle(id: string, next: 'new' | 'seen') {
+    setStatusBusyId(id);
+    try {
+      const res = await fetch('/api/website-requests/forms-status', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id, status: next }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setRows((prev) => prev.map((r) => (r.id === id ? { ...r, status: next } : r)));
+    } catch (e) {
+      console.error('status update failed', e);
+    } finally {
+      setStatusBusyId(null);
+    }
+  }
+
+  async function confirmClose() {
+    if (!closeTarget) return;
+    setCloseBusy(true);
+    try {
+      // Flip status to 'closed' first (so the audit trail / activity
+      // feed records the transition), then delete. Both calls
+      // tolerate failures of the other — delete works even if the
+      // closed write loses, and vice versa.
+      await fetch('/api/website-requests/forms-status', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: closeTarget.id, status: 'closed' }),
+      }).catch(() => null);
+      const ok = await remove(closeTarget.id);
+      if (ok) setRows((prev) => prev.filter((r) => r.id !== closeTarget.id));
+      setCloseTarget(null);
+    } finally {
+      setCloseBusy(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -2022,15 +2081,13 @@ function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
   const spamCount = useMemo(() => rows.filter((r) => r.is_spam).length, [rows]);
 
   const visible = useMemo(() => {
-    let out = rows;
-    if (isSpamView) {
-      out = out.filter((r) => r.is_spam);
-    } else if (!showSpam) {
-      out = out.filter((r) => !r.is_spam);
-    }
+    // Forms tab always hides spam (the dedicated Spam tab is the only
+    // place spam shows). No inline toggle anymore — "Show spam (N)"
+    // navigates over to the Spam tab instead of expanding the list.
+    let out = isSpamView ? rows.filter((r) => r.is_spam) : rows.filter((r) => !r.is_spam);
     if (filter !== 'all') out = out.filter((r) => r.source === filter);
     return out;
-  }, [rows, filter, showSpam, isSpamView]);
+  }, [rows, filter, isSpamView]);
 
   async function handleMarkResponded(id: string, note: string) {
     const result = await respond(id, { note });
@@ -2052,6 +2109,14 @@ function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
     const ok = await markSpam(id, spam);
     if (!ok) return;
     setRows((prev) => prev.map((r) => (r.id === id ? { ...r, is_spam: spam } : r)));
+    // From the Spam tab, marking "not spam" pops the row off this
+    // view — bounce the user back to Forms where the row now lives,
+    // matching the email-client pattern the request asked for. Going
+    // the other direction (flagging as spam from Forms) keeps the
+    // user on Forms so they can keep triaging in place.
+    if (isSpamView && !spam) {
+      onSwitchTab?.('forms');
+    }
   }
 
   return (
@@ -2073,26 +2138,35 @@ function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
           </button>
         ))}
         <span className="ml-auto" />
-        {/* Show/Hide spam toggle is only useful on the Forms tab —
-            the Spam tab itself is the spam-only view. */}
+        {/* "Show spam" navigates over to the dedicated Spam tab
+            instead of expanding spam inline — matches the email-
+            client pattern where spam is its own folder. The Spam
+            tab itself shows the count + a "Back to Forms" jump so
+            the round-trip stays one click each way. */}
         {!isSpamView && spamCount > 0 && (
           <button
             type="button"
-            onClick={() => setShowSpam((v) => !v)}
-            className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
-              showSpam
-                ? 'bg-amber-100 text-amber-900 border-amber-300'
-                : 'bg-white text-foreground/70 border-black/10 hover:border-amber-300 hover:text-amber-700'
-            }`}
-            title={showSpam ? 'Hide spam' : 'Show spam'}
+            onClick={() => onSwitchTab?.('spam')}
+            className="text-xs px-2.5 py-1 rounded-full border transition-colors bg-white text-foreground/70 border-black/10 hover:border-amber-300 hover:text-amber-700"
+            title="Show spam"
           >
-            {showSpam ? 'Hide' : 'Show'} spam ({spamCount})
+            Show spam ({spamCount})
           </button>
         )}
         {isSpamView && (
-          <span className="text-xs text-amber-800 font-semibold">
-            {spamCount} flagged spam
-          </span>
+          <>
+            <span className="text-xs text-amber-800 font-semibold">
+              {spamCount} flagged spam
+            </span>
+            <button
+              type="button"
+              onClick={() => onSwitchTab?.('forms')}
+              className="text-xs px-2.5 py-1 rounded-full border bg-white text-foreground/70 border-black/10 hover:border-primary/40 hover:text-primary transition-colors"
+              title="Back to Forms"
+            >
+              ← Back to Forms
+            </button>
+          </>
         )}
       </div>
 
@@ -2113,6 +2187,7 @@ function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
               <tr>
                 <Th>Name</Th>
                 <Th>Source</Th>
+                <Th>Subject</Th>
                 <Th>Contact</Th>
                 <Th>Message</Th>
                 <Th>Status</Th>
@@ -2156,6 +2231,21 @@ function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
                       </div>
                     </Td>
                     <Td>
+                      {r.subject ? (
+                        <span
+                          className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] uppercase tracking-wider border ${
+                            r.subject === 'admissions'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                              : 'bg-slate-50 text-slate-700 border-slate-200'
+                          }`}
+                        >
+                          {FORM_SUBJECT_LABELS[r.subject]}
+                        </span>
+                      ) : (
+                        <span className="text-foreground/40 text-xs">—</span>
+                      )}
+                    </Td>
+                    <Td>
                       <div className="text-xs text-foreground/70 space-y-0.5">
                         {r.telephone && <p>{r.telephone}</p>}
                         {r.email && <p className="truncate max-w-[220px]">{r.email}</p>}
@@ -2173,7 +2263,14 @@ function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
                         </p>
                       )}
                     </Td>
-                    <Td><StatusChip status={r.status} /></Td>
+                    <Td>
+                      <FormStatusToggle
+                        status={r.status}
+                        busy={statusBusyId === r.id || deletingId === r.id}
+                        onCycle={(next) => void handleStatusCycle(r.id, next)}
+                        onClose={() => setCloseTarget(r)}
+                      />
+                    </Td>
                     <Td>
                       <span className="text-xs text-foreground/60 whitespace-nowrap">
                         {new Date(r.created_at).toLocaleString('en-US', {
@@ -2211,6 +2308,13 @@ function FormsPanel({ mode = 'forms' }: { mode?: 'forms' | 'spam' }) {
           </table>
         </div>
       )}
+      <CloseConfirmModal
+        open={!!closeTarget}
+        name={[closeTarget?.first_name, closeTarget?.last_name].filter(Boolean).join(' ') || closeTarget?.email || ''}
+        busy={closeBusy}
+        onCancel={() => setCloseTarget(null)}
+        onConfirm={() => void confirmClose()}
+      />
     </Section>
   );
 }
@@ -2374,6 +2478,8 @@ function Td({ children, className = '' }: { children: React.ReactNode; className
 function StatusChip({ status }: { status: string }) {
   const tone = status === 'new'
     ? 'bg-blue-50 text-blue-700 border-blue-200'
+    : status === 'seen'
+    ? 'bg-amber-50 text-amber-800 border-amber-200'
     : status === 'contacted' || status === 'verified'
     ? 'bg-amber-50 text-amber-800 border-amber-200'
     : 'bg-gray-50 text-gray-600 border-gray-200';
@@ -2381,6 +2487,110 @@ function StatusChip({ status }: { status: string }) {
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] uppercase tracking-wider border ${tone}`}>
       {status}
     </span>
+  );
+}
+
+// Toggling form-status chip used by the /app/website-requests Forms
+// panel. The status cycles New → Seen → Closed; the Closed transition
+// opens a confirmation modal and, on confirm, deletes the submission
+// because a closed lead doesn't need to keep cluttering the table.
+//
+// Statuses other than these three (legacy 'contacted', 'archived')
+// render as a plain non-clickable chip — admins who land on a
+// legacy row can still see the value but won't accidentally cycle
+// through it.
+function FormStatusToggle({
+  status,
+  onCycle,
+  onClose,
+  busy,
+}: {
+  status: string;
+  onCycle: (next: 'new' | 'seen') => void;
+  onClose: () => void;
+  busy: boolean;
+}) {
+  const cyclable = status === 'new' || status === 'seen';
+  if (!cyclable) return <StatusChip status={status} />;
+  const tone = status === 'new'
+    ? 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100'
+    : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100';
+  const nextLabel = status === 'new' ? 'Mark seen →' : 'Close + delete →';
+  const onClick = () => {
+    if (busy) return;
+    if (status === 'new') onCycle('seen');
+    else onClose();
+  };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      title={nextLabel}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider border transition-colors disabled:opacity-50 ${tone}`}
+    >
+      <span>{busy ? '…' : status}</span>
+      <span aria-hidden className="opacity-60">›</span>
+    </button>
+  );
+}
+
+// Centred modal asking "Close + delete this submission?" before we
+// drop the row. Keep it dependency-free + tiny — this only ships
+// inside the Forms panel.
+function CloseConfirmModal({
+  open,
+  name,
+  busy,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  name: string;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-sm rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 p-5"
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45 mb-1">Close + delete</p>
+        <h3 className="text-lg font-semibold text-foreground mb-2" style={{ fontFamily: 'var(--font-display)' }}>
+          Close this submission?
+        </h3>
+        <p className="text-[12.5px] text-foreground/70 leading-relaxed">
+          {name || 'This submission'} will be marked closed and removed from the list. This can&apos;t be undone.
+        </p>
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="px-3 py-1.5 rounded-md text-[12px] font-semibold text-foreground/65 hover:text-foreground hover:bg-warm-bg/60 disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            className="px-3 py-1.5 rounded-md bg-rose-600 text-white text-[12px] font-semibold hover:bg-rose-700 disabled:opacity-60"
+          >
+            {busy ? 'Closing…' : 'Close + delete'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

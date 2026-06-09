@@ -2,28 +2,30 @@ import type { SubstanceContent } from './types';
 
 export const methContent: SubstanceContent = {
   hero: {
-    label: 'Methamphetamine Addiction Treatment',
+    label: 'Methamphetamine Addiction Treatment in Arizona',
     title: 'Meth runs the nervous system into the ground. We help it stand back up.',
     description:
-      'At Seven Arrows Recovery, methamphetamine use disorder is treated as a dopamine-system injury and a trauma response at once. Our residential program in Arizona sequences medical stabilization, trauma-informed therapy, and long-arc nervous-system work so the brain has time and support to recover from a drug that is uniquely punishing to it.',
+      'At Seven Arrows Recovery, methamphetamine use disorder is treated as a dopamine-system injury and a trauma response at once. Our meth rehab in Arizona sequences medical stabilization, trauma-informed therapy, and long-arc nervous-system work so the brain has time and support to recover from a drug that is uniquely punishing to it.',
     breadcrumbs: [
       { label: 'Home', href: '/' },
       { label: 'What We Treat', href: '/what-we-treat' },
       { label: 'Methamphetamine' },
     ],
+    labelAs: 'h1',
+    titleAs: 'p',
   },
   reward: {
     eyebrow: 'The Neurochemistry',
     title: (
       <>
-        Meth releases the entire stash of dopamine —{' '}
-        <em className="not-italic text-primary">and damages the warehouse doing it.</em>
+        How Meth Affects the Brain:{' '}
+        <em className="not-italic text-primary">Releasing the Entire Dopamine Stash and Damaging the Warehouse</em>
       </>
     ),
     paragraphs: [
       'Methamphetamine forces dopamine, norepinephrine, and serotonin to flood out of storage vesicles into the synapse, and then blocks reuptake. The result is a sustained neurochemical tidal wave unlike anything the brain encounters naturally.',
-      "Unlike cocaine, meth's effects last hours, not minutes — and meth is directly neurotoxic at the cellular level. Prolonged use damages dopamine neurons themselves. This is why meth withdrawal and recovery look longer and flatter than almost every other stimulant.",
-      'Recovery is possible, and the dopamine system does rebuild — but the timeline is measured in months, not weeks. Structure, sleep, nutrition, and patience are as clinical as any medication.',
+      "Unlike cocaine, meth's effects last hours, not minutes, and meth is directly neurotoxic at the cellular level. Prolonged use damages dopamine neurons themselves. This is why meth detox and recovery look longer and flatter than almost every other stimulant.",
+      'Recovery is possible, and the dopamine system does rebuild, but the timeline is measured in months, not weeks. Structure, sleep, nutrition, and patience are as clinical as any medication. It is why residential meth addiction treatment in Arizona, built around dopamine-first sequencing, produces outcomes that shorter stays rarely do.',
     ],
     chart: {
       natural: { label: 'natural reward', color: '#2f6f5e' },
@@ -39,8 +41,8 @@ export const methContent: SubstanceContent = {
       </>
     ),
     paragraphs: [
-      'Meth binges stretch over days — use extends wakefulness, wakefulness extends use, the crash is multi-day, and cravings rebuild as the body re-enters the world. The cycle runs longer and punishes harder than shorter-acting stimulants.',
-      'Residential care interrupts the loop structurally: sleep is restored first, appetite second, and the emotional floor is held while dopamine begins the long, slow process of regenerating.',
+      'Meth binges stretch over days: use extends wakefulness, wakefulness extends use, the crash is multi-day, and cravings rebuild as the body re-enters the world. The cycle runs longer and punishes harder than shorter-acting stimulants.',
+      'Inpatient meth rehab interrupts the loop structurally: sleep is restored first, appetite second, and the emotional floor is held while dopamine begins the long, slow process of regenerating. At our Arizona meth rehab, that structure is in place from the first day, so the crash does not have to be navigated alone.',
     ],
     stages: [
       { label: 'Binge', hint: 'Hours to multiple days' },
@@ -56,7 +58,7 @@ export const methContent: SubstanceContent = {
         Meth is <em className="not-italic text-accent">uniquely hard on tissue</em>.
       </>
     ),
-    body: 'Meth accelerates cardiovascular wear, damages dopamine neurons, wrecks dental health ("meth mouth"), and produces persistent psychiatric symptoms that can outlast the drug by months. The stakes are higher than public perception usually allows.',
+    body: 'Meth accelerates cardiovascular wear, damages dopamine neurons, wrecks dental health ("meth mouth"), and produces persistent psychiatric symptoms that can outlast the drug by months. The stakes are higher than public perception usually allows, which is why our meth addiction treatment addresses both the neurological and psychiatric damage.',
     stats: [
       {
         value: 50,
@@ -83,11 +85,11 @@ export const methContent: SubstanceContent = {
     eyebrow: 'The First Ninety Days',
     title: (
       <>
-        Meth withdrawal is <em className="not-italic text-primary">longer and flatter</em> than
-        almost any other stimulant.
+        Meth Detox and Withdrawal:{' '}
+        <em className="not-italic text-primary">Longer and Flatter Than Almost Any Other Stimulant</em>
       </>
     ),
-    body: 'Meth withdrawal is rarely medically dangerous, but the psychological arc is long. The real work is holding the floor during weeks of anhedonia while the brain rebuilds. Residential structure, sleep, nutrition, and trauma-informed therapy carry this phase.',
+    body: 'Meth detox is rarely medically dangerous, but the psychological arc is long. The real work is holding the floor during weeks of anhedonia while the brain rebuilds. At our meth addiction treatment center, residential structure, sleep, nutrition, and trauma-informed therapy carry this phase together so nothing falls through the gap.',
     phases: [
       {
         label: 'Crash',
@@ -115,11 +117,11 @@ export const methContent: SubstanceContent = {
     eyebrow: 'Who We Actually See',
     title: (
       <>
-        Five patterns through our door —{' '}
-        <em className="not-italic text-primary">and the stereotype misses most of them</em>.
+        Who Comes to Our Arizona Meth Rehab:{' '}
+        <em className="not-italic text-primary">The Stereotype Misses Most of Them</em>
       </>
     ),
-    body: 'Meth use crosses every income, age, and job category we work with. Pretending otherwise keeps people out of care.',
+    body: 'Meth use crosses every income, age, and job category we work with. Pretending otherwise keeps people away from treating meth addiction and the support that actually works.',
     personas: [
       {
         label: 'The weight-and-energy user',
@@ -152,10 +154,11 @@ export const methContent: SubstanceContent = {
     eyebrow: 'Our Approach',
     title: (
       <>
-        Sleep first. <em className="not-italic text-primary">Mood next.</em> The rebuild follows.
+        Our Meth Addiction Treatment in Arizona:{' '}
+        <em className="not-italic text-primary">Sleep First, Mood Next, Then the Rebuild</em>
       </>
     ),
-    body: 'Meth recovery has its own sequencing. Push too hard on psychotherapy before the brain has had weeks of sleep and nutrition and progress feels impossible. Wait too long and the window closes. We hold both rails.',
+    body: 'Meth addiction recovery has its own sequencing. Push too hard on psychotherapy before the brain has had weeks of sleep and nutrition and progress feels impossible. Wait too long and the window closes. Our meth treatment program holds both rails so neither the biology nor the psychology gets left behind.',
     flagship: {
       title: 'Dopamine-first residential treatment',
       body: 'Sleep restoration, nutritional rehabilitation, and anhedonia-informed psychotherapy as a coordinated package. The biology is the first patient; the psychology is the second; both get full attention.',
@@ -202,8 +205,8 @@ export const methContent: SubstanceContent = {
       </>
     ),
     paragraphs: [
-      'Most meth alumni describe the turning point as week six or seven — the flatness starts to break. Food tastes like food again. Music moves you. Cold water on your face registers as cold water. The dopamine transporters are coming back online, measurably.',
-      'Sleep, movement, connection, and meaning are the four pillars. They are the literal activities that rebuild natural reward after a drug that taught the brain to expect tidal waves.',
+      'Most meth alumni describe the turning point as week six or seven: the flatness starts to break. Food tastes like food again. Music moves you. Cold water on your face registers as cold water. The dopamine transporters are coming back online, measurably.',
+      'Sleep, movement, connection, and meaning are the four pillars of sustained meth addiction treatment. They are the literal activities that rebuild natural reward after a drug that taught the brain to expect tidal waves.',
     ],
     anchors: [
       { x: 0.12, label: 'Sleep', hint: 'Restores function' },
@@ -225,19 +228,19 @@ export const methContent: SubstanceContent = {
         quote:
           "I slept for four days straight when I arrived. I did not know a body was allowed to do that. By day ten, I was crying at sunsets because my nervous system was finally getting anything at all.",
         attribution: 'Alumna · 18 months sober · long-arc daily use',
-        photo: '/images/covered-porch-desert-view.jpg',
+        photo: '/hero/covered-porch-desert-view.jpg',
       },
       {
         quote:
           'Week seven was when music started to sound like music again. Before that, everything had been flat. I did not realize how much I had lost until it came back.',
         attribution: 'Alumnus · 22 months sober · polysubstance incl. meth',
-        photo: '/images/group-sunset-desert.jpg',
+        photo: '/hero/group-sunset-desert.jpg',
       },
       {
         quote:
           "The horses broke me. One of them laid down in the dirt next to me on a bad afternoon. That was the first afternoon I believed I was not going back.",
         attribution: 'Alumnus · 2 years sober · meth + alcohol',
-        photo: '/images/facility-exterior-mountains.jpg',
+        photo: '/hero/facility-exterior-mountains.jpg',
       },
     ],
   },
@@ -248,6 +251,6 @@ export const methContent: SubstanceContent = {
         The nervous system <em className="not-italic text-accent">can still come back.</em>
       </>
     ),
-    body: 'Our admissions team can verify your insurance and begin intake within 24 to 48 hours. Meth recovery is a longer arc than most — which is exactly why starting now matters.',
+    body: 'Our admissions team can verify your insurance and begin meth rehab intake within 24 to 48 hours. Meth recovery is a longer arc than most, which is exactly why starting now matters.',
   },
 };

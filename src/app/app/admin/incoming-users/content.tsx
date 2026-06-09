@@ -15,6 +15,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePagePermissions } from '@/lib/PagePermissions';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface IncomingUser {
   id: string;
@@ -44,12 +45,21 @@ type TabKey = 'pendingStaff' | 'external' | 'classified';
 const SA_DOMAIN = '@sevenarrowsrecovery.com';
 
 export default function IncomingUsersContent() {
-  const { user, session } = useAuth();
+  const { user, session, isAlumniAdmin, isSuperAdmin: viewerIsSuperAdmin } = useAuth();
   const [data, setData] = useState<ApiPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState<boolean | null>(null);
-  const [tab, setTab] = useState<TabKey>('pendingStaff');
+  // Alumni Admin viewers (without Super Admin) land directly on the
+  // Classified tab because the server narrows their payload to
+  // user_kind='alumni' rows only — the pending/external buckets
+  // come back empty and would be confusing as the default view.
+  const alumniScoped = isAlumniAdmin && !viewerIsSuperAdmin;
+  const [tab, setTab] = useState<TabKey>(alumniScoped ? 'classified' : 'pendingStaff');
+  useEffect(() => {
+    if (alumniScoped && tab !== 'classified') setTab('classified');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alumniScoped]);
   const [classifyTarget, setClassifyTarget] = useState<IncomingUser | null>(null);
   const [pagesTarget, setPagesTarget] = useState<IncomingUser | null>(null);
 
@@ -137,25 +147,32 @@ export default function IncomingUsersContent() {
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-5xl mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
       <header className="mb-6">
-        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-primary/85">Super admin</p>
+        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-primary/85">
+          {alumniScoped ? 'Alumni admin' : 'Super admin'}
+        </p>
         <h1 className="text-lg font-semibold text-foreground tracking-tight">Incoming Users</h1>
         <p className="text-sm text-foreground/55 mt-0.5">
-          Triage every account that signs in — approve staff, classify
-          outsiders as Guest or Alumni, and shape what guests can see.
+          {alumniScoped
+            ? 'Every alumni account that has signed in. Other user kinds are out-of-scope for your role.'
+            : 'Triage every account that signs in — approve staff, classify outsiders as Guest or Alumni, and shape what guests can see.'}
         </p>
       </header>
 
       <div className="mb-5 inline-flex items-center rounded-lg border border-black/10 bg-white p-1 gap-1">
-        <TabButton active={tab === 'pendingStaff'} onClick={() => setTab('pendingStaff')}>
-          Pending staff
-          <Count n={counts.pendingStaff} tone="amber" />
-        </TabButton>
-        <TabButton active={tab === 'external'} onClick={() => setTab('external')}>
-          External sign-ins
-          <Count n={counts.external} tone="blue" />
-        </TabButton>
+        {!alumniScoped && (
+          <>
+            <TabButton active={tab === 'pendingStaff'} onClick={() => setTab('pendingStaff')}>
+              Pending staff
+              <Count n={counts.pendingStaff} tone="amber" />
+            </TabButton>
+            <TabButton active={tab === 'external'} onClick={() => setTab('external')}>
+              External sign-ins
+              <Count n={counts.external} tone="blue" />
+            </TabButton>
+          </>
+        )}
         <TabButton active={tab === 'classified'} onClick={() => setTab('classified')}>
-          Classified
+          {alumniScoped ? 'Alumni' : 'Classified'}
           <Count n={counts.classified} tone="muted" />
         </TabButton>
       </div>
@@ -407,7 +424,7 @@ function ClassifiedPanel({
 function UserAvatar({ user }: { user: IncomingUser }) {
   if (user.avatar_url) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={user.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover border border-black/10" />;
+    return <img src={toAvatarThumb(user.avatar_url, 200) ?? user.avatar_url} alt="" className="w-10 h-10 rounded-full object-cover border border-black/10" />;
   }
   const letter = (user.full_name || user.email || '?').charAt(0).toUpperCase();
   return (

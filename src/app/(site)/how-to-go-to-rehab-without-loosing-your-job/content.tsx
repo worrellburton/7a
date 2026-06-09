@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "How to Go to Rehab Without Loosing Your Job" },
         ]}
         description="Going to rehab can be a life-changing decision, but for many individuals, the fear of losing their job can prevent them from seeking the help they need. However, thanks to the Family and Medical Leave Act (FMLA), employees have…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

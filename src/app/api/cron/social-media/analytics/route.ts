@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAdminSupabase } from '@/lib/supabase-server';
 import { ayrshareGet, ayrsharePost, AyrshareNotConfigured, extractAyrshareError } from '@/lib/ayrshare';
+import { withCronLogging } from '@/lib/cron-observability';
 
 // Daily Ayrshare analytics snapshot writer. Vercel cron hits this
 // once a day with `Authorization: Bearer ${CRON_SECRET}`; we fan
@@ -21,11 +22,11 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 90;
 
 export async function GET(req: Request) {
-  return run(req);
+  return withCronLogging('/api/cron/social-media/analytics', () => run(req));
 }
 
 export async function POST(req: Request) {
-  return run(req);
+  return withCronLogging('/api/cron/social-media/analytics', () => run(req));
 }
 
 async function run(req: Request) {

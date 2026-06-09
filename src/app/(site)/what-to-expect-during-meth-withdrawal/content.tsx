@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "What to Expect During Meth Withdrawal" },
         ]}
         description="Methamphetamine addiction can take a devastating toll on your body, mind, and overall well-being. If you or your loved one is struggling with meth use, know that seeking help is the first courageous step toward reclaiming a…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

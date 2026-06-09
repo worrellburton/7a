@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "The Integration of Cultural and Holistic Healing in Recovery" },
         ]}
         description="Native American healing traditions have played a significant role in addiction recovery for centuries. By incorporating cultural and spiritual practices into treatment programs, individuals can benefit from a holistic approach…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

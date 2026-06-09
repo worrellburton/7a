@@ -1,11 +1,13 @@
 'use client';
 
 import { useAuth } from '@/lib/AuthProvider';
+import { useModal } from '@/lib/ModalProvider';
 import { db, getAuthToken } from '@/lib/db';
 import { logActivity } from '@/lib/activity';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface Department {
   id: string;
@@ -76,6 +78,7 @@ interface SignatureLite {
 
 export default function JobDescriptionsContent() {
   const { user, session } = useAuth();
+  const modal = useModal();
   const router = useRouter();
   const [jobs, setJobs] = useState<JobDescription[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -292,7 +295,12 @@ export default function JobDescriptionsContent() {
   }, [signatures, jobs, users, archivedFilter]);
 
   async function deleteSignature(sigId: string) {
-    if (!window.confirm('Delete this signed job description? This cannot be undone.')) return;
+    const ok = await modal.confirm('Delete this signed job description?', {
+      message: 'This cannot be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setSignatures((prev) => prev.filter((s) => s.id !== sigId));
     await db({ action: 'delete', table: 'jd_signatures', match: { id: sigId } }).catch((err) => {
       console.warn('deleteSignature failed', err);
@@ -1175,7 +1183,7 @@ export default function JobDescriptionsContent() {
                     >
                       {u.avatar_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
-                        <img src={u.avatar_url} alt={u.full_name || ''} className="w-6 h-6 rounded-full object-cover border border-gray-100" />
+                        <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt={u.full_name || ''} className="w-6 h-6 rounded-full object-cover border border-gray-100" />
                       ) : (
                         <span className="w-6 h-6 rounded-full bg-foreground/10 flex items-center justify-center text-[10px] font-semibold text-foreground/60 border border-gray-100">
                           {(u.full_name || '?').charAt(0).toUpperCase()}
@@ -1238,7 +1246,7 @@ export default function JobDescriptionsContent() {
                             >
                               {u.avatar_url ? (
                                 // eslint-disable-next-line @next/next/no-img-element
-                                <img src={u.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                                <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
                               ) : (
                                 <span className="w-5 h-5 rounded-full bg-foreground/10 flex items-center justify-center text-[9px] font-semibold text-foreground/60">
                                   {(u.full_name || '?').charAt(0).toUpperCase()}

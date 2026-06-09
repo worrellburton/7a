@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase } from '@/lib/supabase-server';
+import { requirePageAccess } from '@/lib/page-access';
 import { ga4Run, hasGoogleOAuth } from '@/lib/google';
 
 // GET /api/google/ga4?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&compare=prev
@@ -71,12 +71,8 @@ function readSummary(rowValues: { value?: string }[] | undefined): SummaryValues
 }
 
 export async function GET(req: Request) {
-  const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: row } = await supabase.from('users').select('is_admin').eq('id', user.id).maybeSingle();
-  if (!row?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const { error: authError } = await requirePageAccess('/app/analytics');
+  if (authError) return authError;
 
   if (!hasGoogleOAuth() || !process.env.GA4_PROPERTY_ID) {
     return NextResponse.json(
@@ -124,7 +120,72 @@ export async function GET(req: Request) {
           { name: 'sessions' },
           { name: 'activeUsers' },
           { name: 'screenPageViews' },
+          { name: 'newUsers' },
         ],
+        orderBys: [{ dimension: { dimensionName: 'date' } }],
+        limit: 400,
+      }),
+      // Per-day organic-search breakdown. Same date dimension as the
+      // totals query above, but filtered to sessionDefaultChannelGroup
+      // = 'Organic Search' and pulling the full metric set so the
+      // chart can overlay sessions / users / new users / page views /
+      // engagement rate without forcing client-side re-aggregation
+      // (cross-channel sums of activeUsers would double-count people
+      // who arrived via multiple channels in the same day).
+      ga4Run({
+        dateRanges: [{ startDate, endDate }],
+        dimensions: [{ name: 'date' }],
+        metrics: [
+          { name: 'sessions' },
+          { name: 'activeUsers' },
+          { name: 'newUsers' },
+          { name: 'screenPageViews' },
+          { name: 'engagementRate' },
+        ],
+        dimensionFilter: {
+          // "Organic search" here is GA4's classic Organic Search channel
+          // (google/organic, bing/organic, duckduckgo/organic, etc.) PLUS
+          // explicit AI-search referrers. The latter currently land in
+          // GA4's "Referral" or "Unassigned" buckets because the default
+          // channel grouping rules predate AI search, but user intent
+          // (someone asked a question and clicked through to the site)
+          // is the same as classic organic — so we union them here.
+          // Source list is hand-curated; extend it as new AI engines
+          // start sending traffic. Match is by stringFilter MATCH_TYPE
+          // CONTAINS so we don't need to enumerate www / chat / etc.
+          // subdomains for each engine.
+          orGroup: {
+            expressions: [
+              {
+                filter: {
+                  fieldName: 'sessionDefaultChannelGroup',
+                  stringFilter: { value: 'Organic Search' },
+                },
+              },
+              {
+                filter: {
+                  fieldName: 'sessionSource',
+                  inListFilter: {
+                    values: [
+                      'chatgpt.com',
+                      'chat.openai.com',
+                      'perplexity.ai',
+                      'www.perplexity.ai',
+                      'claude.ai',
+                      'claude.com',
+                      'gemini.google.com',
+                      'copilot.microsoft.com',
+                      'bing.com/chat',
+                      'you.com',
+                      'phind.com',
+                      'meta.ai',
+                    ],
+                  },
+                },
+              },
+            ],
+          },
+        },
         orderBys: [{ dimension: { dimensionName: 'date' } }],
         limit: 400,
       }),
@@ -143,9 +204,33 @@ export async function GET(req: Request) {
     const channelsRes = results[1] as { rows?: { dimensionValues?: { value?: string }[]; metricValues?: { value?: string }[] }[] };
     const topPagesRes = results[2] as { rows?: { dimensionValues?: { value?: string }[]; metricValues?: { value?: string }[] }[] };
     const dailyRes = results[3] as { rows?: { dimensionValues?: { value?: string }[]; metricValues?: { value?: string }[] }[] };
+    const organicDailyRes = results[4] as { rows?: { dimensionValues?: { value?: string }[]; metricValues?: { value?: string }[] }[] };
     const prevRes = withCompare
-      ? (results[4] as { rows?: { metricValues?: { value?: string }[] }[] })
+      ? (results[5] as { rows?: { metricValues?: { value?: string }[] }[] })
       : null;
+
+    // Per-day organic-search facets, keyed by YYYYMMDD. Dates with no
+    // organic traffic aren't returned by GA4 — fall through to 0.
+    // Engagement rate comes back as 0.0–1.0 (e.g. 0.62 = 62%).
+    interface OrganicFacets {
+      sessions: number;
+      activeUsers: number;
+      newUsers: number;
+      pageViews: number;
+      engagementRate: number;
+    }
+    const organicByDate = new Map<string, OrganicFacets>();
+    for (const r of organicDailyRes.rows ?? []) {
+      const d = r.dimensionValues?.[0]?.value ?? '';
+      if (!/^\d{8}$/.test(d)) continue;
+      organicByDate.set(d, {
+        sessions: Number(r.metricValues?.[0]?.value ?? 0),
+        activeUsers: Number(r.metricValues?.[1]?.value ?? 0),
+        newUsers: Number(r.metricValues?.[2]?.value ?? 0),
+        pageViews: Number(r.metricValues?.[3]?.value ?? 0),
+        engagementRate: Number(r.metricValues?.[4]?.value ?? 0),
+      });
+    }
 
     const summary = readSummary(summaryRes.rows?.[0]?.metricValues);
     const previous = prevRes ? readSummary(prevRes.rows?.[0]?.metricValues) : null;
@@ -167,12 +252,31 @@ export async function GET(req: Request) {
         sessions: Number(r.metricValues?.[0]?.value ?? 0),
         activeUsers: Number(r.metricValues?.[1]?.value ?? 0),
         pageViews: Number(r.metricValues?.[2]?.value ?? 0),
+        newUsers: Number(r.metricValues?.[3]?.value ?? 0),
+        // Flat organic columns the chart reads. Older callers that
+        // only knew about `organicSearch` keep the alias intact.
+        organicSearch: 0,
+        organicSessions: 0,
+        organicActiveUsers: 0,
+        organicNewUsers: 0,
+        organicPageViews: 0,
+        organicEngagementRate: 0,
       }))
       .filter((d) => /^\d{8}$/.test(d.date))
-      .map((d) => ({
-        ...d,
-        date: `${d.date.slice(0, 4)}-${d.date.slice(4, 6)}-${d.date.slice(6, 8)}`,
-      }))
+      .map((d) => {
+        const o = organicByDate.get(d.date);
+        return {
+          ...d,
+          organicSearch: o?.sessions ?? 0,
+          organicSessions: o?.sessions ?? 0,
+          organicActiveUsers: o?.activeUsers ?? 0,
+          organicNewUsers: o?.newUsers ?? 0,
+          organicPageViews: o?.pageViews ?? 0,
+          // Store the GA-native 0–1 rate so the chart can format as %.
+          organicEngagementRate: o?.engagementRate ?? 0,
+          date: `${d.date.slice(0, 4)}-${d.date.slice(4, 6)}-${d.date.slice(6, 8)}`,
+        };
+      })
       .sort((a, b) => a.date.localeCompare(b.date));
 
     return NextResponse.json({

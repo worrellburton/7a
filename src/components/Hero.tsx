@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -69,7 +68,14 @@ const fallbackHeroSources: HeroSource[] = [
 // Poster shown until the first <video> frame paints. Eliminates the
 // black flash between page load and video decode. Static asset, so
 // it lands with the HTML/CSS rather than over the video pipeline.
-const HERO_POSTER = '/images/facility-exterior-mountains.jpg';
+// Poster swapped to the pre-encoded variants under /public/hero/.
+// AVIF (119 KB, 77% smaller than the source) ships to ~97% of
+// browsers via the <picture> source below; older Safari/embeds get
+// the JPEG fallback (232 KB). next/image's automatic AVIF emission
+// is disabled site-wide (next.config `unoptimized: true`), so we
+// hand-roll the picture element below to actually deliver AVIF.
+const HERO_POSTER_JPG = '/hero/facility-exterior-mountains.jpg';
+const HERO_POSTER_AVIF = '/hero/facility-exterior-mountains.avif';
 
 /* ── Ticker Items ──────────────────────────────────────────────────── */
 
@@ -269,7 +275,7 @@ function Mp4Slide({
       muted
       loop={isOnly}
       playsInline
-      poster={HERO_POSTER}
+      poster={HERO_POSTER_JPG}
       // Active slide preloads aggressively; inactive slides hold off
       // so they don't compete with the active clip for bandwidth on
       // first paint. The poster covers the brief gap on rotation.
@@ -341,15 +347,23 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
             and effectively hides it. The video <slide>s now treat the
             same path as a transparent fallback rather than the canonical
             first paint. */}
-        <Image
-          src={HERO_POSTER}
-          alt=""
-          aria-hidden="true"
-          priority
-          fill
-          sizes="100vw"
-          className="absolute inset-0 z-0 object-cover"
-        />
+        <picture className="absolute inset-0 z-0 block w-full h-full" aria-hidden="true">
+          <source srcSet={HERO_POSTER_AVIF} type="image/avif" sizes="100vw" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={HERO_POSTER_JPG}
+            alt=""
+            width={1920}
+            height={1080}
+            sizes="100vw"
+            // @ts-expect-error fetchPriority is valid HTML on img
+            // but React's TS types lag the spec on older versions.
+            fetchpriority="high"
+            loading="eager"
+            decoding="async"
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        </picture>
         {/* Rotating video stack */}
         {sources.map((src, i) => (
           <div
@@ -459,15 +473,15 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
                 }}
               >
                 <Link
-                  href="/admissions#verify"
+                  href="/who-we-are"
                   className="inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark text-white rounded-full px-8 py-4 text-base font-semibold shadow-[0_20px_60px_-20px_rgba(0,0,0,0.7)] transition-all"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                    <path d="M9 12l2 2 4-4" />
+                    <circle cx="12" cy="8" r="4" />
+                    <path d="M4 21v-1a8 8 0 0 1 16 0v1" />
                   </svg>
-                  Verify My Insurance
+                  About us
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                     <line x1="5" y1="12" x2="19" y2="12" />
                     <polyline points="12 5 19 12 12 19" />

@@ -195,24 +195,68 @@ export default function MobileMenu({
   return (
     <div
       ref={panelRef}
-      // Full-screen fixed panel pinned below the nav (TopBar +
-      // Header). Escapes the parent <nav>'s max-w-7xl / px
-      // container so the drawer spans the entire viewport width
-      // rather than being cropped into the centered column. A tap
-      // on the hamburger (now the X) or pressing Escape is the
-      // only way to close — no need for a separate backdrop since
-      // the panel owns the whole lower viewport.
-      className="lg:hidden fixed left-0 right-0 bottom-0 z-40 bg-white overflow-y-auto"
+      // Full-viewport fixed panel. Glassy translucent background +
+      // backdrop blur instead of the old solid white, so the page
+      // underneath shows through softly (matches the rest of the
+      // site's warm-bg/glass treatment). The drawer carries its OWN
+      // logo + X close strip pinned to the top — the actual sticky
+      // Header sits at z-50 but because the drawer is rendered as a
+      // child of the Header element, the drawer's z-40 wins the
+      // intra-context stacking and visually covers the header's
+      // logo / hamburger. Rather than fight that, we just mirror
+      // them inside the drawer so dismissal stays one tap away no
+      // matter where the drawer is rendered in the tree.
+      className="lg:hidden fixed inset-0 z-40 bg-warm-bg/85 supports-[backdrop-filter]:bg-warm-bg/65 backdrop-blur-xl overflow-y-auto"
       role="dialog"
       aria-modal="true"
       aria-label="Main navigation"
       style={{
-        top: 'var(--site-header-height, 68px)',
         opacity: showing ? 1 : 0,
         transform: showing ? 'translateY(0)' : 'translateY(-8px)',
         transition: `opacity ${duration}ms ${EASE}, transform ${duration}ms ${EASE}`,
       }}
     >
+      {/* In-drawer top strip — Seven Arrows logo on the left, X
+          close button on the right. Sticky so it stays visible
+          while the menu items scroll under it on shorter phones.
+          Same height as the site Header for visual continuity. */}
+      <div
+        className="sticky top-0 z-10 flex items-center justify-between px-4 h-16 border-b border-black/5 bg-warm-bg/70 supports-[backdrop-filter]:bg-warm-bg/45 backdrop-blur-xl"
+        style={{ paddingTop: 'env(safe-area-inset-top)' }}
+      >
+        <Link
+          href="/"
+          onClick={onClose}
+          aria-label="Seven Arrows Recovery — Home"
+          className="shrink-0"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/images/logo.png"
+            alt="Seven Arrows Recovery"
+            className="h-10 w-auto"
+          />
+        </Link>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close menu"
+          className="shrink-0 inline-flex items-center justify-center w-10 h-10 rounded-full text-foreground/70 hover:text-foreground hover:bg-black/5 active:bg-black/10 transition-colors"
+        >
+          <svg
+            className="w-5 h-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <path d="M18 6L6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
       <div className="pt-4 pb-6 px-4 space-y-0.5">
           {navLinks.map((item, i) => (
             <StaggeredItem key={item.href} show={showing} index={i}>

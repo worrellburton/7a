@@ -24,7 +24,7 @@ export default function AboutSection() {
             </div>
             <div className="absolute -bottom-6 right-4 lg:right-8 w-1/2 rounded-2xl overflow-hidden aspect-[4/3] shadow-xl border-4 border-white">
               <img
-                src="/images/group-sunset-desert.jpg"
+                src="/hero/group-sunset-desert.jpg"
                 alt="Group watching sunset in the desert"
                 className="w-full h-full object-cover"
                 loading="lazy"

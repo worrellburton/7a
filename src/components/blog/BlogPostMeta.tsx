@@ -19,7 +19,6 @@
 // content without a credentialed reviewer.
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { type Episode } from '@/lib/episodes';
 import {
   authorProfileUrl,
@@ -77,9 +76,21 @@ export function BlogPostJsonLd({
   episode,
   author: authorOverride,
   reviewer: reviewerOverride,
-}: { episode: Episode; author?: BlogAuthor; reviewer?: BlogAuthor }) {
-  const author = authorOverride ?? resolveAuthor(episode.authorSlug);
-  const reviewer = reviewerOverride ?? resolveReviewer(episode.reviewerSlug);
+  suppressAuthor = false,
+  suppressReviewer = false,
+}: {
+  episode: Episode;
+  author?: BlogAuthor;
+  reviewer?: BlogAuthor;
+  // When true, omit the author / reviewer Person node from the
+  // emitted JSON-LD. The editor's "None" sentinel (NONE_SLUG) sets
+  // these so YMYL posts can opt out of credentialing when an
+  // unsigned editorial line is required.
+  suppressAuthor?: boolean;
+  suppressReviewer?: boolean;
+}) {
+  const author = suppressAuthor ? null : (authorOverride ?? resolveAuthor(episode.authorSlug));
+  const reviewer = suppressReviewer ? null : (reviewerOverride ?? resolveReviewer(episode.reviewerSlug));
   const url = postUrl(episode);
   const lastReviewed = (episode.lastReviewedAt ?? episode.publishedAt).slice(0, 10);
 
@@ -99,8 +110,6 @@ export function BlogPostJsonLd({
     dateModified: episode.publishedAt,
     publisher: { '@id': ORG_ID },
     inLanguage: 'en-US',
-    author: personNode(author),
-    reviewedBy: personNode(reviewer),
     lastReviewed,
     // Targeting patients + their families rather than a clinical
     // audience. Schema.org enum value MedicalAudienceType has
@@ -112,6 +121,8 @@ export function BlogPostJsonLd({
     // textual variant to the same topic cluster.
     specialty: 'AddictionMedicine',
   };
+  if (author) payload.author = personNode(author);
+  if (reviewer) payload.reviewedBy = personNode(reviewer);
   if (inRoadmap) {
     payload.isPartOf = {
       '@type': 'CreativeWorkSeries',
@@ -141,66 +152,98 @@ export function AuthorByline({
   author: authorOverride,
   reviewer: reviewerOverride,
   className = '',
+  suppressAuthor = false,
+  suppressReviewer = false,
+  authorIsHorse = false,
 }: {
   episode: Episode;
   author?: BlogAuthor;
   reviewer?: BlogAuthor;
   className?: string;
+  // When true, hide the "Written by" / "Medically reviewed by" line.
+  // Editor's NONE_SLUG sentinel flips these for posts that should
+  // ship without bylines (rare; YMYL content normally needs them).
+  suppressAuthor?: boolean;
+  suppressReviewer?: boolean;
+  // When the author is a therapy horse, drop the /meet-our-team link
+  // (no profile page exists) and skip the credentials suffix.
+  authorIsHorse?: boolean;
 }) {
-  const author = authorOverride ?? resolveAuthor(episode.authorSlug);
-  const reviewer = reviewerOverride ?? resolveReviewer(episode.reviewerSlug);
-  const authorHref = `/who-we-are/meet-our-team/${author.slug}`;
-  const reviewerHref = `/who-we-are/meet-our-team/${reviewer.slug}`;
+  const author = suppressAuthor ? null : (authorOverride ?? resolveAuthor(episode.authorSlug));
+  const reviewer = suppressReviewer ? null : (reviewerOverride ?? resolveReviewer(episode.reviewerSlug));
+  const authorHref = author && !authorIsHorse ? `/who-we-are/meet-our-team/${author.slug}` : '#';
+  const reviewerHref = reviewer ? `/who-we-are/meet-our-team/${reviewer.slug}` : '#';
   const lastReviewed = episode.lastReviewedAt ?? episode.publishedAt;
+  // Nothing to render if both rails are suppressed.
+  if (!author && !reviewer) return null;
 
   return (
     <div
       className={`mb-8 pb-6 border-b border-black/10 ${className}`}
       style={{ fontFamily: 'var(--font-body)' }}
     >
+      {author && (
       <div className="flex flex-wrap items-center gap-3">
-        {author.avatarUrl ? (
-          <Link
-            href={authorHref}
-            className="shrink-0 rounded-full overflow-hidden ring-1 ring-black/10 hover:ring-primary/40"
-            aria-label={`More about ${author.name}`}
-          >
-            <Image
+        {(() => {
+          const initials = author.name
+            .split(/\s+/)
+            .map((p) => p[0])
+            .slice(0, 2)
+            .join('')
+            .toUpperCase();
+          const ringHover = authorIsHorse ? '' : 'hover:ring-primary/40';
+          const avatarInner = author.avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
               src={author.avatarUrl}
               alt={author.name}
+              referrerPolicy="no-referrer"
               width={44}
               height={44}
-              className="w-11 h-11 object-cover"
+              loading="eager"
+              decoding="async"
+              className="w-11 h-11 object-cover block"
             />
-          </Link>
-        ) : (
-          <Link
-            href={authorHref}
-            aria-label={`More about ${author.name}`}
-            className="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-full bg-warm-bg text-primary text-sm font-bold ring-1 ring-black/10 hover:ring-primary/40"
-          >
-            {author.name
-              .split(/\s+/)
-              .map((p) => p[0])
-              .slice(0, 2)
-              .join('')
-              .toUpperCase()}
-          </Link>
-        )}
+          ) : (
+            <span className="w-11 h-11 inline-flex items-center justify-center bg-warm-bg text-primary text-sm font-bold">
+              {initials}
+            </span>
+          );
+          return authorIsHorse ? (
+            <span
+              className={`shrink-0 rounded-full overflow-hidden ring-1 ring-black/10 ${ringHover}`}
+              aria-label={author.name}
+            >
+              {avatarInner}
+            </span>
+          ) : (
+            <Link
+              href={authorHref}
+              className={`shrink-0 rounded-full overflow-hidden ring-1 ring-black/10 ${ringHover}`}
+              aria-label={`More about ${author.name}`}
+            >
+              {avatarInner}
+            </Link>
+          );
+        })()}
         <div className="min-w-0">
           <p className="text-[11px] font-semibold tracking-[0.22em] uppercase text-foreground/45">
             Written by
           </p>
           <p className="text-sm text-foreground">
-            <Link
-              href={authorHref}
-              className="font-semibold text-foreground hover:text-primary"
-            >
-              {author.name}
-              {author.credentials && (
-                <span className="text-foreground/55 font-normal">, {author.credentials}</span>
-              )}
-            </Link>
+            {authorIsHorse ? (
+              <span className="font-semibold text-foreground">{author.name}</span>
+            ) : (
+              <Link
+                href={authorHref}
+                className="font-semibold text-foreground hover:text-primary"
+              >
+                {author.name}
+                {author.credentials && (
+                  <span className="text-foreground/55 font-normal">, {author.credentials}</span>
+                )}
+              </Link>
+            )}
             <span className="text-foreground/55"> · {author.title}</span>
           </p>
           <p className="text-[12px] text-foreground/50">
@@ -208,11 +251,13 @@ export function AuthorByline({
           </p>
         </div>
       </div>
+      )}
 
-      {/* Medically-reviewed line. Always present — drives the
-          schema.org/MedicalWebPage.reviewedBy field too, so SEO and
-          GEO (AI-search citation) get the credentialed-reviewer
-          signal that YMYL content needs to rank. */}
+      {reviewer && (
+      /* Medically-reviewed line. Drives the
+         schema.org/MedicalWebPage.reviewedBy field too, so SEO and
+         GEO (AI-search citation) get the credentialed-reviewer
+         signal that YMYL content needs to rank. */
       <p className="mt-3 text-[12.5px] text-foreground/65">
         <span className="text-[10px] font-semibold tracking-[0.22em] uppercase text-foreground/45">Medically reviewed by</span>
         <span className="text-foreground/45"> · </span>
@@ -231,6 +276,7 @@ export function AuthorByline({
           {new Date(lastReviewed).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
         </time>
       </p>
+      )}
     </div>
   );
 }

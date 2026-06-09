@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
+import { getAdminSupabase } from '@/lib/supabase-server';
+import { requireAdmin } from '@/lib/api-gates';
 import { listStoredTokens } from '@/lib/quickbooks';
 import { ga4Run, gscSearchAnalytics, hasGoogleOAuth } from '@/lib/google';
 import { hasPsiKey } from '@/lib/seo/psi';
@@ -303,10 +304,46 @@ async function probeStedi(): Promise<IntegrationStatus> {
 // Used for: call scoring summaries, daily SEO summaries, outings
 // research prompts, ask-policies, and a handful of one-shot rewrites.
 // No cheap probe — every Anthropic call costs tokens. Configured ⇒
-// connected; live errors will surface in the dependent feature
-// (e.g. the call-scoring banner).
+// connected; live errors will surface in the dependent feature.
+//
+// Additional liveness signal: the 6 AM daily cron at
+// /api/cron/anthropic/model-check writes a row to
+// anthropic_model_checks comparing /v1/models output to the model IDs
+// the codebase is wired to. If the cron flagged drift (Anthropic
+// shipped a newer model than what's in code), surface that as an
+// orange "newer model available" note here so we don't go months
+// without noticing.
 async function probeAnthropic(): Promise<IntegrationStatus> {
   const key = process.env.ANTHROPIC_API_KEY;
+  let driftDetail: string | null = null;
+  let driftWarning: string | null = null;
+  try {
+    const admin = getAdminSupabase();
+    const { data: row } = await admin
+      .from('anthropic_model_checks')
+      .select('checked_at, drift_detected, drift_summary, http_status, error')
+      .order('checked_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (row) {
+      const summary = (row.drift_summary ?? {}) as Record<string, { current: string; latest: string | null; drift: boolean }>;
+      if (row.drift_detected) {
+        const drifted = Object.entries(summary)
+          .filter(([, v]) => v.drift)
+          .map(([tier, v]) => `${tier}: ${v.current} → ${v.latest}`)
+          .join(', ');
+        driftWarning = `Newer Claude model available — ${drifted}`;
+      } else if (row.error || (row.http_status && row.http_status >= 400)) {
+        driftDetail = `Last model-check ${new Date(row.checked_at as string).toLocaleDateString()} failed: ${row.error ?? `HTTP ${row.http_status}`}`;
+      } else {
+        const checked = new Date(row.checked_at as string).toLocaleDateString();
+        driftDetail = `All on latest models (checked ${checked})`;
+      }
+    }
+  } catch {
+    /* drift surface is best-effort */
+  }
+
   return {
     id: 'anthropic',
     name: 'Anthropic (Claude)',
@@ -314,8 +351,8 @@ async function probeAnthropic(): Promise<IntegrationStatus> {
     category: 'ai',
     configured: !!key,
     connected: !!key,
-    detail: key ? 'Key present' : null,
-    error: key ? null : 'Missing ANTHROPIC_API_KEY',
+    detail: key ? (driftDetail ?? 'Key present') : null,
+    error: key ? driftWarning : 'Missing ANTHROPIC_API_KEY',
     docsUrl: 'https://console.anthropic.com',
   };
 }
@@ -446,12 +483,8 @@ async function probeSemrush(): Promise<IntegrationStatus> {
 }
 
 export async function GET() {
-  const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: row } = await supabase.from('users').select('is_admin').eq('id', user.id).maybeSingle();
-  if (!row?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const gate = await requireAdmin();
+  if (gate instanceof NextResponse) return gate;
 
   const integrations = await Promise.all([
     probeSupabase(),

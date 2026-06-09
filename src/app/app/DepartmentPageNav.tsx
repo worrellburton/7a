@@ -4,25 +4,18 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 /**
- * In-page nav strip used at the top of the four Admissions-department
- * pages (Admissions, Marketing, BD Partnerships, Donations) so users
- * can hop between sibling surfaces without rounding back through the
- * sidebar. Mirrors the sidebar's icon-then-label affordance.
+ * In-page nav strip used at the top of the Admissions-department
+ * pages (Contacts, Partners) so users can hop between
+ * sibling surfaces without rounding back through the sidebar.
+ * Mirrors the sidebar's icon-then-label affordance. Admissions and
+ * Donations were removed from this strip; they're still reachable
+ * from the sidebar.
  */
 
 const ITEMS: { path: string; label: string; icon: React.ReactNode }[] = [
   {
-    path: '/app/admissions',
-    label: 'Admissions',
-    icon: (
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5z" />
-      </svg>
-    ),
-  },
-  {
-    path: '/app/outreach',
-    label: 'Marketing',
+    path: '/app/contacts',
+    label: 'Contacts',
     icon: (
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z" />
@@ -33,21 +26,12 @@ const ITEMS: { path: string; label: string; icon: React.ReactNode }[] = [
   },
   {
     path: '/app/partnerships',
-    label: 'BD Partnerships',
+    label: 'Partners',
     icon: (
       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="7" cy="12" r="3" />
         <circle cx="17" cy="12" r="3" />
         <path d="M10 12h4" />
-      </svg>
-    ),
-  },
-  {
-    path: '/app/donations',
-    label: 'Donations',
-    icon: (
-      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 11c0 5.5-7 10-7 10z" />
       </svg>
     ),
   },

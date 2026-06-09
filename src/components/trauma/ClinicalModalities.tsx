@@ -181,7 +181,7 @@ export default function ClinicalModalities() {
             style={style(0.2)}
           >
             <img
-              src="/images/equine-therapy-portrait.jpg"
+              src="/hero/equine-therapy-portrait.jpg"
               alt="Equine therapy session at Seven Arrows."
               className="absolute inset-0 w-full h-full object-cover"
               loading="lazy"

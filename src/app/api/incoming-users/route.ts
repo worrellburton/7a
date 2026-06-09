@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
-import { requireSuperAdmin } from '@/lib/social-media-auth';
+import { NextResponse } from 'next/server';
+import { getAdminSupabase } from '@/lib/supabase-server';
+import { requireSuperOrAlumniAdmin } from '@/lib/api-gates';
 
 // GET /api/incoming-users
 //
-// Super-admin only. Returns:
+// Super admin OR alumni admin. Returns:
 //   - pendingStaff:   @sevenarrowsrecovery.com sign-ins still on hold
 //   - externalNew:    sign-ins from outside @sevenarrowsrecovery
 //                     who haven't been classified yet (user_kind=staff
@@ -13,8 +13,9 @@ import { requireSuperAdmin } from '@/lib/social-media-auth';
 //   - guests:         already-classified guests (with their page perms)
 //   - alumni:         already-classified alumni
 //
-// Lives in /app/incoming-users (the popup-menu surface) and replaces
-// the team-page "Pending Approval" strip for super admins.
+// For an Alumni Admin who is NOT also a Super Admin we narrow the
+// response to ONLY the alumni bucket — staff/guest/pending are
+// out-of-scope for the role. Lives in /app/incoming-users.
 
 export const dynamic = 'force-dynamic';
 
@@ -36,9 +37,9 @@ interface UserRow {
 }
 
 export async function GET() {
-  const supabase = await getServerSupabase();
-  const auth = await requireSuperAdmin(supabase);
-  if ('response' in auth) return auth.response;
+  const gate = await requireSuperOrAlumniAdmin();
+  if (gate instanceof NextResponse) return gate;
+  const alumniScoped = gate.isAlumniAdmin && !gate.isSuperAdmin;
 
   const admin = getAdminSupabase();
   const { data, error } = await admin
@@ -49,6 +50,18 @@ export async function GET() {
 
   const all = (data ?? []) as UserRow[];
   const isSa = (u: UserRow) => (u.email || '').toLowerCase().endsWith(SA_DOMAIN);
+
+  // Alumni Admin scope: only the alumni bucket. Other buckets stay
+  // empty arrays so the UI's existing structure doesn't blow up.
+  if (alumniScoped) {
+    const alumni = all.filter((u) => u.user_kind === 'alumni');
+    return NextResponse.json({
+      pendingStaff: [],
+      externalNew: [],
+      guests: [],
+      alumni,
+    });
+  }
 
   const pendingStaff = all.filter((u) => u.status === 'on_hold' && isSa(u));
   const externalNew = all.filter(

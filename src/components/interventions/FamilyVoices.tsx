@@ -20,25 +20,25 @@ const quotes: Quote[] = [
     quote:
       'The specialist did not let the conversation go where we always let it go. That alone was worth everything. My son was in a car before dinner.',
     attribution: 'Parent of a 27-year-old · opioid use · 2024',
-    photo: '/images/group-sunset-desert.jpg',
+    photo: '/hero/group-sunset-desert.jpg',
   },
   {
     quote:
       'Three tries at the kitchen table, three blowups. One morning with a professional — three hours, start to finish — and we were at the ranch by nightfall.',
     attribution: 'Spouse · alcohol use · 2023',
-    photo: '/images/facility-exterior-mountains.jpg',
+    photo: '/hero/facility-exterior-mountains.jpg',
   },
   {
     quote:
       'The hardest part was the night before. The actual day was calm, specific, and short. My daughter said later she was relieved someone finally named it.',
     attribution: 'Father of a 31-year-old · stimulant use · 2024',
-    photo: '/images/covered-porch-desert-view.jpg',
+    photo: '/hero/covered-porch-desert-view.jpg',
   },
   {
     quote:
       'He said no at first. The consequences we had rehearsed went into effect by the end of the week. He called us from the coffee shop on day nine asking for the bed.',
     attribution: 'Mother of a 24-year-old · alcohol & benzodiazepine use · 2024',
-    photo: '/images/group-gathering-pavilion.jpg',
+    photo: '/hero/group-gathering-pavilion.jpg',
   },
 ];
 

@@ -21,6 +21,14 @@ export interface PageConfig {
   // the `page_permissions` DB table — so product areas like Media can hang
   // off a shared header without needing a fake department row.
   navGroup?: string | null;
+  // When true, the page enforces a runtime is_super_admin check
+  // inside its content + every backing API route. Used to surface a
+  // small "super-admin only" badge next to the page in the sidebar
+  // nav so an admin scanning the rail can tell at a glance which
+  // pages are gated tighter than `adminOnly: true` alone implies.
+  // Pure code-side concept — not stored in page_permissions — since
+  // it tracks the page's runtime gate, not an admin toggle.
+  superAdminOnly?: boolean;
   // When true, the page is visible exclusively to users with
   // user_kind='alumni'. Staff / admins / super-admins lose sidebar
   // entry + route access. Defaults to false; toggled per-page from
@@ -33,12 +41,13 @@ export interface PageConfig {
   externalUrl?: string;
 }
 
-const defaultPages: PageConfig[] = [
+export const defaultPages: PageConfig[] = [
   { path: '/app', label: 'Home', adminOnly: false, section: 'nav', sort_order: 0, allowedDepartments: [], departmentId: null },
-  // Connect-4 tournament — team-bonding game shipped across 10 phases.
-  // Phase 1: page scaffold + schema. Visible to all staff so the
-  // tournament participant pool isn't gated unnecessarily.
-  { path: '/app/games/connect4', label: 'Connect-4', adminOnly: false, section: 'nav', sort_order: 99, allowedDepartments: [], departmentId: null },
+  // Connect-4 tournament page (/app/games/connect4) used to be a
+  // top-level nav entry but the same game now lives inside the
+  // Arcade (/app/arcade/connect-four), so the standalone sidebar
+  // link was redundant. The tournament route still resolves —
+  // anyone with a bookmark or a direct link reaches it.
   // Hardware inventory — admin-only because the list contains PINs,
   // account credentials, and asset values that aren't appropriate
   // for general staff visibility.
@@ -63,9 +72,8 @@ const defaultPages: PageConfig[] = [
   { path: '/app/finance', label: 'Finance', adminOnly: true, section: 'nav', sort_order: 9, allowedDepartments: [], departmentId: null },
   { path: '/app/job-descriptions', label: 'Job Descriptions', adminOnly: false, section: 'nav', sort_order: 10, allowedDepartments: [], departmentId: null },
   { path: '/app/tours', label: 'Tours', adminOnly: false, section: 'nav', sort_order: 11, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
-  { path: '/app/admissions', label: 'Admissions', adminOnly: false, section: 'nav', sort_order: 15, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
-  { path: '/app/outreach', label: 'Marketing', adminOnly: false, section: 'nav', sort_order: 15.2, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
-  { path: '/app/partnerships', label: 'BD Partnerships', adminOnly: false, section: 'nav', sort_order: 15.4, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/app/contacts', label: 'Contacts', adminOnly: false, section: 'nav', sort_order: 15.2, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/app/partnerships', label: 'Partners', adminOnly: false, section: 'nav', sort_order: 15.4, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/donations', label: 'Donations', adminOnly: false, section: 'nav', sort_order: 15.6, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/intake-paperwork', label: 'Intake Paperwork', adminOnly: false, section: 'nav', sort_order: 16, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/app/seo', label: 'SEO', adminOnly: false, section: 'nav', sort_order: 20, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
@@ -82,16 +90,33 @@ const defaultPages: PageConfig[] = [
   // it in the sidebar but bounce to the app root if they navigate
   // in directly. Every /api/social-media/* route enforces the same
   // server-side via requireSuperAdmin.
-  { path: '/app/social-media', label: 'Social Media', adminOnly: true, section: 'nav', sort_order: 25, allowedDepartments: [], departmentId: null },
+  { path: '/app/social-media', label: 'Social Media', adminOnly: true, superAdminOnly: true, section: 'nav', sort_order: 25, allowedDepartments: [], departmentId: null },
   // Content — super-admin-only AI blog pipeline. Same gating pattern
   // as Social Media: adminOnly here for the sidebar, runtime
   // is_super_admin check inside the page + every /api/content/*
   // route via requireSuperAdmin.
-  { path: '/app/content', label: 'Content', adminOnly: true, section: 'nav', sort_order: 26, allowedDepartments: [], departmentId: null },
+  // Content — AI blog pipeline. Lives in the Marketing & Admissions
+  // department group so marketers see it grouped alongside Tours /
+  // Contacts / Partners / Email Campaigns in their sidebar. The
+  // server gate (src/lib/content-server.ts requireSuperAdmin) ALSO
+  // accepts Marketing department members + per-user overrides
+  // (set via /app/admin/user-permissions → Content tab), so the
+  // page is reachable by:
+  //   - super admins (always)
+  //   - anyone in the Marketing & Admissions department
+  //   - anyone with a user_page_permissions row for /app/content
+  // Runtime is_super_admin OR override check inside the page guards
+  // the editor surface; every /api/content/* route runs the same
+  // gate server-side.
+  { path: '/app/content', label: 'Content', adminOnly: false, section: 'nav', sort_order: 26, allowedDepartments: ['dfde0b96-c605-40dd-84e5-281af2f6d8e9'], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   // Email Campaigns — marketing-email build → recipients → send.
   // Lives in the Marketing department group like social-media; not
   // admin-only since the same marketing folks own the social channel.
   { path: '/app/email-campaigns', label: 'Email Campaigns', adminOnly: false, section: 'nav', sort_order: 27, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  // Touchpoint logs — the daily 🪵 board. Org-wide accountability
+  // surface, so dept-agnostic (matches Kaizen's pattern) and the
+  // auto-upsert on first-load won't wipe a department assignment.
+  { path: '/app/logs', label: 'Logs', adminOnly: false, section: 'nav', sort_order: 27.5, allowedDepartments: [], departmentId: null },
   { path: '/app/document-manager', label: 'Document Manager', adminOnly: false, section: 'nav', sort_order: 17, allowedDepartments: [], departmentId: null },
   // Org Chart is now accessed from inside another page (no longer in the popup menu).
   { path: '/app/reviews', label: 'Reviews', adminOnly: true, section: 'popup', sort_order: 6, allowedDepartments: [], departmentId: null },
@@ -99,12 +124,77 @@ const defaultPages: PageConfig[] = [
   // popup). Like Social Media, the page is gated by adminOnly here
   // AND a runtime is_super_admin check inside so non-super admins
   // see it surface but bounce to the app root if they navigate in.
-  { path: '/app/levers', label: 'Levers', adminOnly: true, section: 'popup', sort_order: 7, allowedDepartments: [], departmentId: null },
+  { path: '/app/levers', label: 'Levers and switches', adminOnly: true, superAdminOnly: true, section: 'popup', sort_order: 7, allowedDepartments: [], departmentId: null },
   { path: '/app/team', label: 'Team', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
+  // Kaizen — super-admin-only daily codebase scan. Lives in the
+  // regular sidebar nav for discoverability; the runtime
+  // is_super_admin check inside the page bounces non-super admins
+  // to /app, and every /api/kaizen/* route enforces super-admin
+  // server-side via requireSuperAdmin.
+  { path: '/app/kaizen', label: 'Kaizen', adminOnly: true, superAdminOnly: true, section: 'nav', sort_order: 90, allowedDepartments: [], departmentId: null },
+  // Mercury — super-admin-only bookkeeping mirror. The page
+  // registered as adminOnly here keeps it out of the rail for
+  // non-admins; a runtime is_super_admin check inside content.tsx
+  // bounces an admin (non-super) who navigates in directly, and
+  // every /api/mercury/* route enforces requireSuperAdmin
+  // server-side.
+  { path: '/app/mercury', label: 'Mercury', adminOnly: true, superAdminOnly: true, section: 'nav', sort_order: 9.5, allowedDepartments: [], departmentId: null },
+  // HIPAA technical-safeguards audit. Super-admin-gated at the
+  // route level (the page itself renders a locked panel for
+  // non-super-admins), and the /api/hipaa/scan endpoint enforces
+  // the same. Sits in popup (not nav) so it's reachable when
+  // needed without claiming a permanent rail slot.
+  { path: '/app/hipaa', label: 'HIPAA audit', adminOnly: true, superAdminOnly: true, section: 'popup', sort_order: 8, allowedDepartments: [], departmentId: null },
   // Chat — open to all staff + alumni. PageGuard's per-user override
   // for guests still applies (a guest sees Chat only when a super
   // admin grants /app/chat in their allow-list).
   { path: '/app/chat', label: 'Chat', adminOnly: false, section: 'nav', sort_order: 26, allowedDepartments: [], departmentId: null },
+  // Arcade — Seven Arrows themed games + leaderboards, open to
+  // both staff and alumni. canSeePage in PlatformShell adds
+  // /app/arcade to the cross-portal allowlist so the alumni-only
+  // gate doesn't hide it from staff.
+  { path: '/app/arcade', label: 'Arcade', adminOnly: false, section: 'nav', sort_order: 27, allowedDepartments: [], departmentId: null },
+
+  // ── Alumni portal ──────────────────────────────────────────
+  // Alumni-only surfaces. Every entry below carries alumniOnly:true
+  // so the sidebar hides them from staff + admins. The pages
+  // themselves also gate via userKind === 'alumni' at runtime so a
+  // staff member who pastes the URL bounces back to /app. The
+  // moderation page is the one exception — it's gated for staff.
+  // Sort orders 100-107 keep alumni surfaces grouped at the
+  // bottom of the alumni's sidebar.
+  { path: '/app/alumni', label: 'Home', adminOnly: false, section: 'nav', sort_order: 100, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/reunion', label: 'Reunion', adminOnly: false, section: 'nav', sort_order: 101, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/map', label: 'Map', adminOnly: false, section: 'nav', sort_order: 102, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/peer-support', label: 'Peer support', adminOnly: false, section: 'nav', sort_order: 103, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/meetups', label: 'Meetups', adminOnly: false, section: 'nav', sort_order: 104, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/scholarships', label: 'Scholarships', adminOnly: false, section: 'nav', sort_order: 105, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/resources', label: 'Resources', adminOnly: false, section: 'nav', sort_order: 106, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/app/alumni/stories', label: 'Voices & talks', adminOnly: false, section: 'nav', sort_order: 107, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  // Alumni-side My Profile. Lives at /app/alumni/profile (not the
+  // staff /app/profile) so the alumni form — opt-ins, sobriety
+  // date, interests — is the canonical identity surface for
+  // them. PlatformShell pins this to slot 2 of the alumni
+  // sidebar; the path itself is alumniOnly so staff never see
+  // the link unless they're a super admin auditing.
+  { path: '/app/alumni/profile', label: 'My Profile', adminOnly: false, section: 'popup', sort_order: 0.2, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  // /app/alumni/u/[id] is intentionally NOT registered here. It's a
+  // dynamic route that anyone signed in can reach via a direct link
+  // (the reunion guest list, alumni online list, etc.). The API at
+  // /api/alumni/profile/[id] already enforces opt-in privacy on the
+  // PII fields (phone / email / sobriety_date), so we don't need a
+  // separate registry-driven gate for the route itself.
+  // Staff-only moderation queue — NOT alumniOnly. adminOnly hides
+  // it from non-staff in the sidebar; an alumni who tries to navigate
+  // in directly bounces back via the runtime is_admin check in the
+  // page itself.
+  { path: '/app/alumni/moderation', label: 'Alumni moderation', adminOnly: true, section: 'popup', sort_order: 107, allowedDepartments: [], departmentId: null },
+  // Staff-facing alumni roster. adminOnly + an entry in
+  // lib/alumni-admin-paths.ts so alumni admins (is_alumni_admin)
+  // also see it in their sidebar even when is_admin is false.
+  // Lives at /app/alumni-roster (not under /app/alumni/*) so it
+  // doesn't confuse the alumni-portal namespace.
+  { path: '/app/alumni-roster', label: 'Alumni', adminOnly: true, section: 'nav', sort_order: 28, allowedDepartments: [], departmentId: null },
   // Super-admin gate is enforced inside the page itself + on every
   // /api/incoming-users/* route. adminOnly here keeps the link out
   // of regular admins' popup; the page bounces non-super admins to
@@ -119,6 +209,10 @@ const defaultPages: PageConfig[] = [
   // were previously five separate popup entries. They live under
   // /app/admin now — the index there links out to all of them.
   { path: '/app/admin', label: 'Admin', adminOnly: true, section: 'popup', sort_order: 0.5, allowedDepartments: [], departmentId: null },
+  // Operational health snapshot — stuck campaigns, cron failures,
+  // failed-send counts. Super-admin only (the page also runtime-
+  // gates on isSuperAdmin, and /api/admin/health is requireSuperAdmin).
+  { path: '/app/admin/health', label: 'Health', adminOnly: true, section: 'popup', sort_order: 0.6, allowedDepartments: [], departmentId: null },
   { path: '/app/activity', label: 'Activity', adminOnly: true, section: 'popup', sort_order: 5, allowedDepartments: [], departmentId: null },
 ];
 
@@ -252,7 +346,13 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
           const missing = defaultPages.filter((p) => !dbPaths.has(p.path));
           if (missing.length > 0) {
             for (const m of missing) {
-              await db({ action: 'upsert', table: 'page_permissions', data: [{ path: m.path, admin_only: m.adminOnly, section: m.section, sort_order: m.sort_order, allowed_departments: [], department_id: null }], onConflict: 'path' });
+              // Carry the code-side `alumniOnly` default through to the
+              // seeded row. Without this, a newly added alumni page lands
+              // in the DB with alumni_only=false and silently loses its
+              // alumni-only gate (this is exactly what dropped Reunion out
+              // of the alumni portal). Seeding the flag keeps the rule
+              // "any alumni page is automatically in the alumni set" true.
+              await db({ action: 'upsert', table: 'page_permissions', data: [{ path: m.path, admin_only: m.adminOnly, section: m.section, sort_order: m.sort_order, allowed_departments: [], department_id: null, alumni_only: m.alumniOnly === true }], onConflict: 'path' });
             }
           }
 

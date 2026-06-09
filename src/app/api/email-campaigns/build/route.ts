@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
+import { EPISODES, episodeHref } from '@/lib/episodes';
+import { findSitePage } from '@/lib/site-pages';
+import { buildEmailSystemPrompt, PROMPT_VERSION } from '@/lib/prompts/email-build-system';
 
 // POST /api/email-campaigns/build
 //
@@ -11,9 +14,9 @@ import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 // existing HTML according to the note instead of starting over.
 //
 // Required env: ANTHROPIC_API_KEY
-// Optional env: ANTHROPIC_MODEL (defaults to claude-opus-4-7)
+// Optional env: ANTHROPIC_MODEL (defaults to claude-opus-4-8)
 
-const DEFAULT_MODEL = 'claude-opus-4-7';
+const DEFAULT_MODEL = 'claude-opus-4-8';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
 
@@ -36,7 +39,13 @@ interface BuildBody {
   linkToWebsite?: unknown;
   includePhone?: unknown;
   includeQuote?: unknown;
+  includeInsuranceStrip?: unknown;
+  includeSocialFooter?: unknown;
+  darkMode?: unknown;
   featuredBlogId?: unknown;
+  featuredEpisodeSlug?: unknown;
+  featuredPagePath?: unknown;
+  featuredPageImageUrl?: unknown;
   featuredEmployeeId?: unknown;
   featuredEquineId?: unknown;
   previousHtml?: unknown;
@@ -77,7 +86,15 @@ export async function POST(req: NextRequest) {
   const linkToWebsite = !!body.linkToWebsite;
   const includePhone = !!body.includePhone;
   const includeQuote = !!body.includeQuote;
+  const includeInsuranceStrip = !!body.includeInsuranceStrip;
+  const includeSocialFooter = !!body.includeSocialFooter;
+  const darkMode = !!body.darkMode;
   const featuredBlogId = typeof body.featuredBlogId === 'string' ? body.featuredBlogId : null;
+  const featuredEpisodeSlug = typeof body.featuredEpisodeSlug === 'string' ? body.featuredEpisodeSlug : null;
+  const featuredPagePath = typeof body.featuredPagePath === 'string' ? body.featuredPagePath : null;
+  const featuredPageImageUrl = typeof body.featuredPageImageUrl === 'string' && body.featuredPageImageUrl.length > 0
+    ? body.featuredPageImageUrl
+    : null;
   const featuredEmployeeId = typeof body.featuredEmployeeId === 'string' ? body.featuredEmployeeId : null;
   const featuredEquineId = typeof body.featuredEquineId === 'string' ? body.featuredEquineId : null;
   const previousHtml = typeof body.previousHtml === 'string' ? body.previousHtml : null;
@@ -135,6 +152,35 @@ export async function POST(req: NextRequest) {
   const blogSummary = blog?.body_markdown ? blog.body_markdown.replace(/[#*_>`]/g, '').replace(/\s+/g, ' ').trim().slice(0, 400) : '';
   const horseNotes = horse?.notes ? horse.notes.replace(/\s+/g, ' ').trim().slice(0, 400) : '';
 
+  // Static-episode fallback: when the picker chose a Recovery
+  // Roadmap entry that doesn't live in public.blogs, resolve from
+  // the EPISODES table so Claude still receives a title + URL +
+  // blurb instead of treating it as "no blog featured".
+  let staticEpisode: { number: number; title: string; slug: string; blurb: string; url: string } | null = null;
+  if (!blog && featuredEpisodeSlug) {
+    const ep = EPISODES.find((e) => e.slug === featuredEpisodeSlug);
+    if (ep) {
+      // episodeHref() honors per-episode legacy URL overrides — so
+      // Episode 7 (Suboxone → Sublocade) lands at /transition-from-
+      // suboxone-to-sublocade rather than /who-we-are/blog/<slug>.
+      const href = episodeHref(ep.slug);
+      const url = href.startsWith('http') ? href : `${SITE_URL.replace(/\/$/, '')}${href}`;
+      staticEpisode = {
+        number: ep.number,
+        title: ep.title,
+        slug: ep.slug,
+        blurb: ep.blurb,
+        url,
+      };
+    }
+  }
+
+  // Featured marketing page (admissions, our-program, etc).
+  const featuredPage = findSitePage(featuredPagePath);
+  const featuredPageUrl = featuredPage
+    ? `${SITE_URL.replace(/\/$/, '')}${featuredPage.path}`
+    : null;
+
   const blogUrl = blog?.slug ? `${SITE_URL}who-we-are/blog/${blog.slug}` : null;
   const empUrl = emp?.public_slug ? `${SITE_URL}who-we-are/meet-our-team/${emp.public_slug}` : null;
 
@@ -142,112 +188,26 @@ export async function POST(req: NextRequest) {
   // two builds with the same inputs should not feel identical.
   const designSeed = Math.floor(Math.random() * 1_000_000);
 
-  // 10-pillar 2050 email design brief. The system prompt is
-  // intentionally long: this is the difference between a generic
-  // marketing email and one that feels like it came out of a
-  // boutique design studio. Claude Opus 4.7 is treated as the
-  // designer of record. Every build re-rolls a designSeed so the
-  // same brief yields different visual treatments across rebuilds.
-  const systemPrompt = `You are the senior brand + email designer for Seven Arrows Recovery, a residential addiction-treatment ranch in Arizona using trauma-informed, equine-assisted, polyvagal-informed care. You are designing in the year 2050: editorial, premium, restrained, with the soul of a hand-printed letter and the polish of a luxury hospitality brand. Your output renders inside Gmail, Apple Mail, and Outlook, so every visual choice must survive those clients without falling back to a generic newsletter look.
-
-You always think in TEN DESIGN PILLARS before composing the HTML. Apply all of them.
-
-PILLAR 1 — COMPOSITION
-Pick a deliberate composition for this build (don't repeat the last). Choose from: full-bleed editorial hero, asymmetric two-column with vertical rule, bento-card stack, magazine-style cover with overlapping rule lines, off-center hero with a thin sidebar caption, or quiet centered manifesto. Whichever you pick, anchor it with strong negative space; never crowd. The whole layout sits in a single 600px-wide table.
-
-PILLAR 2 — TYPE SYSTEM
-- Display: 'Cormorant Garamond', Georgia, 'Times New Roman', serif (used via @import-safe inline font-family with Georgia fallback so it survives email clients).
-- Body: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif.
-- Eyebrow / overline / caption: same body stack, uppercase, letter-spacing 0.22em, weight 700, size 10.5px-11.5px.
-- Hero headline: 32px-44px display serif, line-height 1.05, letter-spacing -0.01em, weight 500 or 600.
-- Subhead: 18px-22px display serif italic OR 14.5px body sans uppercase eyebrow, never both.
-- Body copy: 15.5px or 16px body sans, line-height 1.55, letter-spacing 0, color #2c1810.
-- Numbers / stats: tabular figures, large weight, deliberate.
-
-PILLAR 3 — COLOR SYSTEM (use the named palette; never invent off-brand colors)
-- Sand (page background): #faf6f1
-- Bone (card background): #ffffff or #fbf8f3
-- Copper (primary accent): #b87333
-- Copper Deep (hover / footer): #8b5523
-- Ink (body text): #2c1810
-- Sage (secondary accent): #7a8b6f
-- Desert Dusk (deep neutral panel): #2e2418
-- Hairline rule: rgba(44,24,16,0.12)
-Compose with two-tone or three-tone groupings; never use all five accents at once. The default background outside the email card is Sand; the email card itself can be Bone or, occasionally, a single Desert Dusk band for the hero.
-
-PILLAR 4 — IMAGE TREATMENT
-- All hero / feature images at 100% width of their container, height auto, display block, no border, border-radius:0 for full-bleed magazine moments OR 16px for soft-card moments. Pick one mode and stay consistent within the email.
-- Every image has alt text and width / height attributes set as inline attributes (not just CSS) so Outlook lays it out correctly.
-- If a single hero image is being used, treat it as a full-bleed editorial cover with the headline overlaid as a separate row directly underneath (not floating on the image, since Outlook can't reliably overlay text on images).
-- If multiple images, use a 2-up gallery row at 296px each with 8px gutter, OR a single hero plus a smaller half-width portrait paired with text.
-
-PILLAR 5 — RHYTHM AND SPACING
-Vertical spacing is the single biggest signal of premium design. Use 56px between major sections, 28px between paragraphs, 12px between an eyebrow and its headline. Never use less than 24px of padding inside a card. Never use a generic "10px 20px" combo.
-
-PILLAR 6 — RULES, MARKS, NUMBERED CHAPTERS
-Where helpful, drop in: a 1px horizontal hairline rule in Hairline color (with 56px breathing room above and below); a small uppercase eyebrow ("FROM THE RANCH", "FROM OUR BLOG", "MEET THE TEAM"); a chapter number like "01" set in display serif at 22px Copper. These are flavorings, not staples; use at most two in any single email.
-
-PILLAR 7 — CTA BUTTON
-- One primary CTA per email. Solid Copper background, Bone text, padding 24px 56px, font-size 15px, font-weight 700, letter-spacing 0.22em, uppercase, border-radius 2px (never pill / never 8px+), display inline-block, no shadow. The CTA should read as the largest deliberate moment on the page — bigger than the body copy and impossible to miss on mobile. Minimum 56px tall.
-- Render the CTA inside a centered table row with at least 48px of padding above and below so it has real room to breathe.
-
-PILLAR 8 — FEATURED BLOG CARD
-If a featured blog is provided, treat it as a magazine "Continue Reading" module. Two-column on desktop (image left, copy right) with a 1px Hairline rule above the module and an eyebrow "FROM OUR BLOG" or "ON THE JOURNAL". The image MUST come from the FEATURED BLOG IMAGES list. The blog summary is rewritten into a single 2-sentence tease, never reproduced verbatim. The "Continue reading" link is plain Copper text with a right arrow (→), no button styling.
-
-PILLAR 8b — PULL-QUOTE BLOCK
-If an INCLUDE QUOTE context block is supplied with a quote string, render a quiet block-quote section between the body copy and the CTA. Treatment:
-- 56px top + bottom padding around the module.
-- Open with a small uppercase eyebrow that reads "FROM A FAMILY WE'VE SERVED" or "FROM A GUEST" (pick one).
-- The quote itself is set in the display serif (Cormorant Garamond / Georgia fallback) at 22-26px, line-height 1.35, color Ink #2c1810, italic. Wrap it in real quotation marks (a leading curly open-quote and trailing curly close-quote). Center the block at 84% of the inner content width with no card border.
-- One line below, attribution: an em-rule-free dash followed by the author's first name + last initial only (e.g. "— Jessica C."). Set in body sans, uppercase eyebrow style (10.5px, letter-spacing 0.22em, color Copper #b87333). DO NOT use an em-dash for the attribution; the eyebrow line begins with a single ASCII hyphen + space "- " followed by the name.
-- If no quote was supplied, skip this pillar entirely; never write a placeholder.
-
-PILLAR 9 — FEATURED EMPLOYEE CARD
-If a featured employee is provided, render a "Meet the Team" spotlight: small circular avatar on the left, name in display serif on the right (Meet [Name], 22px), title in uppercase eyebrow underneath, then one line of bio rewritten in your voice. When a profile URL is supplied in FEATURED EMPLOYEE.url (i.e. anything other than "(no public slug...)") you MUST append, on its own line directly below the bio sentence, the link "Meet [FirstName] →" styled as plain Copper text (color:#b87333, text-decoration:underline, font-weight:600). Wrap the entire name + bio block in the same href so the avatar, the name, and the bio sentence are all clickable, AND keep the explicit "Meet [FirstName] →" line below for clarity. Both anchors use the exact FEATURED EMPLOYEE.url, target="_blank", rel="noopener". Use the employee's first name only in the "Meet [FirstName] →" link copy, not their full name. Never invent a profile URL; if no url was supplied, render the card without a link instead.
-
-CRITICAL — AVATAR MUST RENDER AS A TRUE CIRCLE, NOT AN OVAL. Source photos are almost never square, so naively applying border-radius:50% to a portrait-aspect <img> produces a squished ellipse. To force a real circle without stretching the face, render the avatar EXACTLY like this (an explicit width:96px / height:96px box on BOTH width/height HTML attributes AND in the inline style, with object-fit:cover so the source photo is center-cropped to fill the square, then border-radius:50% to round it):
-<img src="..." alt="..." width="96" height="96" style="display:block;width:96px;height:96px;border:0;border-radius:50%;object-fit:cover;object-position:center;" />
-Do not ever omit object-fit:cover or set width/height to anything other than identical values. If you wrap the avatar in a link, the wrapping <a> must be display:inline-block with width:96px;height:96px so it doesn't stretch the image either. Outlook degrades object-fit to a top-cropped fill — that's acceptable; never use a different shape (square, rounded rectangle) as a fallback.
-
-PILLAR 9b — FEATURED HORSE CARD
-If a featured horse is provided, render a "From the Herd" spotlight that mirrors the employee card pattern: circular horse photo on the left, the horse's name in display serif on the right (Meet [Name], 22px), the horse's role in uppercase eyebrow underneath (use the "works in" field), then one short line drawn from the horse's notes, rewritten in your voice. The photo MUST be one of the URLs supplied in FEATURED HORSE photos; never invent or substitute. The herd is a working co-author of the program, not a mascot — keep the copy quiet and grounded, never cute. The circular-avatar requirement from PILLAR 9 applies here identically: width:96px / height:96px on both HTML attributes and inline style, object-fit:cover, border-radius:50% — non-square horse photos must center-crop to a true circle, never an ellipse.
-
-PILLAR 10 — FOOTER
-The footer is a quiet, restrained affair, but it always closes with a human invitation to call.
-- "Seven Arrows Recovery" in display serif italic at 14px Ink.
-- One line in eyebrow type (10.5px, uppercase, letter-spacing 0.22em, Copper #b87333) with the website URL.
-- One short friendly closer in body sans at 13px Ink, line-height 1.55, italic, that warmly invites the reader to call. Vary the wording across builds (use the DESIGN SEED as a tiebreaker) so it never reads canned. Examples: "Questions? Real humans answer the phone — call (866) 718-1665.", "Whenever you're ready to talk, we're a phone call away: (866) 718-1665.", "We'd love to hear from you. Call (866) 718-1665 anytime.", "Prefer a voice on the other end? Call (866) 718-1665 — we pick up." Always end with the phone number in the exact format "(866) 718-1665", and wrap the digits in a tel: link with href="tel:+18667181665", color Copper, underline. Never use an em-dash here either; ASCII hyphens only.
-Add a single soft rule above the footer (1px Hairline, 56px above and below). No address blob, no social row, no preference link clutter. Restraint everywhere except the warmth of that one closing line.
-
-GLOBAL CONSTRAINTS — these are absolute:
-- HTML5 doctype. Single document, complete, valid. Open with <!doctype html>, close with </html>.
-- INLINE STYLES ONLY. No <style> blocks. No <script>. No <link>. No external CSS. No web fonts loaded from CDN; rely on the font stack fallbacks.
-- Email-safe layout: outer 100% table, inner centered 600px table, all real layout via <table>, not divs (divs are fine for inline-block badges).
-- Background color of the outer <body> and the outer wrapper table is the Sand color #faf6f1.
-- Mobile-friendly without media queries: column widths use percentages where possible; minimum tap target 44px for the CTA.
-- Every <a> uses an absolute https:// URL; never use relative paths.
-- Every <img> has src, alt, width, height (in HTML attributes), display:block, border:0, max-width:100%, height:auto in style.
-- Never reference an image URL that wasn't supplied in the IMAGES or FEATURED BLOG IMAGES context.
-- Never reference a blog or employee that wasn't supplied.
-- Avoid placeholder text (lorem ipsum, "TBD"); write around any missing inputs.
-
-WRITING RULES — these are strict and overrule the rest of the brief:
-- NEVER use em-dashes (—, U+2014) or en-dashes (–, U+2013) anywhere in the subject or body copy. Use a period, a comma, a semicolon, or a colon instead. Rewrite sentences if needed. The HTML must not contain the characters "—" or "–" at all (including inside &mdash; / &ndash; / &#8212; / &#8211; entities).
-- Do not use the HTML entities &mdash; or &ndash;.
-- Hyphens (-, U+002D) are fine for compound words.
-- No emoji. No hashtags. No "Dear Friend" salutations.
-- If a DRAFT TEXT block is supplied, use those exact words for the headline / body / CTA / postscript. Do not paraphrase, do not "improve" them. Your job in that case is purely composition and design.
-
-OUTPUT FORMAT — return ONE JSON object with two keys:
-  "subject": short subject line (no greater than 80 chars), no quotes, no emoji.
-  "html": the complete document.
-
-Return ONLY the JSON object. No preamble. No markdown fences.
-
-DESIGN SEED for this build: ${designSeed}. Use it as a tiebreaker when picking between equally good composition / palette / treatment options so successive builds with the same inputs do not look identical.`;
+  // 10-pillar 2050 email design brief. The system prompt body lives
+  // in @/lib/prompts/email-build-system so prompt edits are legible
+  // in code review and a snapshot test catches accidental whitespace
+  // drift before it ships. PROMPT_VERSION is bumped whenever the
+  // prompt changes so a per-build audit log can pin a quality
+  // regression to a specific revision.
+  const systemPrompt = buildEmailSystemPrompt(designSeed);
+  void PROMPT_VERSION; // referenced for build-audit trails (logged on send-pipeline tickets)
 
   const ctxLines: string[] = [];
   ctxLines.push(`AUTHOR PROMPT:\n${prompt || '(none, write a tasteful general update)'}`);
+  // Dark/light mode directive — promoted to the top of the context
+  // block so Claude reads it before any palette decisions. Overrides
+  // PILLAR 3's default Sand background when set.
+  ctxLines.push(
+    `COLOR MODE: ${darkMode ? 'DARK' : 'LIGHT'}.\n` +
+      (darkMode
+        ? 'Render the entire email in DARK MODE. The outer <body> background, the wrapper <table>, and any outer card background must be Desert Dusk (#2e2418), with body copy in Bone (#fbf8f3) and eyebrows / accents in Copper (#b87333). Replace any usage of Sand (#faf6f1) with Desert Dusk. Replace any usage of Ink (#2c1810) with Bone for text. The CTA button stays Copper background with Bone text. Hairline rules become rgba(251,248,243,0.18) instead of rgba(44,24,16,0.12). Hero photos and inline images can keep their natural colors — they sit ON the dark background like prints on a dark gallery wall. Quote text inside the pull-quote block becomes Bone, the eyebrow stays Copper. The footer text stays Bone with Copper accents. Do not render any white card surfaces; if a contained card is helpful, use a slightly lighter Desert Dusk (#372b1f) instead of Bone (#fbf8f3).'
+        : 'Render the email in the default LIGHT palette per PILLAR 3 (Sand background, Bone or Sand-tinted cards, Ink body text, Copper accents).'),
+  );
   ctxLines.push(`USE LOGOS: ${useLogos ? 'yes' : 'no'}`);
   if (useLogos) {
     ctxLines.push(`LOGO URL (primary, vertical, transparent): ${LOGO_URL}`);
@@ -260,7 +220,84 @@ DESIGN SEED for this build: ${designSeed}. Use it as a tiebreaker when picking b
   if (includePhone) {
     ctxLines.push(`PHONE NUMBER: ${ADMISSIONS_PHONE}. Surface it inside the email as either: (a) a small uppercase eyebrow strip directly under the logo ("ADMISSIONS · (866) 718-1665"), or (b) a quiet line directly under the CTA button ("Or call (866) 718-1665"), tel: link with href="tel:+18667181665". Pick ONE placement, not both. Format as styled text, not a button. Always use the exact format "(866) 718-1665" in the visible copy.`);
   }
+  // Insurance accepted strip — short logo row near the top of the
+  // email so coverage is visible at a glance. Brandfetch CDN serves
+  // these PNGs reliably; we pin width to 80px so the row stays
+  // restrained even on a 600px-wide email. If a logo doesn't load,
+  // Claude's <img alt="..."> falls back to the alt text.
+  if (includeInsuranceStrip) {
+    ctxLines.push(
+      `INCLUDE INSURANCE STRIP: yes. Render a quiet "Insurance accepted" module BELOW the header / hero and ABOVE the body copy. Treatment:
+  - A small uppercase eyebrow that reads "IN-NETWORK WITH" (10.5px, letter-spacing 0.22em, color Copper #b87333), centered, 56px above + 28px below.
+  - A single <table> row containing five logo cells, each cell padding 0 12px, vertical-align middle, text-align center. Logos render as <img width="80" height="32" style="display:inline-block;max-width:80px;max-height:32px;width:auto;height:auto;border:0;" /> so the row reads as five evenly spaced marks across the inner 600px container. Drop opacity to roughly 0.78 so the row reads as a quiet credibility cue, not a sales pitch.
+  - Underneath the row, one single 11px Ink line (italic optional), centered: "Most major plans accepted. Curious about yours? Reply to this email or call (866) 718-1665."
+  Carriers (use these exact image URLs; never invent or substitute):
+    1. Aetna · https://cdn.brandfetch.io/aetna.com/fallback/404/w/240/h/80/logo?c=1id3n10pdBTarCHI0db
+    2. Blue Cross Blue Shield · https://cdn.brandfetch.io/bcbs.com/fallback/404/w/240/h/80/logo?c=1id3n10pdBTarCHI0db
+    3. Cigna · https://cdn.brandfetch.io/cigna.com/fallback/404/w/240/h/80/logo?c=1id3n10pdBTarCHI0db
+    4. Humana · https://cdn.brandfetch.io/humana.com/fallback/404/w/240/h/80/logo?c=1id3n10pdBTarCHI0db
+    5. TRICARE · https://cdn.brandfetch.io/tricare.mil/fallback/404/w/240/h/80/logo?c=1id3n10pdBTarCHI0db
+  Each <img> alt attribute is the carrier name verbatim. Each cell wraps the <img> in an <a href="${SITE_URL.replace(/\/$/, '')}/insurance"> so a tap on any logo opens the insurance landing page.`,
+    );
+  }
+  // Social footer row — IG/FB/LinkedIn icons in the closing block.
+  // Same Brandfetch CDN pattern as the insurance strip; sized to a
+  // compact 24px round mark each, three across, centered with 16px
+  // gaps. Links use the real 7A handles.
+  if (includeSocialFooter) {
+    // Monochrome marks. Instagram + Facebook come from simpleicons.org
+    // (still available there), LinkedIn is self-hosted at
+    // /public/icons/linkedin-{ink|white}.svg because Simple Icons
+    // removed LinkedIn from their library after a trademark request
+    // and the CDN now serves an empty response for that slug — that
+    // was the broken icon the marketers were seeing in the
+    // FOLLOW ALONG row. Self-hosting decouples us from any future
+    // CDN brand pulls. Color flips off the campaign's COLOR MODE:
+    // white on dark mode, near-black on light mode so the icons
+    // always read with high contrast against the email's background.
+    const iconHex = darkMode ? 'ffffff' : '1a1a1a';
+    const igIcon = `https://cdn.simpleicons.org/instagram/${iconHex}`;
+    const fbIcon = `https://cdn.simpleicons.org/facebook/${iconHex}`;
+    const liIcon = darkMode
+      ? 'https://sevenarrowsrecoveryarizona.com/icons/linkedin-white.svg'
+      : 'https://sevenarrowsrecoveryarizona.com/icons/linkedin-ink.svg';
+    ctxLines.push(
+      `INCLUDE SOCIAL FOOTER: yes. Add a small social row INSIDE the footer block (PILLAR 10), directly above the closing phone-number line, with a single hairline rule above it for separation. Treatment:
+  - A small uppercase eyebrow centered above the icons: "FOLLOW ALONG" (10.5px, letter-spacing 0.22em, Copper #b87333).
+  - One centered <table> row with three icon cells, each cell padding 0 8px. Each icon renders as <img width="22" height="22" style="display:inline-block;width:22px;height:22px;border:0;" /> wrapped in an <a href="..." target="_blank" rel="noopener">. Do NOT round the corners — these are monochrome glyph marks, not full-color brand tiles. Drop opacity to ~0.85.
+  Handles (use these exact image URLs + hrefs verbatim — they are MONOCHROME ${darkMode ? 'WHITE' : 'INK'} marks tuned for the current color mode, so do not swap them for brand-colored logos):
+    1. Instagram · img: ${igIcon} · href: https://www.instagram.com/sevenarrowsrecovery/
+    2. Facebook  · img: ${fbIcon}  · href: https://www.facebook.com/sevenarrowsrecovery
+    3. LinkedIn  · img: ${liIcon}  · href: https://www.linkedin.com/company/sevenarrowsrecovery/
+  Each <img> alt attribute is the platform name verbatim ("Instagram", "Facebook", "LinkedIn"). Place the row between the hairline rule and the friendly closing phone-number sentence so the eye reads: rule → "FOLLOW ALONG" → three marks → closing line.`,
+    );
+  }
   ctxLines.push(`IMAGES (${imageUrls.length}):\n${imageUrls.length === 0 ? '(none)' : imageUrls.map((u, i) => `  ${i + 1}. ${u}`).join('\n')}`);
+  // Multi-image layout directive. Without this the model places
+  // each image at a different spot in the body, which reads as
+  // unrelated random photos. When the marketer selects ≥2 images
+  // we want them rendered as ONE cohesive gallery block.
+  if (imageUrls.length >= 2) {
+    const layoutHint =
+      imageUrls.length === 2 ? '2 cells side-by-side (50/50 split)'
+      : imageUrls.length === 3 ? '3 cells in one row, equal width'
+      : imageUrls.length === 4 ? 'a 2×2 grid (2 rows of 2)'
+      : imageUrls.length <= 6 ? `a 3-column grid (${imageUrls.length === 5 ? '2 rows: 3 + 2 centered' : '2 rows of 3'})`
+      : `a 3-column grid (${Math.ceil(imageUrls.length / 3)} rows of up to 3, last row left-aligned)`;
+    ctxLines.push(
+      `MULTI-IMAGE GALLERY: ${imageUrls.length} images selected. Render them as a SINGLE cohesive gallery block — never scatter individual images through the body copy. Layout: ${layoutHint}.
+
+Email-safe HTML rules for the gallery (Outlook + Apple Mail + Gmail web/native + iOS):
+  • Outer <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"> as the row wrapper.
+  • One <tr> per row of cells. Each <tr> holds <td> cells of equal width with a fixed horizontal gutter (8-12px) implemented via cellpadding on the td OR a thin spacer <td>.
+  • Each <img> sits inside its <td> at width="100%" + height="auto" + style="display:block;border:0;outline:none;text-decoration:none;height:auto;width:100%;border-radius:6px;". DO NOT use object-fit (not supported in Outlook).
+  • DO NOT use CSS grid or flexbox — Outlook strips them.
+  • Add a small uppercase Copper eyebrow above the gallery ("FROM THE RANCH", "RECENT MOMENTS", "GALLERY", or a contextually-fitting 1-2 word phrase — pick the one that matches the campaign body). Eyebrow style matches the rest of the email: 10.5px, letter-spacing 0.22em, Copper, centered.
+  • Place the gallery as ONE block in a natural narrative position (e.g., after an introductory paragraph that sets up what the photos show, before the CTA). Never split it across the body.
+  • All image alt attributes should be brief and descriptive ("Sunset over the herd", "Group at the ranch firepit") — not the file name. Use neutral fallbacks if the surrounding copy doesn't make it obvious.
+  • Mobile reflow: in the <td> width attribute use a fixed pixel width that totals ~600px for the whole row at desktop. On mobile, the email client's auto-stacking will collapse each <td> to full width naturally — let it; do not add @media query overrides that fight it.`,
+    );
+  }
   if (blog) {
     ctxLines.push(
       `FEATURED BLOG:\n  title: ${blog.title}\n  url: ${blogUrl ?? '(no public slug yet, describe in text only, no link)'}\n  summary: ${blogSummary}`,
@@ -268,6 +305,34 @@ DESIGN SEED for this build: ${designSeed}. Use it as a tiebreaker when picking b
     if (blogImages.length > 0) {
       ctxLines.push(
         `FEATURED BLOG IMAGES (use one of these for the blog card, never a marketer-supplied IMAGE):\n${blogImages.map((bi, i) => `  ${i + 1}. ${bi.url} | alt: ${bi.alt ?? ''}`).join('\n')}`,
+      );
+    }
+  } else if (staticEpisode) {
+    // Treat a static Recovery Roadmap episode identically to a
+    // DB-backed FEATURED BLOG so PILLAR 8's "Continue Reading"
+    // module still renders. No blog_images list — the static
+    // episode uses no image and the card is text-only with a small
+    // serif "Episode N" eyebrow above the title.
+    ctxLines.push(
+      `FEATURED BLOG (Recovery Roadmap, Episode ${staticEpisode.number}):\n  title: ${staticEpisode.title}\n  url: ${staticEpisode.url}\n  summary: ${staticEpisode.blurb}\n  episodeNumber: ${staticEpisode.number}`,
+    );
+    ctxLines.push(
+      `FEATURED BLOG IMAGES: (none — render the blog card text-only with a small "Episode ${staticEpisode.number}" eyebrow above the title)`,
+    );
+  }
+  if (featuredPage && featuredPageUrl) {
+    // The page picker forces the marketer to pair a specific image
+    // with the page (step 2 of the modal). When that image is
+    // present we render the module as a small photo card; when
+    // absent (legacy drafts saved before this UI shipped) we keep
+    // the original text-only "Continue exploring" module.
+    if (featuredPageImageUrl) {
+      ctxLines.push(
+        `FEATURED PAGE (render a small image-led "Continue exploring" module BELOW the body copy and ABOVE the CTA, separate from any FEATURED BLOG card). Layout: the image on the left at 120x120 (border-radius 8px, object-cover), the text block on the right. Text block: a small uppercase Copper eyebrow ("ON ${featuredPage.group.toUpperCase()}" or "DIVE DEEPER"), a 20px display-serif headline with the page title, a single 1-sentence blurb, and a Copper-text "Read more →" link to the URL. No card border, no button styling. Skip if it would duplicate the primary CTA URL.\n  title: ${featuredPage.title}\n  url: ${featuredPageUrl}\n  group: ${featuredPage.group}\n  description: ${featuredPage.blurb}\n  image: ${featuredPageImageUrl}  ← USE THIS EXACT URL for the card photo, do not substitute another IMAGE from the library`,
+      );
+    } else {
+      ctxLines.push(
+        `FEATURED PAGE (render a quiet "Continue exploring" module BELOW the body copy and ABOVE the CTA, separate from any FEATURED BLOG card). Treat it like a section sign-post: a small uppercase eyebrow that reads "ON ${featuredPage.group.toUpperCase()}" or "DIVE DEEPER", a 22px display-serif headline with the page title, a single 1-sentence blurb (you can use the description below), and a Copper-text "Read more →" link to the URL. No card border, no button styling. Skip if it would duplicate the primary CTA URL.\n  title: ${featuredPage.title}\n  url: ${featuredPageUrl}\n  group: ${featuredPage.group}\n  description: ${featuredPage.blurb}`,
       );
     }
   }
@@ -321,7 +386,13 @@ ${ctxLines.join('\n\n')}`;
       },
       body: JSON.stringify({
         model,
-        max_tokens: 8192,
+        // 16384 was 8192 — but a darkmode + multi-image + featured-
+        // horse + insurance-strip + social-footer email reliably blew
+        // past 8k tokens, truncating mid-HTML-string and producing the
+        // "Claude returned an unparseable response" toggle bug. Opus
+        // 4.7 supports well above this; the visible ceiling for our
+        // payloads sits around 12-14k.
+        max_tokens: 16384,
         system: systemPrompt,
         messages: [{ role: 'user', content: userContent }],
       }),
@@ -380,25 +451,121 @@ function stripDashes(input: string): string {
     .replace(/\s+,/g, ',');
 }
 
-// Claude usually returns clean JSON when asked to, but sometimes
-// wraps in ```json fences or prepends a sentence. Strip both, then
-// JSON.parse, falling back to a brace-balanced substring as a
-// last resort.
+// Claude usually returns clean JSON when asked to, but real-world
+// responses break the parser in three repeatable ways:
+//   1. ```json fences anywhere (start, end, or both).
+//   2. A "Here is the email:" preamble before the first '{', or
+//      a "Let me know if you want changes" trailer after the last
+//      '}'.
+//   3. Literal newlines / tabs / CRs inside the HTML string value
+//      that should have been escaped — strict JSON.parse rejects
+//      them as control characters in strings.
+//   4. Truncation: the response ran out of tokens mid-HTML, leaving
+//      a string that never closes plus an unbalanced object. We
+//      try to repair that by closing the open string and balancing
+//      braces, so the marketer at least gets a draft instead of a
+//      hard failure.
 function parseClaudeJson(raw: string): { subject?: string; html?: string } | null {
-  const trimmed = raw
-    .replace(/^```(?:json)?/i, '')
-    .replace(/```$/i, '')
-    .trim();
-  try {
-    return JSON.parse(trimmed) as { subject?: string; html?: string };
-  } catch {
-    const start = trimmed.indexOf('{');
-    const end = trimmed.lastIndexOf('}');
-    if (start === -1 || end === -1 || end <= start) return null;
+  // Strip fences anywhere, then narrow to the JSON object span by
+  // taking content between the first '{' and the matching '}'. The
+  // matching pass walks the string char-by-char so a '}' inside an
+  // HTML string value can't end the object early.
+  const fenced = raw.replace(/```(?:json)?/gi, '').trim();
+  const start = fenced.indexOf('{');
+  if (start === -1) return null;
+  const end = findMatchingBrace(fenced, start);
+  const slice = end !== -1 ? fenced.slice(start, end + 1) : fenced.slice(start);
+
+  const candidates = [
+    slice,
+    escapeStringControlChars(slice),
+    repairTruncated(slice),
+    escapeStringControlChars(repairTruncated(slice)),
+  ];
+  for (const c of candidates) {
     try {
-      return JSON.parse(trimmed.slice(start, end + 1)) as { subject?: string; html?: string };
+      const parsed = JSON.parse(c) as { subject?: string; html?: string };
+      if (parsed && (parsed.html || parsed.subject)) return parsed;
     } catch {
-      return null;
+      // try next candidate
     }
   }
+  return null;
+}
+
+// Returns the index of the '}' that closes the '{' at `from`, or
+// -1 if the object is unterminated (i.e. truncation). Tracks string
+// boundaries with backslash escaping so braces inside HTML values
+// don't end the object early.
+function findMatchingBrace(s: string, from: number): number {
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = from; i < s.length; i++) {
+    const c = s[i];
+    if (inString) {
+      if (escape) { escape = false; continue; }
+      if (c === '\\') { escape = true; continue; }
+      if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') { inString = true; continue; }
+    if (c === '{') depth++;
+    else if (c === '}') { depth--; if (depth === 0) return i; }
+  }
+  return -1;
+}
+
+// Walks the string and, when inside a JSON string literal, replaces
+// unescaped CR/LF/TAB with their escape sequences so JSON.parse
+// stops rejecting otherwise-valid Claude output. Quote and
+// backslash boundaries are honoured the same way findMatchingBrace
+// honours them.
+function escapeStringControlChars(s: string): string {
+  let out = '';
+  let inString = false;
+  let escape = false;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inString) {
+      if (escape) { out += c; escape = false; continue; }
+      if (c === '\\') { out += c; escape = true; continue; }
+      if (c === '"') { out += c; inString = false; continue; }
+      if (c === '\n') { out += '\\n'; continue; }
+      if (c === '\r') { out += '\\r'; continue; }
+      if (c === '\t') { out += '\\t'; continue; }
+      out += c;
+      continue;
+    }
+    out += c;
+    if (c === '"') inString = true;
+  }
+  return out;
+}
+
+// Best-effort repair for truncated output. If the slice ends inside
+// an open string (no closing '"'), close the string. Then close any
+// open braces. This produces a syntactically-valid object that loses
+// only the trailing characters Claude never got to emit, which is
+// almost always better than handing the user a hard error.
+function repairTruncated(s: string): string {
+  let inString = false;
+  let escape = false;
+  let depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inString) {
+      if (escape) { escape = false; continue; }
+      if (c === '\\') { escape = true; continue; }
+      if (c === '"') inString = false;
+      continue;
+    }
+    if (c === '"') { inString = true; continue; }
+    if (c === '{') depth++;
+    else if (c === '}') depth--;
+  }
+  let out = s;
+  if (inString) out += '"';
+  while (depth > 0) { out += '}'; depth--; }
+  return out;
 }

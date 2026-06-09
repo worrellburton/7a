@@ -27,6 +27,7 @@ interface LogRow {
   contacted_by: string | null;
   contacted_at: string;
   duration_seconds: number | null;
+  method: string | null;
 }
 interface ContactLite {
   id: string;
@@ -106,25 +107,58 @@ export async function GET() {
   // Logs over the longest window we'll need (30d) + the
   // pipeline-counter contact slice in parallel. Each query is
   // independent so running them in series wastes a full round-trip
-  // of latency for no reason.
-  const [logsRes, contactsRes] = await Promise.all([
-    admin
-      .from('contact_logs')
-      .select('contact_id, contacted_by, contacted_at, duration_seconds')
-      .gte('contacted_at', new Date(monthCut).toISOString()),
-    // Pipeline counters use the denormalised contacts.last_contact_at
-    // so a contact last touched 35 days ago still rolls into
-    // 'total contacted' / 'never contacted' — independent of the
-    // 30-day window above.
-    admin
-      .from('contacts')
-      .select('id, last_contact_at, formatted_address, location, email, phone, phone_cell, phone_office, company, role, specialty, type'),
-  ]);
-  if (logsRes.error) return NextResponse.json({ error: logsRes.error.message }, { status: 500 });
-  if (contactsRes.error) return NextResponse.json({ error: contactsRes.error.message }, { status: 500 });
-  const rows = (logsRes.data ?? []) as LogRow[];
-  const contacts = contactsRes.data;
-  const contactList = (contacts ?? []) as ContactLite[];
+  // of latency for no reason. Both queries are paginated in 1000-
+  // row pages so they're genuinely unbounded — the previous
+  // .limit(100000) was a safer bound than the PostgREST default
+  // but still a cap.
+  const PAGE = 1000;
+  async function fetchAllLogs(): Promise<LogRow[]> {
+    const out: LogRow[] = [];
+    for (let offset = 0; ; offset += PAGE) {
+      const { data, error } = await admin
+        .from('contact_logs')
+        .select('contact_id, contacted_by, contacted_at, duration_seconds, method')
+        .gte('contacted_at', new Date(monthCut).toISOString())
+        .range(offset, offset + PAGE - 1);
+      if (error) throw new Error(error.message);
+      const chunk = (data ?? []) as LogRow[];
+      out.push(...chunk);
+      if (chunk.length < PAGE) break;
+    }
+    return out;
+  }
+  async function fetchAllContacts(): Promise<ContactLite[]> {
+    const out: ContactLite[] = [];
+    for (let offset = 0; ; offset += PAGE) {
+      const { data, error } = await admin
+        .from('contacts')
+        .select('id, last_contact_at, formatted_address, location, email, phone, phone_cell, phone_office, company, role, specialty, type')
+        .range(offset, offset + PAGE - 1);
+      if (error) throw new Error(error.message);
+      const chunk = (data ?? []) as ContactLite[];
+      out.push(...chunk);
+      if (chunk.length < PAGE) break;
+    }
+    return out;
+  }
+
+  let allLogs: LogRow[];
+  let contactList: ContactLite[];
+  try {
+    [allLogs, contactList] = await Promise.all([fetchAllLogs(), fetchAllContacts()]);
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+  }
+  // `contact_logs` carries two flavours of rows: real outreach
+  // touchpoints (calls, emails, texts, in-person, etc.) AND a
+  // 'New Contact' registration event written every time a contact
+  // is added — including by the auto-add cron and the auto-contact
+  // lever. The registration events are NOT outreach and shouldn't
+  // count toward "areas contacted today" or the activity
+  // leaderboards (the user flagged that the locations chip was
+  // surfacing places they hadn't actually reached out to today,
+  // because the rows were just freshly-added contacts).
+  const rows = allLogs.filter((r) => (r.method ?? '').trim().toLowerCase() !== 'new contact');
   const byId = new Map<string, ContactLite>();
   for (const c of contactList) byId.set(c.id, c);
 

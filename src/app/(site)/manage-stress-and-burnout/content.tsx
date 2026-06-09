@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "How to Best Manage Stress and Burnout" },
         ]}
         description="In the modern, fast-paced world, stress and burnout have become common challenges, especially for those facing drug addiction. Our holistic drug rehab center acknowledges the importance of addressing stress and burnout as part of…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

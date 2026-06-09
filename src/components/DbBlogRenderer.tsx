@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, type ReactElement } from 'react';
+import React, { useEffect, useRef, type ReactElement } from 'react';
 import type { Layout, LayoutBlock } from '@/lib/content-claude';
 
 // Public-site renderer for DB-backed blog posts. Walks the layout
@@ -257,11 +257,31 @@ export function WebglScene({ scene, accent }: { scene: 'particles' | 'orbit' | '
   );
 }
 
-export default function DbBlogRenderer({ layout }: { layout: Layout }) {
+export default function DbBlogRenderer({
+  layout,
+  byline,
+}: {
+  layout: Layout;
+  /** Optional byline block — when provided, it renders directly
+   *  after the post's hero (image + title + tagline) so the
+   *  reader sees: hero → byline → content. Layouts without a
+   *  hero render the byline at the very top of the article so
+   *  the author still surfaces above the prose. */
+  byline?: React.ReactNode;
+}) {
+  // Locate the hero so we can splice the byline in right after.
+  // A post can in principle carry multiple hero blocks; we only
+  // inject the byline after the first one, then render the rest
+  // of the layout untouched.
+  const heroIdx = byline ? layout.blocks.findIndex((b) => b.type === 'hero') : -1;
   return (
     <article className="max-w-3xl mx-auto px-5 sm:px-6 py-12 sm:py-16" style={{ fontFamily: 'var(--font-body)' }}>
+      {byline && heroIdx === -1 && <div className="mb-6">{byline}</div>}
       {layout.blocks.map((block, i) => (
-        <RenderBlock key={i} block={block} />
+        <React.Fragment key={i}>
+          <RenderBlock block={block} />
+          {byline && i === heroIdx && <div className="-mt-4 mb-8">{byline}</div>}
+        </React.Fragment>
       ))}
     </article>
   );

@@ -56,7 +56,7 @@ export default function SonoranSanctuary() {
       <video
         ref={videoRef}
         src={siteVideos.sonoranRanch}
-        poster="/images/facility-exterior-mountains.jpg"
+        poster="/hero/facility-exterior-mountains.jpg"
         autoPlay
         muted
         loop

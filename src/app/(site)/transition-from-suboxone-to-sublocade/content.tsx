@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: 'Transitioning from Suboxone to Sublocade' },
         ]}
         description="What to expect when switching from daily Suboxone to a monthly Sublocade injection — eligibility, the timing, insurance coverage, and how our Arizona team walks alongside you the whole way."
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

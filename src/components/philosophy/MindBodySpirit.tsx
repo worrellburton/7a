@@ -12,17 +12,17 @@ const pillars = [
   {
     title: 'Mind',
     body: 'Psychoeducation, attentional practices, and cognitive reframing address thought patterns and build the awareness needed for self-regulation.',
-    image: '/images/individual-therapy-session.jpg',
+    image: '/hero/individual-therapy-session.jpg',
   },
   {
     title: 'Body',
     body: 'Somatic experiencing, breathwork, movement, and equine-assisted practice reconnect clients with their physical selves and restore nervous-system regulation.',
-    image: '/images/horses-grazing.jpg',
+    image: '/hero/horses-grazing.jpg',
   },
   {
     title: 'Spirit',
     body: 'Meaning-making, values development, community connection, and time under the desert sky cultivate purpose and the coherence that lasting recovery depends on.',
-    image: '/images/sign-night-sky-milky-way.jpg',
+    image: '/hero/sign-night-sky-milky-way.jpg',
   },
 ];
 

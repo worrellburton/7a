@@ -1,5 +1,12 @@
 import type { Metadata } from 'next';
 
+// 1-hour ISR — marketing pages are otherwise fully static; this lets the
+// edge cache hold the rendered HTML so TTFB drops from ~250ms (cold SSR)
+// to ~30ms (edge hit). Editorial copy + image swaps go live within an hour
+// of merging; if you need sub-hour freshness on a specific page, override
+// with a smaller value or remove this line.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'Our Program | Seven Arrows Recovery',
   description:
@@ -70,7 +77,7 @@ export default function OurProgramPage() {
           { label: 'Our Program' },
         ]}
         description="At Seven Arrows Recovery, we blend clinical excellence with the healing power of the land, indigenous wisdom, and trauma-focused care. Our intimate, boutique setting ensures every client receives deeply personalized treatment."
-        image="/images/sound-healing-session.jpg"
+        image="/hero/sound-healing-session.jpg"
         ctas={[
           {
             kind: 'phone',

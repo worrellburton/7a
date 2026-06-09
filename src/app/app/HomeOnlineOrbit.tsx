@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 // Centered, slowly-rotating ring of avatars representing every
 // teammate seen in the last 24 hours.
@@ -24,6 +25,11 @@ interface OrbitUser {
   id: string;
   full_name: string | null;
   avatar_url: string | null;
+  // Pre-rendered 60×60 WebP as a `data:image/webp;base64,...` URL.
+  // Prefer this over avatar_url so the orbit paints without per-avatar
+  // HTTP requests. Falls back to avatar_url when null (legacy rows
+  // before the backfill ran).
+  avatar_thumb: string | null;
   last_sign_in: string | null;
   last_seen_at: string | null;
   last_path: string | null;
@@ -49,6 +55,22 @@ interface OrbitUser {
     start_time: string | null;
     end_time: string | null;
   }>;
+  // Coarse sobriety milestone ("2 years sober"), attached by the
+  // alumni home for alumni who turned on time-sober tracking AND
+  // opted to share it. Shown as a line in the hover tooltip. The
+  // staff dashboard never sets this.
+  sobriety_label?: string | null;
+  // Compact form of the sobriety label rendered AS A BADGE on the
+  // alumni avatar bubble itself ("47d", "3mo", "2y"). Same opt-in
+  // rule as sobriety_label — only present when the alum chose to
+  // share their date.
+  sobriety_short_label?: string | null;
+  // Last-time the alum hit the "Check in" affordance on their
+  // alumni-portal home, plus the running consecutive-days streak.
+  // Drives the avatar's first-time-since-last-login glow + the
+  // streak / "last checked in" lines in the hover tooltip.
+  last_check_in_at?: string | null;
+  check_in_streak?: number;
 }
 
 const ON_FIRE_THRESHOLD = 10;
@@ -90,6 +112,11 @@ interface OrbitHorse {
 
 interface Props {
   users: OrbitUser[];
+  /** Alumni online today — render as the OUTERMOST ring around
+   *  the staff (middle) + horse (inner) rings. Falls back to []
+   *  when no alumni were online so the older two-ring layout
+   *  still works for staff-only deployments. */
+  alumni?: OrbitUser[];
   horses?: OrbitHorse[];
   pathLabelFor: (path: string | null) => string | null;
   /** When set, the matching avatar gets a copper pulse ring —
@@ -194,6 +221,26 @@ function OrbitTooltip({
               <p className="text-white/75 leading-tight mt-0.5">
                 {hovered.online ? 'Online now' : `Last active ${timeAgo(hovered.user.last_sign_in)}`}
               </p>
+              {hovered.user.sobriety_label && (
+                <p className="text-emerald-300 font-semibold leading-tight mt-1">
+                  🌱 {hovered.user.sobriety_label}
+                </p>
+              )}
+              {/* Alumni check-in details — separate line per data
+                  point so a streak-but-no-recent-checkin (paused for
+                  a day) and a recent-checkin-but-no-streak both
+                  render cleanly. Only shown when the alum has the
+                  data, so staff rows stay quiet. */}
+              {hovered.user.last_check_in_at && (
+                <p className="text-emerald-200/85 leading-tight mt-0.5">
+                  Last check-in {timeAgo(hovered.user.last_check_in_at)}
+                </p>
+              )}
+              {(hovered.user.check_in_streak ?? 0) > 0 && (
+                <p className="text-orange-200/90 font-semibold leading-tight mt-0.5">
+                  🔥 {hovered.user.check_in_streak}-day check-in streak
+                </p>
+              )}
               {hovered.viewing && (
                 <p className="text-emerald-300 leading-tight mt-0.5">
                   Viewing {hovered.viewing}
@@ -281,9 +328,62 @@ function OrbitTooltip({
   );
 }
 
-export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, highlightUserId = null }: Props) {
+// localStorage key holding a map of `alumni_user_id -> last_check_in_at`
+// we've already shown the "fresh check-in" glow for. Lets us flash an
+// alumni's bubble the first time a viewer logs in after that alum
+// checked in, then suppress the glow on every subsequent visit until
+// the next check-in.
+const FRESH_CHECKIN_STORAGE_KEY = 'sa-orbit-seen-checkins';
+
+function readSeenCheckins(): Record<string, string> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = window.localStorage.getItem(FRESH_CHECKIN_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeSeenCheckins(map: Record<string, string>) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(FRESH_CHECKIN_STORAGE_KEY, JSON.stringify(map));
+  } catch {
+    /* localStorage unavailable — fall back to always-flash on next mount */
+  }
+}
+
+export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathLabelFor, highlightUserId = null }: Props) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
+  // Snapshot of which alumni rows had a NEW check-in vs. what we'd
+  // already seen in localStorage at the moment the orbit first
+  // rendered. Captured once so the glow animation persists for the
+  // whole session even after we mark the new value as "seen" —
+  // otherwise the bubble would stop glowing the instant the storage
+  // write landed. Recomputed when the alumni roster prop changes
+  // (e.g. a fresh users-query result).
+  const freshCheckinIds = useMemo(() => {
+    const seen = readSeenCheckins();
+    const fresh = new Set<string>();
+    const next: Record<string, string> = { ...seen };
+    let dirty = false;
+    for (const a of alumni) {
+      const ts = a.last_check_in_at;
+      if (!ts) continue;
+      const prev = seen[a.id];
+      if (!prev || Date.parse(ts) > Date.parse(prev)) {
+        fresh.add(a.id);
+        next[a.id] = ts;
+        dirty = true;
+      }
+    }
+    if (dirty) writeSeenCheckins(next);
+    return fresh;
+  }, [alumni]);
   // Tooltips were previously pinned under the 7A medallion to dodge
   // overflow clipping. We now portal them to <body> with computed
   // fixed positioning, so they can attach directly to the hovered
@@ -360,37 +460,40 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
   // because the team count is light. Clamped between 240px (a tidy
   // ring for sparse teams) and 500px (so the orbit + tagline fit on
   // one viewport without scrolling on a typical laptop screen).
-  const usersNeeded = (users.length * 64) / Math.PI;
-  const horsesNeeded = (horses.length * 40) / (0.6 * Math.PI);
+  // Outer alumni ring overhangs the staff ring by ~18% (the
+  // staff ring sits at inset-[7%]; alumni live at inset-[-11%]
+  // visually, but we paint them on the SAME aspect-square box
+  // with a slightly larger orbit-slot radius via negative inset
+  // below). The radius in arc-length terms is ~1.18× the staff
+  // radius, so we back-solve a comfort minimum from there too.
+  // Back-solve uses the SMALLER avatar dimensions now (40px staff,
+  // 28px horse + alumni) so the orbit packs tighter on first paint
+  // and doesn't bloat past the 460px max.
+  const usersNeeded = (users.length * 52) / Math.PI;
+  const horsesNeeded = (horses.length * 32) / (0.6 * Math.PI);
+  const alumniNeeded = (alumni.length * 44) / (1.6 * Math.PI);
   const idealDiameter = Math.max(
     240,
-    Math.min(500, Math.round(Math.max(usersNeeded, horsesNeeded))),
+    Math.min(460, Math.round(Math.max(usersNeeded, horsesNeeded, alumniNeeded))),
   );
 
   return (
     <section
-      className="relative z-40 flex flex-col items-center justify-center w-full"
+      className="relative z-40 flex flex-col items-center w-full"
       aria-label="Online today"
     >
-      {/* Header — pinned above the ring as an overlay so it doesn't
-          add height to the section's vertical centre. The ring's
-          aspect-square box is what gets centered; the title floats
-          just above it in absolute space. The big negative `top` is
-          deliberate — the topmost avatars on the ring extend ~25px
-          past the section's top edge (they're translate(-50%) on
-          the rim), so a smaller offset would have the title text
-          collide with those avatars. Hidden on phones so the
-          orbit's centre medallion sits at the viewport's vertical
-          centre (the parent absolute-positions the orbit on mobile). */}
-      <div className="hidden sm:block absolute left-1/2 -translate-x-1/2 bottom-[calc(100%+1.25rem)] sm:bottom-[calc(100%+1.5rem)] lg:bottom-[calc(100%+2rem)] text-center pointer-events-none z-10">
-        <p
-          className="text-[10px] font-semibold uppercase tracking-[0.28em] text-foreground/45"
-          style={{ fontFamily: 'var(--font-body)' }}
-        >
-          The team
-        </p>
+      {/* Title sits as a NORMAL block at the top of the section
+          instead of an absolutely-positioned overlay. The earlier
+          absolute layout floated the title above the orbit by a
+          fixed offset, which made the alumni outer ring (which
+          extends ~22% past the orbit container) clip into the
+          title text every time. Putting the title in flow + giving
+          the orbit container generous top padding below
+          guarantees no overlap regardless of how many alumni are
+          orbiting today. */}
+      <div className="hidden sm:block text-center pointer-events-none mb-2">
         <h2
-          className="mt-1 text-foreground font-bold tracking-tight"
+          className="text-foreground font-bold tracking-tight"
           style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 2.6vw, 1.85rem)' }}
         >
           Online <em className="not-italic text-primary">today</em>
@@ -416,25 +519,42 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
           one fans out to 680px. `w-full` still clamps to the viewport
           on phones, so the px-4 padding keeps mobile avatars off the
           screen edges without needing a hard breakpoint cap. */}
-      <div className="w-full flex justify-center px-4">
+      {/* Reserve vertical clearance above + below the orbit's
+          aspect-square box so the outer alumni ring (now inset -15%
+          → ~15% overhang ≈ 70px on a 460px ring) clears both the
+          title block above and the daily-logs pill below. Earlier
+          this was inset -30% / pt-12 — that combination poked the
+          12-o'clock alumni avatar straight onto the "Seven Arrows"
+          subtitle. Bringing the alumni ring closer (still clearly
+          outside the staff ring, but no longer halfway to the
+          viewport edge) plus matching pt/pb keeps every layer
+          discrete and on its own track. */}
+      <div className="w-full flex justify-center px-8 sm:px-12 pt-24 pb-24">
         <div
           className="relative w-full aspect-square"
           style={{ maxWidth: `${idealDiameter}px` }}
         >
-        {/* Decorative concentric rings + centre medallion. The
-            outermost border is exactly where the avatars will land,
-            so the eye reads the orbit as one composed shape. */}
+        {/* Decorative concentric rings + centre medallion.
+            Each ring border now lands EXACTLY at the radius of
+            the corresponding avatar ring (inset-[7%] sm:inset-0
+            for staff; inset-[20%] for horses) so the eye reads
+            each ring of avatars as sitting on its own real track
+            instead of floating between mismatched guide lines.
+            pointer-events-none is critical — without it, these
+            full-size invisible boxes capture hover/click events on
+            the staff and horse pins underneath them, breaking the
+            tooltip. */}
         <div
           aria-hidden="true"
-          className="absolute inset-[6%] rounded-full border border-primary/15"
+          className="pointer-events-none absolute inset-[7%] sm:inset-0 rounded-full border border-primary/15"
         />
         <div
           aria-hidden="true"
-          className="absolute inset-[20%] rounded-full border border-primary/10"
+          className="pointer-events-none absolute inset-[20%] rounded-full border border-primary/10"
         />
         <div
           aria-hidden="true"
-          className="absolute inset-[36%] rounded-full bg-gradient-to-br from-primary/[0.07] via-accent/[0.05] to-transparent"
+          className="pointer-events-none absolute inset-[36%] rounded-full bg-gradient-to-br from-primary/[0.07] via-accent/[0.05] to-transparent"
         />
         {/* Centre 7A — small glass pill, kept understated so the
             orbiting team avatars stay the focus. `backdrop-blur` is
@@ -518,16 +638,17 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
                           {h.image_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
-                              src={h.image_url}
+                              src={toAvatarThumb(h.image_url, 200) ?? h.image_url}
                               alt={h.name}
                               referrerPolicy="no-referrer"
                               width={36}
                               height={36}
                               decoding="async"
-                              className="block w-7 h-7 sm:w-9 sm:h-9 rounded-full object-cover border-2 border-white shadow-md transition-transform duration-300 group-hover:scale-110"
+                              loading="lazy"
+                              className="block w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover border-2 border-white shadow-md transition-transform duration-300 group-hover:scale-110"
                             />
                           ) : (
-                            <span className="flex w-7 h-7 sm:w-9 sm:h-9 rounded-full items-center justify-center text-xs font-semibold border-2 border-white bg-warm-bg text-foreground/55 shadow-md transition-transform duration-300 group-hover:scale-110">
+                            <span className="flex w-6 h-6 sm:w-7 sm:h-7 rounded-full items-center justify-center text-xs font-semibold border-2 border-white bg-warm-bg text-foreground/55 shadow-md transition-transform duration-300 group-hover:scale-110">
                               {h.name.charAt(0)}
                             </span>
                           )}
@@ -614,13 +735,14 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
                         {u.avatar_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
-                            src={u.avatar_url}
+                            src={u.avatar_thumb ?? toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
                             alt={u.full_name || ''}
                             referrerPolicy="no-referrer"
                             width={48}
                             height={48}
                             decoding="async"
-                            className={`block w-9 h-9 sm:w-12 sm:h-12 rounded-full object-cover border-2 transition-transform duration-300 group-hover:scale-110 ${
+                            loading="lazy"
+                            className={`block w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border-2 transition-transform duration-300 group-hover:scale-110 ${
                               onFire
                                 ? 'border-orange-400 shadow-[0_0_18px_rgba(251,146,60,0.7)]'
                                 : online
@@ -630,7 +752,7 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
                           />
                         ) : (
                           <span
-                            className={`flex w-9 h-9 sm:w-12 sm:h-12 rounded-full items-center justify-center text-sm font-bold border-2 transition-transform duration-300 group-hover:scale-110 ${
+                            className={`flex w-8 h-8 sm:w-10 sm:h-10 rounded-full items-center justify-center text-sm font-bold border-2 transition-transform duration-300 group-hover:scale-110 ${
                               onFire
                                 ? 'border-orange-400 shadow-[0_0_18px_rgba(251,146,60,0.7)] bg-primary text-white'
                                 : online
@@ -687,6 +809,113 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
           })}
         </div>
 
+        {/* Decorative outermost ring border — sits exactly on the
+            alumni radius so the eye reads the alumni avatars as
+            following a real concentric track instead of floating
+            in space outside the inner two rings. */}
+        {alumni.length > 0 && (
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-[-15%] rounded-full border border-violet-400/25"
+          />
+        )}
+
+        {/* Outermost ring — alumni online today. Pinned to a
+            NEGATIVE inset (-15%) so alumni orbit clearly outside
+            the staff ring while still leaving room for the title
+            above and the daily-logs pill below (see pt-24/pb-24
+            on the wrapper). Was -30% before — that put the top
+            alumni avatar right on top of the "Seven Arrows"
+            subtitle text. Counter-rotates so all three rings
+            drift in different directions. */}
+        {alumni.length > 0 && (
+          <div
+            className={`orbit-ring absolute inset-[-15%] motion-reduce:!animate-none ${mounted ? 'orbit-spin-rev' : ''} ${hovered ? 'orbit-paused' : ''}`}
+          >
+            {alumni.map((u, i) => {
+              const angle = (i / alumni.length) * 360;
+              const online = isOnlineNow(u.last_seen_at);
+              const slotStyle: CSSProperties = { transform: `rotate(${angle}deg)` };
+              const pinStyle: CSSProperties = {
+                ['--angle' as string]: `${angle}deg`,
+                ['--enter-delay' as string]: `${500 + i * 65}ms`,
+              };
+              const freshCheckin = freshCheckinIds.has(u.id);
+              const showSobrietyBadge = !!u.sobriety_short_label;
+              return (
+                <div key={`alum-${u.id}`} className="orbit-slot" style={slotStyle}>
+                  <button
+                    type="button"
+                    onMouseEnter={(e) => {
+                      positionTooltipFor(e.currentTarget);
+                      setHovered({ kind: 'user', user: u, viewing: null, navTarget: null, online });
+                    }}
+                    onMouseLeave={() => clearHover((h) => h.kind === 'user' && h.user.id === u.id)}
+                    onFocus={(e) => {
+                      positionTooltipFor(e.currentTarget);
+                      setHovered({ kind: 'user', user: u, viewing: null, navTarget: null, online });
+                    }}
+                    onBlur={() => clearHover((h) => h.kind === 'user' && h.user.id === u.id)}
+                    className={`orbit-pin group ${mounted ? 'orbit-pin-in' : 'orbit-pin-pre'} cursor-pointer`}
+                    style={pinStyle}
+                    title={`${u.full_name || 'Alumni'} · alumni community`}
+                    aria-label={`${u.full_name || 'Alumni'} (alumni)`}
+                  >
+                    <span className={`motion-reduce:!animate-none ${mounted ? 'orbit-counter-rev' : ''}`}>
+                      <span className="block" style={{ transform: `rotate(${-angle}deg)` }}>
+                        <span className={`relative block ${freshCheckin ? 'orbit-fresh-checkin' : ''}`}>
+                          {u.avatar_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={u.avatar_thumb ?? toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
+                              alt={u.full_name || ''}
+                              referrerPolicy="no-referrer"
+                              width={40}
+                              height={40}
+                              decoding="async"
+                              loading="lazy"
+                              className={`block w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover border-2 ${
+                                online
+                                  ? 'border-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.55)]'
+                                  : 'border-violet-200/70 shadow-sm'
+                              }`}
+                            />
+                          ) : (
+                            <span
+                              className={`flex w-6 h-6 sm:w-7 sm:h-7 rounded-full items-center justify-center text-xs font-bold border-2 bg-violet-500/85 text-white ${
+                                online ? 'border-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.55)]' : 'border-violet-200/70'
+                              }`}
+                            >
+                              {(u.full_name || '?').charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                          {online && (
+                            <span aria-hidden="true" className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-violet-400 border-2 border-white" />
+                          )}
+                          {/* Sobriety badge — opt-in, compact, anchored
+                              at the avatar's top-right so it doesn't
+                              collide with the bottom-right online dot.
+                              Just the duration in a green pill (no leaf
+                              emoji — at this size the leaf eats the
+                              number's readability). */}
+                          {showSobrietyBadge && (
+                            <span
+                              aria-hidden="true"
+                              className="absolute -top-1.5 -right-2 inline-flex items-center justify-center min-w-[18px] h-[14px] px-1 rounded-full bg-emerald-500 text-white text-[9px] font-bold leading-none border border-white shadow-[0_2px_6px_-1px_rgba(16,185,129,0.55)] whitespace-nowrap tabular-nums"
+                            >
+                              {u.sobriety_short_label}
+                            </span>
+                          )}
+                        </span>
+                      </span>
+                    </span>
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         </div>
       </div>
 
@@ -712,9 +941,15 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
            (which produced visible per-avatar rotation over time). */
         @property --orbit-angle      { syntax: '<angle>'; initial-value: 0deg; inherits: true; }
         @property --orbit-angle-slow { syntax: '<angle>'; initial-value: 0deg; inherits: true; }
+        /* Counter-clockwise variable for the alumni ring. Same
+           single-source-of-truth pattern as --orbit-angle so the
+           per-avatar counter-rotation stays locked to the parent
+           ring's spin. */
+        @property --orbit-angle-rev  { syntax: '<angle>'; initial-value: 0deg; inherits: true; }
 
         @keyframes orbit-angle-tick      { to { --orbit-angle: 360deg; } }
         @keyframes orbit-angle-tick-slow { to { --orbit-angle-slow: 360deg; } }
+        @keyframes orbit-angle-tick-rev  { to { --orbit-angle-rev:  -360deg; } }
 
         /* GPU layer promotion. Without these hints mobile (especially
            iOS Safari and older Android Chromium) re-rasterises the
@@ -731,6 +966,12 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
           will-change: transform;
           transform: translateZ(0);
           backface-visibility: hidden;
+          /* Empty space inside a ring must NOT capture events,
+             otherwise the outer alumni ring (which extends past
+             the container with negative inset) blocks hovers on
+             the staff + horse pins beneath. Only .orbit-pin
+             children get pointer-events:auto further down. */
+          pointer-events: none;
           /* layout + style only, NOT paint — avatars sit on the rim
              of the ring and translate(-50%, -50%) leaves half of
              each avatar outside the ring's bounding box, so paint
@@ -755,6 +996,15 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
           animation: orbit-angle-tick-slow 180s linear infinite;
           transform: rotate(var(--orbit-angle-slow)) translateZ(0);
         }
+        /* Alumni outer ring · 150s counter-clockwise. The negative
+           keyframe end value means rotate() ticks DOWN from 0 to
+           -360°, giving the appearance of the alumni orbiting the
+           opposite direction from the staff + horse rings. Reads
+           as three distinct motions instead of one drift. */
+        .orbit-spin-rev {
+          animation: orbit-angle-tick-rev 150s linear infinite;
+          transform: rotate(var(--orbit-angle-rev)) translateZ(0);
+        }
 
         /* Each avatar's counter rotation reads the same variable the
            parent ring is animating and applies the negation. Because
@@ -764,23 +1014,27 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
            every frame. The result: ring rotates around the centre,
            individual avatars never rotate, no drift. */
         .orbit-counter,
-        .orbit-counter-slow {
+        .orbit-counter-slow,
+        .orbit-counter-rev {
           display: inline-block;
           will-change: transform;
           backface-visibility: hidden;
         }
         .orbit-counter      { transform: rotate(calc(-1 * var(--orbit-angle)))      translateZ(0); }
         .orbit-counter-slow { transform: rotate(calc(-1 * var(--orbit-angle-slow))) translateZ(0); }
+        .orbit-counter-rev  { transform: rotate(calc(-1 * var(--orbit-angle-rev)))  translateZ(0); }
 
         /* When any avatar is hovered we freeze the rings (and their
            paired counter-rotations) so the trigger stays pinned under
            the cursor and the portaled tooltip — anchored to that
            trigger's getBoundingClientRect — stays glued to the avatar
-           instead of drifting off as the ring spins. Pausing both
-           directions simultaneously keeps faces upright while frozen. */
+           instead of drifting off as the ring spins. Pausing all
+           three directions simultaneously keeps faces upright while
+           frozen. */
         .orbit-ring.orbit-paused,
         .orbit-ring.orbit-paused .orbit-counter,
-        .orbit-ring.orbit-paused .orbit-counter-slow {
+        .orbit-ring.orbit-paused .orbit-counter-slow,
+        .orbit-ring.orbit-paused .orbit-counter-rev {
           animation-play-state: paused;
         }
 
@@ -874,6 +1128,23 @@ export default function HomeOnlineOrbit({ users, horses = [], pathLabelFor, high
         @keyframes orbit-fire-scale {
           0%, 100% { transform: scale(1); }
           50%      { transform: scale(1.15); }
+        }
+        /* Fresh sobriety check-in glow — applied to an alumni's avatar
+           the FIRST time the viewer's session sees a newer
+           last_check_in_at than they previously saw (tracked in
+           localStorage). A slow emerald pulse that breathes around
+           the avatar's circle for ~6s, then settles. The glow uses
+           drop-shadow on the wrapper so it doesn't push layout. */
+        @keyframes orbit-fresh-glow {
+          0%   { filter: drop-shadow(0 0 0px rgba(16,185,129,0)); }
+          25%  { filter: drop-shadow(0 0 9px rgba(16,185,129,0.85)); }
+          50%  { filter: drop-shadow(0 0 4px rgba(16,185,129,0.45)); }
+          75%  { filter: drop-shadow(0 0 9px rgba(16,185,129,0.85)); }
+          100% { filter: drop-shadow(0 0 0px rgba(16,185,129,0)); }
+        }
+        .orbit-fresh-checkin {
+          animation: orbit-fresh-glow 2.6s ease-in-out 0s 3;
+          will-change: filter;
         }
         @keyframes orbit-fire-halo {
           0%, 100% { opacity: 0.55; }

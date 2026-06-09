@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "What to Look for in a Heroin Rehab" },
         ]}
         description="Heroin addiction is a devastating disease that affects individuals and families across the country. If you or someone you love is struggling, finding the right treatment center is critical. Knowing what to look for in a heroin…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

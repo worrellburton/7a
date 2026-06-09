@@ -40,7 +40,7 @@ export default function PageContent() {
           { label: 'What Actually Makes Treatment Work' },
         ]}
         description="Decades of research point to one finding more consistent than any other: the therapeutic relationship predicts recovery outcomes more powerfully than the modality mix. Here is why programs that lead with their modality list have it backwards — and how to spot a real alliance on a tour."
-        image="/images/individual-therapy-session.jpg"
+        image="/hero/individual-therapy-session.jpg"
         width="narrow"
         meta={[
           { icon: 'author', label: 'By', value: 'The Clinical Team' },

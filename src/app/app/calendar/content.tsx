@@ -2,8 +2,10 @@
 
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 import { logActivity } from '@/lib/activity';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 // ------------------------------------------------------------
 // Calendar — Phase 3: polish, edit, reschedule, delete.
@@ -489,28 +491,94 @@ export default function CalendarContent() {
     }
   }, []);
 
+  // Tracks the [start,end] date window we've loaded non-repeating
+  // events + AOD rows for. Repeating events are always fetched in
+  // full (their master row can be anchored years in the past but
+  // still projects into view) so windowing them would drop occurrences.
+  const loadedWindowRef = useRef<{ start: string; end: string } | null>(null);
+
+  // Build an ±18-month window around a center date. Covers any
+  // realistic navigation on a staff calendar while keeping the
+  // non-repeating-event payload bounded instead of "every row ever".
+  const windowAround = useCallback((center: Date) => {
+    const start = new Date(center); start.setMonth(start.getMonth() - 18);
+    const end = new Date(center); end.setMonth(end.getMonth() + 18);
+    return { start: toISODate(start), end: toISODate(end) };
+  }, []);
+
+  // Fetch events for a window: ALL repeating masters (regardless of
+  // date) + non-repeating events whose event_date falls in [start,end].
+  // Returns the merged row list so callers can set or splice.
+  const fetchEventsForWindow = useCallback(async (start: string, end: string): Promise<EventRow[]> => {
+    const { data } = await supabase
+      .from('calendar_events')
+      .select('*')
+      .or(`repeat_rule.not.is.null,and(event_date.gte.${start},event_date.lte.${end})`)
+      .order('event_date', { ascending: true });
+    return (data ?? []) as EventRow[];
+  }, []);
+
   // Initial data fetch
   useEffect(() => {
     if (!session?.access_token) return;
     let alive = true;
     (async () => {
+      const win = windowAround(current);
       const [g, u, e, a] = await Promise.all([
         db({ action: 'select', table: 'groups', order: { column: 'name', ascending: true } }),
         db({ action: 'select', table: 'users', select: 'id,full_name,email,avatar_url', order: { column: 'full_name', ascending: true } }),
-        db({ action: 'select', table: 'calendar_events', order: { column: 'event_date', ascending: true } }),
-        db({ action: 'select', table: 'calendar_day_aod', select: 'event_date,user_id' }),
+        fetchEventsForWindow(win.start, win.end),
+        supabase
+          .from('calendar_day_aod')
+          .select('event_date,user_id')
+          .gte('event_date', win.start)
+          .lte('event_date', win.end)
+          .then((r) => r.data ?? []),
       ]);
       if (!alive) return;
       if (Array.isArray(g)) setGroups(g as GroupRow[]);
       if (Array.isArray(u)) setUsers(u as UserRow[]);
       if (Array.isArray(e)) setEvents(e as EventRow[]);
       if (Array.isArray(a)) setAodRows(a as AodRow[]);
+      loadedWindowRef.current = win;
       setLoading(false);
     })();
     return () => {
       alive = false;
     };
-  }, [session]);
+    // current is intentionally excluded — drift is handled by the
+    // dedicated effect below so we don't refetch on every month step.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, windowAround, fetchEventsForWindow]);
+
+  // Drift guard: if the user navigates within ~3 months of either
+  // edge of the loaded window, widen + refetch recentred on `current`
+  // and merge by id. Guarantees a non-repeating event can never be
+  // hidden by the windowing no matter how far they scroll.
+  useEffect(() => {
+    if (!session?.access_token) return;
+    const win = loadedWindowRef.current;
+    if (!win) return;
+    const guard = new Date(current);
+    const lo = new Date(win.start); lo.setMonth(lo.getMonth() + 3);
+    const hi = new Date(win.end); hi.setMonth(hi.getMonth() - 3);
+    if (guard >= lo && guard <= hi) return; // comfortably inside window
+    let alive = true;
+    (async () => {
+      const next = windowAround(current);
+      const rows = await fetchEventsForWindow(next.start, next.end);
+      const { data: aod } = await supabase
+        .from('calendar_day_aod')
+        .select('event_date,user_id')
+        .gte('event_date', next.start)
+        .lte('event_date', next.end);
+      if (!alive) return;
+      setEvents(rows);
+      if (Array.isArray(aod)) setAodRows(aod as AodRow[]);
+      loadedWindowRef.current = next;
+    })();
+    return () => { alive = false; };
+  }, [current, session, windowAround, fetchEventsForWindow]);
 
   // ---- Memoized derived data ----
   const monthDays = useMemo(() => {
@@ -1828,7 +1896,7 @@ function PhonesMonthDay({
                 >
                   {firstUser.avatar_url ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={firstUser.avatar_url} alt="" className="w-full h-full object-cover" />
+                    <img src={toAvatarThumb(firstUser.avatar_url, 200) ?? firstUser.avatar_url} alt="" className="w-full h-full object-cover" />
                   ) : (
                     (firstLabel || '?').charAt(0).toUpperCase()
                   )}
@@ -1897,7 +1965,7 @@ function ShiftAvatar({
       {u?.avatar_url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={u.avatar_url}
+          src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
           alt={label}
           className="w-full h-full rounded-full object-cover"
         />
@@ -2137,7 +2205,7 @@ function ShiftAvatarFillRow({
       <span className="shrink-0 w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-white/80" style={{ backgroundColor: color }}>
         {u?.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={u.avatar_url} alt={label} className="w-full h-full object-cover" />
+          <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt={label} className="w-full h-full object-cover" />
         ) : (
           label.charAt(0).toUpperCase()
         )}
@@ -2188,7 +2256,7 @@ function EventChip({
         {u?.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={u.avatar_url}
+            src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
             alt=""
             className="w-5 h-5 rounded-full object-cover shrink-0 ring-1 ring-white"
           />
@@ -2270,7 +2338,7 @@ function TimedEventBlock({
         {u?.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={u.avatar_url}
+            src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
             alt=""
             className="w-6 h-6 rounded-full object-cover shrink-0 ring-1 ring-white"
           />
@@ -2495,7 +2563,7 @@ function ResizableEvent({
       <div className="flex items-center gap-1.5 px-1.5 py-1 min-h-0">
         {isUser && u?.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={u.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover shrink-0 ring-1 ring-white" />
+          <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover shrink-0 ring-1 ring-white" />
         ) : isUser ? (
           <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white shrink-0" style={{ backgroundColor: color }}>
             {label.charAt(0).toUpperCase()}
@@ -2611,7 +2679,7 @@ function AodSlot({
       {user.avatar_url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={user.avatar_url}
+          src={toAvatarThumb(user.avatar_url, 200) ?? user.avatar_url}
           alt=""
           className={`${avatarCls} rounded-full object-cover shrink-0 ring-1 ring-white`}
         />
@@ -2728,7 +2796,7 @@ function MonthView({
                   >
                     {aodUser.avatar_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={aodUser.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                      <img src={toAvatarThumb(aodUser.avatar_url, 200) ?? aodUser.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
                     ) : (
                       (aodUser.full_name || aodUser.email || '?').charAt(0).toUpperCase()
                     )}

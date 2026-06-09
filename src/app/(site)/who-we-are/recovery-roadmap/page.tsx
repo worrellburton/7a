@@ -8,12 +8,12 @@ export const metadata: Metadata = {
 
 import PageHero from '@/components/PageHero';
 import Link from 'next/link';
-import { getAllEpisodesByNumber, episodeHref, episodeImage } from '@/lib/episodes';
+import { getAllEpisodesNewestFirst, episodeHref, episodeImage } from '@/lib/episodes';
 
 export const revalidate = 60;
 
 export default async function RecoveryRoadmapPage() {
-  const episodes = await getAllEpisodesByNumber();
+  const episodes = await getAllEpisodesNewestFirst();
   return (
     <>
       <PageHero
@@ -29,7 +29,7 @@ export default async function RecoveryRoadmapPage() {
           { label: 'Recovery Roadmap' },
         ]}
         description="An in-depth investigative series exploring the reality of addiction, treatment, and recovery — told with honesty, science, and compassion by the clinical team at Seven Arrows Recovery."
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         ctas={[
           {
             kind: 'phone',

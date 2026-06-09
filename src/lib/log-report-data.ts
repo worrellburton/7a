@@ -11,6 +11,7 @@ import type {
   LogReportAreaRow,
   LogReportContactRow,
 } from './log-report-email';
+import { isDataMethod } from './log-report-email';
 
 interface LogRow {
   id: string;
@@ -89,8 +90,9 @@ export async function buildLogReportData(
   // Per-rep leaderboard — only teammates who logged at least one
   // touchpoint this week appear. Unknowns (contacted_by points to a
   // deleted user) bucket under a single 'Unknown' row so totals
-  // reconcile.
-  const repAgg = new Map<string, { name: string; avatarUrl: string | null; logs: number; durationSec: number }>();
+  // reconcile. Split logs into outreach vs data work so a CSV
+  // import of 100 contacts doesn't read as 100 phone calls.
+  const repAgg = new Map<string, { name: string; avatarUrl: string | null; logs: number; outreachLogs: number; dataLogs: number; durationSec: number }>();
   for (const l of logs) {
     if (!l.contacted_by) continue;
     const u = userById.get(l.contacted_by);
@@ -98,22 +100,33 @@ export async function buildLogReportData(
       name: u?.full_name?.trim() || 'Unknown',
       avatarUrl: u?.avatar_url ?? null,
       logs: 0,
+      outreachLogs: 0,
+      dataLogs: 0,
       durationSec: 0,
     };
     slot.logs += 1;
+    if (isDataMethod(l.method)) slot.dataLogs += 1;
+    else slot.outreachLogs += 1;
     slot.durationSec += l.duration_seconds ?? 0;
     repAgg.set(l.contacted_by, slot);
   }
   const leaderboard: LogReportLeaderRow[] = Array.from(repAgg.entries())
     .map(([userId, slot]) => ({ userId, ...slot }))
+    // Rank by outreach first so a rep who actually dialed phones
+    // outranks a rep who imported a CSV. Total logs is the
+    // tiebreaker so a rep with equal outreach + extra data work
+    // still beats a tied rep.
     .sort((a, b) => {
+      if (a.outreachLogs !== b.outreachLogs) return b.outreachLogs - a.outreachLogs;
       if (a.logs !== b.logs) return b.logs - a.logs;
       if (a.durationSec !== b.durationSec) return b.durationSec - a.durationSec;
       return a.name.localeCompare(b.name);
     })
     .slice(0, 20);
 
-  // Method mix — count + total duration per method label.
+  // Method mix — count + total duration per method label. Tag
+  // each row as data-method or outreach so the email renderer can
+  // visually distinguish.
   const methodAgg = new Map<string, { count: number; durationSec: number }>();
   for (const l of logs) {
     const m = (l.method ?? 'Unknown').trim() || 'Unknown';
@@ -123,7 +136,12 @@ export async function buildLogReportData(
     methodAgg.set(m, slot);
   }
   const byMethod: LogReportMethodCount[] = Array.from(methodAgg.entries())
-    .map(([method, slot]) => ({ method, count: slot.count, durationSec: slot.durationSec }))
+    .map(([method, slot]) => ({
+      method,
+      count: slot.count,
+      durationSec: slot.durationSec,
+      isDataMethod: isDataMethod(method),
+    }))
     .sort((a, b) => b.count - a.count);
 
   // Top areas — group by formatted_address first (geocoder-clean),
@@ -169,6 +187,21 @@ export async function buildLogReportData(
   const totalDurationSec = logs.reduce((a, b) => a + (b.duration_seconds ?? 0), 0);
   const uniqueContacts = new Set(logs.map((l) => l.contact_id)).size;
   const uniqueReps = new Set(logs.map((l) => l.contacted_by).filter(Boolean)).size;
+  // Outreach vs data work split — surfaced in the email's KPI band
+  // so "127 logs" reads correctly when 60 of those were CSV imports.
+  let outreach = 0;
+  let dataWork = 0;
+  let newContacts = 0;
+  let fieldFills = 0;
+  for (const l of logs) {
+    if (isDataMethod(l.method)) {
+      dataWork += 1;
+      if (l.method === 'New Contact') newContacts += 1;
+      else if (l.method === 'Data Entry') fieldFills += 1;
+    } else {
+      outreach += 1;
+    }
+  }
 
   return {
     window: {
@@ -178,6 +211,10 @@ export async function buildLogReportData(
     },
     counts: {
       total: logs.length,
+      outreach,
+      dataWork,
+      newContacts,
+      fieldFills,
       uniqueContacts,
       uniqueReps,
       totalDurationSec,

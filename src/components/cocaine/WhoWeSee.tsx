@@ -21,7 +21,7 @@ const personas: Persona[] = [
   {
     label: 'The high-functioning professional',
     headline: 'A job you still hold.',
-    body: 'Weekend binges, then back to the office. Nobody on your team knows. The lie is working — until it isn\'t. Most of our cocaine admissions arrive from this column.',
+    body: 'Weekend binges, then back to the office. Nobody on your team knows. The lie is working, until it isn\'t. Most of our cocaine admissions arrive at our rehab center from this column.',
   },
   {
     label: 'The poly-substance pattern',
@@ -41,7 +41,7 @@ const personas: Persona[] = [
   {
     label: 'The relapse',
     headline: 'Not your first stay.',
-    body: 'You\'ve been through treatment before — sometimes more than once. We don\'t count that against you. We look at what was missing last time, and we build that in.',
+    body: 'If You\'ve been through treatment before, sometimes more than once. We don\'t count that against you. We always look at what was missing last time, and we build that in.',
   },
 ];
 
@@ -90,16 +90,17 @@ export default function WhoWeSee() {
               lineHeight: 1.05,
             }}
           >
-            Five patterns that walk through our door —{' '}
-            <em className="not-italic text-primary">not the one on television</em>.
+            Who Comes to Our{' '}
+            <em className="not-italic text-primary">Arizona Cocaine Rehab</em>
           </h2>
           <p
             className="text-foreground/70 text-lg leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            The cocaine stereotype keeps people out of care. Recognize
-            yourself in any of these and know that you are exactly who
-            we treat.
+            The cocaine stereotype keeps people out of care. If you see
+            yourself in any of these, know that you are exactly the
+            person our residential cocaine addiction treatment is
+            designed for.
           </p>
         </div>
 

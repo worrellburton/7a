@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Layout, LayoutBlock } from '@/lib/content-claude';
 import { supabase } from '@/lib/supabase';
 import DbBlogRenderer, { WebglScene, ICONS } from '@/components/DbBlogRenderer';
@@ -237,13 +237,11 @@ function EditableBlock({
 
       {block.type === 'prose' && (
         <div>
-          <TextField
+          <MarkdownField
             label="Markdown"
             value={block.markdown}
             onChange={(v) => onChange({ markdown: v } as Partial<LayoutBlock>)}
-            multiline
             rows={8}
-            mono
           />
         </div>
       )}
@@ -396,6 +394,85 @@ function TextField({
           className={base}
         />
       )}
+    </label>
+  );
+}
+
+// Like TextField (multiline + mono) but with a small toolbar that
+// lets the editor highlight text and wrap it in `[text](url)`
+// markdown. If nothing is selected, the prompt for link text fires
+// first. URL is normalized — bare strings get https://; paths
+// (/our-program, /who-we-are/...) pass through untouched so internal
+// links keep working.
+function MarkdownField({
+  label,
+  value,
+  onChange,
+  rows = 8,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  rows?: number;
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  function insertLink() {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart ?? 0;
+    const end = ta.selectionEnd ?? 0;
+    const selected = value.slice(start, end);
+    let linkText = selected.trim();
+    if (!linkText) {
+      const promptedText = window.prompt('Link text');
+      if (promptedText === null) return;
+      linkText = promptedText.trim();
+      if (!linkText) return;
+    }
+    const promptedUrl = window.prompt('Link URL (e.g. https://… or /our-program)', 'https://');
+    if (promptedUrl === null) return;
+    const raw = promptedUrl.trim();
+    if (!raw) return;
+    const url = /^(https?:\/\/|mailto:|tel:|\/|#)/i.test(raw) ? raw : `https://${raw}`;
+    const replacement = `[${linkText}](${url})`;
+    const next = value.slice(0, start) + replacement + value.slice(end);
+    onChange(next);
+    // Restore focus + place the caret just past the inserted link so
+    // the editor can keep typing without re-clicking the textarea.
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (!el) return;
+      el.focus();
+      const caret = start + replacement.length;
+      el.setSelectionRange(caret, caret);
+    });
+  }
+
+  return (
+    <label className="block mb-2">
+      <div className="flex items-center justify-between mb-1 gap-2">
+        <span className="block text-[10px] font-bold uppercase tracking-wider text-foreground/45">{label}</span>
+        <button
+          type="button"
+          onClick={insertLink}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-black/10 text-[10px] font-semibold uppercase tracking-wider text-foreground/65 hover:text-foreground hover:bg-warm-bg/60 transition-colors"
+          title="Highlight text first, then click to wrap it in a markdown link"
+        >
+          <svg viewBox="0 0 16 16" width={11} height={11} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M7 9a3 3 0 004.243 0l2-2a3 3 0 10-4.243-4.243l-1 1" />
+            <path d="M9 7a3 3 0 00-4.243 0l-2 2a3 3 0 104.243 4.243l1-1" />
+          </svg>
+          + Link
+        </button>
+      </div>
+      <textarea
+        ref={textareaRef}
+        value={value}
+        rows={rows}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-full rounded-md border border-black/10 px-2.5 py-1.5 text-[12px] font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/30"
+      />
     </label>
   );
 }

@@ -34,7 +34,7 @@ export default function FamilyHero() {
       <video
         ref={videoRef}
         src={siteVideos.horsesRail}
-        poster="/images/embrace-connection.jpg"
+        poster="/hero/embrace-connection.jpg"
         autoPlay
         muted
         loop

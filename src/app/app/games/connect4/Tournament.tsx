@@ -15,6 +15,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { totalRounds } from '@/lib/connect4-bracket';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface Tournament {
   id: string;
@@ -151,7 +152,7 @@ export default function Connect4Tournament({ tournamentId }: { tournamentId: str
           </div>
           {champion.avatar_url ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={champion.avatar_url} alt="" className="w-14 h-14 rounded-full object-cover ring-2 ring-amber-300" />
+            <img src={toAvatarThumb(champion.avatar_url, 200) ?? champion.avatar_url} alt="" className="w-14 h-14 rounded-full object-cover ring-2 ring-amber-300" />
           ) : (
             <div className="w-14 h-14 rounded-full bg-warm-bg flex items-center justify-center text-xl font-bold text-foreground/55 ring-2 ring-amber-300">
               {(champion.full_name || champion.email || '?').charAt(0).toUpperCase()}
@@ -204,7 +205,7 @@ export default function Connect4Tournament({ tournamentId }: { tournamentId: str
               <li key={e.user_id} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/60 border border-black/5 text-[12.5px]">
                 {u?.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={u.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover bg-warm-bg" />
+                  <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-6 h-6 rounded-full object-cover bg-warm-bg" />
                 ) : (
                   <div className="w-6 h-6 rounded-full bg-warm-bg flex items-center justify-center text-[10px] font-semibold text-foreground/55">
                     {(u?.full_name || u?.email || '?').charAt(0).toUpperCase()}

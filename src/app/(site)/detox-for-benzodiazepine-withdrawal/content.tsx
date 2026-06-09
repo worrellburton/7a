@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Should I Go to Detox for Benzodiazepine Withdrawals?" },
         ]}
         description="Benzodiazepines, often referred to as “benzos,” are a class of medications primarily prescribed to treat conditions such as anxiety, insomnia, and seizures. These drugs include well-known names like Xanax, Valium, Ativan, and…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

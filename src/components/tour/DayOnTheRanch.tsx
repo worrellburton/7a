@@ -15,28 +15,28 @@ const stops = [
     chip: 'Sunrise',
     title: 'The sky starts to turn',
     body: 'Mindfulness on the porch before the rest of the ranch wakes up. Birds, wind, coffee.',
-    image: '/images/covered-porch-desert-view.jpg',
+    image: '/hero/covered-porch-desert-view.jpg',
   },
   {
     time: '11:30 AM',
     chip: 'Midday',
     title: 'Session, then the arena',
     body: 'Individual therapy and evidence-based groups in the morning, then out to the horses before lunch.',
-    image: '/images/equine-therapy-portrait.jpg',
+    image: '/hero/equine-therapy-portrait.jpg',
   },
   {
     time: '6:15 PM',
     chip: 'Golden hour',
     title: 'Everything goes amber',
     body: 'The community gathers in the pavilion for dinner as the mountains catch the last of the light.',
-    image: '/images/group-gathering-pavilion.jpg',
+    image: '/hero/group-gathering-pavilion.jpg',
   },
   {
     time: '10:42 PM',
     chip: 'Under the stars',
     title: 'The Milky Way returns',
     body: 'No city light for miles. The ranch sits under an International Dark-Sky-class horizon every single night.',
-    image: '/images/sign-night-sky-milky-way.jpg',
+    image: '/hero/sign-night-sky-milky-way.jpg',
   },
 ];
 

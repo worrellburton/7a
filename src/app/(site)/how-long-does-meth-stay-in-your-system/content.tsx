@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "How Long Does Meth Stay in Your System?" },
         ]}
         description="Methamphetamine, commonly referred to as meth or crystal meth, is a powerful and addictive stimulant that significantly impacts the central nervous system. The profound effects of this drug can lead to intense euphoria, but…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

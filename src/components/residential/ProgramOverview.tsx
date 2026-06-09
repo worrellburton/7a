@@ -74,7 +74,7 @@ export default function ProgramOverview() {
             {/* Feature photo with overlay quote */}
             <figure className="mt-10 rounded-2xl overflow-hidden relative aspect-[16/10]">
               <img
-                src="/images/covered-porch-desert-view.jpg"
+                src="/hero/covered-porch-desert-view.jpg"
                 alt="Covered porch overlooking the desert at Seven Arrows."
                 className="absolute inset-0 w-full h-full object-cover"
                 loading="lazy"
@@ -86,7 +86,7 @@ export default function ProgramOverview() {
               />
               <figcaption className="absolute left-6 right-6 bottom-6 text-white max-w-md">
                 <p className="italic text-lg lg:text-xl leading-snug" style={{ fontFamily: 'var(--font-display)' }}>
-                  &ldquo;On-site means the help you need is already here.&rdquo;
+                  &ldquo;Safety, support, and human connection &mdash; 24 hours a day.&rdquo;
                 </p>
               </figcaption>
             </figure>

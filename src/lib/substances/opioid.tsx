@@ -227,19 +227,19 @@ export const opioidContent: SubstanceContent = {
         quote:
           'Bupe got me stable. The trauma work got me sober. The difference between those two things is the difference between being on a medicine and being free.',
         attribution: 'Alumnus · 22 months sober · chronic-pain origin',
-        photo: '/images/group-sunset-desert.jpg',
+        photo: '/hero/group-sunset-desert.jpg',
       },
       {
         quote:
           "Week five, I cried in the arena because a horse laid her head on my shoulder and my body did not flinch. I had not realized how much pain I had been bracing against.",
         attribution: 'Alumna · 14 months sober · post-surgical dependence',
-        photo: '/images/covered-porch-desert-view.jpg',
+        photo: '/hero/covered-porch-desert-view.jpg',
       },
       {
         quote:
           'They sent me home with naloxone and a plan. Six months in, my wife used the naloxone on a friend at a Christmas party. The training is not just for you.',
         attribution: 'Alumnus · 2 years sober · fentanyl era',
-        photo: '/images/facility-exterior-mountains.jpg',
+        photo: '/hero/facility-exterior-mountains.jpg',
       },
     ],
   },

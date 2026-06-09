@@ -14,6 +14,13 @@ import EquineFAQ from './EquineFAQ';
 import EquineCTA from './EquineCTA';
 import { equineFaqs } from './equineFaqs';
 
+// 1-hour ISR — marketing pages are otherwise fully static; this lets the
+// edge cache hold the rendered HTML so TTFB drops from ~250ms (cold SSR)
+// to ~30ms (edge hit). Editorial copy + image swaps go live within an hour
+// of merging; if you need sub-hour freshness on a specific page, override
+// with a smaller value or remove this line.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'Equine-Assisted Psychotherapy (EAP) | Seven Arrows Recovery',
   description:
@@ -31,7 +38,7 @@ export const metadata: Metadata = {
       'Licensed trauma-informed equine-assisted psychotherapy on a 160-acre Arizona ranch. Built for PTSD, addiction, attachment injury, and clients who need more than talk-therapy alone.',
     images: [
       {
-        url: '/images/equine-therapy-portrait.jpg',
+        url: '/hero/equine-therapy-portrait.jpg',
         width: 1200,
         height: 630,
         alt: 'Equine-assisted psychotherapy session at Seven Arrows Recovery in Cochise County, Arizona',

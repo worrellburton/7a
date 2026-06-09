@@ -18,7 +18,7 @@ type Modality = {
 
 const flagship: Modality = {
   title: 'Somatic-Cognitive Behavioral Therapy for stimulant craving',
-  body: 'Our house-integrated CBT variant layers cognitive restructuring over somatic awareness. Clients track the body while they track the thought — so the craving loop is interrupted at the nervous-system level, not just the decision level.',
+  body: 'Our house-integrated CBT variant layers cognitive restructuring over somatic awareness. Clients track the body while they track the thought, so the craving loop is interrupted at the nervous-system level, not just the decision level, making it an effective approach at our cocaine addiction treatment center in Arizona.',
   Icon: BrainBodyIcon,
 };
 
@@ -35,7 +35,7 @@ const modalities: Modality[] = [
   },
   {
     title: 'Trauma-informed therapy',
-    body: 'Forward-Facing® Accelerated Recovery, EMDR, ART, and IFS — sequenced so trauma work opens up only after nervous-system regulation has been rebuilt.',
+    body: 'Forward-Facing® Accelerated Recovery, EMDR, ART, and IFS sequenced so trauma work opens up only after nervous-system regulation has been rebuilt.',
     Icon: SpiralIcon,
   },
   {
@@ -45,7 +45,7 @@ const modalities: Modality[] = [
   },
   {
     title: 'Breathwork, yoga, sound',
-    body: 'Cardiac-coherent breath practices, invitational yoga, and sound-bath sessions that move the parasympathetic system back online — where the drug kept it silenced.',
+    body: 'Cardiac-coherent breath practices, invitational yoga, and sound-bath sessions that move the parasympathetic system back online, where the drug addiction kept it silenced.',
     Icon: BreathIcon,
   },
   {
@@ -101,18 +101,18 @@ export default function OurApproach() {
               lineHeight: 1.03,
             }}
           >
-            Stabilize the nervous system.{' '}
-            <em className="not-italic text-primary">Rebuild the reward.</em>{' '}
-            Restore the life.
+            Stabilize the nervous system{' '}
+            <em className="not-italic text-primary">and restore your life</em>{' '}
+            through cocaine treatment
           </h2>
           <p
             className="text-foreground/70 text-lg leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             The sequence matters. Too much trauma processing in week
-            one re-triggers craving. Too little structure in week two
-            loses the client back into the cycle. We sequence the work
-            carefully.
+            one re-triggers cravings. Too little structure in week two
+            loses the client back into the cycle again. We carefully
+            sequence the work to help you return to life..
           </p>
         </div>
 

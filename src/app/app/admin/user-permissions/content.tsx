@@ -3,9 +3,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
+import { defaultPages } from '@/lib/PagePermissions';
 import { logActivity } from '@/lib/activity';
 import { formatNameWithCredentials } from '@/lib/displayName';
-import PermissionsModal from './PermissionsModal';
+import dynamic from 'next/dynamic';
+import { toAvatarThumb } from '@/lib/avatarThumb';
+// Lazy: 482 LOC modal only mounts when an admin clicks a row, never
+// on first paint. Skips the route's initial JS bundle.
+const PermissionsModal = dynamic(() => import('./PermissionsModal'), { ssr: false });
 import AccessGroupsTab from './AccessGroupsTab';
 import ContentAccessTab from './ContentAccessTab';
 
@@ -26,6 +31,7 @@ interface AppUser {
   avatar_url: string | null;
   is_admin: boolean;
   is_super_admin: boolean;
+  is_alumni_admin: boolean;
   status: 'active' | 'on_hold' | 'denied';
   department_id: string | null;
   job_title: string | null;
@@ -116,13 +122,23 @@ function SortableTh({
 }
 
 export default function UserPermissionsContent() {
-  const { session, user, isAdmin, isSuperAdmin } = useAuth();
+  const { session, user, isAdmin, isSuperAdmin, isAlumniAdmin } = useAuth();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [jobDescriptions, setJobDescriptions] = useState<JobDescriptionLite[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [filterPill, setFilterPill] = useState<FilterPill>('all');
+  // Snap the pill to 'alumni' for Alumni-Admin-only viewers so they
+  // never see the All / Team / Pending segments their role can't
+  // act on. Fires once whenever the alumniScoped flag flips true
+  // (e.g. after the role bit loads from the DB).
+  useEffect(() => {
+    if (isAlumniAdmin && !isSuperAdmin && filterPill !== 'alumni') {
+      setFilterPill('alumni');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAlumniAdmin, isSuperAdmin]);
   const [topTab, setTopTab] = useState<TopTab>('users');
   const [busyId, setBusyId] = useState<string | null>(null);
   const [permissionsTarget, setPermissionsTarget] = useState<AppUser | null>(null);
@@ -153,7 +169,7 @@ export default function UserPermissionsContent() {
       const data = await db({
         action: 'select',
         table: 'users',
-        select: 'id, email, full_name, avatar_url, is_admin, is_super_admin, status, department_id, job_title, credentials, last_seen_at, last_path, created_at, user_kind',
+        select: 'id, email, full_name, avatar_url, is_admin, is_super_admin, is_alumni_admin, status, department_id, job_title, credentials, last_seen_at, last_path, created_at, user_kind',
         order: { column: 'full_name', ascending: true },
       }).catch(() => []);
       if (!cancelled && Array.isArray(data)) setUsers(data as AppUser[]);
@@ -227,6 +243,80 @@ export default function UserPermissionsContent() {
     setBusyId(null);
   }
 
+  // The "Super Admin" column toggles is_super_admin (which gates
+  // Levers, Social Media, Content, User Permissions itself, and
+  // every super-admin-only API route). Promoting to super admin
+  // also implicitly sets is_admin = true since super admins are a
+  // superset of admins; demoting from super admin keeps is_admin
+  // intact so the user doesn't silently lose department-level
+  // admin access in the same click.
+  // Three-way Admin dropdown — replaces the old binary
+  // "Super Admin" toggle. The three values:
+  //
+  //   - 'none'         → is_super_admin=false, is_alumni_admin=false.
+  //                       (is_admin is left untouched — that's the
+  //                       department-level bit and managed elsewhere.)
+  //   - 'super_admin'  → is_super_admin=true, is_alumni_admin=false,
+  //                       is_admin=true (super admins are a superset).
+  //   - 'alumni_admin' → is_alumni_admin=true, is_super_admin=false.
+  //                       Scoped role — can administer ONLY
+  //                       user_kind='alumni' rows on user-permissions
+  //                       + incoming-users.
+  //
+  // The root admin (bobby@) is locked at super_admin; alumni rows
+  // can only be 'none' or 'alumni_admin' so a staff super-admin role
+  // can't accidentally be granted to an alumni account.
+  type AdminRole = 'none' | 'super_admin' | 'alumni_admin';
+  function roleOf(u: AppUser): AdminRole {
+    if (u.is_super_admin) return 'super_admin';
+    if (u.is_alumni_admin) return 'alumni_admin';
+    return 'none';
+  }
+  async function setAdminRole(u: AppUser, next: AdminRole) {
+    if (isRootAdmin(u.email) && next !== 'super_admin') return;
+    const previous = roleOf(u);
+    if (previous === next) return;
+    setBusyId(u.id);
+    const patch: { is_super_admin: boolean; is_alumni_admin: boolean; is_admin?: boolean } = {
+      is_super_admin: next === 'super_admin',
+      is_alumni_admin: next === 'alumni_admin',
+    };
+    if (next === 'super_admin' && !u.is_admin) patch.is_admin = true;
+    setUsers((prev) => prev.map((x) => (x.id === u.id ? {
+      ...x,
+      is_super_admin: patch.is_super_admin,
+      is_alumni_admin: patch.is_alumni_admin,
+      is_admin: patch.is_admin ?? x.is_admin,
+    } : x)));
+    const res = await db({ action: 'update', table: 'users', data: patch, match: { id: u.id } }).catch(() => null);
+    if (!res || (typeof res === 'object' && 'error' in res)) {
+      // Revert optimistic update on failure.
+      setUsers((prev) => prev.map((x) => (x.id === u.id ? {
+        ...x,
+        is_super_admin: u.is_super_admin,
+        is_alumni_admin: u.is_alumni_admin,
+        is_admin: u.is_admin,
+      } : x)));
+    } else if (user?.id) {
+      logActivity({
+        userId: user.id,
+        type: 'user.role_changed',
+        targetKind: 'user',
+        targetId: u.id,
+        targetLabel: u.full_name || u.email,
+        targetPath: '/app/user-permissions',
+        metadata: {
+          previous_role: previous,
+          next_role: next,
+          is_super_admin: patch.is_super_admin,
+          is_alumni_admin: patch.is_alumni_admin,
+          is_admin: patch.is_admin,
+        },
+      });
+    }
+    setBusyId(null);
+  }
+
   async function updateDepartment(userId: string, departmentId: string | null) {
     const res = await db({ action: 'update', table: 'users', data: { department_id: departmentId }, match: { id: userId } });
     if (res && typeof res === 'object' && 'error' in res) return;
@@ -271,10 +361,20 @@ export default function UserPermissionsContent() {
     }
   }
 
+  // Alumni-only scope: viewer is an Alumni Admin but NOT a Super
+  // Admin, so they see only alumni rows + the Alumni pill, and the
+  // tabs/groups that don't apply to them are hidden.
+  const alumniScoped = isAlumniAdmin && !isSuperAdmin;
   const sortedUsers = useMemo(() => {
     const visible = (() => {
       const q = filter.trim().toLowerCase();
       let list = users;
+      // Alumni Admin scope: when the viewer is an Alumni Admin but
+      // NOT also a Super Admin, every list narrows to user_kind='alumni'
+      // before any pill filter runs. This is the page-level
+      // implementation of the role's intent — they see only alumni
+      // rows on user-permissions, never staff.
+      if (alumniScoped) list = list.filter((u) => u.user_kind === 'alumni');
       switch (filterPill) {
         // Team = anyone with elevated access (admin OR super-admin),
         // excluding alumni who shouldn't double-count.
@@ -319,9 +419,9 @@ export default function UserPermissionsContent() {
           return cmp(new Date(a.created_at).getTime(), new Date(b.created_at).getTime());
       }
     });
-  }, [users, filter, filterPill, sortKey, sortDir, departments]);
+  }, [users, filter, filterPill, sortKey, sortDir, departments, alumniScoped]);
 
-  if (!isAdmin) {
+  if (!isAdmin && !isAlumniAdmin) {
     return (
       <div className="p-10 text-center text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
         You need to be an admin to view this page.
@@ -364,8 +464,8 @@ export default function UserPermissionsContent() {
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
             {topTab === 'users'
               ? <>Grant super-admin access and per-user page overrides.{' '}
-                  <span className="font-medium text-foreground/70">{adminCount}</span>{' '}
-                  {adminCount === 1 ? 'super admin' : 'super admins'} total.</>
+                  <span className="font-medium text-foreground/70">{superAdminCount}</span>{' '}
+                  {superAdminCount === 1 ? 'super admin' : 'super admins'} total.</>
               : topTab === 'alumni'
               ? <>Alumni members + the pages only they can see.</>
               : <>Bundle pages + departments + members under a name, then assign in bulk.</>}
@@ -386,15 +486,24 @@ export default function UserPermissionsContent() {
       {/* Top-level tabs — Users (default) | Access Groups (super-admin
           builder for named permission templates). */}
       <div className="border-b border-gray-100 mb-5 flex gap-1" style={{ fontFamily: 'var(--font-body)' }}>
-        {([
-          // Content tab leads the strip — it's the single most
-          // requested promotion path (HR flips a teammate into the
-          // blog pipeline) and benefits from being first.
-          { id: 'content' as TopTab, label: 'Content' },
-          { id: 'users' as TopTab, label: 'Users' },
-          { id: 'groups' as TopTab, label: 'Access Groups' },
-          { id: 'alumni' as TopTab, label: 'Alumni' },
-        ]).map((t) => {
+        {(alumniScoped
+          ? [
+              // Alumni Admins only see the Users + Alumni tabs —
+              // Content and Access Groups are out-of-scope for the
+              // role's narrowed responsibility.
+              { id: 'users' as TopTab, label: 'Users' },
+              { id: 'alumni' as TopTab, label: 'Alumni' },
+            ]
+          : [
+              // Content tab leads the strip — it's the single most
+              // requested promotion path (HR flips a teammate into the
+              // blog pipeline) and benefits from being first.
+              { id: 'content' as TopTab, label: 'Content' },
+              { id: 'users' as TopTab, label: 'Users' },
+              { id: 'groups' as TopTab, label: 'Access Groups' },
+              { id: 'alumni' as TopTab, label: 'Alumni' },
+            ]
+        ).map((t) => {
           const active = topTab === t.id;
           return (
             <button
@@ -420,15 +529,24 @@ export default function UserPermissionsContent() {
       ) : topTab === 'alumni' ? (
         <AlumniTab
           users={users}
+          alumniScoped={alumniScoped}
           onApproveAlumni={async (userId) => {
             setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: 'active' } : u)));
-            const res = await db({
-              action: 'update',
-              table: 'users',
-              data: { status: 'active' },
-              match: { id: userId },
+            // Goes through the dedicated /api/alumni-admin/approve
+            // route so Alumni Admins can approve even though the
+            // users-table RLS policy gates UPDATE on is_admin() (the
+            // column). Super Admins fall through the same gate too —
+            // one auditable codepath instead of two divergent ones.
+            const res = await fetch('/api/alumni-admin/approve', {
+              method: 'POST',
+              credentials: 'include',
+              headers: session?.access_token
+                ? { 'content-type': 'application/json', Authorization: `Bearer ${session.access_token}` }
+                : { 'content-type': 'application/json' },
+              body: JSON.stringify({ id: userId }),
             }).catch(() => null);
-            if (!res) {
+            const ok = res?.ok === true;
+            if (!ok) {
               // Roll back the optimistic flip if the write failed.
               setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, status: 'on_hold' } : u)));
             }
@@ -444,7 +562,10 @@ export default function UserPermissionsContent() {
           sub-filters at one click of depth. */}
       <div className="mb-4 space-y-2" style={{ fontFamily: 'var(--font-body)' }}>
         <div className="flex items-center gap-1.5 flex-wrap">
-          {(['all', 'team', 'alumni', 'pending'] as FilterPill[]).map((pill) => {
+          {/* Alumni Admins see only the Alumni pill — every other
+              segment is out-of-scope for them. Super Admins still
+              see the full set. */}
+          {((alumniScoped ? ['alumni'] : ['all', 'team', 'alumni', 'pending']) as FilterPill[]).map((pill) => {
             const active = filterPill === pill || (pill === 'team' && (filterPill === 'admins' || filterPill === 'super_admins'));
             const count = pillCounts[pill];
             const isPending = pill === 'pending';
@@ -520,7 +641,7 @@ export default function UserPermissionsContent() {
                   <SortableTh label="Department" sortKey="department" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden md:table-cell" />
                   <SortableTh label="Job Title" sortKey="job_title" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden sm:table-cell" />
                   <SortableTh label="Joined" sortKey="created_at" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden lg:table-cell" />
-                  <th className="px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Super Admin</th>
+                  <th className="px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider" style={{ fontFamily: 'var(--font-body)' }}>Admin</th>
                   <th className="px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider text-center" style={{ fontFamily: 'var(--font-body)' }}>Pages</th>
                 </tr>
               </thead>
@@ -528,14 +649,21 @@ export default function UserPermissionsContent() {
                 {sortedUsers.map((u) => {
                   const isSelf = u.id === user?.id;
                   const userDept = departments.find((d) => d.id === u.department_id) || null;
+                  // Alumni rows render in an emerald-tinted variant so a
+                  // glance at the All view tells you who's a teammate vs
+                  // who's on the alumni side. Dept/job-title/superadmin
+                  // cells don't apply to alumni and get neutralized to
+                  // a clean "—" or an Alumni pill below.
+                  const isAlumni = u.user_kind === 'alumni';
                   return (
-                    <tr key={u.id} className="border-b border-gray-100 last:border-b-0 hover:bg-warm-bg/30 transition-colors">
-                      {/* User */}
-                      <td className="px-6 py-4">
+                    <tr key={u.id} className={`border-b border-gray-100 last:border-b-0 transition-colors ${isAlumni ? 'bg-emerald-50/30 hover:bg-emerald-50/55' : 'hover:bg-warm-bg/30'}`}>
+                      {/* User — left border + tinted bg above flags the
+                          row as alumni so the All view reads at a glance. */}
+                      <td className={`px-6 py-4 ${isAlumni ? 'border-l-4 border-emerald-500/70' : ''}`}>
                         <div className="flex items-center gap-3">
                           {u.avatar_url ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={u.avatar_url} alt="" className="w-8 h-8 rounded-full" />
+                            <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-8 h-8 rounded-full" />
                           ) : (
                             <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
                               {(u.full_name || u.email || '?').charAt(0).toUpperCase()}
@@ -545,6 +673,11 @@ export default function UserPermissionsContent() {
                             <p className="text-sm font-medium text-foreground">
                               {formatNameWithCredentials(u.full_name, u.credentials) || 'Unknown'}
                               {isSelf && <span className="ml-2 text-[11px] text-foreground/40">(you)</span>}
+                              {isAlumni && (
+                                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-emerald-100 text-emerald-800">
+                                  Alumni
+                                </span>
+                              )}
                               {u.status === 'on_hold' && (
                                 <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-amber-100 text-amber-800">
                                   On hold
@@ -582,28 +715,39 @@ export default function UserPermissionsContent() {
                         })()}
                       </td>
 
-                      {/* Department */}
+                      {/* Department — N/A for alumni (they're not on the
+                          org chart). Show a static Alumni pill instead so
+                          the column reads cleanly. */}
                       <td className="px-6 py-4 hidden md:table-cell">
-                        <select
-                          value={u.department_id || ''}
-                          onChange={(e) => updateDepartment(u.id, e.target.value || null)}
-                          className={`text-xs px-2 py-1 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[180px] ${userDept ? 'font-medium' : 'text-foreground/40 bg-white border border-gray-200'}`}
-                          style={{
-                            fontFamily: 'var(--font-body)',
-                            backgroundColor: userDept ? (userDept.color || '#a0522d') + '1f' : undefined,
-                            color: userDept ? (userDept.color || '#a0522d') : undefined,
-                          }}
-                        >
-                          <option value="">—</option>
-                          {departments.map((d) => (
-                            <option key={d.id} value={d.id}>{d.name}</option>
-                          ))}
-                        </select>
+                        {isAlumni ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold uppercase tracking-wider bg-emerald-100 text-emerald-800" title="Alumni — not part of the org chart">
+                            Alumni
+                          </span>
+                        ) : (
+                          <select
+                            value={u.department_id || ''}
+                            onChange={(e) => updateDepartment(u.id, e.target.value || null)}
+                            className={`text-xs px-2 py-1 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[180px] ${userDept ? 'font-medium' : 'text-foreground/40 bg-white border border-gray-200'}`}
+                            style={{
+                              fontFamily: 'var(--font-body)',
+                              backgroundColor: userDept ? (userDept.color || '#a0522d') + '1f' : undefined,
+                              color: userDept ? (userDept.color || '#a0522d') : undefined,
+                            }}
+                          >
+                            <option value="">—</option>
+                            {departments.map((d) => (
+                              <option key={d.id} value={d.id}>{d.name}</option>
+                            ))}
+                          </select>
+                        )}
                       </td>
 
-                      {/* Job Title — same dropdown + inline custom-title input as /app/team */}
+                      {/* Job Title — same dropdown + inline custom-title input as /app/team.
+                          Alumni don't have job titles so the cell shows a clean "—". */}
                       <td className="px-6 py-4 hidden sm:table-cell">
-                        {customTitleUserId === u.id ? (
+                        {isAlumni ? (
+                          <span className="text-xs text-foreground/30">—</span>
+                        ) : customTitleUserId === u.id ? (
                           <input
                             autoFocus
                             type="text"
@@ -679,7 +823,14 @@ export default function UserPermissionsContent() {
                         })()}
                       </td>
 
-                      {/* Super Admin toggle */}
+                      {/* Admin dropdown — None / Super Admin / Alumni
+                          Admin. Writes to (is_super_admin,
+                          is_alumni_admin) in lockstep through
+                          setAdminRole above. Alumni rows can only be
+                          None or Alumni Admin so a staff-level
+                          super-admin promotion can't sneak through.
+                          Root super admin (bobby@) is locked at
+                          Super Admin. */}
                       <td className="px-6 py-4">
                         {isRootAdmin(u.email) ? (
                           <span className="inline-flex items-center gap-2 text-xs font-semibold text-primary" title="Root super admin — locked">
@@ -690,22 +841,27 @@ export default function UserPermissionsContent() {
                             </svg>
                           </span>
                         ) : (
-                          <label className={`inline-flex items-center gap-2 cursor-pointer select-none ${busyId === u.id ? 'opacity-50' : ''}`}>
-                            <span className="relative inline-block w-9 h-5">
-                              <input
-                                type="checkbox"
-                                className="sr-only peer"
-                                checked={u.is_admin}
-                                disabled={busyId === u.id || isSelf}
-                                onChange={(e) => toggleAdmin(u, e.target.checked)}
-                              />
-                              <span className="absolute inset-0 rounded-full bg-gray-200 peer-checked:bg-primary transition-colors" />
-                              <span className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform peer-checked:translate-x-4" />
-                            </span>
-                            <span className={`text-xs font-medium ${u.is_admin ? 'text-primary' : 'text-foreground/40'}`}>
-                              {u.is_admin ? 'Super Admin' : 'Off'}
-                            </span>
-                          </label>
+                          <select
+                            value={roleOf(u)}
+                            disabled={busyId === u.id || isSelf}
+                            onChange={(e) => void setAdminRole(u, e.target.value as 'none' | 'super_admin' | 'alumni_admin')}
+                            className={`text-xs px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white max-w-[140px] ${
+                              u.is_super_admin || u.is_alumni_admin ? 'text-primary font-semibold' : 'text-foreground/55'
+                            } ${busyId === u.id ? 'opacity-50' : ''}`}
+                            style={{ fontFamily: 'var(--font-body)' }}
+                            aria-label="Admin role"
+                          >
+                            <option value="none">None</option>
+                            {/* Staff super-admin promotion is hidden
+                                for alumni rows to enforce the role
+                                scope. An alumni who's accidentally a
+                                super admin from legacy data still
+                                sees this option so it can be cleared. */}
+                            {(!isAlumni || u.is_super_admin) && (
+                              <option value="super_admin">Super Admin</option>
+                            )}
+                            <option value="alumni_admin">Alumni Admin</option>
+                          </select>
                         )}
                       </td>
 
@@ -791,6 +947,27 @@ export default function UserPermissionsContent() {
 // user_kind='alumni' (the PagePermissions gate enforces this on
 // route entry + sidebar render). Defaults to off so nothing is
 // hidden from staff without an explicit click.
+// Canonical list of alumni-portal routes. Drives the "All alumni
+// pages" master toggle: flipping it ON sets alumni_only=true on every
+// path in this list in one batched update, and the page list below
+// renders these paths in a dedicated highlighted group.
+//
+// Derived from the page registry's `alumniOnly` flag rather than a
+// hand-maintained list, so any new alumni page automatically joins the
+// bundle the moment it's declared in defaultPages — there's no second
+// list to keep in sync (this is what had silently left Reunion out).
+const ALUMNI_PORTAL_PATHS = new Set<string>([
+  ...defaultPages.filter((p) => p.alumniOnly === true).map((p) => p.path),
+  // Chat lives outside the /app/alumni/* tree but is part of the
+  // alumni's daily surface — group it inside the master toggle so
+  // a single flip enables / disables the whole community.
+  '/app/chat',
+]);
+
+function isAlumniPortalPath(path: string): boolean {
+  return ALUMNI_PORTAL_PATHS.has(path);
+}
+
 interface PagePermRow {
   path: string;
   section: string | null;
@@ -799,7 +976,20 @@ interface PagePermRow {
   sort_order: number | null;
 }
 
-function AlumniTab({ users, onApproveAlumni }: { users: AppUser[]; onApproveAlumni: (userId: string) => Promise<void> | void }) {
+function AlumniTab({
+  users,
+  onApproveAlumni,
+  alumniScoped = false,
+}: {
+  users: AppUser[];
+  onApproveAlumni: (userId: string) => Promise<void> | void;
+  // True when the viewer is an Alumni Admin (not a Super Admin). The
+  // tab collapses the per-section page list to just the "All alumni
+  // pages" group — every other page (NAV, popup, marketing-only
+  // surfaces) is out-of-scope for an Alumni Admin's job, so we don't
+  // render the toggles for them at all.
+  alumniScoped?: boolean;
+}) {
   const alumni = useMemo(
     () => users.filter((u) => u.user_kind === 'alumni'),
     [users],
@@ -839,6 +1029,38 @@ function AlumniTab({ users, onApproveAlumni }: { users: AppUser[]; onApproveAlum
     setPendingPath(null);
   }
 
+  // Bulk toggle for the alumni-portal page bundle. Flips every
+  // /app/alumni/* row's alumni_only in one go via parallel db
+  // updates; rolls back the whole set if any individual write
+  // fails (consistency > partial-success here — half-on, half-off
+  // is worse than no change at all). Used by the "All alumni
+  // pages" master toggle at the top of the alumni section.
+  async function toggleAllAlumniPortal(next: boolean) {
+    if (!pages) return;
+    setPendingPath('__all_alumni_portal__');
+    setError(null);
+    const targets = pages.filter((p) => isAlumniPortalPath(p.path));
+    setPages((prev) => prev?.map((p) => (isAlumniPortalPath(p.path) ? { ...p, alumni_only: next } : p)) ?? prev);
+    try {
+      await Promise.all(
+        targets.map((p) =>
+          db({
+            action: 'update',
+            table: 'page_permissions',
+            data: { alumni_only: next },
+            match: { path: p.path },
+          }),
+        ),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      // Roll the whole set back so we don't leave a partial state.
+      setPages((prev) => prev?.map((p) => (isAlumniPortalPath(p.path) ? { ...p, alumni_only: !next } : p)) ?? prev);
+    } finally {
+      setPendingPath(null);
+    }
+  }
+
   // Group pages by their `section` so the UI mirrors the sidebar's
   // section structure. Pages without a section land in "Other".
   const grouped = useMemo(() => {
@@ -873,7 +1095,7 @@ function AlumniTab({ users, onApproveAlumni }: { users: AppUser[]; onApproveAlum
               <li key={u.id} className="px-5 py-3 flex items-center gap-3">
                 {u.avatar_url ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={u.avatar_url} alt={u.full_name ?? u.email} className="w-9 h-9 rounded-full object-cover bg-warm-bg" />
+                  <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt={u.full_name ?? u.email} className="w-9 h-9 rounded-full object-cover bg-warm-bg" />
                 ) : (
                   <div className="w-9 h-9 rounded-full bg-warm-bg flex items-center justify-center text-[12px] font-semibold text-foreground/55">
                     {(u.full_name || u.email || '?').charAt(0).toUpperCase()}
@@ -930,40 +1152,116 @@ function AlumniTab({ users, onApproveAlumni }: { users: AppUser[]; onApproveAlum
           <div className="px-5 py-6 text-sm text-foreground/55">Loading pages…</div>
         ) : pages.length === 0 ? (
           <div className="px-5 py-6 text-sm text-foreground/55">No pages registered.</div>
-        ) : (
-          <ol className="divide-y divide-gray-100">
-            {grouped.map(([section, rows]) => (
-              <li key={section} className="px-5 py-3">
-                <p className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 mb-2">{section}</p>
-                <ul className="space-y-1">
-                  {rows.map((p) => (
-                    <li key={p.path} className="flex items-center justify-between gap-3 py-1">
-                      <div className="min-w-0">
-                        <p className="text-[12.5px] font-medium text-foreground truncate">{p.path}</p>
-                        {p.admin_only && (
-                          <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold border bg-amber-50 text-amber-800 border-amber-200">Admin-only</span>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => void toggleAlumniOnly(p.path, !p.alumni_only)}
-                        aria-pressed={p.alumni_only}
-                        disabled={pendingPath === p.path}
-                        className={`shrink-0 w-10 h-6 rounded-full transition-colors relative ${p.alumni_only ? 'bg-primary' : 'bg-foreground/15'} ${pendingPath === p.path ? 'opacity-60' : ''}`}
-                        title={p.alumni_only ? 'Alumni-only — staff cannot see this page' : 'Not alumni-only'}
-                      >
-                        <span
-                          aria-hidden
-                          className={`absolute top-0.5 ${p.alumni_only ? 'left-[18px]' : 'left-0.5'} w-5 h-5 rounded-full bg-white shadow transition-all`}
-                        />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ol>
-        )}
+        ) : (() => {
+          // Pull the alumni-portal pages out of the main grouped
+          // list so we can render them in their own highlighted
+          // group with the master toggle on top. Everything else
+          // flows through the original section-grouped list below.
+          const alumniPortalPages = pages.filter((p) => isAlumniPortalPath(p.path));
+          const otherGrouped = grouped
+            .map(([section, rows]) => [section, rows.filter((p) => !isAlumniPortalPath(p.path))] as const)
+            .filter(([, rows]) => rows.length > 0);
+          const allOn = alumniPortalPages.length > 0 && alumniPortalPages.every((p) => p.alumni_only);
+          const someOn = alumniPortalPages.some((p) => p.alumni_only);
+          const bulkPending = pendingPath === '__all_alumni_portal__';
+          return (
+            <ol className="divide-y divide-gray-100">
+              {/* Master toggle row + grouped alumni-portal pages.
+                  Reads as "all alumni pages" → tap once → every
+                  alumni portal route gets alumni_only flipped in
+                  one go. Indented children show the current state
+                  per-page (in case a super admin wants a finer
+                  override later). */}
+              {alumniPortalPages.length > 0 && (
+                <li className="px-5 py-3 bg-primary/5">
+                  <div className="flex items-center justify-between gap-3 py-1 mb-2">
+                    <div className="min-w-0">
+                      <p className="text-[13px] font-bold text-foreground">All alumni pages</p>
+                      <p className="text-[11px] text-foreground/55 mt-0.5">
+                        {allOn
+                          ? `All ${alumniPortalPages.length} alumni-portal pages are visible to alumni + super admins.`
+                          : someOn
+                            ? `${alumniPortalPages.filter((p) => p.alumni_only).length} of ${alumniPortalPages.length} on — flip to enable the whole portal at once.`
+                            : `Flip ON to make all ${alumniPortalPages.length} alumni-portal pages alumni-only.`}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void toggleAllAlumniPortal(!allOn)}
+                      aria-pressed={allOn}
+                      disabled={bulkPending}
+                      className={`shrink-0 w-12 h-7 rounded-full transition-colors relative ${
+                        allOn ? 'bg-primary' : someOn ? 'bg-primary/40' : 'bg-foreground/15'
+                      } ${bulkPending ? 'opacity-60' : ''}`}
+                      title={allOn ? 'All alumni pages on · click to turn all off' : 'Turn on every alumni-portal page'}
+                    >
+                      <span
+                        aria-hidden
+                        className={`absolute top-0.5 ${allOn ? 'left-[22px]' : 'left-0.5'} w-6 h-6 rounded-full bg-white shadow transition-all`}
+                      />
+                    </button>
+                  </div>
+                  <ul className="space-y-1 pl-3 border-l-2 border-primary/30">
+                    {alumniPortalPages.map((p) => (
+                      <li key={p.path} className="flex items-center justify-between gap-3 py-1">
+                        <p className="text-[12.5px] font-medium text-foreground/85 truncate">{p.path}</p>
+                        <button
+                          type="button"
+                          onClick={() => void toggleAlumniOnly(p.path, !p.alumni_only)}
+                          aria-pressed={p.alumni_only}
+                          disabled={pendingPath === p.path || bulkPending}
+                          className={`shrink-0 w-10 h-6 rounded-full transition-colors relative ${p.alumni_only ? 'bg-primary' : 'bg-foreground/15'} ${pendingPath === p.path || bulkPending ? 'opacity-60' : ''}`}
+                          title={p.alumni_only ? 'Alumni-only — click to disable' : 'Click to make alumni-only'}
+                        >
+                          <span
+                            aria-hidden
+                            className={`absolute top-0.5 ${p.alumni_only ? 'left-[18px]' : 'left-0.5'} w-5 h-5 rounded-full bg-white shadow transition-all`}
+                          />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              )}
+
+              {/* Every other page, grouped by section as before.
+                  Hidden entirely for Alumni Admins — they only
+                  manage the alumni-portal bundle (the highlighted
+                  group above), never the NAV / popup / marketing
+                  surfaces below. */}
+              {!alumniScoped && otherGrouped.map(([section, rows]) => (
+                <li key={section} className="px-5 py-3">
+                  <p className="text-[10px] font-bold tracking-[0.16em] uppercase text-foreground/45 mb-2">{section}</p>
+                  <ul className="space-y-1">
+                    {rows.map((p) => (
+                      <li key={p.path} className="flex items-center justify-between gap-3 py-1">
+                        <div className="min-w-0">
+                          <p className="text-[12.5px] font-medium text-foreground truncate">{p.path}</p>
+                          {p.admin_only && (
+                            <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold border bg-amber-50 text-amber-800 border-amber-200">Admin-only</span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void toggleAlumniOnly(p.path, !p.alumni_only)}
+                          aria-pressed={p.alumni_only}
+                          disabled={pendingPath === p.path}
+                          className={`shrink-0 w-10 h-6 rounded-full transition-colors relative ${p.alumni_only ? 'bg-primary' : 'bg-foreground/15'} ${pendingPath === p.path ? 'opacity-60' : ''}`}
+                          title={p.alumni_only ? 'Alumni-only — staff cannot see this page' : 'Not alumni-only'}
+                        >
+                          <span
+                            aria-hidden
+                            className={`absolute top-0.5 ${p.alumni_only ? 'left-[18px]' : 'left-0.5'} w-5 h-5 rounded-full bg-white shadow transition-all`}
+                          />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </li>
+              ))}
+            </ol>
+          );
+        })()}
       </section>
     </div>
   );

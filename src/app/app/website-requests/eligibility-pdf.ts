@@ -1,4 +1,7 @@
-import { jsPDF } from 'jspdf';
+// Type-only import — erased at build so jsPDF (~300 KB) stays out of
+// the bundle that imports this module. The constructor is loaded
+// lazily inside openEligibilityPdf via dynamic import.
+import type { jsPDF } from 'jspdf';
 
 // One-page, Seven Arrows-branded insurance eligibility PDF.
 //
@@ -370,7 +373,8 @@ export async function openEligibilityPdf(
   const resp = row.eligibility_response ?? null;
   const highlights = parseHighlights(resp);
   const logoDataUrl = await loadLogoDataUrl();
-  const pdf = new jsPDF({ unit: 'pt', format: 'letter' });
+  const { jsPDF: JsPdfCtor } = await import('jspdf');
+  const pdf = new JsPdfCtor({ unit: 'pt', format: 'letter' });
 
   drawHeaderBand(pdf, logoDataUrl, row);
   drawHero(pdf, row, highlights);

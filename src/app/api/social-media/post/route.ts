@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { requireSuperAdmin } from '@/lib/social-media-auth';
 import { ayrsharePost, AYRSHARE_PLATFORMS, AyrshareNotConfigured, type AyrsharePlatform } from '@/lib/ayrshare';
+import { readFlag } from '@/lib/app-flags';
 
 // POST /api/social-media/post
 //   body: {
@@ -30,6 +31,17 @@ export async function POST(req: Request) {
   const supabase = await getServerSupabase();
   const auth = await requireSuperAdmin(supabase);
   if (auth.response) return auth.response;
+
+  // Global posting kill switch — flipped via the toggle at the top
+  // of /app/social-media. When false, every POST is short-circuited
+  // server-side so a stale tab or scheduled cron can't bypass it.
+  const postingEnabled = await readFlag<boolean>('social_posting_enabled', false);
+  if (!postingEnabled) {
+    return NextResponse.json({
+      error: 'Social posting is paused. Flip the toggle at the top of /app/social-media to re-enable.',
+      code: 'posting_disabled',
+    }, { status: 423 });
+  }
 
   let body: Body;
   try { body = (await req.json()) as Body; } catch { body = {}; }
@@ -74,6 +86,37 @@ export async function POST(req: Request) {
 
   try {
     const { status, body: result } = await ayrsharePost('/post', payload);
+    // On a successful (or partially-successful) post, write a row to
+    // activity_log so the post shows up on /app/activity and counts
+    // toward the user's "on fire" daily action total — same treatment
+    // as logging a contact touchpoint or filling a field. Skipped on
+    // upstream errors so a failed Ayrshare round-trip doesn't masquerade
+    // as completed work.
+    if (status >= 200 && status < 300 && auth.user?.id) {
+      const isScheduled = typeof payload.scheduleDate === 'string';
+      const postIds = Array.isArray((result as { postIds?: unknown[] }).postIds)
+        ? ((result as { postIds: unknown[] }).postIds)
+        : [];
+      const label = post.trim().slice(0, 80);
+      try {
+        await supabase.from('activity_log').insert({
+          user_id: auth.user.id,
+          type: isScheduled ? 'social.scheduled' : 'social.posted',
+          target_kind: 'social_post',
+          target_id: null,
+          target_label: label || null,
+          target_path: '/app/social-media',
+          metadata: {
+            platforms,
+            scheduled: isScheduled,
+            scheduleDate: payload.scheduleDate ?? null,
+            postIds,
+          },
+        });
+      } catch {
+        /* logging is best-effort — never block the post response */
+      }
+    }
     // Pass the upstream status through (200 OK on success, 400 on
     // platform errors). Ayrshare's response carries postIds + a
     // per-platform array even on partial success.

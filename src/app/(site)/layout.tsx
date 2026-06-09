@@ -6,7 +6,6 @@ import Footer from '@/components/Footer';
 import BeforeFooterCTA from '@/components/BeforeFooterCTA';
 import InsuranceVerification from '@/components/InsuranceVerification';
 import BottomTicker from '@/components/BottomTickerServer';
-import GoogleReviewsBadge from '@/components/GoogleReviewsBadge';
 import FloatingContactCTA from '@/components/FloatingContactCTA';
 import StickyMobileCTA from '@/components/StickyMobileCTA';
 
@@ -34,15 +33,34 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
     <>
       <TopBar />
       <Header />
+      {/* No bottom padding here anymore. The previous mobile
+          pb-[calc(env(safe-area-inset-bottom)+96px)] was reserving
+          height for the floating StickyMobileCTA pill, but it had
+          the side effect of dropping a ~96-120px empty white band
+          BETWEEN the page's last section and the BeforeFooterCTA
+          below (visible in the screenshot the user flagged: dark
+          contact CTA → big white gap → "Change your life with a
+          single call"). The Footer is the bottom-most element and
+          carries its own bottom padding for the floating pill's
+          safe-area on mobile (see Footer.tsx); reserving space
+          here just stacks white space mid-page. */}
       <main className="flex-1">{children}</main>
+      {/* Pre-footer conversion stack. Brought BeforeFooterCTA back
+          above the form — the dog-photo "Change your life with a
+          single call" block is the warm hook (anyone, casual), then
+          InsuranceVerification is the actionable form (people ready
+          to commit benefits info). Reading order: emotional → form.
+          Mobile-only sticky phone bar (rendered below) keeps
+          tap-to-call always available regardless. */}
       <BeforeFooterCTA />
       <InsuranceVerification />
       <Footer />
       <BottomTicker />
-      <GoogleReviewsBadge />
       <FloatingContactCTA />
-      {/* Mobile-only floating call pill, rendered globally so the
-          phone number is always one tap away on every inner page. */}
+      {/* Mobile-only sticky phone-call ribbon pinned to the
+          bottom of every inner page. GoogleReviewsBadge was
+          previously stacked below this; removed to keep the
+          ribbon a single clean row. */}
       <StickyMobileCTA />
     </>
   );

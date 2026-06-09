@@ -30,7 +30,7 @@ const spots: Spot[] = [
     label: 'Residences',
     x: 320,
     y: 240,
-    image: '/images/facility-exterior-mountains.jpg',
+    image: '/hero/facility-exterior-mountains.jpg',
     body: 'Private and semi-private rooms in a southwestern main house. Covered porches, quiet night sky, morning coffee within steps of the door.',
   },
   {
@@ -38,7 +38,7 @@ const spots: Spot[] = [
     label: 'Equine arena',
     x: 620,
     y: 200,
-    image: '/images/equine-therapy-portrait.jpg',
+    image: '/hero/equine-therapy-portrait.jpg',
     body: 'Where most of the nervous-system-level work happens. Four horses, one equine specialist, a clinical team that reads what the body is saying when words fall short.',
   },
   {
@@ -46,7 +46,7 @@ const spots: Spot[] = [
     label: 'Sweat lodge',
     x: 780,
     y: 370,
-    image: '/images/group-sunset-desert.jpg',
+    image: '/hero/group-sunset-desert.jpg',
     body: 'Traditional sweat-lodge ceremonies held by indigenous carriers on a monthly cadence. Offered, never required.',
   },
   {
@@ -54,7 +54,7 @@ const spots: Spot[] = [
     label: 'Group room',
     x: 420,
     y: 380,
-    image: '/images/group-therapy-room.jpg',
+    image: '/hero/group-therapy-room.jpg',
     body: 'Small-group process work. Not fluorescent lights and folding chairs — a real room that visitors sometimes describe as a living room with bigger things in it.',
   },
   {
@@ -62,7 +62,7 @@ const spots: Spot[] = [
     label: 'Covered porch',
     x: 220,
     y: 350,
-    image: '/images/covered-porch-desert-view.jpg',
+    image: '/hero/covered-porch-desert-view.jpg',
     body: 'The de-facto integration space. Free time, conversations, journaling, the pause between sessions. Open to the desert and the mountains on three sides.',
   },
   {
@@ -70,7 +70,7 @@ const spots: Spot[] = [
     label: 'Trails & land',
     x: 850,
     y: 140,
-    image: '/images/facility-exterior-mountains.jpg',
+    image: '/hero/facility-exterior-mountains.jpg',
     body: '160 acres backing up to the Swisshelm Mountains. Morning hikes, solo walks, the literal landscape that does a measurable amount of the clinical work.',
   },
 ];

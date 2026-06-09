@@ -16,16 +16,22 @@ interface InnerTab {
 
 const INNER_TABS: InnerTab[] = [
   // Directories first — that's where day-to-day work happens
-  // (claiming + tracking citations). The four outreach trackers
-  // (press releases / guest posts / comments / forums) follow,
+  // (claiming + tracking citations). The outreach trackers (press
+  // releases / guest posts / brand profiles / comments) follow,
   // each one a manual list of prospects we're working through
-  // with a per-row chat thread.
+  // with a per-row chat thread. The final four — Forum, PDF,
+  // Web 2.0, Social Bookmarks — are the simpler placement-log
+  // trackers that share PlacementsContent (Website / Target URL
+  // / Anchor / Live link columns).
   { href: '/app/seo/directories', label: 'Directories', hint: 'Off-site listings to claim' },
   { href: '/app/seo/press-releases', label: 'Press releases', hint: 'Press release placements + pitches' },
   { href: '/app/seo/guest-posts', label: 'Guest posts', hint: 'Guest-post outreach + placements' },
   { href: '/app/seo/brand-profiles', label: 'Brand profiles', hint: 'Brand-page placements on review sites + directories' },
   { href: '/app/seo/comments', label: 'Comment', hint: 'Comment placements on relevant articles' },
-  { href: '/app/seo/forums', label: 'Forum', hint: 'Forum threads we are contributing to' },
+  { href: '/app/seo/forums', label: 'Forum', hint: 'Forum-thread backlink placements' },
+  { href: '/app/seo/pdf', label: 'PDF', hint: 'PDF-hosted backlink placements (Scribd, SlideShare, …)' },
+  { href: '/app/seo/web2', label: 'Web 2.0', hint: 'Web 2.0 backlink placements (Medium, Tumblr, WordPress.com, …)' },
+  { href: '/app/seo/social-bookmarks', label: 'Social Bookmarks', hint: 'Social-bookmark backlink placements (Reddit, Mix, Pocket, …)' },
 ];
 
 export default function LinksSubNav() {

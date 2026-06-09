@@ -74,14 +74,10 @@ export default function HomeWebsiteRequestsRow() {
           Open inbox →
         </button>
       </div>
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
-        <UnrespondedCard
-          label="VOBs"
-          value={counts?.vobs ?? null}
-          tabKey="vobs"
-          tone="amber"
-          onClick={() => router.push('/app/website-requests?tab=vobs')}
-        />
+      {/* VOBs were removed from this row — they email directly to
+          admissions instead of queueing in the admin app. Keep
+          Forms + Careers as the remaining unresponded queues. */}
+      <div className="grid grid-cols-2 gap-2 sm:gap-3">
         <UnrespondedCard
           label="Forms"
           value={counts?.forms ?? null}
@@ -109,7 +105,7 @@ function UnrespondedCard({
 }: {
   label: string;
   value: number | null;
-  tabKey: 'vobs' | 'forms' | 'careers';
+  tabKey: 'forms' | 'careers';
   onClick: () => void;
   tone: 'amber' | 'blue' | 'slate';
 }) {

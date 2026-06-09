@@ -3,6 +3,26 @@ import { getPublicSupabase } from '@/lib/supabase-server';
 
 export const runtime = 'nodejs';
 
+const RESEND_URL = 'https://api.resend.com/emails';
+
+// Inbox routing for the Contact Us modal's Subject dropdown. The
+// modal validates the dropdown options client-side and the server
+// re-validates below, so any value not in this map falls back to
+// the general inbox rather than silently dropping the lead.
+const SUBJECT_INBOX: Record<string, { to: string; label: string }> = {
+  general_inquiry: { to: 'info@sevenarrowsrecovery.com', label: 'General Inquiry' },
+  admissions: { to: 'admissions@sevenarrowsrecovery.com', label: 'Admissions' },
+};
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /**
  * Detects gibberish messages — random keysmash like "BuMundgALtGcMETfBlB"
  * that bots fire into contact forms to test whether the form posts.
@@ -115,6 +135,12 @@ export async function POST(req: NextRequest) {
     ? rawSource
     : 'contact_page';
   const consent = payload.consent === true;
+  // Subject is only set by the Contact Us modal (which exposes
+  // the dropdown). Older forms — footer, exit-intent — don't send
+  // it, so we accept null. Any value not in SUBJECT_INBOX gets
+  // dropped to null rather than routed wrong.
+  const rawSubject = str(payload.subject, 40);
+  const subject = rawSubject in SUBJECT_INBOX ? rawSubject : null;
 
   // Only require enough signal to reach back — email or phone.
   if (!email && !telephone) {
@@ -151,6 +177,7 @@ export async function POST(req: NextRequest) {
       payment_method: paymentMethod || null,
       message: message || null,
       source,
+      subject,
       consent,
       page_url: pageUrl || null,
       user_agent: req.headers.get('user-agent'),
@@ -173,6 +200,53 @@ export async function POST(req: NextRequest) {
     console.info('[contact] submission payload:', {
       source, firstName, lastName, email, telephone, paymentMethod,
     });
+  }
+
+  // Route the email via Resend when the Contact Us modal supplied
+  // a Subject. Failures here never block the DB insert above (the
+  // visitor still sees success and the admin inbox still has the
+  // row) — Resend outage shouldn't lose us a lead. Skipped for
+  // auto-spam submissions so bot traffic doesn't hit the live
+  // inboxes.
+  if (subject && !autoSpam) {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      console.warn('[contact] RESEND_API_KEY not configured — DB insert succeeded, email skipped');
+    } else {
+      const inbox = SUBJECT_INBOX[subject];
+      const fullName = [firstName, lastName].filter(Boolean).join(' ').trim() || 'No name provided';
+      const from = (process.env.RESEND_FROM || process.env.EMAIL_FROM
+        || 'Seven Arrows Recovery <hello@sevenarrowsrecovery.com>').trim();
+      const replyTo = email || undefined;
+      const lines = [
+        `<p><strong>Name:</strong> ${escapeHtml(fullName)}</p>`,
+        email ? `<p><strong>Email:</strong> ${escapeHtml(email)}</p>` : '',
+        telephone ? `<p><strong>Phone:</strong> ${escapeHtml(telephone)}</p>` : '',
+        `<p><strong>Subject:</strong> ${escapeHtml(inbox.label)}</p>`,
+        message ? `<p><strong>Message:</strong><br>${escapeHtml(message).replace(/\n/g, '<br>')}</p>` : '',
+        pageUrl ? `<p style="color:#666;font-size:12px;">From: ${escapeHtml(pageUrl)}</p>` : '',
+      ].filter(Boolean).join('');
+      try {
+        const sendBody: Record<string, unknown> = {
+          from,
+          to: [inbox.to],
+          subject: `New ${inbox.label} · ${fullName}`,
+          html: `<div style="font-family:Arial,sans-serif;line-height:1.5;color:#222;">${lines}</div>`,
+        };
+        if (replyTo) sendBody.reply_to = replyTo;
+        const res = await fetch(RESEND_URL, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(sendBody),
+        });
+        if (!res.ok) {
+          const txt = await res.text().catch(() => '');
+          console.error(`[contact] Resend ${res.status}: ${txt.slice(0, 500)}`);
+        }
+      } catch (err) {
+        console.error('[contact] Resend threw:', err);
+      }
+    }
   }
 
   return NextResponse.json({ ok: true });

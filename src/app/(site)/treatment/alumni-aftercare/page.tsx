@@ -11,6 +11,13 @@ import Milestones from '@/components/alumni/Milestones';
 import LiveReviewsBand from '@/components/LiveReviewsBand';
 import AlumniCTA from '@/components/alumni/AlumniCTA';
 
+// 1-hour ISR — marketing pages are otherwise fully static; this lets the
+// edge cache hold the rendered HTML so TTFB drops from ~250ms (cold SSR)
+// to ~30ms (edge hit). Editorial copy + image swaps go live within an hour
+// of merging; if you need sub-hour freshness on a specific page, override
+// with a smaller value or remove this line.
+export const revalidate = 3600;
+
 export const metadata: Metadata = {
   title: 'Alumni & Aftercare | Seven Arrows Recovery',
   description:
@@ -28,7 +35,7 @@ export const metadata: Metadata = {
       'Continuing care for alumni: aftercare plans, step-down referrals, sober-living placement, alumni community, and 24/7 crisis support.',
     images: [
       {
-        url: '/images/group-gathering-pavilion.jpg',
+        url: '/hero/group-gathering-pavilion.jpg',
         width: 1200,
         height: 630,
         alt: 'Seven Arrows alumni gathering at the ranch pavilion',

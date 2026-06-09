@@ -45,5 +45,14 @@ jobs:
           cache: "npm"
       - name: Install dependencies
         run: npm ci
+      - name: API gate coverage
+        # Fails the build if any new src/app/api/**/route.ts is
+        # added without importing a centralised auth gate (or
+        # being explicitly grandfathered in
+        # scripts/api-gates-allowlist.txt). Lets us close the
+        # gating drift incrementally — every conversion shrinks
+        # the allowlist — without risking a one-shot 179-file
+        # rewrite. See the script header for the policy.
+        run: node scripts/check-api-gates.mjs
       - name: Build
         run: npm run build

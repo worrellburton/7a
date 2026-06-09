@@ -226,19 +226,19 @@ export const benzoContent: SubstanceContent = {
         quote:
           "Twelve years on clonazepam. Tapering took ten months. Month seven I slept through a whole night for the first time in a decade. I cried in the morning. The body remembered.",
         attribution: 'Alumna · 2 years benzo-free · iatrogenic origin',
-        photo: '/images/covered-porch-desert-view.jpg',
+        photo: '/hero/covered-porch-desert-view.jpg',
       },
       {
         quote:
           "The breathwork carried me between cuts. I did not believe it would. It did. The body had more tools than I had ever given it credit for.",
         attribution: 'Alumnus · 14 months benzo-free · panic disorder origin',
-        photo: '/images/group-sunset-desert.jpg',
+        photo: '/hero/group-sunset-desert.jpg',
       },
       {
         quote:
           "Nobody rushed the taper. That alone was new. Every other place I had been had a schedule. Seven Arrows had a body and a person and a plan built around both.",
         attribution: 'Alumna · 18 months benzo-free · prior four attempts',
-        photo: '/images/facility-exterior-mountains.jpg',
+        photo: '/hero/facility-exterior-mountains.jpg',
       },
     ],
   },

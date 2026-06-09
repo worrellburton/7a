@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase } from '@/lib/supabase-server';
+import { requirePageAccess } from '@/lib/page-access';
 import { gscSearchAnalytics, hasGoogleOAuth } from '@/lib/google';
 
 // GET /api/google/search-console?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD&compare=prev
@@ -40,12 +40,8 @@ function clampGscEnd(endStr: string): string {
 }
 
 export async function GET(req: Request) {
-  const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: row } = await supabase.from('users').select('is_admin').eq('id', user.id).maybeSingle();
-  if (!row?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const { error: authError } = await requirePageAccess('/app/analytics');
+  if (authError) return authError;
 
   if (!hasGoogleOAuth() || !process.env.GSC_SITE_URL) {
     return NextResponse.json(

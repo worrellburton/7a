@@ -4,7 +4,7 @@ import { getUserFromRequest } from '@/lib/supabase-server';
 // POST /api/claude/job-description/rate — take the current job-description
 // fields and return a score out of 10 plus recommendations to reach 10.
 
-const DEFAULT_MODEL = 'claude-opus-4-6';
+const DEFAULT_MODEL = 'claude-opus-4-8';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
 

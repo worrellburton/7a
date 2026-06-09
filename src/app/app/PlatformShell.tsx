@@ -2,14 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSidebarFlip } from './sidebar-flip';
-import Link from 'next/link';
+import Link from '@/components/HoverPrefetchLink';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { usePagePermissions, type PageConfig } from '@/lib/PagePermissions';
 import { db } from '@/lib/db';
 import PageGuard from '@/lib/PageGuard';
+import { ALUMNI_ADMIN_PATHS, ALUMNI_VIEWABLE_PATHS } from '@/lib/alumni-admin-paths';
 import PageViewers from './PageViewers';
 import { PresenceCursors } from '@/components/PresenceCursors';
+import CommandPalette from '@/components/CommandPalette';
 import FlowBackground from './FlowBackground';
 import LoginScreen, { HeroGallery } from './LoginScreen';
 import LeverPullListener from '@/components/LeverPullListener';
@@ -31,9 +33,26 @@ interface NavDepartment {
 // Meaning-first: Facilities=building (not wrench), Equine=horseshoe,
 // Billing=receipt, Calendar=dated grid.
 const pageIcons: Record<string, React.ReactNode> = {
+  // Home — same circle-of-dots community glyph the alumni Home
+  // uses, so 'Home' reads the same across both portals.
   '/app': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 9.5 12 2l9 7.5V20a2 2 0 0 1-2 2h-4v-7h-6v7H5a2 2 0 0 1-2-2z" />
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="12" cy="4" r="1.5" />
+      <circle cx="20" cy="12" r="1.5" />
+      <circle cx="12" cy="20" r="1.5" />
+      <circle cx="4" cy="12" r="1.5" />
+      <circle cx="17.5" cy="6.5" r="1.2" />
+      <circle cx="17.5" cy="17.5" r="1.2" />
+      <circle cx="6.5" cy="17.5" r="1.2" />
+      <circle cx="6.5" cy="6.5" r="1.2" />
+    </svg>
+  ),
+  // Alumni-side My Profile uses the same person glyph as staff
+  // so 'My Profile' reads consistently across both portals.
+  '/app/alumni/profile': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
     </svg>
   ),
   '/app/profile': (
@@ -120,6 +139,21 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M12 17.5v-11" />
     </svg>
   ),
+  '/app/mercury': (
+    // Stylised bank / vault — Mercury's brand uses a thunderbolt, but
+    // we want the rail icon to read as "bookkeeping" first, brand
+    // second. Columned facade keeps it instantly recognisable at the
+    // 20px sidebar size.
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 10 12 4l9 6" />
+      <path d="M4 10v9" />
+      <path d="M20 10v9" />
+      <path d="M8 10v9" />
+      <path d="M12 10v9" />
+      <path d="M16 10v9" />
+      <path d="M3 20h18" />
+    </svg>
+  ),
   '/app/fleet': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <rect x="1" y="11" width="16" height="7" rx="2" />
@@ -150,6 +184,34 @@ const pageIcons: Record<string, React.ReactNode> = {
       <circle cx="8" cy="12" r="2" fill="currentColor" />
       <circle cx="17" cy="18" r="2" fill="currentColor" />
     </svg>
+  ),
+  // Kaizen — multi-sparkle reads as "AI-driven daily insight" and
+  // pairs visually with the Claude-backed scan that powers the page.
+  '/app/kaizen': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3l1.6 4.8L18 9.4l-4.4 1.6L12 15.8l-1.6-4.8L6 9.4l4.4-1.6z" />
+      <path d="M19 14l.7 2.1 2.1.7-2.1.7L19 19.6l-.7-2.1-2.1-.7 2.1-.7z" />
+      <path d="M5 16l.6 1.8L7.4 18.4l-1.8.6L5 20.8l-.6-1.8L2.6 18.4l1.8-.6z" />
+    </svg>
+  ),
+  // HIPAA audit · shield + check glyph, the compliance metaphor.
+  '/app/hipaa': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2L4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5l-8-3z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  ),
+  // Daily touchpoint logs — a stack of horizontal logs (🪵), to
+  // echo the wood-stack metaphor the page itself uses for each
+  // recorded contact.
+  // Logs · the one emoji icon in the rail. Every other entry uses
+  // a stroked SVG glyph to keep the sidebar visually uniform; logs
+  // gets the literal 🪵 wood-log emoji as a small wink so the row
+  // is instantly identifiable when scanning a long sidebar.
+  '/app/logs': (
+    <span className="w-5 h-5 inline-flex items-center justify-center text-[18px] leading-none" aria-hidden="true">
+      🪵
+    </span>
   ),
   '/app/website-requests': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -278,11 +340,6 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
     </svg>
   ),
-  '/app/admissions': (
-    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
-    </svg>
-  ),
   '/app/partnerships': (
     // Two interlocking handshake / network nodes — referral partners
     // are people connected to other people, so the visual is two
@@ -294,7 +351,7 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M5 7l-1.5-1.5M19 7l1.5-1.5M5 17l-1.5 1.5M19 17l1.5 1.5" />
     </svg>
   ),
-  '/app/outreach': (
+  '/app/contacts': (
     // Marketing (formerly Outreach) — megaphone glyph for broadcasting
     // to referrers, leads, and downgraded partners.
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -326,6 +383,20 @@ const pageIcons: Record<string, React.ReactNode> = {
       <circle cx="8" cy="6" r="1.6" />
       <circle cx="16" cy="12" r="1.6" />
       <circle cx="8" cy="18" r="1.6" />
+    </svg>
+  ),
+  // Arcade — a tiny arcade-cabinet glyph (joystick + buttons).
+  '/app/arcade': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="13" rx="2" />
+      <path d="M9 10v2" />
+      <path d="M9 11h-1" />
+      <path d="M9 11h1" />
+      <circle cx="15" cy="10" r="0.9" fill="currentColor" stroke="none" />
+      <circle cx="17" cy="12" r="0.9" fill="currentColor" stroke="none" />
+      <path d="M7 20h10" />
+      <path d="M9 17v3" />
+      <path d="M15 17v3" />
     </svg>
   ),
   '/app/chat': (
@@ -394,6 +465,96 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M12 3a14 14 0 010 18M12 3a14 14 0 000 18" />
     </svg>
   ),
+  // ── Alumni portal ──────────────────────────────────────────
+  // Hub: a circle of small dots around a center — the community
+  // metaphor that also reads in the sidebar search.
+  '/app/alumni': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="12" cy="4" r="1.5" />
+      <circle cx="20" cy="12" r="1.5" />
+      <circle cx="12" cy="20" r="1.5" />
+      <circle cx="4" cy="12" r="1.5" />
+      <circle cx="17.5" cy="6.5" r="1.2" />
+      <circle cx="17.5" cy="17.5" r="1.2" />
+      <circle cx="6.5" cy="17.5" r="1.2" />
+      <circle cx="6.5" cy="6.5" r="1.2" />
+    </svg>
+  ),
+  // Map: classic folded-map glyph
+  // Reunion: a calendar with a small star — the headline event
+  '/app/alumni/reunion': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4" width="18" height="17" rx="2" />
+      <path d="M3 9h18M8 2v4M16 2v4" />
+      <path d="M12 12.5l.9 1.8 2 .3-1.45 1.4.34 2-1.79-.94-1.79.94.34-2L9.1 14.6l2-.3.9-1.8z" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+  '/app/alumni/map': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 4l-6 2v14l6-2 6 2 6-2V4l-6 2-6-2z" />
+      <path d="M9 4v14" />
+      <path d="M15 6v14" />
+      <circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none" />
+    </svg>
+  ),
+  // Alumni roster — list with a person silhouette. Reads as
+  // "address book of people" without overlapping the team/people
+  // glyph used elsewhere in the sidebar.
+  '/app/alumni-roster': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2.5" />
+      <circle cx="9" cy="10" r="2.25" />
+      <path d="M5.5 17c.5-1.8 2-3 3.5-3s3 1.2 3.5 3" />
+      <path d="M15 9h3.5" />
+      <path d="M15 12.5h3.5" />
+      <path d="M5.5 20.5h13" />
+    </svg>
+  ),
+  // Peer support: phone handset
+  '/app/alumni/peer-support': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z" />
+    </svg>
+  ),
+  // Meetups: two people / handshake
+  '/app/alumni/meetups': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="9" cy="7" r="3" />
+      <path d="M2 21v-2a4 4 0 0 1 4-4h6a4 4 0 0 1 4 4v2" />
+      <circle cx="17" cy="6" r="2.5" />
+      <path d="M22 21v-1.5a3 3 0 0 0-3-3h-1" />
+    </svg>
+  ),
+  // Scholarships: graduation cap
+  '/app/alumni/scholarships': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M22 10L12 5 2 10l10 5 10-5z" />
+      <path d="M6 12v5c3 2.5 9 2.5 12 0v-5" />
+      <path d="M22 10v6" />
+    </svg>
+  ),
+  // Resources: open book / library
+  '/app/alumni/resources': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v17H6.5a2.5 2.5 0 0 0 0 5H20" />
+      <path d="M8 6h8M8 10h8" />
+    </svg>
+  ),
+  // Voices & talks: speech bubble with quote mark
+  '/app/alumni/stories': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" />
+      <path d="M9 9c.5 0 1 .5 1 1 0 .8-.5 1.3-1 1.5M14 9c.5 0 1 .5 1 1 0 .8-.5 1.3-1 1.5" />
+    </svg>
+  ),
+  // Moderation: shield (staff-only review queue)
+  '/app/alumni/moderation': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2l8 4v6c0 5-3.5 9.5-8 10-4.5-.5-8-5-8-10V6l8-4z" />
+      <path d="M9 12l2 2 4-4" />
+    </svg>
+  ),
 };
 
 function getPageIcon(path: string, size: 'sm' | 'md' = 'md') {
@@ -449,7 +610,7 @@ function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
 }
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin, departmentId, status, userKind, sidebarRecentPaths, sidebarClickCount, recordSidebarVisit, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
+  const { user, loading, isAdmin, isSuperAdmin, isAlumniAdmin, departmentId, status, userKind, sidebarRecentPaths, sidebarClickCount, recordSidebarVisit, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
   const isAlumni = userKind === 'alumni';
   const { navPages, popupPages, isPageAllowedForDepartment, isPageAllowedForDepartmentSet, userOverrides, userExtraDepartmentIds } = usePagePermissions();
   const pathname = usePathname();
@@ -525,14 +686,38 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     const override = userOverrides[item.path];
     if (override === false) return false;
     if (override === true) return true;
-    // Alumni-only pages are exclusive: only user_kind='alumni' sees
-    // them, regardless of admin / super-admin / department rules.
-    if (item.alumniOnly) return isAlumni;
+    // Alumni-only pages: alumni see them by membership, AND super
+    // admins see them too so they can administer + spot-check the
+    // alumni portal without switching accounts. Regular staff +
+    // department admins are still gated out — that's the privacy
+    // boundary the alumni rely on. (Was: `return isAlumni;`.)
+    if (item.alumniOnly) return isAlumni || isSuperAdmin;
+    // Cross-portal pages — visible to BOTH staff and alumni.
+    // Arcade, Chat (peer + staff community surfaces) live
+    // here. Add a path to this set when a feature is explicitly
+    // shared across the two portals; default behavior below
+    // still hides everything else from alumni.
+    const CROSS_PORTAL_PATHS = new Set<string>(['/app/arcade', '/app/chat']);
+    if (CROSS_PORTAL_PATHS.has(item.path)) {
+      if (item.adminOnly && !isAdmin) return false;
+      return true;
+    }
+    // Some admin-managed pages also live on the alumni side as a
+    // peer directory (currently just /app/alumni-roster). Alumni
+    // see them; the API privacy filter handles per-row opt-ins.
+    if (isAlumni && ALUMNI_VIEWABLE_PATHS.has(item.path)) return true;
     // Alumni only see pages explicitly marked alumni-only (handled
-    // above). Everything else in /app is staff-facing.
+    // above) or in the cross-portal allowlist. Everything else
+    // in /app is staff-facing.
     if (isAlumni) return false;
-    if (item.adminOnly && !isAdmin) return false;
-    if (isAdmin) return true;
+    // Alumni Admins get sidebar visibility on the canonical alumni-
+    // administration surfaces (Incoming Users, User Permissions,
+    // Alumni roster) even when is_admin is false. Same list the
+    // route-level PageGuard honors so navigation matches what the
+    // sidebar shows.
+    const alumniAdminPass = isAlumniAdmin && ALUMNI_ADMIN_PATHS.has(item.path);
+    if (item.adminOnly && !isAdmin && !alumniAdminPass) return false;
+    if (isAdmin || alumniAdminPass) return true;
     // Effective dept set = primary department_id + any extras a super
     // admin granted via /app/user-permissions → Departments tab.
     return isPageAllowedForDepartmentSet(item.path, [departmentId, ...userExtraDepartmentIds]);
@@ -693,27 +878,56 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     // normal click for the click counter / Other-pages threshold),
     // but visually it never leaves the top — the rest of the stack
     // fills positions 2..N below it.
-    const HOME_PATH = '/app';
+    //
+    // Alumni override: their home is /app/alumni (not /app), and
+    // My Profile is permanently pinned to position 2 — alumni were
+    // having to drill into the avatar popup to edit identity, which
+    // for the alumni audience (less app-fluent than staff) hid the
+    // single most important page in the portal. Pinning both lets
+    // recency-reordering still run for positions 3..N.
+    const HOME_PATH = isAlumni ? '/app/alumni' : '/app';
+    // Alumni have their own dedicated profile editor at
+    // /app/alumni/profile (sobriety date, opt-ins, etc.). Staff
+    // keep using /app/profile.
+    const PROFILE_PATH = isAlumni ? '/app/alumni/profile' : '/app/profile';
     const homePage = visibleNavPages.find((p) => p.path === HOME_PATH);
-    const nonHomeVisible = visibleNavPages.filter((p) => p.path !== HOME_PATH);
-    const byPath = new Map(nonHomeVisible.map((p) => [p.path, p] as const));
+    // /app/profile lives in the popup section by default; for
+    // alumni we synthesise a nav-shaped entry so it can sit at
+    // position 2 without rewriting the PagePermissions seed.
+    const profilePage = isAlumni
+      ? (visibleNavPages.find((p) => p.path === PROFILE_PATH)
+          ?? popupPages.find((p) => p.path === PROFILE_PATH)
+          ?? null)
+      : null;
+    const pinned = new Set<string>([HOME_PATH, ...(isAlumni ? [PROFILE_PATH] : [])]);
+    const nonPinnedVisible = visibleNavPages.filter((p) => !pinned.has(p.path));
+    const byPath = new Map(nonPinnedVisible.map((p) => [p.path, p] as const));
     const ranked: typeof visibleNavPages = [];
     const seen = new Set<string>();
     for (const path of sidebarRecentPaths) {
-      if (path === HOME_PATH) continue;
+      if (pinned.has(path)) continue;
       const hit = byPath.get(path);
       if (hit && !seen.has(path)) {
         ranked.push(hit);
         seen.add(path);
       }
     }
-    const leftover = nonHomeVisible
+    const leftover = nonPinnedVisible
       .filter((p) => !seen.has(p.path))
       .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
     const tail = [...ranked, ...leftover];
-    return homePage ? [homePage, ...tail] : tail;
-  }, [visibleNavPages, sidebarRecentPaths]);
-  const recencyTopPages = recencyOrderedPages.slice(0, RECENCY_VISIBLE_COUNT);
+    const head: typeof visibleNavPages = [];
+    if (homePage) head.push(homePage);
+    if (profilePage) head.push(profilePage);
+    return [...head, ...tail];
+  }, [visibleNavPages, popupPages, sidebarRecentPaths, isAlumni]);
+  // Alumni see a flat sidebar — their portal is small enough
+  // (~7 pages) that an Other-Pages disclosure adds confusion
+  // without saving real space. Staff still get the top-N
+  // + Other-Pages split for their larger surface.
+  const recencyTopPages = isAlumni
+    ? recencyOrderedPages
+    : recencyOrderedPages.slice(0, RECENCY_VISIBLE_COUNT);
 
   // Apply the sidebar search query — when there's anything typed,
   // flatten the whole accessible-pages set to label/path matches
@@ -721,18 +935,37 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   // visible at once. Empty query falls through to the normal
   // top-7 + Other-pages layout.
   const searchQuery = navSearch.trim().toLowerCase();
+  // Search hits the nav stack first, then folds in any popup
+  // pages the viewer can see (My Profile lives in popup) so a
+  // super admin searching "My Profile" finds BOTH the staff
+  // /app/profile and the alumni /app/alumni/profile sample —
+  // labels are intentionally identical, the sample-preview
+  // banner on the alumni page is what disambiguates them on
+  // landing.
   const searchMatchedPages = searchQuery
-    ? recencyOrderedPages.filter((p) =>
-        p.label.toLowerCase().includes(searchQuery)
-        || p.path.toLowerCase().includes(searchQuery),
-      )
+    ? (() => {
+        const navHits = recencyOrderedPages.filter((p) =>
+          p.label.toLowerCase().includes(searchQuery)
+          || p.path.toLowerCase().includes(searchQuery));
+        const seen = new Set(navHits.map((p) => p.path));
+        const popupHits = popupPages
+          .filter(canSeePage)
+          .filter((p) => !seen.has(p.path))
+          .filter((p) =>
+            p.label.toLowerCase().includes(searchQuery)
+            || p.path.toLowerCase().includes(searchQuery));
+        return [...navHits, ...popupHits];
+      })()
     : null;
   // Spillover. Anything past the top-7 lives in the collapsible
   // "Other pages" section. Still ordered by recency (most-recent
   // first) so a page that just dropped out of the top-7 sits at the
   // top of Other, matching the brief: "When a page goes to spot 8,
-  // put it in the top of other pages."
-  const recencyOtherPages = recencyOrderedPages.slice(RECENCY_VISIBLE_COUNT);
+  // put it in the top of other pages." Alumni get no spillover —
+  // their whole nav is flat (see recencyTopPages above).
+  const recencyOtherPages = isAlumni
+    ? ([] as typeof recencyOrderedPages)
+    : recencyOrderedPages.slice(RECENCY_VISIBLE_COUNT);
   // Track the disclosure state for the Other pages section. Per-user
   // persistence is overkill — a tab reload is cheap, and forgetting
   // the collapsed state after each session matches how reps actually
@@ -910,6 +1143,9 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       <PresenceCursors />
       <LeverPullListener />
       <ContactSubmissionToasts />
+      {/* Global cmd+K / ctrl+K palette. Listens for the shortcut at
+          window level so it's available from any /app/* surface. */}
+      <CommandPalette />
       {/* Left Sidebar — collapsed-by-default rail that expands on
           hover. The aside reserves a narrow `w-16` column so the
           main content's layout never reflows; the inner panel is
@@ -917,10 +1153,15 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           page on group-hover, restoring labels + section headers
           via an opacity fade. Click-away or unhover collapses back. */}
       <aside data-sidebar-rail className="group/sidebar w-16 shrink-0 hidden lg:block relative z-30">
-        {/* Sticky sized to the real viewport; `app-shell` applies
-            zoom: 0.82 at lg+, so a plain h-screen renders at only
-            82% of the real height. */}
-        <div className="sticky top-0 h-[calc(100vh/0.82)]">
+        {/* Sticky sized to the real viewport. The `100vh/0.82`
+            divisor here was compensating for `.app-shell { zoom: 0.82 }`
+            at lg+, but that transform was removed (see globals.css —
+            "removing the transform so the platform renders at 100%
+            on every breakpoint"). With no zoom, the divisor pushed
+            the sticky wrapper to ~122vh, dropping the bottom-pinned
+            user chip + popup menu below the visible viewport. Plain
+            `h-screen` matches the real viewport again. */}
+        <div className="sticky top-0 h-screen">
         {/* Inner glass panel — overlay layer that grows from w-16
             (collapsed) to w-64 (expanded) on hover. Glass treatment
             lives here now so the column-only collapsed state still
@@ -944,17 +1185,49 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         <div className="px-6 py-5 border-b border-gray-100">
           <Link href="/app" className={`flex items-center gap-2.5 transition-all duration-500 ease-out ${navMounted ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'}`}>
             <SevenArrowsLogo />
-
+            {/* Wordmark only renders once the rail expands. Same
+                group-hover/sidebar gate the search bar + Other-pages
+                section use, so the collapsed icon-rail stays clean. */}
+            <span
+              className="hidden group-hover/sidebar:inline text-[15px] font-semibold tracking-tight text-foreground/85 lowercase"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              feather
+            </span>
           </Link>
         </div>
 
-        {/* Sidebar search — only visible inside the expanded rail.
-            Filters the visible page set by label / path substring.
-            Hidden in the collapsed (w-16) state via the same
-            group-hover/sidebar gate the Other-pages section uses,
-            so the icon-only rail isn't disrupted. */}
-        <div className="px-3 pt-1 pb-2 hidden group-hover/sidebar:block">
-          <label className="relative block">
+        {/* Sidebar search — visible in BOTH the collapsed and the
+            hover-expanded rail states so it's always reachable.
+            In collapsed state (w-16) the input is replaced by a
+            magnifier glyph chip that, when clicked, focuses the
+            input the moment hover-expand kicks in. In expanded
+            state (w-64) the full text input is shown. Previously
+            this whole block was hidden until hover, so anyone who
+            never realised the rail had hover-to-expand never knew
+            search existed — that surfaced as 'pros can't see it'.
+            Other Pages now also stays reachable from the same
+            expanded state. */}
+        <div className="px-3 pt-1 pb-2">
+          {/* Collapsed: icon-only chip (sidebar w-16). Hover-expand
+              hides this and shows the input below. */}
+          <button
+            type="button"
+            onClick={() => { /* hover-expand-on-click for keyboard users */
+              const el = document.getElementById('sidebar-search-input') as HTMLInputElement | null;
+              el?.focus();
+            }}
+            aria-label="Search pages"
+            title="Search pages"
+            className="group-hover/sidebar:hidden w-full inline-flex items-center justify-center h-9 rounded-xl text-foreground/50 hover:text-primary hover:bg-warm-bg/60 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden>
+              <circle cx="11" cy="11" r="7" />
+              <path strokeLinecap="round" d="M21 21l-4.3-4.3" />
+            </svg>
+          </button>
+          {/* Expanded: full input. */}
+          <label className="relative hidden group-hover/sidebar:block">
             <span aria-hidden className="absolute left-2.5 top-1/2 -translate-y-1/2 text-foreground/35">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <circle cx="11" cy="11" r="7" />
@@ -962,6 +1235,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               </svg>
             </span>
             <input
+              id="sidebar-search-input"
               type="search"
               value={navSearch}
               onChange={(e) => setNavSearch(e.target.value)}
@@ -987,17 +1261,36 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             let animIdx = 0;
             const renderLink = (item: PageConfig) => {
               const idx = animIdx++;
-              const isActive = pathname === item.path;
+              // Active route logic — exact match OR `pathname is a
+              // sub-route of item.path`. Catches /app/admissions/leads/123
+              // for an item.path of /app/admissions so deep links still
+              // light up the parent nav row. Excludes the bare "/app"
+              // dashboard from matching every /app/* (otherwise Home would
+              // be permanently "active") by requiring the +'/' suffix.
+              const isActive = item.path === pathname
+                || (item.path !== '/app' && pathname?.startsWith(item.path + '/'));
               // External-URL entries (e.g. "Website" → marketing
               // site) render as a target="_blank" anchor instead of
               // a Next Link. The recency visit still fires so they
               // participate in reordering like internal pages.
-              const commonClassName = `group/nav relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium overflow-hidden transition-all duration-500 ease-out motion-reduce:transition-none hover:shadow-[0_4px_14px_-6px_rgba(188,107,74,0.35)] ${
+              // Active treatment: 3px copper left border via the
+              // ::before pseudo-element on the parent (border on the
+              // pill itself would clash with the rounded-xl shape),
+              // font-semibold lift, and a subtle warm-sand background
+              // pulled from the same primary tint used elsewhere in
+              // the sidebar so the active state reads in lockstep
+              // with the brand.
+              const commonClassName = `group/nav relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm overflow-hidden transition-all duration-500 ease-out motion-reduce:transition-none hover:shadow-[0_4px_14px_-6px_rgba(188,107,74,0.35)] ${
                 isActive
-                  ? 'bg-primary/12 text-primary shadow-[inset_0_0_0_1px_rgba(188,107,74,0.18)]'
-                  : 'text-foreground/60 hover:text-foreground'
+                  ? 'font-semibold bg-warm-bg/70 text-primary shadow-[inset_3px_0_0_0_var(--color-primary),inset_0_0_0_1px_rgba(188,107,74,0.18)]'
+                  : 'font-medium text-foreground/60 hover:text-foreground'
               } ${navMounted ? 'opacity-100 translate-x-0' : 'opacity-0 -translate-x-3'}`;
               const commonStyle = { fontFamily: 'var(--font-body)', transitionDelay: `${idx * 50}ms` } as const;
+              // Use ARIA's exact spec: aria-current='page' when active,
+              // attribute fully omitted when not. Don't pass aria-current
+              // ='false' — screen readers treat that the same as 'page'
+              // on some platforms.
+              const ariaCurrent: 'page' | undefined = isActive ? 'page' : undefined;
               if (item.externalUrl) {
                 return (
                   <a
@@ -1009,6 +1302,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); }}
                     className={commonClassName}
                     style={commonStyle}
+                    aria-current={ariaCurrent}
                   >
                     {/* External-link svg slipped in next to the icon
                         so the label still aligns with internal rows. */}
@@ -1055,6 +1349,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   }}
                   className={commonClassName}
                   style={commonStyle}
+                  aria-current={ariaCurrent}
                 >
                   {/* Phase 2: sliding pill background — primary-tinted
                       gradient that grows from the left edge on hover.
@@ -1107,6 +1402,67 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       doesn't wrap or peek out while the rail is in
                       its collapsed (icon-only) state. */}
                   <span className="flex-1 whitespace-nowrap transition-[opacity,transform] duration-200 ease-out opacity-0 group-hover/sidebar:opacity-100 group-hover/nav:translate-x-0.5">{item.label}</span>
+                  {/* Super-admin-only badge — a small mask icon
+                      that surfaces when item.superAdminOnly is set
+                      (Mercury, Social Media, Kaizen, Levers, HIPAA).
+                      title attribute drives the native tooltip on
+                      hover so the rail stays uncluttered. Visible to
+                      everyone on the page since adminOnly already
+                      keeps the row out of non-admin sidebars. */}
+                  {item.superAdminOnly && (
+                    <span
+                      aria-label="Only for super admins"
+                      className="relative ml-1 inline-flex items-center text-amber-600 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 group/sa"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M3 11c0-1 1-2 2-2h14c1 0 2 1 2 2v1c0 1-1 2-2 2h-3.2c-.4 1.6-1.9 2.7-3.8 2.7s-3.4-1.1-3.8-2.7H5c-1 0-2-1-2-2v-1z" />
+                        <circle cx="8.5" cy="11.5" r="1" fill="currentColor" stroke="none" />
+                        <circle cx="15.5" cy="11.5" r="1" fill="currentColor" stroke="none" />
+                      </svg>
+                      {/* Instant tooltip — no native title delay.
+                          Sits above the icon, right-anchored so it
+                          doesn't get clipped on narrow rails. */}
+                      <span
+                        role="tooltip"
+                        className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1 whitespace-nowrap rounded-md bg-foreground/95 text-white text-[10px] font-semibold uppercase tracking-[0.12em] px-2 py-1 shadow-lg opacity-0 group-hover/sa:opacity-100 transition-opacity duration-100 z-50"
+                      >
+                        Only for super admins
+                      </span>
+                    </span>
+                  )}
+                  {/* Super-admin-only "ALUMNI" tag · added so a
+                      super admin scanning their sidebar can tell at
+                      a glance which rows are alumni-portal pages
+                      they're auditing vs their own staff surfaces.
+                      Alumni themselves don't see this — every page
+                      visible to them IS an alumni page, so the
+                      label would be noise. Regular staff also
+                      don't see it because they don't see alumni-only
+                      pages at all. */}
+                  {/* Cross-portal paths (Chat, Arcade) are ALWAYS
+                      'Alumni' even if a stale DB row toggled them
+                      alumni_only=true — they're shared with staff
+                      by definition, so 'Alumni only' would be
+                      misleading. Pure alumni-only pages still get
+                      the louder 'Alumni only' chip. */}
+                  {(() => {
+                    const crossPortal = item.path === '/app/chat' || item.path === '/app/arcade';
+                    const showChip = isSuperAdmin && !isAlumni && (item.alumniOnly || crossPortal);
+                    if (!showChip) return null;
+                    const labelOnly = item.alumniOnly && !crossPortal;
+                    return (
+                      <span
+                        aria-label={labelOnly ? 'alumni-only page' : 'alumni page'}
+                        className={`inline-flex items-center px-1 py-0.5 rounded text-[7.5px] font-bold uppercase tracking-[0.08em] whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 ${
+                          labelOnly
+                            ? 'bg-violet-500/15 text-violet-700 border border-violet-500/30'
+                            : 'bg-violet-500/8 text-violet-700/80 border border-violet-500/15'
+                        }`}
+                      >
+                        {labelOnly ? 'Alumni only' : 'Alumni'}
+                      </span>
+                    );
+                  })()}
                   {(navBadges[item.path] ?? 0) > 0 && (
                     <span
                       aria-label={`${navBadges[item.path]} new`}
@@ -1207,18 +1563,11 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               aria-label="Account menu"
               className="absolute bottom-full left-3 right-3 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 overflow-y-auto z-50 max-h-[calc(100vh-120px)] py-1"
             >
-              <Link
-                href="/app/profile"
-                onClick={() => setUserMenuOpen(false)}
-                className="flex items-center gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                </svg>
-                My Profile
-              </Link>
-              {popupPages.filter(canSeePage).filter((p) => p.path !== '/app/profile').map((item) => (
+              {/* 'My Profile' is reachable from the avatar click +
+                  sidebar pin; keeping it in the popup duplicated
+                  the same destination users already had two
+                  obvious ways to reach. */}
+              {popupPages.filter(canSeePage).filter((p) => p.path !== '/app/profile' && p.path !== '/app/alumni/profile').map((item) => (
                 <Link
                   key={item.path}
                   href={item.path}
@@ -1296,7 +1645,13 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           rail is hidden, so letting the body scroll naturally avoids
           the double-scrollbar (page + main panel) iOS shows when this
           element is taller than the viewport. */}
-      <div data-platform-main className="flex-1 lg:overflow-auto relative">
+      <div data-platform-main className="flex-1 min-w-0 lg:overflow-auto relative">
+        {/* min-w-0 — flex items default to min-width:auto, which lets
+            an inner element with a wide intrinsic content width
+            (long paragraph, button row, table) push this panel past
+            the viewport on mobile. The page then renders horizontally
+            scrollable and iOS Safari hijacks pinch-to-zoom-out as a
+            swipe-back, leaving the user "zoomed in" with no escape. */}
         {/* Mobile top bar */}
         <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-14 bg-white/90 backdrop-blur border-b border-gray-100">
           <button
@@ -1310,8 +1665,14 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
               <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
-          <Link href="/app" aria-label="Seven Arrows Recovery">
+          <Link href="/app" aria-label="Seven Arrows Recovery" className="inline-flex items-center gap-2">
             <SevenArrowsLogo size="sm" />
+            <span
+              className="text-[14px] font-semibold tracking-tight text-foreground/85 lowercase"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              feather
+            </span>
           </Link>
           <div className="w-10" aria-hidden="true" />
         </div>
@@ -1329,11 +1690,22 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             />
             {/* Panel */}
             <aside className="absolute inset-y-0 left-0 w-[82%] max-w-[320px] bg-white border-r border-gray-100 shadow-2xl flex flex-col overflow-hidden animate-drawer-slide">
-              {/* Header: brand + close */}
+              {/* Header: brand (taps through to today's log surface) + close */}
               <div className="flex items-center justify-between p-5 border-b border-gray-100 shrink-0">
-                <Link href="/app" className="flex items-center gap-2.5">
+                <Link
+                  href="/app/logs"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2.5"
+                  aria-label="Daily logs"
+                  title="Daily logs"
+                >
                   <SevenArrowsLogo />
-
+                  <span
+                    className="text-[15px] font-semibold tracking-tight text-foreground/85 lowercase"
+                    style={{ fontFamily: 'var(--font-display)' }}
+                  >
+                    feather
+                  </span>
                 </Link>
                 <button
                   onClick={() => setMobileMenuOpen(false)}
@@ -1358,42 +1730,69 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   disables the inner overflow-y-auto. min-h-0 lets it
                   shrink below content height so the inner scroll
                   engages. */}
-              <nav className="flex-1 min-h-0 overflow-y-auto p-3 space-y-0.5">
+              {/* Each link is wrapped in <li>. The Phase-1 mobile
+                  tap-target rule in globals.css turns every <a> into
+                  display:inline-flex (so icon-only buttons hit 44px),
+                  but explicitly exempts anchors descended from <li>
+                  (`:not(li a)`). Wrapping here is the cleanest way to
+                  opt the drawer rows out without fighting specificity
+                  on every callsite — they go back to natural display
+                  and stack vertically inside the parent <ul>. */}
+              <ul className="flex-1 min-h-0 overflow-y-auto p-3 space-y-0.5">
                 {(() => {
                   const renderMobileLink = (item: PageConfig) => {
                     const isActive = pathname === item.path;
                     return (
-                      <Link
-                        key={item.path}
-                        href={item.path}
-                        onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
-                        className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
-                          isActive
-                            ? 'bg-primary/10 text-primary'
-                            : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
-                        }`}
-                        style={{ fontFamily: 'var(--font-body)' }}
-                      >
-                        <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
-                          {getPageIcon(item.path)}
-                        </span>
-                        <span className="flex-1">{item.label}</span>
-                        {(navBadges[item.path] ?? 0) > 0 && (
-                          <span
-                            aria-label={`${navBadges[item.path]} new`}
-                            className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-bold tabular-nums"
-                          >
-                            {navBadges[item.path]! > 99 ? '99+' : navBadges[item.path]}
+                      <li key={item.path}>
+                        <Link
+                          href={item.path}
+                          onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
+                          className={`flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-colors ${
+                            isActive
+                              ? 'bg-primary/10 text-primary'
+                              : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
+                          }`}
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        >
+                          <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
+                            {getPageIcon(item.path)}
                           </span>
-                        )}
-                      </Link>
+                          <span className="flex-1">{item.label}</span>
+                          {item.superAdminOnly && (
+                            <span
+                              aria-label="Only for super admins"
+                              className="relative inline-flex items-center text-amber-600 group/sa"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M3 11c0-1 1-2 2-2h14c1 0 2 1 2 2v1c0 1-1 2-2 2h-3.2c-.4 1.6-1.9 2.7-3.8 2.7s-3.4-1.1-3.8-2.7H5c-1 0-2-1-2-2v-1z" />
+                                <circle cx="8.5" cy="11.5" r="1" fill="currentColor" stroke="none" />
+                                <circle cx="15.5" cy="11.5" r="1" fill="currentColor" stroke="none" />
+                              </svg>
+                              <span
+                                role="tooltip"
+                                className="pointer-events-none absolute bottom-full left-1/2 -translate-x-1/2 mb-1 whitespace-nowrap rounded-md bg-foreground/95 text-white text-[10px] font-semibold uppercase tracking-[0.12em] px-2 py-1 shadow-lg opacity-0 group-hover/sa:opacity-100 transition-opacity duration-100 z-50"
+                              >
+                                Only for super admins
+                              </span>
+                            </span>
+                          )}
+                          {(navBadges[item.path] ?? 0) > 0 && (
+                            <span
+                              aria-label={`${navBadges[item.path]} new`}
+                              className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-bold tabular-nums"
+                            >
+                              {navBadges[item.path]! > 99 ? '99+' : navBadges[item.path]}
+                            </span>
+                          )}
+                        </Link>
+                      </li>
                     );
                   };
                   return (
                     <>
                       {recencyTopPages.map(renderMobileLink)}
                       {recencyOtherPages.length > 0 && (
-                        <div className="mt-2 pt-2 border-t border-foreground/10">
+                        <li className="mt-2 pt-2 border-t border-foreground/10 list-none">
                           <button
                             type="button"
                             onClick={() => setOtherPagesOpen((v) => !v)}
@@ -1404,13 +1803,13 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                             <span>Other pages</span>
                             <span aria-hidden className={`transition-transform duration-200 ${otherPagesOpen ? 'rotate-180' : ''}`}>▾</span>
                           </button>
-                          {otherPagesOpen && <div className="mt-0.5">{recencyOtherPages.map(renderMobileLink)}</div>}
-                        </div>
+                          {otherPagesOpen && <ul className="mt-0.5 space-y-0.5">{recencyOtherPages.map(renderMobileLink)}</ul>}
+                        </li>
                       )}
                     </>
                   );
                 })()}
-              </nav>
+              </ul>
 
               {/* Account section — collapsed by default. Tapping the
                   user card at the bottom toggles it. Keeps the drawer
@@ -1418,32 +1817,34 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   popup pages live one tap deeper. */}
               {mobileAccountOpen && (
                 <>
-                  {popupPages.filter(canSeePage).filter((p) => p.path !== '/app/profile').length > 0 && (
-                    <div className="p-3 border-t border-gray-100 space-y-0.5 max-h-[30vh] overflow-y-auto shrink-0">
-                      {popupPages.filter(canSeePage).filter((p) => p.path !== '/app/profile').map((item) => {
+                  {popupPages.filter(canSeePage).filter((p) => p.path !== '/app/profile' && p.path !== '/app/alumni/profile').length > 0 && (
+                    <ul className="p-3 border-t border-gray-100 space-y-0.5 max-h-[30vh] overflow-y-auto shrink-0">
+                      {popupPages.filter(canSeePage).filter((p) => p.path !== '/app/profile' && p.path !== '/app/alumni/profile').map((item) => {
                         const isActive = pathname === item.path;
                         return (
-                          <Link
-                            key={item.path}
-                            href={item.path}
-                            onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
-                            className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                              isActive
-                                ? 'bg-primary/10 text-primary'
-                                : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
-                            }`}
-                            style={{ fontFamily: 'var(--font-body)' }}
-                          >
-                            <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
-                              {getPageIcon(item.path)}
-                            </span>
-                            {item.label}
-                          </Link>
+                          <li key={item.path}>
+                            <Link
+                              href={item.path}
+                              onClick={() => { flip.markTraveler(item.path); recordSidebarVisit(item.path); setMobileMenuOpen(false); }}
+                              className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                                isActive
+                                  ? 'bg-primary/10 text-primary'
+                                  : 'text-foreground/70 hover:bg-warm-bg hover:text-foreground'
+                              }`}
+                              style={{ fontFamily: 'var(--font-body)' }}
+                            >
+                              <span className={isActive ? 'text-primary' : 'text-foreground/40'}>
+                                {getPageIcon(item.path)}
+                              </span>
+                              {item.label}
+                            </Link>
+                          </li>
                         );
                       })}
-                    </div>
+                    </ul>
                   )}
-                  <div className="p-3 border-t border-gray-100 space-y-0.5 shrink-0">
+                  <ul className="p-3 border-t border-gray-100 space-y-0.5 shrink-0">
+                    <li>
                     <Link
                       href="/app/profile"
                       onClick={() => setMobileMenuOpen(false)}
@@ -1461,6 +1862,8 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       </span>
                       My Profile
                     </Link>
+                    </li>
+                    <li>
                     <button
                       onClick={() => { setMobileMenuOpen(false); signOut(); }}
                       className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
@@ -1471,7 +1874,8 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       </svg>
                       Sign Out
                     </button>
-                  </div>
+                    </li>
+                  </ul>
                 </>
               )}
 
@@ -1556,11 +1960,11 @@ function ShowCursorsToggle() {
       className="flex items-center justify-between w-full gap-2.5 px-4 py-3 text-sm text-foreground/70 hover:bg-warm-bg transition-colors"
       style={{ fontFamily: 'var(--font-body)' }}
     >
-      <span className="inline-flex items-center gap-2.5">
+      <span className="inline-flex items-center gap-2.5 whitespace-nowrap">
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 3l7.5 18 2.5-7 7-2.5L3 3z" />
         </svg>
-        Teammates&apos; cursors
+        Other cursors
       </span>
       <span
         className={`relative inline-flex h-4 w-7 items-center rounded-full transition-colors ${on ? 'bg-primary' : 'bg-foreground/20'}`}

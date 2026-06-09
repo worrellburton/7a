@@ -10,9 +10,9 @@ import AlumniVoicesView, { type AlumniVoice } from './AlumniVoicesView';
 // some visual variety. These are environment shots, not alumni
 // portraits, so they do not misrepresent anyone.
 const PHOTOS = [
-  '/images/covered-porch-desert-view.jpg',
-  '/images/group-sunset-desert.jpg',
-  '/images/facility-exterior-mountains.jpg',
+  '/hero/covered-porch-desert-view.jpg',
+  '/hero/group-sunset-desert.jpg',
+  '/hero/facility-exterior-mountains.jpg',
 ];
 
 const CARD_CAP = 260;

@@ -65,7 +65,7 @@ export default function MissionVision({
   directorName = 'Lindsay Rothschild',
   directorCredentials = 'LCSW, SAP, RYT-200, EMDRIA Certified',
   directorTitle = 'Clinical Director',
-  directorImage = '/images/equine-therapy-portrait.jpg',
+  directorImage = '/hero/equine-therapy-portrait.jpg',
   missionBody = "At Seven Arrows Recovery, *all individuals are met with love.* We offer a salutogenic approach to the treatment of trauma and addiction. This means promoting well-being and resilience by enhancing our clients' strengths, resources, and sense of purpose. Our clinical program is elevated by the healing power of sacred land, community, and the use of ceremony. We help guide clients back to their center, a reconnection with themselves.",
   visionBody = 'Our vision at Seven Arrows Recovery is to model a needed transformation in the treatment landscape, moving from an industry-driven model to a community-centered healing practice. Grounded in education, integrity, and presence, we weave hope into the fabric of the recovery journey, fostering lasting healing and connection.',
 }: MissionVisionProps) {

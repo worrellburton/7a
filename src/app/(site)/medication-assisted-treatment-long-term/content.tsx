@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "Medication Assisted Treatment Long Term" },
         ]}
         description="In the battle against addiction, one of the most effective and research-backed approaches is medication-assisted treatment, also known as MAT. By combining FDA-approved medications with counseling and behavioral therapies, MAT…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

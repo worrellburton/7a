@@ -14,7 +14,7 @@ export default function PageContent() {
           { label: "How to Help Your Alcoholic Spouse" },
         ]}
         description="Alcohol abuse is a pervasive issue that affects millions of individuals and their families worldwide. When someone you love is struggling with alcohol use disorder (AUD), the impact reverberates throughout the household, causing…"
-        image="/images/resident-reading-window.jpg"
+        image="/hero/resident-reading-window.jpg"
         width="narrow"
       />
 

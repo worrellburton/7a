@@ -1,265 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
+import { getAdminSupabase } from '@/lib/supabase-server';
+import { requireAdmin } from '@/lib/api-gates';
+import { sendCampaignBatch } from '@/lib/email-campaigns-send';
 
 // POST /api/email-campaigns/send
 //
-// Phase 10 — fan out the campaign to every pending recipient via
-// Resend's HTTP API. Updates each recipient row with send_status,
-// writes a public.contact_logs entry (method='Email Campaign') so
-// the contact's activity log shows the send, bumps the contact's
-// last_contact_* columns, and flips the campaign row to
-// status='sent' once the loop completes. Every write hits a table
-// that's in the supabase_realtime publication, so any other admin
-// with the page open sees rows arrive live.
-//
-// If RESEND_API_KEY isn't configured we still mark each row as
-// 'sent' so the full UX flow can be exercised, recording
-// provider='simulated' on the audit row. The response includes a
-// `simulated` flag so the UI can surface this state.
-//
-// Default sender uses Resend's sandbox domain (onboarding@resend.dev)
-// so sends work out of the box. Set EMAIL_FROM to a verified Resend
-// sender ("Seven Arrows Recovery <hello@sevenarrowsrecoveryarizona.com>",
-// etc.) once you've verified the domain in https://resend.com/domains.
-//
-// Required env (real send): RESEND_API_KEY
-// Optional env: EMAIL_FROM (defaults to
-//   "Seven Arrows Recovery <onboarding@resend.dev>")
-
-const RESEND_URL = 'https://api.resend.com/emails';
-const DEFAULT_FROM = 'Seven Arrows Recovery <onboarding@resend.dev>';
+// Thin auth wrapper around sendCampaignBatch (in /lib). Two callers:
+//   1) An admin clicking "Send now" in the UI — gated by
+//      requireAdmin so only authorised teammates can trigger a
+//      live blast.
+//   2) The scheduled-send cron used to call this route over HTTP
+//      with x-vercel-cron + x-cron-secret, but Vercel strips
+//      x-vercel-cron on internal calls and the secret check was
+//      brittle, which left scheduled campaigns stuck in 'sending'.
+//      The cron now imports sendCampaignBatch and calls it
+//      directly; the HTTP path stays for the admin UI only.
 
 interface SendBody {
   campaignId?: unknown;
+  batchSize?: unknown;
 }
 
-export async function POST(req: NextRequest) {
-  const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export const dynamic = 'force-dynamic';
+export const maxDuration = 300;
 
-  // Sending fans out to live contact email addresses under the Seven
-  // Arrows brand, so the surface is gated to admins. The toggle in
-  // /app/admin/user-permissions is labelled "Super Admin" but actually
-  // flips users.is_admin (the real is_super_admin column is reserved
-  // for the root admin via migration), so we accept either column —
-  // otherwise people the UI claims are "Super Admin" still get 403s
-  // here. Non-admins are denied.
-  {
-    const admin = getAdminSupabase();
-    const { data: userRow } = await admin
-      .from('users')
-      .select('is_admin, is_super_admin')
-      .eq('id', user.id)
-      .maybeSingle();
-    const allowed = userRow?.is_super_admin === true || userRow?.is_admin === true;
-    if (!allowed) {
-      return NextResponse.json(
-        { error: 'Only admins can send email campaigns.' },
-        { status: 403 },
-      );
-    }
-  }
+export async function POST(req: NextRequest) {
+  const gate = await requireAdmin(req, 'Only admins can send email campaigns.');
+  if (gate instanceof NextResponse) return gate;
 
   const body = (await req.json().catch(() => ({}))) as SendBody;
   const campaignId = typeof body.campaignId === 'string' ? body.campaignId : null;
   if (!campaignId) return NextResponse.json({ error: 'Missing campaignId.' }, { status: 400 });
 
+  const batchSize =
+    typeof body.batchSize === 'number' && Number.isFinite(body.batchSize) && body.batchSize > 0
+      ? Math.floor(body.batchSize)
+      : undefined;
+
   const supabase = getAdminSupabase();
-  const { data: campaign, error: campErr } = await supabase
-    .from('email_campaigns')
-    .select('id, generated_html, generated_subject, status')
-    .eq('id', campaignId)
-    .maybeSingle();
-  if (campErr || !campaign) {
-    return NextResponse.json({ error: campErr?.message ?? 'Campaign not found.' }, { status: 404 });
+  const result = await sendCampaignBatch({
+    supabase,
+    campaignId,
+    actingUserId: gate.userId,
+    batchSize,
+  });
+
+  if (!result.ok) {
+    return NextResponse.json({ error: result.error ?? 'Send failed.' }, { status: 500 });
   }
-  if (!campaign.generated_html || !campaign.generated_subject) {
-    return NextResponse.json({ error: 'Campaign is missing body or subject.' }, { status: 400 });
-  }
-
-  const { data: recipientRows, error: recErr } = await supabase
-    .from('email_campaign_recipients')
-    .select('id, email, send_status, contact_id')
-    .eq('campaign_id', campaignId)
-    .eq('send_status', 'pending');
-  if (recErr) return NextResponse.json({ error: recErr.message }, { status: 500 });
-  const recipients = (recipientRows ?? []) as Array<{ id: string; email: string; send_status: string; contact_id: string }>;
-  if (recipients.length === 0) {
-    return NextResponse.json({ ok: true, sent: 0, failed: 0, simulated: false, note: 'No pending recipients.' });
-  }
-
-  await supabase.from('email_campaigns').update({ status: 'sending' }).eq('id', campaignId);
-
-  const apiKey = process.env.RESEND_API_KEY;
-  // RESEND_FROM is the canonical name (matches what Resend's own
-  // dashboard/docs use); EMAIL_FROM is kept as a fallback for older
-  // configs. Falls all the way back to onboarding@resend.dev so a
-  // dev environment without a verified domain can still send.
-  const from = normalizeFrom(process.env.RESEND_FROM || process.env.EMAIL_FROM || DEFAULT_FROM);
-  // Reply-To: where replies actually land. Defaults to the same
-  // mailbox as From if not set; the From display name is stripped
-  // since Resend expects a bare address in reply_to.
-  const replyToRaw = process.env.RESEND_REPLY_TO || process.env.EMAIL_REPLY_TO;
-  const replyTo = replyToRaw ? stripDisplayName(replyToRaw) : stripDisplayName(from);
-  const simulated = !apiKey;
-
-  let sent = 0;
-  let failed = 0;
-
-  // Concurrent worker pool — matches the pattern used in
-  // /api/email-campaigns/backfill-events. Sending 100 recipients
-  // sequentially blocks wall time on Resend latency × N (a 500ms
-  // round-trip × 100 = 50 seconds of dead time); a pool of 6 keeps
-  // total wall time to roughly ~N/6 × latency without tripping
-  // Resend's rate limit. Each worker still does its own writeback
-  // sequentially so a single recipient's three writes
-  // (recipients update + sends insert + contact_logs insert +
-  // contacts update) remain ordered for that contact.
-  const MAX_PARALLEL = 6;
-  let cursor = 0;
-  const handleOne = async (r: typeof recipients[number]) => {
-    let ok = false;
-    let statusCode: number | null = null;
-    let providerId: string | null = null;
-    let responseText = '';
-    let errText: string | null = null;
-
-    if (simulated) {
-      ok = true;
-      responseText = 'simulated — RESEND_API_KEY not configured';
-    } else {
-      try {
-        const res = await fetch(RESEND_URL, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from,
-            to: [r.email],
-            subject: campaign.generated_subject,
-            html: campaign.generated_html,
-            reply_to: replyTo,
-          }),
-        });
-        statusCode = res.status;
-        const txt = await res.text();
-        responseText = txt.slice(0, 2000);
-        if (res.ok) {
-          ok = true;
-          try {
-            const parsed = JSON.parse(txt) as { id?: string };
-            providerId = parsed.id ?? null;
-          } catch { /* non-JSON body — keep id null */ }
-        } else {
-          // Keep the whole response body (capped at 4k) so the
-          // finalize page's Provider Response panel can show the
-          // marketer the full diagnostic, not just a teaser.
-          errText = `HTTP ${res.status}: ${txt.slice(0, 4000)}`;
-        }
-      } catch (err) {
-        errText = err instanceof Error ? err.message : String(err);
-        responseText = errText;
-      }
-    }
-
-    if (ok) sent += 1; else failed += 1;
-
-    const nowIso = new Date().toISOString();
-    await supabase.from('email_campaign_recipients')
-      .update({
-        send_status: ok ? 'sent' : 'failed',
-        send_error: errText,
-        sent_at: ok ? nowIso : null,
-      })
-      .eq('id', r.id);
-
-    await supabase.from('email_campaign_sends').insert({
-      campaign_id: campaignId,
-      recipient_id: r.id,
-      provider: simulated ? 'simulated' : 'resend',
-      provider_message_id: providerId,
-      ok,
-      status_code: statusCode,
-      response: responseText,
-    });
-
-    // Write a contact-side log entry so the contact's activity
-    // stream shows the email, and bump the denormalized
-    // last_contact_* columns the outreach grid reads. Skipped
-    // on a failed send so we don't claim contact happened.
-    if (ok) {
-      const comment = simulated
-        ? `Sent email campaign (simulated): ${campaign.generated_subject}`
-        : `Sent email campaign: ${campaign.generated_subject}`;
-      await supabase.from('contact_logs').insert({
-        contact_id: r.contact_id,
-        method: 'Email Campaign',
-        comments: comment,
-        contacted_by: user.id,
-        contacted_at: nowIso,
-      });
-      await supabase.from('contacts')
-        .update({
-          last_contact_at: nowIso,
-          last_contact_by: user.id,
-          last_contact_method: 'Email Campaign',
-          last_contact_comments: comment,
-        })
-        .eq('id', r.contact_id);
-    }
-  };
-  const worker = async () => {
-    while (cursor < recipients.length) {
-      const idx = cursor;
-      cursor += 1;
-      const r = recipients[idx];
-      if (!r) continue;
-      await handleOne(r);
-    }
-  };
-  const workers: Array<Promise<void>> = [];
-  for (let i = 0; i < Math.min(MAX_PARALLEL, recipients.length); i += 1) workers.push(worker());
-  await Promise.all(workers);
-
-  const finalStatus = failed === 0 ? 'sent' : sent > 0 ? 'sent' : 'failed';
-  await supabase
-    .from('email_campaigns')
-    .update({
-      status: finalStatus,
-      sent_at: new Date().toISOString(),
-    })
-    .eq('id', campaignId);
-
-  return NextResponse.json({ ok: true, sent, failed, simulated });
-}
-
-// Vercel's "Sensitive" env-var editor sometimes stores spaces as
-// underscores in display names (we've seen "Seven_Arrows_Recovery
-// <hello@…>" round-trip from copy-paste). That's harmless to the
-// SMTP envelope but recipients see the ugly underscore name in
-// their inbox. Normalize: any run of underscores in the part of
-// the header BEFORE the first "<" becomes a single space. Email
-// addresses inside the angle brackets are left untouched so a
-// real underscore-bearing local-part (rare but legal) survives.
-function normalizeFrom(raw: string): string {
-  const trimmed = raw.trim();
-  const angle = trimmed.indexOf('<');
-  if (angle === -1) return trimmed;
-  const namePart = trimmed.slice(0, angle).replace(/_+/g, ' ').replace(/\s+/g, ' ').trim();
-  const addrPart = trimmed.slice(angle);
-  return namePart ? `${namePart} ${addrPart}` : addrPart;
-}
-
-// Resend's `reply_to` field expects a bare email address (no
-// display name, no angle brackets). Accepts either an already-bare
-// address or a "Name <addr@host>" string and returns just the
-// address.
-function stripDisplayName(raw: string): string {
-  const trimmed = raw.trim();
-  const open = trimmed.indexOf('<');
-  const close = trimmed.lastIndexOf('>');
-  if (open !== -1 && close > open) return trimmed.slice(open + 1, close).trim();
-  return trimmed;
+  return NextResponse.json(result);
 }

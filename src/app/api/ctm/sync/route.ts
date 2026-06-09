@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
+import { withCronLogging } from '@/lib/cron-observability';
 
 // POST /api/ctm/sync — pull calls from CallTrackingMetrics into the
 // public.calls mirror table. Idempotent: every call is upserted on ctm_id.
@@ -264,11 +265,11 @@ async function handleSync(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  return handleSync(req);
+  return withCronLogging('/api/ctm/sync', () => handleSync(req));
 }
 
 // Vercel Cron hits this as GET.
 export async function GET(req: NextRequest) {
-  return handleSync(req);
+  return withCronLogging('/api/ctm/sync', () => handleSync(req));
 }
 
