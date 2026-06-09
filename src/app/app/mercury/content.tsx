@@ -46,6 +46,7 @@ interface SyncResult {
   ok: true;
   duration_ms: number;
   accounts_synced: number;
+  accounts_pruned?: number;
   transactions_upserted: number;
   results: Array<{
     account_id: string;
@@ -201,8 +202,12 @@ export default function MercuryContent() {
         const msg = 'error' in json ? json.error : `HTTP ${res.status}`;
         throw new Error(msg);
       }
+      const prunedNote =
+        json.accounts_pruned && json.accounts_pruned > 0
+          ? ` · pruned ${json.accounts_pruned}`
+          : '';
       setSyncMessage(
-        `Synced ${json.accounts_synced} account${json.accounts_synced === 1 ? '' : 's'} · ${json.transactions_upserted.toLocaleString()} transactions in ${(json.duration_ms / 1000).toFixed(1)}s`,
+        `Synced ${json.accounts_synced} account${json.accounts_synced === 1 ? '' : 's'}${prunedNote} · ${json.transactions_upserted.toLocaleString()} transactions in ${(json.duration_ms / 1000).toFixed(1)}s`,
       );
       await refresh(true);
     } catch (e) {

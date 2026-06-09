@@ -33,6 +33,7 @@ export interface SyncResult {
   ok: true;
   duration_ms: number;
   accounts_synced: number;
+  accounts_pruned: number;
   transactions_upserted: number;
   results: SyncResultItem[];
 }
@@ -71,6 +72,27 @@ export async function runMercurySync(admin: SupabaseClient): Promise<SyncResult>
     .select('id, sync_transactions');
   if (accountsErr) {
     throw new Error(`accounts upsert failed: ${accountsErr.message}`);
+  }
+
+  // Prune accounts the user deleted from Mercury. The API's account
+  // list is authoritative — anything in our DB that didn't come back
+  // is stale and should disappear from the page. mercury_transactions
+  // has ON DELETE CASCADE so the txns for pruned accounts drop with
+  // them. Skip when the API returned zero rows (defensive — that
+  // usually means a transient API hiccup, not "the user deleted
+  // every account").
+  let prunedAccounts = 0;
+  if (accounts.length > 0) {
+    const liveIds = accounts.map((a) => a.id);
+    const { data: pruned, error: pruneErr } = await admin
+      .from('mercury_accounts')
+      .delete()
+      .not('id', 'in', `(${liveIds.map((id) => `"${id}"`).join(',')})`)
+      .select('id');
+    if (pruneErr) {
+      throw new Error(`accounts prune failed: ${pruneErr.message}`);
+    }
+    prunedAccounts = (pruned ?? []).length;
   }
   const syncFlagById = new Map<string, boolean>(
     ((upsertedAccounts ?? []) as Array<{ id: string; sync_transactions: boolean }>).map(
@@ -162,6 +184,7 @@ export async function runMercurySync(admin: SupabaseClient): Promise<SyncResult>
     ok: true,
     duration_ms: Date.now() - startedAt,
     accounts_synced: accounts.length,
+    accounts_pruned: prunedAccounts,
     transactions_upserted: totalUpserted,
     results,
   };

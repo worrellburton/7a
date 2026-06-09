@@ -1402,6 +1402,26 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       doesn't wrap or peek out while the rail is in
                       its collapsed (icon-only) state. */}
                   <span className="flex-1 whitespace-nowrap transition-[opacity,transform] duration-200 ease-out opacity-0 group-hover/sidebar:opacity-100 group-hover/nav:translate-x-0.5">{item.label}</span>
+                  {/* Super-admin-only badge — a small mask icon
+                      that surfaces when item.superAdminOnly is set
+                      (Mercury, Social Media, Kaizen, Levers, HIPAA).
+                      title attribute drives the native tooltip on
+                      hover so the rail stays uncluttered. Visible to
+                      everyone on the page since adminOnly already
+                      keeps the row out of non-admin sidebars. */}
+                  {item.superAdminOnly && (
+                    <span
+                      title="Only for super admins"
+                      aria-label="Only for super admins"
+                      className="ml-1 inline-flex items-center text-amber-600 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M3 11c0-1 1-2 2-2h14c1 0 2 1 2 2v1c0 1-1 2-2 2h-3.2c-.4 1.6-1.9 2.7-3.8 2.7s-3.4-1.1-3.8-2.7H5c-1 0-2-1-2-2v-1z" />
+                        <circle cx="8.5" cy="11.5" r="1" fill="currentColor" stroke="none" />
+                        <circle cx="15.5" cy="11.5" r="1" fill="currentColor" stroke="none" />
+                      </svg>
+                    </span>
+                  )}
                   {/* Super-admin-only "ALUMNI" tag · added so a
                       super admin scanning their sidebar can tell at
                       a glance which rows are alumni-portal pages
@@ -1730,6 +1750,19 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                             {getPageIcon(item.path)}
                           </span>
                           <span className="flex-1">{item.label}</span>
+                          {item.superAdminOnly && (
+                            <span
+                              title="Only for super admins"
+                              aria-label="Only for super admins"
+                              className="inline-flex items-center text-amber-600"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <path d="M3 11c0-1 1-2 2-2h14c1 0 2 1 2 2v1c0 1-1 2-2 2h-3.2c-.4 1.6-1.9 2.7-3.8 2.7s-3.4-1.1-3.8-2.7H5c-1 0-2-1-2-2v-1z" />
+                                <circle cx="8.5" cy="11.5" r="1" fill="currentColor" stroke="none" />
+                                <circle cx="15.5" cy="11.5" r="1" fill="currentColor" stroke="none" />
+                              </svg>
+                            </span>
+                          )}
                           {(navBadges[item.path] ?? 0) > 0 && (
                             <span
                               aria-label={`${navBadges[item.path]} new`}
