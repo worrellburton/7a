@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase } from '@/lib/supabase-server';
+import { requireAdmin } from '@/lib/api-gates';
 import {
   bucketRefDomainsByAscore,
   fetchBacklinks,
@@ -69,9 +69,10 @@ function applyFilter(rows: BacklinkRow[], filter: string): BacklinkRow[] {
   }
 }
 
-async function loadLatestSnapshot(target: string): Promise<SnapshotRow | null> {
-  const supabase = await getServerSupabase();
-  const { data, error } = await supabase
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+async function loadLatestSnapshot(admin: SupabaseClient, target: string): Promise<SnapshotRow | null> {
+  const { data, error } = await admin
     .from('seo_backlinks_snapshots')
     .select('id, target, payload, synced_at, synced_by')
     .eq('target', target)
@@ -82,10 +83,9 @@ async function loadLatestSnapshot(target: string): Promise<SnapshotRow | null> {
   return (data as SnapshotRow | null) ?? null;
 }
 
-async function loadSyncedByName(userId: string | null): Promise<string | null> {
+async function loadSyncedByName(admin: SupabaseClient, userId: string | null): Promise<string | null> {
   if (!userId) return null;
-  const supabase = await getServerSupabase();
-  const { data } = await supabase
+  const { data } = await admin
     .from('users')
     .select('full_name')
     .eq('id', userId)
@@ -94,11 +94,8 @@ async function loadSyncedByName(userId: string | null): Promise<string | null> {
 }
 
 export async function GET(req: Request) {
-  const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: row } = await supabase.from('users').select('is_admin').eq('id', user.id).maybeSingle();
-  if (!row?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const gate = await requireAdmin();
+  if (gate instanceof NextResponse) return gate;
 
   const target = resolveTarget(req);
   const url = new URL(req.url);
@@ -106,7 +103,7 @@ export async function GET(req: Request) {
 
   let snap: SnapshotRow | null = null;
   try {
-    snap = await loadLatestSnapshot(target);
+    snap = await loadLatestSnapshot(gate.admin, target);
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : String(err) },
@@ -127,7 +124,7 @@ export async function GET(req: Request) {
     });
   }
 
-  const syncedByName = await loadSyncedByName(snap.synced_by);
+  const syncedByName = await loadSyncedByName(gate.admin, snap.synced_by);
   const filtered = applyFilter(snap.payload.rows ?? [], filter);
   return NextResponse.json({
     target,
@@ -144,11 +141,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  const { data: row } = await supabase.from('users').select('is_admin').eq('id', user.id).maybeSingle();
-  if (!row?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const gate = await requireAdmin();
+  if (gate instanceof NextResponse) return gate;
 
   if (!hasSemrush()) {
     return NextResponse.json(
@@ -194,9 +188,9 @@ export async function POST(req: Request) {
       refdomain_buckets: bucketRefDomainsByAscore(refdomains),
     };
 
-    const { error: insertErr } = await supabase
+    const { error: insertErr } = await gate.admin
       .from('seo_backlinks_snapshots')
-      .insert({ target, payload, synced_by: user.id });
+      .insert({ target, payload, synced_by: gate.userId });
     if (insertErr) {
       return NextResponse.json({ error: insertErr.message }, { status: 500 });
     }

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase } from '@/lib/supabase-server';
+import { requireAdmin } from '@/lib/api-gates';
 
 // GET /api/google/gemini-debug
 // Admin-only. Sends a tiny one-shot prompt to the same Gemini
@@ -14,12 +14,8 @@ export const dynamic = 'force-dynamic';
 const DEFAULT_MODEL = 'gemini-2.5-pro';
 
 export async function GET() {
-  const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
-  const { data: row } = await supabase.from('users').select('is_admin').eq('id', user.id).maybeSingle();
-  if (!row?.is_admin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  const gate = await requireAdmin();
+  if (gate instanceof NextResponse) return gate;
 
   const apiKey = process.env.GEMINI_API_KEY;
   const model = process.env.GEMINI_MODEL || DEFAULT_MODEL;

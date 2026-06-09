@@ -200,6 +200,55 @@ export async function compressForSeo(
   }
 }
 
+// Generate a tiny 60×60 WebP avatar from an image File and return it as
+// a `data:image/webp;base64,...` string. Stored on users.avatar_thumb so
+// the home orbit can paint without per-avatar HTTP fetches.
+//
+// Square-center-crops the source so portrait + landscape sources both
+// fill the circle. Quality 0.6 keeps the result under ~3 KB while still
+// looking sharp at the rendered 28-48px sizes. Falls back to null on
+// any browser/canvas hiccup — caller should not error, the orbit
+// already degrades gracefully to avatar_url.
+export async function generateAvatarThumbDataUrl(
+  file: Blob,
+  size = 60,
+): Promise<string | null> {
+  if (typeof document === 'undefined') return null;
+  try {
+    const bitmap = await createImageBitmap(file).catch(() => null);
+    if (!bitmap) return null;
+    const srcEdge = Math.min(bitmap.width, bitmap.height);
+    const sx = Math.floor((bitmap.width - srcEdge) / 2);
+    const sy = Math.floor((bitmap.height - srcEdge) / 2);
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return null;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bitmap, sx, sy, srcEdge, srcEdge, 0, 0, size, size);
+    bitmap.close?.();
+    const blob: Blob | null = await new Promise((res) =>
+      canvas.toBlob(res, 'image/webp', 0.6),
+    );
+    if (!blob || blob.type !== 'image/webp') return null;
+    const buf = await blob.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    // Base64-encode via a chunked btoa so we don't blow the call stack
+    // on String.fromCharCode(...big_array). 60×60 WebP is small enough
+    // that this is almost always a single chunk.
+    let binary = '';
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+    }
+    return `data:image/webp;base64,${btoa(binary)}`;
+  } catch {
+    return null;
+  }
+}
+
 // Upload a file directly to Supabase Storage from the browser. This bypasses
 // the Next.js API route entirely, so we are not constrained by Vercel's
 // ~4.5 MB serverless body limit — Supabase's per-bucket file_size_limit

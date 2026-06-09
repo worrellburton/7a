@@ -23,6 +23,7 @@ interface DbUser {
   id: string;
   full_name: string | null;
   avatar_url: string | null;
+  avatar_thumb: string | null;
   last_sign_in: string | null;
   last_seen_at: string | null;
   last_path: string | null;
@@ -50,7 +51,7 @@ export default function AlumniHubContent() {
     const data = await db({
       action: 'select',
       table: 'users',
-      select: 'id, full_name, avatar_url, last_sign_in, last_seen_at, last_path, job_title, status, user_kind',
+      select: 'id, full_name, avatar_url, avatar_thumb, last_sign_in, last_seen_at, last_path, job_title, status, user_kind',
       order: { column: 'last_sign_in', ascending: false },
     }).catch(() => []);
     if (!Array.isArray(data)) return;
@@ -63,6 +64,7 @@ export default function AlumniHubContent() {
       id: u.id,
       full_name: u.full_name,
       avatar_url: u.avatar_url,
+      avatar_thumb: u.avatar_thumb,
       last_sign_in: u.last_sign_in,
       last_seen_at: u.last_seen_at,
       last_path: u.last_path,

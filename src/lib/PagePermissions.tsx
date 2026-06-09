@@ -21,6 +21,14 @@ export interface PageConfig {
   // the `page_permissions` DB table — so product areas like Media can hang
   // off a shared header without needing a fake department row.
   navGroup?: string | null;
+  // When true, the page enforces a runtime is_super_admin check
+  // inside its content + every backing API route. Used to surface a
+  // small "super-admin only" badge next to the page in the sidebar
+  // nav so an admin scanning the rail can tell at a glance which
+  // pages are gated tighter than `adminOnly: true` alone implies.
+  // Pure code-side concept — not stored in page_permissions — since
+  // it tracks the page's runtime gate, not an admin toggle.
+  superAdminOnly?: boolean;
   // When true, the page is visible exclusively to users with
   // user_kind='alumni'. Staff / admins / super-admins lose sidebar
   // entry + route access. Defaults to false; toggled per-page from
@@ -82,7 +90,7 @@ export const defaultPages: PageConfig[] = [
   // it in the sidebar but bounce to the app root if they navigate
   // in directly. Every /api/social-media/* route enforces the same
   // server-side via requireSuperAdmin.
-  { path: '/app/social-media', label: 'Social Media', adminOnly: true, section: 'nav', sort_order: 25, allowedDepartments: [], departmentId: null },
+  { path: '/app/social-media', label: 'Social Media', adminOnly: true, superAdminOnly: true, section: 'nav', sort_order: 25, allowedDepartments: [], departmentId: null },
   // Content — super-admin-only AI blog pipeline. Same gating pattern
   // as Social Media: adminOnly here for the sidebar, runtime
   // is_super_admin check inside the page + every /api/content/*
@@ -116,20 +124,27 @@ export const defaultPages: PageConfig[] = [
   // popup). Like Social Media, the page is gated by adminOnly here
   // AND a runtime is_super_admin check inside so non-super admins
   // see it surface but bounce to the app root if they navigate in.
-  { path: '/app/levers', label: 'Levers and switches', adminOnly: true, section: 'popup', sort_order: 7, allowedDepartments: [], departmentId: null },
+  { path: '/app/levers', label: 'Levers and switches', adminOnly: true, superAdminOnly: true, section: 'popup', sort_order: 7, allowedDepartments: [], departmentId: null },
   { path: '/app/team', label: 'Team', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
   // Kaizen — super-admin-only daily codebase scan. Lives in the
   // regular sidebar nav for discoverability; the runtime
   // is_super_admin check inside the page bounces non-super admins
   // to /app, and every /api/kaizen/* route enforces super-admin
   // server-side via requireSuperAdmin.
-  { path: '/app/kaizen', label: 'Kaizen', adminOnly: true, section: 'nav', sort_order: 90, allowedDepartments: [], departmentId: null },
+  { path: '/app/kaizen', label: 'Kaizen', adminOnly: true, superAdminOnly: true, section: 'nav', sort_order: 90, allowedDepartments: [], departmentId: null },
+  // Mercury — super-admin-only bookkeeping mirror. The page
+  // registered as adminOnly here keeps it out of the rail for
+  // non-admins; a runtime is_super_admin check inside content.tsx
+  // bounces an admin (non-super) who navigates in directly, and
+  // every /api/mercury/* route enforces requireSuperAdmin
+  // server-side.
+  { path: '/app/mercury', label: 'Mercury', adminOnly: true, superAdminOnly: true, section: 'nav', sort_order: 9.5, allowedDepartments: [], departmentId: null },
   // HIPAA technical-safeguards audit. Super-admin-gated at the
   // route level (the page itself renders a locked panel for
   // non-super-admins), and the /api/hipaa/scan endpoint enforces
   // the same. Sits in popup (not nav) so it's reachable when
   // needed without claiming a permanent rail slot.
-  { path: '/app/hipaa', label: 'HIPAA audit', adminOnly: true, section: 'popup', sort_order: 8, allowedDepartments: [], departmentId: null },
+  { path: '/app/hipaa', label: 'HIPAA audit', adminOnly: true, superAdminOnly: true, section: 'popup', sort_order: 8, allowedDepartments: [], departmentId: null },
   // Chat — open to all staff + alumni. PageGuard's per-user override
   // for guests still applies (a guest sees Chat only when a super
   // admin grants /app/chat in their allow-list).
