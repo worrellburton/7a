@@ -2,18 +2,26 @@
 
 # Deployment workflow
 
-After every prompt that results in a code change, always ship the change to the live site:
+`main` is the live deploy branch — Vercel builds production from `main`.
+Every change ends there.
+
+After every prompt that results in a code change, ship it:
 
 1. Commit on the current feature branch with a descriptive message.
 2. Push the feature branch: `git push -u origin <branch>`.
-3. Merge the feature branch into `main` (`git checkout main && git merge --no-ff <branch>`).
-4. Push `main`: `git push -u origin main`.
-5. Merge `main` into `master` (`git checkout master && git merge --ff-only main` — or `--no-ff` if a merge commit is needed).
-6. Push `master`: `git push -u origin master`.
+3. Open a PR into `main` and merge it (squash is fine), OR if working
+   directly, merge the feature branch into `main`
+   (`git checkout main && git merge --no-ff <branch>`) and push:
+   `git push -u origin main`.
 
-`master` is the live deploy branch — every change ends there.
+That's it — merging to `main` deploys. There is no longer a `master`
+step. (`master` was the old deploy branch; it drifted behind `main`
+and silently dropped shipped features from production until the two
+were reconciled. Do not resurrect a second long-lived deploy branch —
+one source of truth.)
 
-Never skip hooks (`--no-verify`), never force push, and never rewrite published history.
+Never skip hooks (`--no-verify`), never force push, and never rewrite
+published history.
 
 # Supabase migrations
 
