@@ -141,7 +141,20 @@ export default function HomeChipCluster({ children }: { children: ReactNode }) {
 
       {/* Portaled mobile sheet. Lives on document.body to escape the
           page's overflow-hidden + isolation:isolate ancestor that
-          was hiding the old absolute-positioned dropdown. */}
+          was hiding the old absolute-positioned dropdown.
+
+          z-index pegged at 2147483647 (max signed 32-bit int) so the
+          panel is unambiguously above every other stacking context
+          on the page. The orbit ring uses z-40 on its root and z-50
+          internally for tooltip glyphs, and at the old z-60 the
+          ring's avatars were painting on top of the panel because of
+          how the home page's isolation:isolate ancestor flattens
+          stack ordering. Going max-int sidesteps that for good.
+
+          Background is fully opaque (bg-white, no translucency) so
+          partial transparency can't make avatars bleed through and
+          look like they're in front of the panel even when they
+          aren't. */}
       {mounted && renderInSheet && pos && createPortal(
         <div
           ref={panelRef}
@@ -150,9 +163,9 @@ export default function HomeChipCluster({ children }: { children: ReactNode }) {
             position: 'fixed',
             top: pos.top,
             right: pos.right,
-            zIndex: 60,
+            zIndex: 2147483647,
           }}
-          className="flex flex-col items-stretch gap-2 bg-white/95 supports-[backdrop-filter]:bg-white/85 backdrop-blur-xl border border-white/80 shadow-2xl p-3 rounded-2xl min-w-[220px] max-w-[calc(100vw-16px)]"
+          className="flex flex-col items-stretch gap-2 bg-white border border-foreground/15 shadow-2xl p-3 rounded-2xl min-w-[220px] max-w-[calc(100vw-16px)]"
         >
           {children}
         </div>,
