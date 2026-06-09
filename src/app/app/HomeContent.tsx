@@ -16,6 +16,7 @@ import JdSignatureNagModal from './JdSignatureNagModal';
 import HomeOnlineOrbit, { type OrbitHorse } from './HomeOnlineOrbit';
 import HomeDailyLogsChip from './HomeDailyLogsChip';
 import HomeHardwareChip from './HomeHardwareChip';
+import HomeMercuryBalanceChip from './HomeMercuryBalanceChip';
 import HomeConnect4Nudge from './HomeConnect4Nudge';
 
 interface RecentUser {
@@ -778,6 +779,13 @@ export default function HomeContent() {
                 )}
               </button>
             )}
+            {/* Mercury 7A bank-balance pill — super-admin only.
+                RLS on mercury_accounts hides the read for everyone
+                else, and the component itself returns null when
+                !isSuperAdmin so a non-super-admin doesn't even pay
+                the mount cost. Tooltip + mask icon mirror the
+                sidebar super-admin badge. */}
+            <HomeMercuryBalanceChip />
             {/* Daily logs circle — sits left of the + button so the
                 day's count is always one tap away from the home
                 header. Compact 36-40px round button that links to
