@@ -1,18 +1,16 @@
 import { NextResponse } from 'next/server';
 import { requireSuperAdmin } from '@/lib/api-gates';
-import {
-  hasMercuryKey,
-  listAccounts,
-  listAllTransactions,
-  MercuryError,
-  type MercuryAccount,
-  type MercuryTransaction,
-} from '@/lib/mercury';
+import { hasMercuryKey, MercuryError } from '@/lib/mercury';
+import { runMercurySync } from '@/lib/mercury-sync';
 
-// POST /api/mercury/sync — pulls every Mercury account + every
-// transaction on the org token and upserts both into public
-// .mercury_accounts / public.mercury_transactions. Idempotent.
-// Super-admin only; the data is org-financials.
+// POST /api/mercury/sync — manual sync from the page's Sync button.
+// Pulls every Mercury account + every transaction on the org token
+// and upserts both. Idempotent. Super-admin only; the data is
+// org-financials.
+//
+// The actual sync work lives in /lib/mercury-sync.ts so the hourly
+// Vercel cron at /api/cron/mercury/sync can run the same logic
+// without duplicating it.
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -20,15 +18,6 @@ export const runtime = 'nodejs';
 // every account. Subsequent runs return in seconds because the
 // upsert no-ops on unchanged rows.
 export const maxDuration = 300;
-
-interface SyncResultItem {
-  account_id: string;
-  name: string;
-  transactions_fetched: number;
-  transactions_upserted: number;
-  skipped?: boolean;
-  error?: string;
-}
 
 export async function POST() {
   const gate = await requireSuperAdmin();
@@ -41,147 +30,12 @@ export async function POST() {
     );
   }
 
-  const startedAt = Date.now();
-  let accounts: MercuryAccount[];
   try {
-    accounts = await listAccounts();
+    const result = await runMercurySync(gate.admin);
+    return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const status = err instanceof MercuryError ? err.status : 502;
-    return NextResponse.json({ error: `listAccounts failed: ${message}` }, { status });
+    const status = err instanceof MercuryError ? err.status : 500;
+    return NextResponse.json({ error: message }, { status });
   }
-
-  // Upsert accounts.
-  const accountRows = accounts.map((a) => ({
-    id: a.id,
-    nickname: a.nickname ?? null,
-    name: a.name,
-    kind: a.kind ?? null,
-    type: a.type ?? null,
-    account_number_last4: a.accountNumber ? a.accountNumber.slice(-4) : null,
-    routing_number: a.routingNumber ?? null,
-    status: a.status ?? null,
-    balance: a.currentBalance,
-    available_balance: a.availableBalance ?? null,
-    currency: a.currency ?? 'USD',
-    dashboard_link: a.dashboardLink ?? null,
-    raw: a as unknown as Record<string, unknown>,
-    last_synced_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }));
-  // Upsert + read back the current sync_transactions flag for each
-  // account in one round-trip. The upsert payload omits the flag so
-  // existing values are preserved across syncs; new accounts inherit
-  // the column default (true) and start fully tracked.
-  const { data: upsertedAccounts, error: accountsErr } = await gate.admin
-    .from('mercury_accounts')
-    .upsert(accountRows, { onConflict: 'id' })
-    .select('id, sync_transactions');
-  if (accountsErr) {
-    return NextResponse.json(
-      { error: `accounts upsert failed: ${accountsErr.message}` },
-      { status: 500 },
-    );
-  }
-  const syncFlagById = new Map<string, boolean>(
-    ((upsertedAccounts ?? []) as Array<{ id: string; sync_transactions: boolean }>).map(
-      (r) => [r.id, r.sync_transactions !== false],
-    ),
-  );
-
-  // Walk transactions per account. Mercury returns all txns
-  // (pending + posted) in one feed, so the upsert handles status
-  // transitions (pending → posted) automatically by id.
-  const results: SyncResultItem[] = [];
-  let totalUpserted = 0;
-  for (const account of accounts) {
-    // Honour the per-account toggle. Skipped accounts still got
-    // their balance refreshed above; we just don't pull transactions.
-    if (syncFlagById.get(account.id) === false) {
-      results.push({
-        account_id: account.id,
-        name: account.name,
-        transactions_fetched: 0,
-        transactions_upserted: 0,
-        skipped: true,
-      });
-      continue;
-    }
-    let txns: MercuryTransaction[] = [];
-    try {
-      txns = await listAllTransactions(account.id);
-    } catch (err) {
-      results.push({
-        account_id: account.id,
-        name: account.name,
-        transactions_fetched: 0,
-        transactions_upserted: 0,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      continue;
-    }
-    if (txns.length === 0) {
-      results.push({
-        account_id: account.id,
-        name: account.name,
-        transactions_fetched: 0,
-        transactions_upserted: 0,
-      });
-      continue;
-    }
-    const rows = txns.map((t) => ({
-      id: t.id,
-      account_id: account.id,
-      posted_at: t.postedAt ?? null,
-      created_at_mercury: t.createdAt,
-      amount: t.amount,
-      currency: t.currencyExchangeInfo?.currency ?? account.currency ?? 'USD',
-      status: t.status ?? null,
-      kind: t.kind ?? null,
-      counterparty_name: t.counterpartyName ?? null,
-      counterparty_id: t.counterpartyId ?? null,
-      note: t.note ?? null,
-      external_memo: t.externalMemo ?? null,
-      dashboard_link: t.dashboardLink ?? null,
-      raw: t as unknown as Record<string, unknown>,
-      fetched_at: new Date().toISOString(),
-    }));
-    // Chunk to 1k rows per upsert — Postgres has a 65k parameter
-    // limit and a 500-txn page of fields can already push past that
-    // when one column is jsonb.
-    const CHUNK = 500;
-    let upserted = 0;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const slice = rows.slice(i, i + CHUNK);
-      const { error: txnErr } = await gate.admin
-        .from('mercury_transactions')
-        .upsert(slice, { onConflict: 'id' });
-      if (txnErr) {
-        results.push({
-          account_id: account.id,
-          name: account.name,
-          transactions_fetched: txns.length,
-          transactions_upserted: upserted,
-          error: `chunk ${i}: ${txnErr.message}`,
-        });
-        break;
-      }
-      upserted += slice.length;
-    }
-    totalUpserted += upserted;
-    results.push({
-      account_id: account.id,
-      name: account.name,
-      transactions_fetched: txns.length,
-      transactions_upserted: upserted,
-    });
-  }
-
-  return NextResponse.json({
-    ok: true,
-    duration_ms: Date.now() - startedAt,
-    accounts_synced: accounts.length,
-    transactions_upserted: totalUpserted,
-    results,
-  });
 }
