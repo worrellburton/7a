@@ -58,6 +58,11 @@ export const defaultPages: PageConfig[] = [
   // anchor (target=_blank) instead of an internal Link.
   { path: '/app/website', label: 'Website', adminOnly: false, section: 'nav', sort_order: 99, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9', externalUrl: 'https://www.sevenarrowsrecoveryarizona.com/' },
   { path: '/app/facilities', label: 'Facilities', adminOnly: false, section: 'nav', sort_order: 1, allowedDepartments: [], departmentId: null },
+  // Identity — the canonical "who we are" reference doc. Same surface
+  // any team member would reach for when pitching the program or
+  // drafting outbound copy. Org-wide (adminOnly: false, no department)
+  // because every role benefits from speaking from the same brief.
+  { path: '/app/identity', label: 'Identity', adminOnly: false, section: 'nav', sort_order: 1.5, allowedDepartments: [], departmentId: null },
   { path: '/app/compliance', label: 'Compliance', adminOnly: false, section: 'nav', sort_order: 2, allowedDepartments: [], departmentId: null },
   { path: '/app/groups', label: 'Groups', adminOnly: false, section: 'nav', sort_order: 3, allowedDepartments: [], departmentId: null },
   { path: '/app/notes', label: 'Notes', adminOnly: false, section: 'nav', sort_order: 12, allowedDepartments: [], departmentId: null },

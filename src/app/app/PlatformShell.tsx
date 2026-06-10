@@ -68,6 +68,17 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="M10 6h4M10 10h4M10 14h4M10 18h4" />
     </svg>
   ),
+  // Identity icon — a stylised badge (shield with a stamp at the
+  // centre) so it reads as "who we are / our mark" alongside the
+  // Facilities building icon above it. Same 24-viewBox / stroke 1.75
+  // as the rest of the rail.
+  '/app/identity': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3 4 6v6c0 4.5 3.2 8.4 8 9 4.8-.6 8-4.5 8-9V6l-8-3Z" />
+      <circle cx="12" cy="11" r="2.25" />
+      <path d="M12 13.25v3.25" />
+    </svg>
+  ),
   '/app/departments': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="7" width="7" height="13" rx="1" />
