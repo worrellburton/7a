@@ -3262,7 +3262,14 @@ function ContactsGrid({
                     instead of two adjacent stickies. */}
                 <td
                   style={{ right: `${EXPANDER_COL_WIDTH_PX}px` }}
-                  className={`sa-engagement-cell sticky z-10 backdrop-blur-md backdrop-saturate-150 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-3 py-2.5 transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed]/72 group-hover:bg-[#f7e8df]/85' : 'bg-white/65 group-hover:bg-white/85'} ${expandedDetailsId === c.id ? 'sa-engagement-cell-active' : ''}`}
+                  // Solid (near-opaque) background instead of the old
+                  // backdrop-blur-md + backdrop-saturate-150. With 900+
+                  // rows each carrying its own sticky blurred cell, the
+                  // GPU re-blurred behind every cell on every scroll
+                  // frame and the grid visibly janked (~20-30 FPS in
+                  // the blur region). 95% opacity keeps the frosted
+                  // look without any per-frame filter work.
+                  className={`sa-engagement-cell sticky z-10 border-l border-black/5 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-3 py-2.5 transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white/95 group-hover:bg-white'} ${expandedDetailsId === c.id ? 'sa-engagement-cell-active' : ''}`}
                 >
                   <div className="flex items-center gap-2">
                     <button
@@ -3293,7 +3300,10 @@ function ContactsGrid({
                     </button>
                   </div>
                 </td>
-                <td className={`sticky right-0 z-10 backdrop-blur-md backdrop-saturate-150 px-2 py-2.5 text-right transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed]/72 group-hover:bg-[#f7e8df]/85' : 'bg-white/65 group-hover:bg-white/85'}`}>
+                {/* Solid background — same per-row backdrop-blur
+                    removal as the engagement cell above; see the
+                    comment there for the scroll-FPS rationale. */}
+                <td className={`sticky right-0 z-10 px-2 py-2.5 text-right transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white/95 group-hover:bg-white'}`}>
                   <button
                     type="button"
                     onClick={(e) => {

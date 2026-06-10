@@ -56,12 +56,28 @@ export async function GET(req: NextRequest) {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const admin = getAdminSupabase();
-  const { data, error } = await admin
-    .from('contacts')
-    .select('id, name, company, company_website, type, specialty, rating, role, phone, phone_cell, phone_office, email, location, formatted_address, place_id, tz, lat, lng, notes, source, source_partner_id, last_contact_at, last_contact_by, last_contact_method, last_contact_comments, unsubscribed_at, unsubscribed_source, created_at, updated_at')
-    .order('last_contact_at', { ascending: false, nullsFirst: false })
-    .order('name', { ascending: true });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  // Chunked read — PostgREST silently caps un-ranged selects at 1000
+  // rows, and the table crossed that line (rows beyond the cap just
+  // vanished from the grid with no error; same failure mode that
+  // once hid logs + campaign recipients). The loop pulls full pages
+  // until a short page signals the end. Sort is served by the
+  // contacts(last_contact_at desc nulls last, name) index so each
+  // page is an index walk, not a full-table sort.
+  const PAGE = 1000;
+  const SELECT_COLS = 'id, name, company, company_website, type, specialty, rating, role, phone, phone_cell, phone_office, email, location, formatted_address, place_id, tz, lat, lng, notes, source, source_partner_id, last_contact_at, last_contact_by, last_contact_method, last_contact_comments, unsubscribed_at, unsubscribed_source, created_at, updated_at';
+  const all: unknown[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data: page, error } = await admin
+      .from('contacts')
+      .select(SELECT_COLS)
+      .order('last_contact_at', { ascending: false, nullsFirst: false })
+      .order('name', { ascending: true })
+      .range(offset, offset + PAGE - 1);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    all.push(...(page ?? []));
+    if (!page || page.length < PAGE) break;
+  }
+  const data = all;
 
   // Resolve last-contacted-by user names so the grid can show them
   // without a second request.

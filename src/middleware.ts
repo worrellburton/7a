@@ -16,17 +16,44 @@ interface RedirectEntry {
 
 type RedirectMap = Record<string, RedirectEntry>;
 
+// Module-scope cache. `next: { revalidate }` is silently ignored in
+// middleware (no Data Cache there), so before this every request
+// paid a same-origin HTTP hop + lambda + Supabase query before TTFB.
+// The /active route now also sends s-maxage=60 so the CDN absorbs
+// most fetches; this cache is belt-and-braces for the instances that
+// stay warm between requests. 60s staleness matches the admin-edit
+// expectation already documented on the route.
+const REDIRECT_CACHE_TTL_MS = 60_000;
+let cachedMap: RedirectMap | null = null;
+let cachedAt = 0;
+let inflight: Promise<RedirectMap> | null = null;
+
 async function fetchRedirectMap(origin: string): Promise<RedirectMap> {
-  try {
-    const res = await fetch(`${origin}/api/seo/redirects/active`, {
-      next: { revalidate: 60, tags: ['redirects'] },
-    });
-    if (!res.ok) return {};
-    const json = (await res.json()) as { map?: RedirectMap };
-    return json.map ?? {};
-  } catch {
-    return {};
-  }
+  const now = Date.now();
+  if (cachedMap && now - cachedAt < REDIRECT_CACHE_TTL_MS) return cachedMap;
+  // Coalesce concurrent misses into one upstream fetch — a traffic
+  // burst on a cold instance shouldn't fan out into N parallel
+  // identical requests.
+  if (inflight) return inflight;
+  inflight = (async () => {
+    try {
+      const res = await fetch(`${origin}/api/seo/redirects/active`, {
+        next: { revalidate: 60, tags: ['redirects'] },
+      });
+      if (!res.ok) return cachedMap ?? {};
+      const json = (await res.json()) as { map?: RedirectMap };
+      cachedMap = json.map ?? {};
+      cachedAt = Date.now();
+      return cachedMap;
+    } catch {
+      // Network hiccup: serve the stale map if we have one rather
+      // than dropping every redirect on the floor.
+      return cachedMap ?? {};
+    } finally {
+      inflight = null;
+    }
+  })();
+  return inflight;
 }
 
 function lookup(map: RedirectMap, pathname: string): RedirectEntry | null {
