@@ -20,7 +20,7 @@ export const dynamic = 'force-dynamic';
 
 const MAX_RECENT = 30;
 
-// Reject paths that don't look like a real /app route. Keeps a
+// Reject paths that don't look like a real /feather route. Keeps a
 // misbehaving / malicious client from filling the array with junk
 // URLs or external links.
 const PATH_RE = /^\/app(?:\/[a-zA-Z0-9_\-/.]*)?$/;

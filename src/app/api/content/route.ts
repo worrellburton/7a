@@ -3,7 +3,7 @@ import { getAdminSupabase } from '@/lib/supabase-server';
 import { requireSuperAdmin, makeSlug } from '@/lib/content-server';
 
 // GET  /api/content — list every blog row (drafts + published) for
-//                     the /app/content list view. Joins users for
+//                     the /feather/content list view. Joins users for
 //                     the creator's display name + avatar so the
 //                     row can show who started the post without a
 //                     second round-trip.

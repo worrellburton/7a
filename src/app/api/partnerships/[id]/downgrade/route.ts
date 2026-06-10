@@ -5,7 +5,7 @@ import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 //
 // "Remove partner" in the new contact-centric model. Deletes the
 // partner row; the linked contact (partners.contact_id) stays in
-// place on /app/outreach so admissions doesn't lose the person's
+// place on /feather/outreach so admissions doesn't lose the person's
 // engagement history. Previously this route created a new contact
 // when downgrading — now there's always already a contact attached,
 // so we just drop the partner row and report which contact survived.

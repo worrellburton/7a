@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
       surface: 'Contacts',
       label: r.name || r.email || 'Contact',
       sub: r.email || r.phone || null,
-      href: `/app/contacts?focus=${encodeURIComponent(r.id)}`,
+      href: `/feather/contacts?focus=${encodeURIComponent(r.id)}`,
     });
   }
   for (const r of (blogsRes.data ?? []) as Array<{ id: string; slug: string; title: string | null; status: string }>) {
@@ -114,7 +114,7 @@ export async function GET(req: NextRequest) {
       surface: 'Blogs',
       label: r.title || r.slug,
       sub: r.status,
-      href: `/app/content/${r.id}`,
+      href: `/feather/content/${r.id}`,
     });
   }
   for (const r of (alumniRes.data ?? []) as Array<{ id: string; full_name: string | null; email: string | null }>) {
@@ -123,7 +123,7 @@ export async function GET(req: NextRequest) {
       surface: 'Alumni',
       label: r.full_name || r.email || 'Alumnus',
       sub: r.email,
-      href: `/app/alumni/u/${r.id}`,
+      href: `/feather/alumni/u/${r.id}`,
     });
   }
   for (const r of (callsRes.data ?? []) as Array<{ id: number; called_at: string; caller_number_formatted: string | null; source_name: string | null }>) {
@@ -132,7 +132,7 @@ export async function GET(req: NextRequest) {
       surface: 'Calls',
       label: r.caller_number_formatted || `Call ${r.id}`,
       sub: r.source_name ? `${r.source_name} · ${r.called_at?.slice(0, 10)}` : r.called_at?.slice(0, 10),
-      href: `/app/calls/${r.id}`,
+      href: `/feather/calls/${r.id}`,
     });
   }
   for (const r of (directoriesRes.data ?? []) as Array<{ id: string; name: string | null; url: string | null }>) {
@@ -141,7 +141,7 @@ export async function GET(req: NextRequest) {
       surface: 'Directories',
       label: r.name || r.url || 'Directory',
       sub: r.url,
-      href: `/app/seo/directories?focus=${encodeURIComponent(r.id)}`,
+      href: `/feather/seo/directories?focus=${encodeURIComponent(r.id)}`,
     });
   }
   for (const r of (usersRes.data ?? []) as Array<{ id: string; full_name: string | null; email: string | null }>) {
@@ -150,7 +150,7 @@ export async function GET(req: NextRequest) {
       surface: 'People',
       label: r.full_name || r.email || 'Teammate',
       sub: r.email,
-      href: `/app/admin/user-permissions?focus=${encodeURIComponent(r.id)}`,
+      href: `/feather/admin/user-permissions?focus=${encodeURIComponent(r.id)}`,
     });
   }
   for (const r of (roadmapRes.data ?? []) as Array<{ id: string; working_title: string; target_keyword: string | null; blog_id: string | null }>) {
@@ -159,7 +159,7 @@ export async function GET(req: NextRequest) {
       surface: 'Roadmap',
       label: r.working_title,
       sub: r.target_keyword || (r.blog_id ? 'Built' : 'Concept'),
-      href: r.blog_id ? `/app/content/${r.blog_id}` : `/app/content`,
+      href: r.blog_id ? `/feather/content/${r.blog_id}` : `/feather/content`,
     });
   }
 

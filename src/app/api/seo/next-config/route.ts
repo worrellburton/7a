@@ -6,7 +6,7 @@ import { getAdminSupabase } from '@/lib/supabase-server';
 // GET /api/seo/next-config
 //
 // PUBLIC (no auth) download of the deployed next.config.mjs. Surfaced
-// as a button on the internal /app/seo page, but the endpoint itself
+// as a button on the internal /feather/seo page, but the endpoint itself
 // is intentionally open per product decision — the file carries no
 // secrets (every sensitive value is a process.env.* reference, never
 // an inlined credential).

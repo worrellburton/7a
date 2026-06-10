@@ -3,7 +3,7 @@ import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 
 // GET /api/contacts/logs-today
 //
-// Powers /app/logs and the HomeDailyLogsChip on /app.
+// Powers /feather/logs and the HomeDailyLogsChip on /feather.
 //
 // Query param:
 //   range = today | this_week | last_week | this_month | last_month | all_time
@@ -346,7 +346,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Window-count rollup — one log-count per date range so the
-  // glowing chart on /app/logs renders all six bars in a
+  // glowing chart on /feather/logs renders all six bars in a
   // single round-trip. Computed in-memory from the same `history`
   // sweep we already pulled for the records section, so this is
   // free; no extra DB query.

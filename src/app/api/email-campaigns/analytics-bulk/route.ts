@@ -5,7 +5,7 @@ import { requireAdmin } from '@/lib/api-gates';
 // GET /api/email-campaigns/analytics-bulk?ids=<comma-separated-uuids>
 //
 // One round-trip lookup of open / click totals for many campaigns at
-// once. Used by the Sent campaigns card on /app/email-campaigns to
+// once. Used by the Sent campaigns card on /feather/email-campaigns to
 // render per-row open/click rate circles without firing N separate
 // /api/email-campaigns/[id]/analytics requests.
 //

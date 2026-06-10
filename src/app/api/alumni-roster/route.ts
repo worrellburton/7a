@@ -4,7 +4,7 @@ import { getAdminSupabase, getUserFromRequest } from '@/lib/supabase-server';
 // GET /api/alumni-roster
 //
 // Roster of every user_kind='alumni' row with their alumni_profiles
-// fields joined in. Powers /app/alumni-roster, which is a
+// fields joined in. Powers /feather/alumni-roster, which is a
 // cross-portal page:
 //
 //   * Staff (super admin / admin / alumni admin) get every field

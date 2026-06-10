@@ -40,7 +40,7 @@ function clampGscEnd(endStr: string): string {
 }
 
 export async function GET(req: Request) {
-  const { error: authError } = await requirePageAccess('/app/analytics');
+  const { error: authError } = await requirePageAccess('/feather/analytics');
   if (authError) return authError;
 
   if (!hasGoogleOAuth() || !process.env.GSC_SITE_URL) {

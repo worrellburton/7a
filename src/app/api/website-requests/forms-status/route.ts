@@ -5,7 +5,7 @@ import { requireWebsiteRequestsAccess } from '@/lib/website-requests-auth';
 // POST /api/website-requests/forms-status
 //   body: { id: string, status: 'new' | 'seen' | 'closed' | 'contacted' | 'archived' }
 //
-// Drives the New → Seen → Closed toggle on the /app/website-requests
+// Drives the New → Seen → Closed toggle on the /feather/website-requests
 // Forms panel. Same auth surface as the delete + respond endpoints.
 
 export const dynamic = 'force-dynamic';

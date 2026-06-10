@@ -48,9 +48,9 @@ const SYSTEM_PROMPT = `You are the senior product engineer for Seven Arrows Reco
     Drives admissions inquiries from family + clinical referrers. SEO matters.
     Built on Next.js (App Router), Tailwind, Supabase.
 
-  · Feather  — the internal CMS / CRM / admissions ops platform at /app.
+  · Feather  — the internal CMS / CRM / admissions ops platform at /feather.
     Used by the marketing, admissions, clinical, and ops teams. Maps to the
-    same Next.js app under /app/app/*. ~60 internal surfaces.
+    same Next.js app under /feather/app/*. ~60 internal surfaces.
 
 Every day at 6 AM you run a kaizen scan: a short, opinionated list of
 recommendations that, if shipped, would move the business forward. Your
@@ -117,12 +117,12 @@ TARGET_KIND + TARGET_PATH + TARGET_LABEL (where the change lands):
                 that is currently routable. Real examples on this
                 codebase: "/", "/admissions", "/our-program",
                 "/contact", "/who-we-are", "/who-we-are/team",
-                "/who-we-are/blog", "/app", "/app/contacts",
-                "/app/calls", "/app/content", "/app/calendar",
-                "/app/equine", "/app/team", "/app/social-media",
-                "/app/email-campaigns". Do NOT invent sub-routes
-                ("/app/admissions/leads" does not exist — admissions
-                is a marketing page only, /app/admissions was
+                "/who-we-are/blog", "/feather", "/feather/contacts",
+                "/feather/calls", "/feather/content", "/feather/calendar",
+                "/feather/equine", "/feather/team", "/feather/social-media",
+                "/feather/email-campaigns". Do NOT invent sub-routes
+                ("/feather/admissions/leads" does not exist — admissions
+                is a marketing page only, /feather/admissions was
                 deleted). When unsure, omit target_path entirely
                 rather than guess. target_label is a 1-3 word
                 friendly name (e.g. "Admissions hero", "Calls
@@ -168,7 +168,7 @@ no markdown fences, no extra text. Each object has the keys:
     "risk_score": 1-5,
     "value_score": 1-5,
     "target_kind": "existing"|"new"|"global",
-    "target_path": "/admissions"|"/app/contacts"|"/app/content"|null,
+    "target_path": "/admissions"|"/feather/contacts"|"/feather/content"|null,
     "target_label": "Admissions hero"|null,
     "design_preview_html": "..."  // only when category=design
   }

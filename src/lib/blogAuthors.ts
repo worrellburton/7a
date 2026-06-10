@@ -54,7 +54,7 @@ export function authorProfileUrl(slug: string, origin = SITE_ORIGIN): string {
 }
 
 // Curated list of staff who write for or review the Recovery
-// Roadmap. New authors go here; the /app/content editor surfaces
+// Roadmap. New authors go here; the /feather/content editor surfaces
 // the same list in its author + reviewer dropdowns.
 export const BLOG_AUTHORS: BlogAuthor[] = [
   {
@@ -120,7 +120,7 @@ export function resolveReviewer(slug: string | null | undefined): BlogAuthor {
 }
 
 // Server-side async resolver — prefers a users row (HR-editable
-// at /app/team) and falls back to the BLOG_AUTHORS seed when the
+// at /feather/team) and falls back to the BLOG_AUTHORS seed when the
 // slug isn't in the DB. Used by the public blog renderers so a
 // freshly-promoted author (is_blog_author flipped on in the team
 // page) ships on the next page render without a code deploy.

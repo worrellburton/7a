@@ -110,7 +110,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   }
 
   // If selected_image_ids was part of this PATCH, promote any newly-
-  // selected AI images into the shared /app/images library so the
+  // selected AI images into the shared /feather/images library so the
   // 'AI' tab on the gallery surfaces them site-wide. Idempotent: the
   // unique partial index on site_images.source_blog_image_id catches
   // re-saves and we ignore the conflict. Library-imported images

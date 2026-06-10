@@ -1,6 +1,6 @@
 // Real aggregation for the weekly 🪵 Log Report. Hydrates the
 // LogReportData shape /lib/log-report-email.ts consumes — same
-// columns the /app/outreach insights card already reads from, so
+// columns the /feather/outreach insights card already reads from, so
 // the email's per-rep totals match what the team sees in-app.
 
 import { SupabaseClient } from '@supabase/supabase-js';

@@ -3,7 +3,7 @@
 // Mirrors the per-user permission model the sidebar already
 // honours (lib/PagePermissions.tsx). The original /api/google/*
 // gate was "is_admin only", which meant a super admin could toggle
-// "Analytics → visible" for a non-admin in /app/admin/user-permissions
+// "Analytics → visible" for a non-admin in /feather/admin/user-permissions
 // but every data fetch the page made still returned 403 — the user
 // saw a working sidebar entry whose page rendered as empty
 // sections. requirePageAccess closes that gap: any user that the
