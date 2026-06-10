@@ -1,19 +1,28 @@
 'use client';
 
-// Shows avatar chips of other signed-in users currently viewing the same
-// page. Polls the users table every 30s. Mounted once in PlatformShell so
-// every `/app/*` route inherits the behaviour without needing per-page code.
+// Shows avatar chips of other signed-in users currently viewing the
+// same page. Mounted once in PlatformShell so every `/app/*` route
+// inherits the behaviour.
+//
+// Previously this downloaded the entire users table every 30s on
+// every route, then filtered client-side — the worst recurring
+// PostgREST egress in the app. Now the query is fully scoped
+// server-side (same path, active, seen in the last 3 minutes), so
+// each poll returns at most a handful of rows, and the
+// avatar_thumb column is preferred over avatar_url so we don't
+// download 200×200 originals just to draw 24×24 chips.
 
 import { useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
-import { db } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 import { toAvatarThumb } from '@/lib/avatarThumb';
 
 interface Viewer {
   id: string;
   full_name: string | null;
   avatar_url: string | null;
+  avatar_thumb: string | null;
   job_title: string | null;
   last_seen_at: string | null;
   last_path: string | null;
@@ -34,26 +43,23 @@ export default function PageViewers() {
     let cancelled = false;
 
     async function load() {
-      const data = await db({
-        action: 'select',
-        table: 'users',
-        select: 'id, full_name, avatar_url, job_title, last_seen_at, last_path, status',
-      });
+      const since = new Date(Date.now() - HERE_WINDOW_MS).toISOString();
+      const { data } = await supabase
+        .from('users')
+        .select('id, full_name, avatar_url, avatar_thumb, job_title, last_seen_at, last_path, status')
+        .eq('last_path', pathname)
+        .gte('last_seen_at', since)
+        // `status` is null on legacy rows but the policy treats null
+        // as active, so we filter for null OR active rather than
+        // excluding nulls outright.
+        .or('status.is.null,status.eq.active')
+        .neq('id', user!.id)
+        .limit(50);
       if (cancelled || !Array.isArray(data)) return;
-      const now = Date.now();
-      const here = (data as Viewer[]).filter((u) => {
-        if (!user || u.id === user.id) return false;
-        // Users on hold / denied aren't allowed in, so don't advertise
-        // their presence. null status is treated as active for old rows.
-        if (u.status != null && u.status !== 'active') return false;
-        if (u.last_path !== pathname) return false;
-        if (!u.last_seen_at) return false;
-        return now - new Date(u.last_seen_at).getTime() < HERE_WINDOW_MS;
-      });
-      setViewers(here);
+      setViewers(data as Viewer[]);
     }
 
-    load();
+    void load();
     const interval = setInterval(load, 30 * 1000);
     return () => {
       cancelled = true;
@@ -72,26 +78,32 @@ export default function PageViewers() {
         Also here
       </span>
       <div className="flex -space-x-1.5">
-        {viewers.slice(0, 5).map((u) => (
-          <div key={u.id} className="relative group">
-            {u.avatar_url ? (
-              <img
-                src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
-                alt={u.full_name || ''}
-                className="w-6 h-6 rounded-full border-2 border-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)] hover:scale-110 hover:z-10 transition-transform"
-              />
-            ) : (
-              <div className="w-6 h-6 rounded-full border-2 border-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)] bg-primary text-white flex items-center justify-center text-[10px] font-bold hover:scale-110 hover:z-10 transition-transform">
-                {(u.full_name || '?').charAt(0).toUpperCase()}
+        {viewers.slice(0, 5).map((u) => {
+          // Prefer the inlined 60×60 WebP thumb when populated; only
+          // fall back to the (potentially full-res) avatar_url path
+          // through toAvatarThumb for legacy rows.
+          const src = u.avatar_thumb ?? (u.avatar_url ? toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url : null);
+          return (
+            <div key={u.id} className="relative group">
+              {src ? (
+                <img
+                  src={src}
+                  alt={u.full_name || ''}
+                  className="w-6 h-6 rounded-full border-2 border-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)] hover:scale-110 hover:z-10 transition-transform"
+                />
+              ) : (
+                <div className="w-6 h-6 rounded-full border-2 border-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)] bg-primary text-white flex items-center justify-center text-[10px] font-bold hover:scale-110 hover:z-10 transition-transform">
+                  {(u.full_name || '?').charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
+                <p className="font-medium">{u.full_name || 'User'}</p>
+                {u.job_title && <p className="text-white/70 text-[10px]">{u.job_title}</p>}
+                <p className="text-emerald-300 text-[10px]">Viewing this page</p>
               </div>
-            )}
-            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2.5 py-1.5 bg-foreground text-white text-xs rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50">
-              <p className="font-medium">{u.full_name || 'User'}</p>
-              {u.job_title && <p className="text-white/70 text-[10px]">{u.job_title}</p>}
-              <p className="text-emerald-300 text-[10px]">Viewing this page</p>
             </div>
-          </div>
-        ))}
+          );
+        })}
         {viewers.length > 5 && (
           <div className="w-6 h-6 rounded-full border-2 border-white bg-foreground text-white flex items-center justify-center text-[9px] font-bold">
             +{viewers.length - 5}
