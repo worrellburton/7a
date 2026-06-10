@@ -6,7 +6,7 @@ import { BLOG_AUTHORS, type BlogAuthor } from '@/lib/blogAuthors';
 //
 // Returns the union of:
 //   1. Every users row flagged is_blog_author OR is_medical_reviewer
-//      (HR adds new authors here via /app/team without a code deploy).
+//      (HR adds new authors here via /feather/team without a code deploy).
 //   2. The hard-coded BLOG_AUTHORS seed in /lib/blogAuthors.ts
 //      (fallback for environments where the DB isn't reachable
 //      and for the rare case where a static EPISODE references a
@@ -16,7 +16,7 @@ import { BLOG_AUTHORS, type BlogAuthor } from '@/lib/blogAuthors';
 // carry the same slug, since HR can edit the DB row but not the
 // committed file.
 //
-// Used by the /app/content/[id] Byline panel dropdowns. Admin-only
+// Used by the /feather/content/[id] Byline panel dropdowns. Admin-only
 // (the dropdowns ship on a super-admin page).
 
 export const dynamic = 'force-dynamic';
@@ -39,12 +39,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // The byline + medical-reviewer dropdowns on /app/content/[id]
+  // The byline + medical-reviewer dropdowns on /feather/content/[id]
   // now surface EVERY active staff member, not just users flagged
   // is_blog_author / is_medical_reviewer. The flag is preserved on
   // the row (medical reviewers still tagged for downstream JSON-LD
   // accuracy), but the picker shows the full roster so an admin
-  // doesn't have to round-trip /app/team to toggle a flag every
+  // doesn't have to round-trip /feather/team to toggle a flag every
   // time they want to byline a new teammate.
   const { data: rows, error } = await admin
     .from('users')

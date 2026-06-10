@@ -143,7 +143,7 @@ export async function requireSuperAdmin(
 }
 
 /** Require is_super_admin OR is_alumni_admin. Gates the alumni-scoped
- *  views on /app/admin/user-permissions and /app/admin/incoming-users.
+ *  views on /feather/admin/user-permissions and /feather/admin/incoming-users.
  *  The CALLER is responsible for narrowing reads + writes to
  *  user_kind='alumni' rows when only ctx.isAlumniAdmin is true. */
 export async function requireSuperOrAlumniAdmin(

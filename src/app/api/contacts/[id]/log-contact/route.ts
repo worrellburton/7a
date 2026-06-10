@@ -132,7 +132,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     .maybeSingle();
   if (updErr) return NextResponse.json({ error: updErr.message }, { status: 500 });
 
-  // Surface every touchpoint on the global /app/activity feed.
+  // Surface every touchpoint on the global /feather/activity feed.
   // Method lives in metadata so the feed UI can render a tinted
   // pill (Phone / In Person / Text / Email / …) per row.
   await admin.from('activity_log').insert({
@@ -141,7 +141,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     target_kind: 'contact',
     target_id: id,
     target_label: data?.name ?? null,
-    target_path: '/app/contacts',
+    target_path: '/feather/contacts',
     metadata: { method, duration_seconds, comments: comments ?? null },
   });
 

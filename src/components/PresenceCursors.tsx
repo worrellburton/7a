@@ -201,7 +201,7 @@ export function PresenceCursors() {
     return () => window.removeEventListener('cursor-color-change', onChange);
   }, []);
 
-  // Same pattern for cursor_effect — the picker on /app/profile fires
+  // Same pattern for cursor_effect — the picker on /feather/profile fires
   // a 'cursor-effect-change' CustomEvent so the new effect ships in
   // the very next outgoing broadcast (no reload, no waiting for the
   // db round-trip).

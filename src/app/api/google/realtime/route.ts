@@ -22,7 +22,7 @@ let cached: CachedRealtime | null = null;
 const CACHE_TTL_MS = 25_000;
 
 export async function GET() {
-  const { error: authError } = await requirePageAccess('/app/analytics');
+  const { error: authError } = await requirePageAccess('/feather/analytics');
   if (authError) return authError;
 
   if (!hasGoogleOAuth() || !process.env.GA4_PROPERTY_ID) {

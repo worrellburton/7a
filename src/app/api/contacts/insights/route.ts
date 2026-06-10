@@ -3,7 +3,7 @@ import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 
 // GET /api/contacts/insights
 //
-// Aggregates for the consolidated insights card on /app/outreach:
+// Aggregates for the consolidated insights card on /feather/outreach:
 //   * counts.{week,month,total,never} — same headline counters the
 //     four-tile strip used to compute client-side; centralised here so
 //     the card and any future surfaces (mobile / public summary) share

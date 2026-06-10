@@ -4,7 +4,7 @@ import { ga4Run, ga4RunRealtime, hasGoogleOAuth } from '@/lib/google';
 
 // GET /api/google/page-analytics?path=/who-we-are/blog/<slug>&days=30
 //
-// Per-page deep dive used by /app/content's per-row "Analytics"
+// Per-page deep dive used by /feather/content's per-row "Analytics"
 // expander. Returns everything you'd want at a glance for one blog:
 //
 //   - totals:      pageViews / activeUsers / avgEngagementSec /

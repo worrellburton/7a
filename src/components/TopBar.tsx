@@ -29,7 +29,7 @@ export default function TopBar() {
           </a>
         </div>
         <Link
-          href="/app"
+          href="/feather"
           className="inline-flex items-center gap-1.5 font-semibold tracking-widest text-xs hover:opacity-80 transition-opacity uppercase"
           aria-label="Sign in to feather"
         >

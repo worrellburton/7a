@@ -71,7 +71,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   // Snapshot the row BEFORE the update so we can diff which
   // governance-relevant fields just transitioned empty → filled.
   // That's what feeds the 'Donnie added an email' style activity
-  // feed under the Data governance score on /app/outreach.
+  // feed under the Data governance score on /feather/outreach.
   const { data: before } = await admin
     .from('contacts')
     .select('id, name, email, phone, phone_cell, phone_office, company, role, location, specialty, type')
@@ -126,7 +126,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
           target_kind: 'contact',
           target_id: id,
           target_label: contactName,
-          target_path: '/app/contacts',
+          target_path: '/feather/contacts',
           metadata: { field: f.key, label: f.label },
         })),
       );

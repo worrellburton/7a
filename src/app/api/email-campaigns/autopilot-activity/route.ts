@@ -4,7 +4,7 @@ import { requireAdmin } from '@/lib/api-gates';
 // GET /api/email-campaigns/autopilot-activity?limit=20
 //
 // Drives the activity feed under the AUTOPILOT pill on
-// /app/email-campaigns. Returns the most recent autopilot rows
+// /feather/email-campaigns. Returns the most recent autopilot rows
 // joined with campaign titles so the UI can render
 // "Added Jane Doe (3 campaigns)" with the actual campaign names.
 

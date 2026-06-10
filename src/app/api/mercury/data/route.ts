@@ -3,7 +3,7 @@ import { requireSuperAdmin } from '@/lib/api-gates';
 
 // GET /api/mercury/data
 //
-// Reader for the /app/mercury page. Returns all Mercury accounts +
+// Reader for the /feather/mercury page. Returns all Mercury accounts +
 // a paginated slice of transactions, filtered by account_id and/or
 // counterparty search. Super-admin only.
 //

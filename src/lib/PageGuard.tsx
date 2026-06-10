@@ -15,7 +15,7 @@ export default function PageGuard({ children }: { children: React.ReactNode }) {
   // Per-user override beats every other rule. Allow grants access even
   // if dept rules / admin-only would deny it; Block denies even if
   // dept rules would allow. Department check uses the merged set
-  // (primary + extras granted via /app/user-permissions).
+  // (primary + extras granted via /feather/user-permissions).
   const override = userOverrides[pathname];
   const alumniAdminPass = isAlumniAdmin && ALUMNI_ADMIN_PATHS.has(pathname);
   // Alumni users get past adminOnly on the small list of pages that
@@ -30,7 +30,7 @@ export default function PageGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (authLoading || permLoading || !user) return;
     if (denied) {
-      router.replace('/app');
+      router.replace('/feather');
     }
   }, [authLoading, permLoading, user, denied, router]);
 

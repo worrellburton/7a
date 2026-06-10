@@ -1,4 +1,4 @@
-// Catalogue of cursor effects users can pick on /app/profile → Cursor.
+// Catalogue of cursor effects users can pick on /feather/profile → Cursor.
 // The id is what we store in public.users.cursor_effect (CHECK
 // constrained to this exact set) and broadcast over the realtime
 // presence channel; PresenceCursors keys its render branch off the id.
