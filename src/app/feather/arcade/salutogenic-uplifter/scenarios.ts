@@ -281,11 +281,14 @@ export const TURN_SECONDS = 14;
 export const MAX_TURNS = 24; // safety cap; timer score decides if hit
 
 export function pointsFor(quality: ChoiceQuality, secondsLeft: number, streak: number): number {
+  // Every scenario carries exactly one 'miss' — the trap option. It
+  // doesn't just score nothing, it SUBTRACTS uplift (fixing,
+  // minimizing, toxic positivity actively deflate people), so there's
+  // real risk in guessing fast.
+  if (quality === 'miss') return -8;
   const base =
     quality === 'attuned' ? 16 :
-    quality === 'supportive' ? 8 :
-    quality === 'flat' ? 3 : 0;
-  if (base === 0) return 0;
+    quality === 'supportive' ? 8 : 3;
   // Speed bonus only for attuned picks — rewards reading the state
   // fast, not spamming the first button.
   const speed = quality === 'attuned' ? Math.round((secondsLeft / TURN_SECONDS) * 8) : 0;
@@ -298,5 +301,5 @@ export const QUALITY_FEEDBACK: Record<ChoiceQuality, { label: string; blurb: str
   attuned: { label: 'ATTUNED!', blurb: 'You met them exactly where they are.' },
   supportive: { label: 'Supportive', blurb: 'Kind — but generic. Attunement scores higher.' },
   flat: { label: 'Flat', blurb: 'Technically true. Nobody felt seen.' },
-  miss: { label: 'Missed', blurb: 'Fixing, minimizing, or toxic positivity. Ouch.' },
+  miss: { label: 'Backfired!', blurb: 'Fixing, minimizing, toxic positivity — their uplift dipped.' },
 };
