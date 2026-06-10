@@ -339,22 +339,29 @@ export default function HomeContent() {
     if (!session?.access_token) return;
     let cancelled = false;
     async function fetchRecentUsers() {
-      const data = await db({ action: 'select', table: 'users', select: 'id, full_name, avatar_url, avatar_thumb, last_sign_in, last_seen_at, last_path, job_title, status, user_kind', order: { column: 'last_sign_in', ascending: false } });
-      if (cancelled || !Array.isArray(data)) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      // Filter server-side instead of downloading the whole users
+      // table. The orbit only ever renders people who signed in
+      // today, but the old query selected EVERY row — including each
+      // one's base64 avatar_thumb — and threw most of it away
+      // client-side. With the org growing that was megabytes of
+      // payload to paint a few dozen bubbles. Backed by the
+      // users(last_sign_in desc) index from the perf migration.
+      const { data, error: usersErr } = await supabase
+        .from('users')
+        .select('id, full_name, avatar_url, avatar_thumb, last_sign_in, last_seen_at, last_path, job_title, status, user_kind')
+        .gte('last_sign_in', today.toISOString())
+        // Hide users who aren't allowed in: on_hold or denied. Treat
+        // a missing status as active so older rows before the
+        // migration still render.
+        .or('status.is.null,status.eq.active')
+        .order('last_sign_in', { ascending: false });
+      if (cancelled || usersErr || !Array.isArray(data)) {
         setTimeout(() => setLoaded(true), 100);
         return;
       }
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const filtered = (data as RecentUser[]).filter(
-        (u) =>
-          // Hide users who aren't allowed in: on_hold or denied. Treat
-          // a missing status as active so older rows before the
-          // migration still render.
-          (u.status == null || u.status === 'active') &&
-          u.last_sign_in &&
-          new Date(u.last_sign_in) >= today,
-      );
+      const filtered = data as RecentUser[];
       // Split staff vs. alumni so the orbit can render them as
       // separate rings (alumni become the outermost ring around
       // employees + horses). user_kind null defaults to staff so
@@ -412,11 +419,19 @@ export default function HomeContent() {
       // *why* a teammate is highlighted. Done as a separate fetch
       // (and merged after) so the orbit renders immediately and the
       // counts trickle in without blocking the avatars.
+      // Scope to the users actually on the orbit and cap the rows —
+      // a busy day org-wide can produce thousands of log entries,
+      // but the tooltip only ever shows counts + the 5 most recent
+      // per person. Backed by activity_log(user_id, created_at desc)
+      // from the perf migration.
+      const orbitIds = filtered.map((u) => u.id);
       const { data: activityRows, error: activityErr } = await supabase
         .from('activity_log')
         .select('user_id, type, target_label, created_at')
         .gte('created_at', today.toISOString())
-        .order('created_at', { ascending: false });
+        .in('user_id', orbitIds)
+        .order('created_at', { ascending: false })
+        .limit(500);
       if (cancelled) return;
       if (activityErr || !Array.isArray(activityRows)) return;
       const counts: Record<string, number> = {};

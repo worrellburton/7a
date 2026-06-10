@@ -1037,11 +1037,22 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   //      and asks for it. The Finance sub-panels fetch their own
   //      reports lazily per tab; this covers the initial company
   //      picker + Overview handshake that used to show a spinner.
-  // Skipped when the user is already on /app/finance (pointless) or
-  // when there is no session yet (the API will 401).
+  // Skipped when there is no session yet (the API will 401), when
+  // the user can't see Finance anyway (adminOnly page — warming a
+  // 403 for every staff member just burned a lambda + an Intuit API
+  // round trip per person), and after the first run this session.
+  // The effect used to list `pathname` as a dep, which re-fired the
+  // whole warm-up — including the server-side QuickBooks call — on
+  // EVERY route change for EVERY user. Once per session is enough:
+  // the prefetch + browser-cached list don't go stale in minutes,
+  // and Finance's own fetches take over once the page mounts.
+  const financeWarmedRef = useRef(false);
   useEffect(() => {
     if (!session?.access_token) return;
+    if (!isAdmin) return;
+    if (financeWarmedRef.current) return;
     if (pathname?.startsWith('/app/finance')) return;
+    financeWarmedRef.current = true;
     try { router.prefetch('/app/finance'); } catch { /* noop */ }
     const controller = new AbortController();
     const warm = window.requestIdleCallback
@@ -1062,7 +1073,11 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       if (typeof warm === 'number') window.clearTimeout(warm);
       else if (window.cancelIdleCallback) window.cancelIdleCallback(warm);
     };
-  }, [session?.access_token, pathname, router]);
+    // pathname intentionally omitted: it only matters for the skip-
+    // when-already-there check on the FIRST run, and including it
+    // re-fired the warm-up on every navigation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.access_token, isAdmin, router]);
 
   // Close drawer on Escape + lock body scroll while open
   useEffect(() => {
