@@ -13,6 +13,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { useModal } from '@/lib/ModalProvider';
 import { supabase } from '@/lib/supabase';
 import { logActivity } from '@/lib/activity';
+import { compressImage } from '@/lib/upload';
 
 interface RadioSong {
   id: string;
@@ -21,6 +22,7 @@ interface RadioSong {
   filename: string;
   storage_path: string;
   public_url: string;
+  cover_url: string | null;
   duration_seconds: number | null;
   size_bytes: number | null;
   created_by: string | null;
@@ -72,6 +74,75 @@ function readAudioDuration(file: File): Promise<number | null> {
   });
 }
 
+// Pull the embedded album art (ID3v2 APIC frame) out of an MP3 in the
+// browser, so uploaded tracks get their cover automatically. Handles
+// ID3v2.3/2.4, which is what every modern encoder writes. Returns null
+// when there's no tag, no APIC frame, or anything looks off — covers
+// are a nice-to-have, never worth failing an upload over.
+async function extractMp3Cover(file: File): Promise<File | null> {
+  try {
+    const head = new Uint8Array(await file.slice(0, 10).arrayBuffer());
+    if (head.length < 10 || head[0] !== 0x49 || head[1] !== 0x44 || head[2] !== 0x33) return null; // "ID3"
+    const ver = head[3];
+    if (ver !== 3 && ver !== 4) return null;
+    // Tag size is a 28-bit syncsafe integer.
+    const tagSize =
+      ((head[6] & 0x7f) << 21) | ((head[7] & 0x7f) << 14) | ((head[8] & 0x7f) << 7) | (head[9] & 0x7f);
+    const buf = new Uint8Array(await file.slice(10, 10 + tagSize).arrayBuffer());
+
+    let i = 0;
+    while (i + 10 <= buf.length) {
+      const id = String.fromCharCode(buf[i], buf[i + 1], buf[i + 2], buf[i + 3]);
+      if (!/^[A-Z0-9]{4}$/.test(id)) break; // padding reached
+      const size =
+        ver === 4
+          ? ((buf[i + 4] & 0x7f) << 21) | ((buf[i + 5] & 0x7f) << 14) | ((buf[i + 6] & 0x7f) << 7) | (buf[i + 7] & 0x7f)
+          : (buf[i + 4] << 24) | (buf[i + 5] << 16) | (buf[i + 6] << 8) | buf[i + 7];
+      const frameStart = i + 10;
+      if (size <= 0 || frameStart + size > buf.length) break;
+
+      if (id === 'APIC') {
+        let p = frameStart;
+        const encoding = buf[p];
+        p += 1;
+        // MIME type — latin1, null-terminated.
+        let mimeEnd = p;
+        while (mimeEnd < frameStart + size && buf[mimeEnd] !== 0) mimeEnd++;
+        const mime = String.fromCharCode(...buf.subarray(p, mimeEnd)).toLowerCase();
+        p = mimeEnd + 1;
+        p += 1; // picture type byte
+        // Description — terminator width depends on text encoding.
+        if (encoding === 1 || encoding === 2) {
+          while (p + 1 < frameStart + size && !(buf[p] === 0 && buf[p + 1] === 0)) p += 2;
+          p += 2;
+        } else {
+          while (p < frameStart + size && buf[p] !== 0) p++;
+          p += 1;
+        }
+        const imgData = buf.subarray(p, frameStart + size);
+        if (imgData.length < 128) return null; // junk frame
+        const type = mime.includes('png') ? 'image/png' : 'image/jpeg';
+        const ext = type === 'image/png' ? 'png' : 'jpg';
+        return new File([imgData.slice().buffer], `cover.${ext}`, { type });
+      }
+      i = frameStart + size;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Storage object path from a `radio` bucket public URL, for cleanup
+// when a cover is replaced or a track is deleted.
+function radioPathFromUrl(url: string | null): string | null {
+  if (!url) return null;
+  const m = url.split('/object/public/radio/')[1];
+  return m ? decodeURIComponent(m.split('?')[0]) : null;
+}
+
+const VOLUME_STORAGE_KEY = 'radio-volume';
+
 export default function RadioContent() {
   const { user, isSuperAdmin } = useAuth();
   const { confirm, alert } = useModal();
@@ -86,8 +157,25 @@ export default function RadioContent() {
   const [playing, setPlaying] = useState(false);
   const [shuffle, setShuffle] = useState(false);
   const [progress, setProgress] = useState(0); // seconds into current track
+  const [volume, setVolume] = useState(1);
+  const [muted, setMuted] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const coverInputRef = useRef<HTMLInputElement | null>(null);
+  // Which song a manually chosen cover image belongs to — set when the
+  // super admin clicks a row's "set cover" button, consumed onChange.
+  const coverTargetRef = useRef<RadioSong | null>(null);
+
+  // Volume survives reloads — a radio that resets to full blast every
+  // morning would not be loved for long.
+  useEffect(() => {
+    const stored = parseFloat(localStorage.getItem(VOLUME_STORAGE_KEY) ?? '');
+    if (Number.isFinite(stored) && stored >= 0 && stored <= 1) setVolume(stored);
+  }, []);
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = muted ? 0 : volume;
+    localStorage.setItem(VOLUME_STORAGE_KEY, String(volume));
+  }, [volume, muted]);
 
   const current = useMemo(
     () => songs.find((s) => s.id === currentId) || null,
@@ -214,11 +302,25 @@ export default function RadioContent() {
           const publicUrl = urlData?.publicUrl;
           if (!publicUrl) throw new Error('No public URL returned from storage.');
 
+          // Embedded album art rides along when the MP3 has it.
+          let coverUrl: string | null = null;
+          const cover = await extractMp3Cover(file);
+          if (cover) {
+            const coverPath = `${user.id}/${key}-cover.${cover.type === 'image/png' ? 'png' : 'jpg'}`;
+            const { error: coverError } = await supabase.storage
+              .from('radio')
+              .upload(coverPath, cover, { contentType: cover.type, cacheControl: '3600', upsert: false });
+            if (!coverError) {
+              coverUrl = supabase.storage.from('radio').getPublicUrl(coverPath).data?.publicUrl || null;
+            }
+          }
+
           const { error: insertError } = await supabase.from('radio_songs').insert({
             title: titleFromFilename(file.name),
             filename: file.name,
             storage_path: path,
             public_url: publicUrl,
+            cover_url: coverUrl,
             duration_seconds: duration,
             size_bytes: file.size,
             created_by: user.id,
@@ -266,10 +368,48 @@ export default function RadioContent() {
         await alert('Could not delete the track.', { message: error.message });
         return;
       }
-      await supabase.storage.from('radio').remove([song.storage_path]);
+      const toRemove = [song.storage_path];
+      const coverPath = radioPathFromUrl(song.cover_url);
+      if (coverPath) toRemove.push(coverPath);
+      await supabase.storage.from('radio').remove(toRemove);
       setSongs((prev) => prev.filter((s) => s.id !== song.id));
     },
     [confirm, alert, currentId],
+  );
+
+  // Manual cover set / replace — for tracks whose MP3 carried no
+  // embedded art (or carried ugly art). Super-admin only, like every
+  // other write here.
+  const setCoverFor = useCallback(
+    async (song: RadioSong, file: File) => {
+      if (!user?.id) return;
+      const prepared = await compressImage(file, { maxEdge: 800, targetBytes: 400 * 1024 });
+      const ext = (prepared.name.split('.').pop() || 'jpg').toLowerCase();
+      const coverPath = `${user.id}/${Date.now()}-cover.${ext}`;
+      const { error: upError } = await supabase.storage
+        .from('radio')
+        .upload(coverPath, prepared, { contentType: prepared.type || 'image/jpeg', cacheControl: '3600', upsert: false });
+      if (upError) {
+        await alert('Could not upload the cover.', { message: upError.message });
+        return;
+      }
+      const coverUrl = supabase.storage.from('radio').getPublicUrl(coverPath).data?.publicUrl || null;
+      if (!coverUrl) return;
+      const { error: dbError } = await supabase
+        .from('radio_songs')
+        .update({ cover_url: coverUrl })
+        .eq('id', song.id);
+      if (dbError) {
+        await alert('Could not save the cover.', { message: dbError.message });
+        return;
+      }
+      // Tidy up the replaced cover; an orphan is harmless so this is
+      // fire-and-forget.
+      const oldPath = radioPathFromUrl(song.cover_url);
+      if (oldPath) void supabase.storage.from('radio').remove([oldPath]);
+      setSongs((prev) => prev.map((s) => (s.id === song.id ? { ...s, cover_url: coverUrl } : s)));
+    },
+    [user?.id, alert],
   );
 
   const duration = current?.duration_seconds || audioRef.current?.duration || 0;
@@ -305,7 +445,21 @@ export default function RadioContent() {
 
         {/* Now playing */}
         <section className="rounded-2xl bg-white border border-primary/30 shadow-sm px-6 py-6 mb-8">
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-4 sm:gap-5">
+            {/* Cover art */}
+            <div className="w-16 h-16 sm:w-20 sm:h-20 shrink-0 rounded-xl overflow-hidden bg-primary/10 border border-primary/15 flex items-center justify-center">
+              {current?.cover_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={current.cover_url} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <svg className="w-7 h-7 text-primary/50" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 18V5l12-2v13" />
+                  <circle cx="6" cy="18" r="3" />
+                  <circle cx="18" cy="16" r="3" />
+                </svg>
+              )}
+            </div>
+
             {/* Play / pause */}
             <button
               type="button"
@@ -384,6 +538,41 @@ export default function RadioContent() {
                   <path d="m4 4 5 5" />
                 </svg>
               </button>
+
+              {/* Volume — mute toggle always visible, slider from sm up */}
+              <button
+                type="button"
+                onClick={() => setMuted((m) => !m)}
+                aria-label={muted ? 'Unmute' : 'Mute'}
+                aria-pressed={muted}
+                className="w-9 h-9 rounded-full flex items-center justify-center text-foreground/60 hover:text-foreground hover:bg-foreground/5 transition-colors"
+              >
+                {muted || volume === 0 ? (
+                  <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 5 6 9H2v6h4l5 4V5z" />
+                    <path d="m23 9-6 6M17 9l6 6" />
+                  </svg>
+                ) : (
+                  <svg className="w-4.5 h-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 5 6 9H2v6h4l5 4V5z" />
+                    <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+                    <path d="M18.5 5.5a9.5 9.5 0 0 1 0 13" />
+                  </svg>
+                )}
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={muted ? 0 : volume}
+                onChange={(e) => {
+                  setVolume(parseFloat(e.target.value));
+                  setMuted(false);
+                }}
+                aria-label="Volume"
+                className="hidden sm:block w-20 lg:w-24 accent-primary cursor-pointer"
+              />
             </div>
           </div>
 
@@ -484,6 +673,23 @@ export default function RadioContent() {
           </section>
         )}
 
+        {/* Hidden image input shared by every row's "set cover" button. */}
+        {isSuperAdmin && (
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              const target = coverTargetRef.current;
+              coverTargetRef.current = null;
+              if (file && target) void setCoverFor(target, file);
+              e.target.value = '';
+            }}
+          />
+        )}
+
         {/* Playlist */}
         <section>
           <h2
@@ -530,6 +736,18 @@ export default function RadioContent() {
                         <span className="text-[12px] tabular-nums text-foreground/35">{i + 1}</span>
                       )}
                     </span>
+                    <span className="w-10 h-10 shrink-0 rounded-lg overflow-hidden bg-primary/8 border border-foreground/8 flex items-center justify-center">
+                      {song.cover_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={song.cover_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        <svg className="w-4 h-4 text-primary/40" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M9 18V5l12-2v13" />
+                          <circle cx="6" cy="18" r="3" />
+                          <circle cx="18" cy="16" r="3" />
+                        </svg>
+                      )}
+                    </span>
                     <div className="min-w-0 flex-1">
                       <p className={`text-sm truncate ${isCurrent ? 'font-semibold text-primary' : 'font-medium text-foreground/85'}`}>
                         {song.title}
@@ -541,6 +759,25 @@ export default function RadioContent() {
                     <span className="text-[12px] tabular-nums text-foreground/45 shrink-0">
                       {formatDuration(song.duration_seconds)}
                     </span>
+                    {isSuperAdmin && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          coverTargetRef.current = song;
+                          coverInputRef.current?.click();
+                        }}
+                        aria-label={`Set cover for ${song.title}`}
+                        title={song.cover_url ? 'Replace cover art' : 'Add cover art'}
+                        className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center text-foreground/30 hover:text-primary hover:bg-primary/10 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="3" width="18" height="18" rx="2" />
+                          <circle cx="9" cy="9" r="2" />
+                          <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+                        </svg>
+                      </button>
+                    )}
                     {isSuperAdmin && (
                       <button
                         type="button"
