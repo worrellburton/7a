@@ -95,6 +95,26 @@ const GAMES: GameDef[] = [
       </svg>
     ),
   },
+  {
+    key: 'salutogenic_uplifter',
+    href: '/feather/arcade/salutogenic-uplifter',
+    title: 'Salutogenic Uplifter',
+    pitch: 'Head-to-head, live, 3D — but the power bars FILL. Read your opponent’s state, say the attuned thing, and whoever uplifts the other first wins.',
+    scoreLabel: 'Most uplift given',
+    gradient: 'from-amber-300 via-orange-200 to-yellow-100',
+    art: (
+      <svg viewBox="0 0 80 80" className="w-20 h-20 text-amber-900/85" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        {/* Two figures + a rising spark between them */}
+        <circle cx="22" cy="34" r="7" />
+        <path d="M12 62 c0 -10 5 -15 10 -15 s10 5 10 15" />
+        <circle cx="58" cy="34" r="7" />
+        <path d="M48 62 c0 -10 5 -15 10 -15 s10 5 10 15" />
+        <path d="M40 44 v-20" />
+        <path d="M34 30 l6 -8 6 8" />
+        <circle cx="40" cy="16" r="2.4" fill="currentColor" stroke="none" />
+      </svg>
+    ),
+  },
 ];
 
 interface BestScore {
@@ -156,7 +176,7 @@ export default function ArcadeContent() {
       <header className="mb-8">
         <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-primary mb-1.5">Arcade</p>
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
-          Three games, one ranch{firstName ? `, ${firstName}` : ''}.
+          Five games, one ranch{firstName ? `, ${firstName}` : ''}.
         </h1>
         <p className="mt-1 text-sm text-foreground/65 max-w-2xl">
           Built for breaks, alumni meetups, and a little friendly rivalry. {userKind === 'alumni' ? 'Staff and alumni' : 'You and the alumni community'} share the same leaderboards.

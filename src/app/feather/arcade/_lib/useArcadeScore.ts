@@ -7,7 +7,7 @@ import { useCallback } from 'react';
 // One canonical key per game — the same string the arcade_scores
 // table accepts via its check constraint. Adding a game means
 // extending this union AND the SQL check constraint.
-export type ArcadeGameKey = 'feather_catcher' | 'trail_ride' | 'saddle_sudoku' | 'connect_four';
+export type ArcadeGameKey = 'feather_catcher' | 'trail_ride' | 'saddle_sudoku' | 'connect_four' | 'salutogenic_uplifter';
 
 // Submit a single attempt's score for the signed-in user. Returns
 // true on success, false on auth/RLS failure. Failures are silent
