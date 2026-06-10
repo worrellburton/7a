@@ -27,8 +27,8 @@ interface CharacterRig {
   group: THREE.Group;
   body: THREE.Group;
   head: THREE.Mesh;
-  face: THREE.Mesh;
-  faceMaterial: THREE.MeshBasicMaterial;
+  face: THREE.Sprite;
+  faceMaterial: THREE.SpriteMaterial;
   armFront: THREE.Group;
   aura: THREE.Mesh;
   auraMaterial: THREE.MeshBasicMaterial;
@@ -52,39 +52,55 @@ function makeGlowTexture(): THREE.Texture {
   return tex;
 }
 
-// Circle-cropped avatar texture. Resolves immediately with an
-// initial-on-gradient placeholder and swaps in the photo when (if)
-// it loads CORS-clean.
+// Circle-cropped avatar texture with a warm rim, transparent outside
+// the circle (it feeds a Sprite). Resolves immediately with an
+// initial-on-gradient placeholder, then tries each candidate URL in
+// order and swaps in the first photo that loads CORS-clean — callers
+// pass [avatar_url, avatar_thumb] so the tiny data-URL thumb (always
+// CORS-safe) rescues avatars hosted somewhere that blocks WebGL use.
 function makeAvatarTexture(
   name: string,
-  url: string | null,
+  urls: (string | null)[],
   tint: string,
 ): THREE.CanvasTexture {
   const SIZE = 256;
+  const RIM = 10;
   const c = document.createElement('canvas');
   c.width = c.height = SIZE;
   const ctx = c.getContext('2d')!;
 
+  const drawRim = () => {
+    ctx.strokeStyle = 'rgba(255,240,220,0.95)';
+    ctx.lineWidth = RIM;
+    ctx.beginPath();
+    ctx.arc(SIZE / 2, SIZE / 2, SIZE / 2 - RIM / 2, 0, Math.PI * 2);
+    ctx.stroke();
+  };
+
   const drawFallback = () => {
+    ctx.clearRect(0, 0, SIZE, SIZE);
     const g = ctx.createLinearGradient(0, 0, SIZE, SIZE);
     g.addColorStop(0, tint);
     g.addColorStop(1, '#2e2a26');
     ctx.fillStyle = g;
     ctx.beginPath();
-    ctx.arc(SIZE / 2, SIZE / 2, SIZE / 2, 0, Math.PI * 2);
+    ctx.arc(SIZE / 2, SIZE / 2, SIZE / 2 - RIM / 2, 0, Math.PI * 2);
     ctx.fill();
     ctx.fillStyle = 'rgba(255,255,255,0.92)';
-    ctx.font = `bold ${SIZE * 0.45}px sans-serif`;
+    ctx.font = `bold ${SIZE * 0.42}px sans-serif`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText((name || '?').charAt(0).toUpperCase(), SIZE / 2, SIZE / 2 + SIZE * 0.02);
+    drawRim();
   };
   drawFallback();
 
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
 
-  if (url) {
+  const candidates = urls.filter((u): u is string => !!u);
+  const tryLoad = (idx: number) => {
+    if (idx >= candidates.length) return;
     const img = new Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
@@ -92,7 +108,7 @@ function makeAvatarTexture(
         ctx.clearRect(0, 0, SIZE, SIZE);
         ctx.save();
         ctx.beginPath();
-        ctx.arc(SIZE / 2, SIZE / 2, SIZE / 2, 0, Math.PI * 2);
+        ctx.arc(SIZE / 2, SIZE / 2, SIZE / 2 - RIM / 2, 0, Math.PI * 2);
         ctx.clip();
         // Cover-fit the source into the circle.
         const s = Math.max(SIZE / img.width, SIZE / img.height);
@@ -100,15 +116,18 @@ function makeAvatarTexture(
         const h = img.height * s;
         ctx.drawImage(img, (SIZE - w) / 2, (SIZE - h) / 2, w, h);
         ctx.restore();
+        drawRim();
         tex.needsUpdate = true;
       } catch {
         drawFallback();
         tex.needsUpdate = true;
+        tryLoad(idx + 1);
       }
     };
-    img.onerror = () => { /* keep fallback */ };
-    img.src = url;
-  }
+    img.onerror = () => tryLoad(idx + 1);
+    img.src = candidates[idx];
+  };
+  tryLoad(0);
   return tex;
 }
 
@@ -345,9 +364,12 @@ export class UplifterScene {
     armFront.rotation.z = -0.35;
     body.add(armFront);
 
-    // Head + avatar face. The face is a circular decal hovering just
-    // off the sphere, oriented out the character's front so the camera
-    // (and the opponent) sees the player's photo.
+    // Head + avatar face. The head sphere gives the silhouette and
+    // shadow; the face is a camera-facing Sprite carrying the player's
+    // circle-cropped photo. A flat decal here used to render edge-on
+    // because of the body's quarter-turn (it read as a weird dark ring
+    // floating over the face) — a sprite always looks straight at the
+    // camera, so the portrait stays a clean circle from every angle.
     const head = new THREE.Mesh(
       new THREE.SphereGeometry(0.3, 24, 24),
       new THREE.MeshStandardMaterial({ color: 0xe8c39a, roughness: 0.7 }),
@@ -356,9 +378,10 @@ export class UplifterScene {
     head.castShadow = true;
     body.add(head);
 
-    const faceMaterial = new THREE.MeshBasicMaterial({ transparent: false });
-    const face = new THREE.Mesh(new THREE.CircleGeometry(0.26, 32), faceMaterial);
-    face.position.set(0, 2.12, 0.27);
+    const faceMaterial = new THREE.SpriteMaterial({ transparent: true, depthWrite: false });
+    const face = new THREE.Sprite(faceMaterial);
+    face.scale.setScalar(0.56);
+    face.position.set(0, 2.12, 0.18);
     body.add(face);
 
     // Stetson — disc brim + dome.
@@ -395,9 +418,9 @@ export class UplifterScene {
 
   // ── Public API ─────────────────────────────────────────────
 
-  setPlayer(side: Side, name: string, avatarUrl: string | null) {
+  setPlayer(side: Side, name: string, avatarUrl: string | null, avatarThumb?: string | null) {
     const tint = side === 'left' ? '#b06a3b' : '#4f7d76';
-    const tex = makeAvatarTexture(name, avatarUrl, tint);
+    const tex = makeAvatarTexture(name, [avatarUrl, avatarThumb ?? null], tint);
     this.rigs[side].faceMaterial.map = tex;
     this.rigs[side].faceMaterial.needsUpdate = true;
   }
