@@ -86,6 +86,11 @@ export const defaultPages: PageConfig[] = [
   { path: '/feather/analytics', label: 'Analytics', adminOnly: false, section: 'nav', sort_order: 22, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/feather/images', label: 'Images', adminOnly: false, section: 'nav', sort_order: 18, allowedDepartments: [], departmentId: null, navGroup: 'Media' },
   { path: '/feather/video', label: 'Video', adminOnly: false, section: 'nav', sort_order: 19, allowedDepartments: [], departmentId: null, navGroup: 'Media' },
+  // Radio — the staff station. Anyone signed in can listen; uploading
+  // / deleting tracks is super-admin-only, enforced inside the page by
+  // isSuperAdmin and server-side by RLS on radio_songs + the `radio`
+  // storage bucket (migration 20260610_radio_songs).
+  { path: '/feather/radio', label: 'Radio', adminOnly: false, section: 'nav', sort_order: 19.5, allowedDepartments: [], departmentId: null, navGroup: 'Media' },
   { path: '/feather/website-requests', label: 'Website Requests', adminOnly: false, section: 'nav', sort_order: 23, allowedDepartments: ['dfde0b96-c605-40dd-84e5-281af2f6d8e9'], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/feather/landing', label: 'Landing', adminOnly: false, section: 'nav', sort_order: 24, allowedDepartments: ['dfde0b96-c605-40dd-84e5-281af2f6d8e9'], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   // Social Media is super-admin-only — posting attribution and the
