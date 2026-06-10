@@ -43,6 +43,10 @@ interface PlayerMeta {
   id: string;
   name: string;
   avatar: string | null;
+  // users.avatar_thumb — a tiny data-URL copy of the avatar. Data URLs
+  // are always CORS-clean, so the 3D head texture falls back to this
+  // when the full avatar's host blocks WebGL texture use.
+  thumb: string | null;
 }
 
 interface LobbyEntry extends PlayerMeta {
@@ -125,7 +129,7 @@ export default function SalutogenicUplifterContent() {
     let cancelled = false;
     supabase
       .from('users')
-      .select('full_name, avatar_url')
+      .select('full_name, avatar_url, avatar_thumb')
       .eq('id', user.id)
       .maybeSingle()
       .then(({ data }) => {
@@ -135,6 +139,7 @@ export default function SalutogenicUplifterContent() {
           id: user.id,
           name: (data?.full_name as string | null) || fallback,
           avatar: (data?.avatar_url as string | null) || null,
+          thumb: (data?.avatar_thumb as string | null) || null,
         });
       });
     return () => { cancelled = true; };
@@ -145,7 +150,7 @@ export default function SalutogenicUplifterContent() {
   const trackLobby = useCallback((hosting: string | null) => {
     const ch = lobbyChannelRef.current;
     if (!ch || !me) return;
-    void ch.track({ name: me.name, avatar: me.avatar, hosting });
+    void ch.track({ name: me.name, avatar: me.avatar, thumb: me.thumb, hosting });
   }, [me]);
 
   useEffect(() => {
@@ -153,17 +158,17 @@ export default function SalutogenicUplifterContent() {
     const ch = supabase.channel('uplifter-lobby', { config: { presence: { key: me.id } } });
     lobbyChannelRef.current = ch;
     ch.on('presence', { event: 'sync' }, () => {
-      const state = ch.presenceState<{ name: string; avatar: string | null; hosting: string | null }>();
+      const state = ch.presenceState<{ name: string; avatar: string | null; thumb: string | null; hosting: string | null }>();
       const entries: LobbyEntry[] = [];
       for (const [id, metas] of Object.entries(state)) {
         const m = metas[0];
         if (!m) continue;
-        entries.push({ id, name: m.name, avatar: m.avatar, hosting: m.hosting ?? null });
+        entries.push({ id, name: m.name, avatar: m.avatar, thumb: m.thumb ?? null, hosting: m.hosting ?? null });
       }
       setOpenMatches(entries.filter((e) => e.hosting && e.id !== me.id));
     });
     ch.subscribe((status) => {
-      if (status === 'SUBSCRIBED') void ch.track({ name: me.name, avatar: me.avatar, hosting: null });
+      if (status === 'SUBSCRIBED') void ch.track({ name: me.name, avatar: me.avatar, thumb: me.thumb, hosting: null });
     });
     return () => {
       void supabase.removeChannel(ch);
@@ -188,10 +193,10 @@ export default function SalutogenicUplifterContent() {
   }, [inArena]);
 
   useEffect(() => {
-    if (me && sceneRef.current && inArena) sceneRef.current.setPlayer('left', me.name, me.avatar);
+    if (me && sceneRef.current && inArena) sceneRef.current.setPlayer('left', me.name, me.avatar, me.thumb);
   }, [me, inArena]);
   useEffect(() => {
-    if (opponent && sceneRef.current && inArena) sceneRef.current.setPlayer('right', opponent.name, opponent.avatar);
+    if (opponent && sceneRef.current && inArena) sceneRef.current.setPlayer('right', opponent.name, opponent.avatar, opponent.thumb);
   }, [opponent, inArena]);
 
   // ── Match plumbing ──────────────────────────────────────────
@@ -317,12 +322,12 @@ export default function SalutogenicUplifterContent() {
     roomChannelRef.current = ch;
 
     ch.on('presence', { event: 'sync' }, () => {
-      const state = ch.presenceState<{ name: string; avatar: string | null }>();
+      const state = ch.presenceState<{ name: string; avatar: string | null; thumb: string | null }>();
       const others = Object.entries(state).filter(([id]) => id !== me.id);
       if (others.length > 0) {
         const [id, metas] = others[0];
         const meta = metas[0];
-        if (meta) setOpponent({ id, name: meta.name, avatar: meta.avatar });
+        if (meta) setOpponent({ id, name: meta.name, avatar: meta.avatar, thumb: meta.thumb ?? null });
         // Host kicks the match off the moment a challenger arrives.
         if (isHostRef.current && !startPayloadRef.current) {
           const payload = { seed: Math.floor(Math.random() * 2 ** 31), hostId: me.id, guestId: id };
@@ -357,7 +362,7 @@ export default function SalutogenicUplifterContent() {
 
     ch.subscribe((status) => {
       if (status !== 'SUBSCRIBED') return;
-      void ch.track({ name: me.name, avatar: me.avatar });
+      void ch.track({ name: me.name, avatar: me.avatar, thumb: me.thumb });
       if (!asHost) void ch.send({ type: 'broadcast', event: 'ready', payload: {} });
     });
   }, [me, initMatch, applyMove, endMatch, leaveRoom]);
@@ -372,7 +377,7 @@ export default function SalutogenicUplifterContent() {
 
   const acceptMatch = useCallback((entry: LobbyEntry) => {
     if (!entry.hosting) return;
-    setOpponent({ id: entry.id, name: entry.name, avatar: entry.avatar });
+    setOpponent({ id: entry.id, name: entry.name, avatar: entry.avatar, thumb: entry.thumb });
     setPhase('waiting');
     joinRoom(entry.hosting, false);
   }, [joinRoom]);
