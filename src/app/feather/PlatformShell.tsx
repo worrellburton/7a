@@ -434,6 +434,15 @@ const pageIcons: Record<string, React.ReactNode> = {
       <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
     </svg>
   ),
+  '/feather/radio': (
+    // Radio set — box with an antenna, dial, and speaker grille.
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="9" width="18" height="11" rx="2" />
+      <path d="M7 9 17 4" />
+      <circle cx="9" cy="14.5" r="2.25" />
+      <path d="M15 13h3M15 16h3" />
+    </svg>
+  ),
   '/feather/seo': (
     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="11" cy="11" r="7" />
