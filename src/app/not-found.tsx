@@ -34,7 +34,7 @@ export default function NotFound() {
         style={{ fontFamily: 'var(--font-body)' }}
       >
         {/* 7A mark — same medallion the home orbit uses, so the
-            error page still feels of-a-piece with /app. */}
+            error page still feels of-a-piece with /feather. */}
         <div
           aria-hidden="true"
           className="mx-auto mb-8 w-16 h-16 rounded-full bg-white/85 border border-white shadow-[0_10px_30px_-12px_rgba(60,48,42,0.35)] flex items-center justify-center"

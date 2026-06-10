@@ -84,7 +84,7 @@ function toDailySeries(rows: DailyRow[] | undefined): { date: string; sessions: 
 }
 
 export async function GET(req: Request) {
-  const { error: authError } = await requirePageAccess('/app/analytics');
+  const { error: authError } = await requirePageAccess('/feather/analytics');
   if (authError) return authError;
 
   if (!hasGoogleOAuth() || !process.env.GA4_PROPERTY_ID) {

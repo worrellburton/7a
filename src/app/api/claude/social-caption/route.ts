@@ -4,7 +4,7 @@ import { requireSuperAdmin } from '@/lib/social-media-auth';
 
 // POST /api/claude/social-caption — drafts three social-media caption
 // variants for a topic, tone, and target platform set. Used by the
-// /app/social-media Creative > AI panel.
+// /feather/social-media Creative > AI panel.
 //
 // Body:
 //   { topic: string, tone?: string, platforms?: string[],

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 
 // GET /api/alumni/profile/[id]  →  one alumnus's profile data for the
-// per-alumnus profile page (/app/alumni/u/[id]).
+// per-alumnus profile page (/feather/alumni/u/[id]).
 //
 // Reads through the service-role client so the join to public.users
 // for full_name + avatar_url works regardless of users-table RLS, and
@@ -10,7 +10,7 @@ import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 // (phone / email behind phone_visible / email_visible). Sobriety date
 // is only included when sobriety_public is true.
 //
-// Auth: any signed-in user can call this. The /app/alumni/u/[id]
+// Auth: any signed-in user can call this. The /feather/alumni/u/[id]
 // route itself is gated to alumni + staff via PagePermissions, so the
 // API just needs to ensure the caller is logged in.
 

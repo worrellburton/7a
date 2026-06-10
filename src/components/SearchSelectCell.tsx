@@ -6,7 +6,7 @@ import { useModal } from '@/lib/ModalProvider';
 
 // Inline "click to pick from a list, or type a new value" cell. Used
 // for grid columns where the same string values repeat across rows
-// (Company on /app/outreach, Specialty on /app/partnerships, etc.):
+// (Company on /feather/outreach, Specialty on /feather/partnerships, etc.):
 //
 //   - Click the value → opens a portal-rendered search dropdown
 //   - Type to filter the list of existing values

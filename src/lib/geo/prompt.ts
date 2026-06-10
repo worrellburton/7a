@@ -107,7 +107,7 @@ For each opportunity prompt, in priority order:
 3. **Tighten on-page schema.** Organization + MedicalBusiness on the homepage is already in place (SEO audit is 100/100 on structured data). For each answer page, add **FAQPage** schema covering the query + 2-4 follow-ups, and **MedicalWebPage** schema with \`specialty\`, \`about\`, and \`audience\` fields. Both are in Rank Math's schema builder.
 4. **Build topical authority around the insurance prompts.** Each accepted payer (Aetna, BCBS, Cigna, Tricare, UHC, Humana) should have a dedicated "/insurance/<payer>" page with a clear "yes, we accept" answer, typical out-of-pocket ranges, and a VOB form CTA. These answer questions that are highly extractive.
 5. **Brand + modality moat.** For "equine therapy rehab", "rehabs with horses", and "trauma-informed rehab in Arizona", we should be the first citation — publish a long-form page per modality with Q&A-friendly sub-headings ("What does equine therapy treat?", "How long is an equine session?", etc.).
-6. **Re-run the audit** at \`/app/geo/audit\` after each batch of pages ships and paste the new score in the next message. Expect a 2-4 week lag: engines need to crawl + ingest + re-index before citations shift.
+6. **Re-run the audit** at \`/feather/geo/audit\` after each batch of pages ships and paste the new score in the next message. Expect a 2-4 week lag: engines need to crawl + ingest + re-index before citations shift.
 
 ## Rules
 

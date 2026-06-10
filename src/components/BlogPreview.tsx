@@ -4,7 +4,7 @@ import { resolveAuthorAsync, resolveReviewer, type BlogAuthor } from '@/lib/blog
 
 // Landing-page surfacing of the Recovery Roadmap series. Reads the
 // latest episodes from the shared episode manifest, including any
-// freshly-published AI-pipeline blogs from /app/content.
+// freshly-published AI-pipeline blogs from /feather/content.
 //
 // Rebuild notes (from the "make this more dynamic + tell about the
 // series" ask):

@@ -114,7 +114,7 @@ export async function POST(req: Request) {
   }
 
   // Activity feed — directory edits and backlink edits both flow
-  // through public.activity_log so the feed on /app/seo/actions
+  // through public.activity_log so the feed on /feather/seo/actions
   // shows them side by side. target_label is the source domain so
   // the feed reads "Bobby added a backlink for example.com".
   let label = source_url;
@@ -127,7 +127,7 @@ export async function POST(req: Request) {
     target_kind: 'seo_backlink',
     target_id: (row as { id: string }).id,
     target_label: label,
-    target_path: '/app/seo/backlinks',
+    target_path: '/feather/seo/backlinks',
     metadata: {
       source_url,
       anchor: body.anchor ?? null,
@@ -169,7 +169,7 @@ export async function DELETE(req: Request) {
       target_kind: 'seo_backlink',
       target_id: id,
       target_label: label,
-      target_path: '/app/seo/backlinks',
+      target_path: '/feather/seo/backlinks',
       metadata: { source_url: existing.source_url },
     });
   }

@@ -5,7 +5,7 @@ import { requireAdminOrDepartment, MARKETING_DEPT_ID } from '@/lib/api-gates';
 //
 // Cross-campaign view: one row per contact who has ever received
 // an email-campaign send, with their lifetime stats. Powers the
-// 'By recipient' tab in /app/email-campaigns. The frontend renders
+// 'By recipient' tab in /feather/email-campaigns. The frontend renders
 // it as a sortable spreadsheet.
 //
 // Output per row:

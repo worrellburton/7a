@@ -207,10 +207,17 @@ const nextConfig = {
       { source: '/thank-you', destination: '/contact', statusCode: 301 },
 
       // ── Phase 11: Internal app routes renamed ───────────────────
-      // /app/outreach → /app/contacts (the dir was renamed; this
-      // catches old bookmarks, activity-feed deep links, and any
-      // external dashboards that linked into the old surface).
-      { source: '/app/outreach', destination: '/app/contacts', statusCode: 308 },
+      // The internal surface moved from /app/* to /feather/* (rebrand).
+      // Both redirects below fire before middleware, so any bookmarked
+      // /app/* link, activity-feed deep link, or external dashboard
+      // hits a 308 → /feather/* and lands on the right page.
+      //
+      // Order matters: the more specific /app/outreach → /feather/contacts
+      // rewrite has to run before the catch-all /app/:path* rule, otherwise
+      // /app/outreach would 308 to /feather/outreach (which doesn't exist).
+      { source: '/app/outreach', destination: '/feather/contacts', statusCode: 308 },
+      { source: '/app', destination: '/feather', statusCode: 308 },
+      { source: '/app/:path*', destination: '/feather/:path*', statusCode: 308 },
     ];
   },
 

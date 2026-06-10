@@ -15,7 +15,7 @@ import { requireSuperOrAlumniAdmin } from '@/lib/api-gates';
 //
 // For an Alumni Admin who is NOT also a Super Admin we narrow the
 // response to ONLY the alumni bucket — staff/guest/pending are
-// out-of-scope for the role. Lives in /app/incoming-users.
+// out-of-scope for the role. Lives in /feather/incoming-users.
 
 export const dynamic = 'force-dynamic';
 

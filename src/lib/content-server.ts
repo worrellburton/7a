@@ -6,9 +6,9 @@
 //       (a) is_super_admin=true (or is_admin=true)
 //       (b) primary department_id = Marketing & Admissions
 //       (c) extras in user_extra_departments include Marketing
-//       (d) per-user row in user_page_permissions for /app/content
+//       (d) per-user row in user_page_permissions for /feather/content
 //           with can_view=true (set via the Content tab on
-//           /app/admin/user-permissions)
+//           /feather/admin/user-permissions)
 //     A single helper means every /api/content/* route gates the
 //     same way — adding a sixth path is a one-line change here.
 //   * makeSlug — deterministic slug derived from a title or the
@@ -18,7 +18,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 
-const CONTENT_PAGE_PATH = '/app/content';
+const CONTENT_PAGE_PATH = '/feather/content';
 // Marketing & Admissions UUID. Mirrors the constant in api-gates.ts —
 // duplicated here to keep the gate self-contained and avoid an import
 // cycle. When this UUID ever changes, grep both files.
@@ -52,7 +52,7 @@ export async function requireSuperAdmin(req: NextRequest) {
     return { error: null, user };
   }
   // (d) per-user content-page override. The Content tab on
-  // /app/admin/user-permissions toggles this row on/off. can_view=true
+  // /feather/admin/user-permissions toggles this row on/off. can_view=true
   // grants the full content surface (view + create / edit / publish).
   const { data: override } = await admin
     .from('user_page_permissions')

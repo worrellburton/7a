@@ -296,7 +296,7 @@ async function probeStedi(): Promise<IntegrationStatus> {
     detail: key ? 'Key present (no live probe — send-only API)' : null,
     error: key ? null : 'Missing STEDI_API_KEY',
     docsUrl: 'https://www.stedi.com/app',
-    manageUrl: '/app/billing',
+    manageUrl: '/feather/billing',
   };
 }
 
@@ -398,7 +398,7 @@ async function probePlaces(): Promise<IntegrationStatus> {
 }
 
 // -- Ayrshare ------------------------------------------------------------
-// Used for: cross-posting to Facebook + Instagram via /app/social-media.
+// Used for: cross-posting to Facebook + Instagram via /feather/social-media.
 async function probeAyrshare(): Promise<IntegrationStatus> {
   const key = process.env.AYRSHARE_API_KEY;
   const profile = process.env.AYRSHARE_PROFILE_KEY;
@@ -417,7 +417,7 @@ async function probeAyrshare(): Promise<IntegrationStatus> {
       ? 'Missing AYRSHARE_API_KEY'
       : 'Missing AYRSHARE_PROFILE_KEY',
     docsUrl: 'https://app.ayrshare.com/dashboard',
-    manageUrl: '/app/social-media',
+    manageUrl: '/feather/social-media',
   };
 }
 
@@ -437,7 +437,7 @@ async function probeSerpApi(): Promise<IntegrationStatus> {
     detail: key ? (cap ? `Daily cap · ${cap}` : 'Key present') : null,
     error: key ? null : 'Missing SERPAPI_KEY',
     docsUrl: 'https://serpapi.com/manage-api-key',
-    manageUrl: '/app/seo',
+    manageUrl: '/feather/seo',
   };
 }
 
@@ -459,7 +459,7 @@ async function probePsi(): Promise<IntegrationStatus> {
     detail: configured ? 'Key present · full quota' : null,
     error: configured ? null : 'Missing PAGESPEED_API_KEY (PSI falls back to throttled, keyless access)',
     docsUrl: 'https://developers.google.com/speed/docs/insights/v5/get-started',
-    manageUrl: '/app/seo/audit',
+    manageUrl: '/feather/seo/audit',
   };
 }
 
@@ -478,7 +478,7 @@ async function probeSemrush(): Promise<IntegrationStatus> {
     detail: key ? (target ? `Target · ${target}` : 'Key present') : null,
     error: key ? null : 'Missing SEMRUSH_API_KEY',
     docsUrl: 'https://www.semrush.com/api/',
-    manageUrl: '/app/seo',
+    manageUrl: '/feather/seo',
   };
 }
 

@@ -48,7 +48,7 @@ export async function GET(req: Request) {
 
   const state = randomToken();
   const reqUrl = new URL(req.url);
-  const returnTo = reqUrl.searchParams.get('returnTo') || '/app/analytics';
+  const returnTo = reqUrl.searchParams.get('returnTo') || '/feather/analytics';
 
   const url = new URL(GOOGLE_AUTHZ_URL);
   url.searchParams.set('client_id', clientId);

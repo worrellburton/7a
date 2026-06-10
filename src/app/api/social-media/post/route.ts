@@ -33,12 +33,12 @@ export async function POST(req: Request) {
   if (auth.response) return auth.response;
 
   // Global posting kill switch — flipped via the toggle at the top
-  // of /app/social-media. When false, every POST is short-circuited
+  // of /feather/social-media. When false, every POST is short-circuited
   // server-side so a stale tab or scheduled cron can't bypass it.
   const postingEnabled = await readFlag<boolean>('social_posting_enabled', false);
   if (!postingEnabled) {
     return NextResponse.json({
-      error: 'Social posting is paused. Flip the toggle at the top of /app/social-media to re-enable.',
+      error: 'Social posting is paused. Flip the toggle at the top of /feather/social-media to re-enable.',
       code: 'posting_disabled',
     }, { status: 423 });
   }
@@ -87,7 +87,7 @@ export async function POST(req: Request) {
   try {
     const { status, body: result } = await ayrsharePost('/post', payload);
     // On a successful (or partially-successful) post, write a row to
-    // activity_log so the post shows up on /app/activity and counts
+    // activity_log so the post shows up on /feather/activity and counts
     // toward the user's "on fire" daily action total — same treatment
     // as logging a contact touchpoint or filling a field. Skipped on
     // upstream errors so a failed Ayrshare round-trip doesn't masquerade
@@ -105,7 +105,7 @@ export async function POST(req: Request) {
           target_kind: 'social_post',
           target_id: null,
           target_label: label || null,
-          target_path: '/app/social-media',
+          target_path: '/feather/social-media',
           metadata: {
             platforms,
             scheduled: isScheduled,

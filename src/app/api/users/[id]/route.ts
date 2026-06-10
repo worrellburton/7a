@@ -64,7 +64,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   // re-delete of the same person doesn't error on the duplicate row.
   const denyRows = Array.from(emails).map((email) => ({
     email,
-    reason: 'Removed from team via /app/team',
+    reason: 'Removed from team via /feather/team',
     banned_by: requester.id,
   }));
   const { error: denyErr } = await supabase

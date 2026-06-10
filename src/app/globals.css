@@ -415,7 +415,7 @@ html:has(:target) {
     justify-content: center;
   }
   /* Buttons that wrap multi-line content (e.g. the day-block
-     buttons on /app/admissions) need block-level flex so the
+     buttons on /feather/admissions) need block-level flex so the
      min-height stays honoured without breaking their column
      layout — override the inline-flex above for them. Same
      escape hatch applies to anchor links (mobile drawer nav rows,
@@ -529,7 +529,7 @@ html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
 }
 
 /* Tier 1 premium glow — the highest contact-rating chip on
-   /app/outreach. Soft emerald + gold halo that breathes slowly so a
+   /feather/outreach. Soft emerald + gold halo that breathes slowly so a
    Tier 1 row catches the eye without screaming for attention. */
 @keyframes sa-tier1-premium {
   0%, 100% {
@@ -731,7 +731,7 @@ html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
 }
 
 /* ── Cursor-effect picker thumbnails ──────────────────────────────
-   Tiny animations rendered inside each swatch on /app/profile →
+   Tiny animations rendered inside each swatch on /feather/profile →
    Cursor so the user can see what each effect looks like before they
    pick it. The full PresenceCursors renderer runs the real effect at
    broadcast time; these are sketches keyed off CursorEffect.thumb.mode
@@ -824,7 +824,7 @@ html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
 /* ─── Sidebar travel animation · Phase 5 · traveler spotlight ─── */
 /*
  * The sidebar recency reorder uses a FLIP technique (see
- * src/app/app/sidebar-flip.ts). When a row was just clicked, the
+ * src/app/feather/sidebar-flip.ts). When a row was just clicked, the
  * hook tags it with .sa-flip-traveler for the duration of its
  * upward travel so we can paint it with a copper-tinted glow and
  * a faint scale-up. The transition stack the hook applies inline
@@ -857,7 +857,7 @@ html[data-mobile-nav-open="true"] .sticky-mobile-cta { display: none; }
  * reorder. They start at the traveler's pre-FLIP visual position,
  * drift partway along its trajectory, and fade to zero. The
  * --ghost-drift custom property is set inline per-ghost by
- * spawnMotionTrail() in src/app/app/sidebar-flip.ts so the same
+ * spawnMotionTrail() in src/app/feather/sidebar-flip.ts so the same
  * keyframes work for any travel distance / direction.
  */
 @keyframes sa-flip-ghost-fade {
