@@ -239,7 +239,7 @@ export async function sendCampaignBatch(opts: SendCampaignBatchOpts): Promise<Se
 
   // Audit-log the broadcast fire. This is the canonical record that
   // a campaign's audience was shipped — duplicates will surface
-  // immediately as multiple rows on the admin /app/activity feed.
+  // immediately as multiple rows on the admin /feather/activity feed.
   // Best-effort: a failure here doesn't roll back the send.
   await supabase.from('activity_log').insert({
     type: 'email_campaign.broadcast_fired',
@@ -319,7 +319,7 @@ async function markAllSent(
       })),
     );
     // last_contact_* is denormalised onto contacts for the cards on
-    // /app/contacts. Bulk-update one contact_id at a time isn't
+    // /feather/contacts. Bulk-update one contact_id at a time isn't
     // possible in a single PostgREST call, so we batch with .in() —
     // the last_contact_comments will be the same for every row in
     // this campaign which is the desired UX.

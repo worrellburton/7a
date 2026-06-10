@@ -10,7 +10,7 @@ import { withCronLogging } from '@/lib/cron-observability';
 // the latest opus/sonnet/haiku ID off the response, and compares to
 // the IDs the codebase is wired to. Writes a snapshot row to
 // public.anthropic_model_checks; the live probe in /api/integrations
-// reads the latest row to surface drift on /app/admin/apis.
+// reads the latest row to surface drift on /feather/admin/apis.
 //
 // Anthropic's /v1/models is a free GET — no token cost — so running
 // this daily is cheap. It also serves as a low-cost "is the key

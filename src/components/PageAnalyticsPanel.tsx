@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 
 // Per-page GA4 deep-dive shown inline beneath a blog row on
-// /app/content. Fetches /api/google/page-analytics?path=<path> and
+// /feather/content. Fetches /api/google/page-analytics?path=<path> and
 // renders six little visualisations:
 //
 //   - headline KPIs (pageViews, users, avg engagement, bounce/eng rate)

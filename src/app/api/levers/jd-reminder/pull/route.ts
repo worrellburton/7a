@@ -107,7 +107,7 @@ export async function POST(req: Request) {
     target_kind: 'lever',
     target_id: 'jd_reminder',
     target_label: `JD reminder — sent to ${cohort.length} teammate${cohort.length === 1 ? '' : 's'}`,
-    target_path: '/app/levers',
+    target_path: '/feather/levers',
     metadata: {
       sent: cohort.length,
       recipients: cohort.map((c) => ({

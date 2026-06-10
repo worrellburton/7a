@@ -21,7 +21,7 @@ import { getAdminSupabase } from '@/lib/supabase-server';
 //      objects so PHI doesn't sit orphaned in the bucket.
 //
 // We deliberately do NOT insert a vob_requests row. The admin queue
-// in /app/website-requests was retired in favour of routing VOBs
+// in /feather/website-requests was retired in favour of routing VOBs
 // straight to the admissions inbox — fewer surfaces holding PHI,
 // fewer audit obligations, simpler workflow.
 

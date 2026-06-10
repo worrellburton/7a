@@ -14,7 +14,7 @@ interface PublicHorse {
 /**
  * Phase 8 — "Watch the herd" video reel. A page-level section that
  * surfaces every horse with a video_url uploaded via the admin
- * /app/equine/[id] panel. Layout is a responsive 2/3-column grid of
+ * /feather/equine/[id] panel. Layout is a responsive 2/3-column grid of
  * silent muted clips that auto-play on hover (desktop) or tap
  * (mobile), each captioned with the horse's name + role.
  *

@@ -6,7 +6,7 @@ import { ga4Run, hasGoogleOAuth } from '@/lib/google';
 
 // GET /api/content/analytics-overview?days=30
 //
-// One-shot GA4 roll-up for /app/content/analytics. Pulls per-page
+// One-shot GA4 roll-up for /feather/content/analytics. Pulls per-page
 // metrics across every blog the site is allowed to publish:
 //
 //   · AI-pipeline rows from public.blogs (any status; we still want

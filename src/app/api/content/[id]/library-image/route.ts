@@ -7,7 +7,7 @@ import { requireSuperAdmin } from '@/lib/content-server';
 // DELETE /api/content/[id]/library-image  — remove a previously imported
 //                                           library entry (by blog_images.id)
 //
-// Lets the editor pick from /app/images uploads instead of (or alongside)
+// Lets the editor pick from /feather/images uploads instead of (or alongside)
 // the AI-generated set. The imported row stores the public URL + alt so
 // the build step can mix both sources uniformly.
 
