@@ -80,6 +80,11 @@ function roomCode(): string {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
+// Background score for the arena — looked up from the radio playlist
+// by title so re-uploading a fresh mix under the same name just works.
+const BG_TRACK_TITLE = 'Dustline Horizon';
+const MUSIC_VOLUME_KEY = 'uplifter-music-volume';
+
 export default function SalutogenicUplifterContent() {
   const { user } = useAuth();
   const submitScore = useArcadeScore('salutogenic_uplifter');
@@ -98,6 +103,10 @@ export default function SalutogenicUplifterContent() {
   const [winnerId, setWinnerId] = useState<string | null>(null);
   const [endNote, setEndNote] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [musicUrl, setMusicUrl] = useState<string | null>(null);
+  const [musicVolume, setMusicVolume] = useState(0.4);
+  const [musicMuted, setMusicMuted] = useState(false);
+  const bgAudioRef = useRef<HTMLAudioElement | null>(null);
 
   const sceneHostRef = useRef<HTMLDivElement | null>(null);
   const sceneRef = useRef<UplifterScene | null>(null);
@@ -145,6 +154,33 @@ export default function SalutogenicUplifterContent() {
     return () => { cancelled = true; };
   }, [user?.id, user?.email]);
 
+  // ── Background score ────────────────────────────────────────
+  // Plays on a loop the whole time you're in the arena. Volume has
+  // its own slider (bottom corner of the arena) and persists — some
+  // people want the score, some want to hear themselves think.
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from('radio_songs')
+      .select('public_url')
+      .ilike('title', BG_TRACK_TITLE)
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled && data?.public_url) setMusicUrl(data.public_url as string);
+      });
+    const stored = parseFloat(localStorage.getItem(MUSIC_VOLUME_KEY) ?? '');
+    if (Number.isFinite(stored) && stored >= 0 && stored <= 1) setMusicVolume(stored);
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const el = bgAudioRef.current;
+    if (el) el.volume = musicMuted ? 0 : musicVolume;
+    localStorage.setItem(MUSIC_VOLUME_KEY, String(musicVolume));
+  }, [musicVolume, musicMuted]);
+
   // ── Lobby presence: see who's hosting, advertise when I host ──
 
   const trackLobby = useCallback((hosting: string | null) => {
@@ -179,6 +215,20 @@ export default function SalutogenicUplifterContent() {
   // ── 3D scene lifecycle — alive for waiting/match/over phases ──
 
   const inArena = phase !== 'lobby';
+
+  // Score starts when you step into the arena, stops when you leave.
+  // Entering is always click-initiated (host/challenge), so autoplay
+  // policy is satisfied.
+  useEffect(() => {
+    const el = bgAudioRef.current;
+    if (!el) return;
+    if (inArena && musicUrl) {
+      void el.play().catch(() => { /* autoplay blocked — slider still works */ });
+    } else {
+      el.pause();
+      el.currentTime = 0;
+    }
+  }, [inArena, musicUrl]);
   useEffect(() => {
     if (!inArena || !sceneHostRef.current || sceneRef.current) return;
     const scene = new UplifterScene(sceneHostRef.current);
@@ -247,7 +297,8 @@ export default function SalutogenicUplifterContent() {
     appliedTurnsRef.current.add(mv.turn);
 
     const receiverId = m.players[0] === mv.byId ? m.players[1] : m.players[0];
-    const next = Math.min(BAR_MAX, (barsRef.current[receiverId] ?? 0) + mv.points);
+    // Floor at 0 — a 'miss' subtracts uplift but can't go below empty.
+    const next = Math.max(0, Math.min(BAR_MAX, (barsRef.current[receiverId] ?? 0) + mv.points));
     barsRef.current = { ...barsRef.current, [receiverId]: next };
     setBars(barsRef.current);
     if (mv.byId === myId) setMyStreak(mv.streak);
@@ -260,6 +311,10 @@ export default function SalutogenicUplifterContent() {
     }
     if (mv.points > 0 && sceneRef.current) {
       sceneRef.current.castUplift(mv.byId === myId ? 'left' : 'right', mv.points / 30);
+    }
+    if (mv.points < 0 && sceneRef.current) {
+      // A backfire still "lands" — small joyless thud of a cast.
+      sceneRef.current.castUplift(mv.byId === myId ? 'left' : 'right', 0.1);
     }
 
     if (advanceTimerRef.current) clearTimeout(advanceTimerRef.current);
@@ -473,8 +528,9 @@ export default function SalutogenicUplifterContent() {
               <p className="mt-2 text-sm text-foreground/70 max-w-lg leading-relaxed">
                 This one needs a real human on the other side — host a match and it appears below for
                 everyone in the lobby, or join an open one. Each turn you&rsquo;ll see the state your opponent
-                is in and four things you could say. Only one is truly <strong>attuned</strong>. Fast, attuned
-                picks (and 3-in-a-row co-regulation combos) score the biggest uplift.
+                is in and four things you could say. Only one is truly <strong>attuned</strong> — and one
+                always <strong>backfires</strong> and drains their uplift. Fast, attuned picks (and
+                3-in-a-row co-regulation combos) score the biggest uplift.
               </p>
               <button
                 type="button"
@@ -532,10 +588,52 @@ export default function SalutogenicUplifterContent() {
         </div>
       )}
 
+      {/* Background score — Dustline Horizon from the radio playlist. */}
+      <audio ref={bgAudioRef} src={musicUrl ?? undefined} loop preload="none" />
+
       {phase !== 'lobby' && (
         <div className="relative rounded-3xl overflow-hidden border border-black/15 shadow-xl bg-[#1a1410]">
           {/* 3D arena */}
           <div ref={sceneHostRef} className="w-full aspect-[16/10] sm:aspect-[16/9] [&>canvas]:w-full [&>canvas]:h-full [&>canvas]:block" />
+
+          {/* Music volume — bottom corner, out of the action */}
+          {musicUrl && (
+            <div className="absolute bottom-2.5 right-3 flex items-center gap-2 rounded-full bg-black/45 backdrop-blur px-3 py-1.5">
+              <button
+                type="button"
+                onClick={() => setMusicMuted((m) => !m)}
+                aria-label={musicMuted ? 'Unmute music' : 'Mute music'}
+                aria-pressed={musicMuted}
+                className="text-amber-100/85 hover:text-white transition-colors"
+              >
+                {musicMuted || musicVolume === 0 ? (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 5 6 9H2v6h4l5 4V5z" />
+                    <path d="m23 9-6 6M17 9l6 6" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 18V5l12-2v13" />
+                    <circle cx="6" cy="18" r="3" />
+                    <circle cx="18" cy="16" r="3" />
+                  </svg>
+                )}
+              </button>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.01}
+                value={musicMuted ? 0 : musicVolume}
+                onChange={(e) => {
+                  setMusicVolume(parseFloat(e.target.value));
+                  setMusicMuted(false);
+                }}
+                aria-label="Music volume"
+                className="w-20 accent-amber-300 cursor-pointer"
+              />
+            </div>
+          )}
 
           {/* HUD — power bars top, SF-style but filling toward the win */}
           <div className="absolute top-0 inset-x-0 p-3 sm:p-5 flex items-start gap-3 sm:gap-4 pointer-events-none">
@@ -574,14 +672,22 @@ export default function SalutogenicUplifterContent() {
             <div key={feedback.key} className="absolute inset-x-0 top-[28%] flex flex-col items-center pointer-events-none animate-[uplift-pop_0.5s_ease-out]">
               <p
                 className={`text-3xl sm:text-5xl font-black tracking-wide drop-shadow-lg ${
-                  feedback.label === 'ATTUNED!' ? 'text-amber-300' : feedback.points > 0 ? 'text-orange-200' : 'text-white/70'
+                  feedback.label === 'ATTUNED!'
+                    ? 'text-amber-300'
+                    : feedback.points > 0
+                      ? 'text-orange-200'
+                      : feedback.points < 0
+                        ? 'text-red-400'
+                        : 'text-white/70'
                 }`}
                 style={{ fontFamily: 'var(--font-display)' }}
               >
                 {feedback.label}
               </p>
-              {feedback.points > 0 && (
-                <p className="text-xl sm:text-2xl font-black text-white drop-shadow tabular-nums">+{feedback.points} uplift</p>
+              {feedback.points !== 0 && (
+                <p className={`text-xl sm:text-2xl font-black drop-shadow tabular-nums ${feedback.points < 0 ? 'text-red-300' : 'text-white'}`}>
+                  {feedback.points > 0 ? '+' : '−'}{Math.abs(feedback.points)} uplift
+                </p>
               )}
               <p className="mt-1 text-xs sm:text-sm text-white/80 drop-shadow">{feedback.blurb}</p>
             </div>
