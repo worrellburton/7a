@@ -63,6 +63,19 @@ const PAGES: AdminPage[] = [
     ),
   },
   {
+    href: '/feather/alumni-roster',
+    title: 'Alumni',
+    description: 'The full alumni roster: profiles, sobriety dates, check-in streaks, and contact opt-ins.',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
+        <circle cx="10" cy="7" r="4" />
+        <path d="M21 21v-2a4 4 0 0 0-3-3.87" />
+        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      </svg>
+    ),
+  },
+  {
     href: '/feather/admin/user-permissions',
     title: 'User Permissions',
     description: 'Per-user overrides + access groups: grant or block individual pages, beyond the department defaults.',
@@ -80,7 +93,7 @@ export default function AdminContent() {
       <header className="mb-6 sm:mb-8">
         <h1 className="text-lg font-semibold text-foreground tracking-tight">Admin</h1>
         <p className="text-sm text-foreground/55 mt-0.5">
-          Platform configuration. These five surfaces govern who can see what.
+          Platform configuration. These surfaces govern who can see what.
         </p>
       </header>
 

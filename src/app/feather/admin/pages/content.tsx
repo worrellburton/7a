@@ -38,7 +38,7 @@ interface AppUser {
 
 export default function PagesContent() {
   const { user, session, isAdmin } = useAuth();
-  const { pages, setPageAdminOnly, setPageDepartments, setPageDepartmentGroup, updatePageLayout } = usePagePermissions();
+  const { pages, setPageAdminOnly, setPageAlumniOnly, setPageDepartments, setPageDepartmentGroup, updatePageLayout } = usePagePermissions();
   const router = useRouter();
   const [toast, setToast] = useState<string | null>(null);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -95,6 +95,13 @@ export default function PagesContent() {
     if (!page) return;
     setPageAdminOnly(path, !page.adminOnly);
     showToast(`${page.label} ${!page.adminOnly ? 'restricted to super admins' : 'open to all'}`);
+  }
+
+  function toggleAlumniOnly(path: string) {
+    const page = pages.find((p) => p.path === path);
+    if (!page) return;
+    setPageAlumniOnly(path, !page.alumniOnly);
+    showToast(`${page.label} ${!page.alumniOnly ? 'now visible only to alumni + super admins' : 'no longer alumni-only'}`);
   }
 
   const sorted = [...pages].sort((a, b) => a.sort_order - b.sort_order);
@@ -339,6 +346,29 @@ export default function PagesContent() {
           </button>
         </div>
 
+        {/* Alumni Only toggle — when set, the page is visible only to
+            alumni and super admins (everyone else loses the sidebar
+            entry and bounces on direct navigation). */}
+        <div className="shrink-0 w-20 flex justify-center">
+          <button
+            onClick={() => !locked && toggleAlumniOnly(page.path)}
+            disabled={locked}
+            className={`relative w-5 h-5 rounded-full border-2 transition-all ${
+              page.alumniOnly
+                ? 'bg-violet-500 border-violet-500'
+                : 'border-gray-300 hover:border-violet-400'
+            } ${locked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+            aria-label={`${page.alumniOnly ? 'Remove' : 'Set'} alumni only for ${page.label}`}
+            title={locked ? 'Core admin page' : page.alumniOnly ? 'Alumni + super admins only — click to open to staff' : 'Click to restrict to alumni + super admins'}
+          >
+            {page.alumniOnly && (
+              <svg className="w-3 h-3 text-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </button>
+        </div>
+
         {/* Department permissions chip */}
         <button
           onClick={() => !locked && setPermissionsFor(page.path)}
@@ -453,6 +483,7 @@ export default function PagesContent() {
               <span className="shrink-0 w-4" />
               <span className="flex-1">Page</span>
               <span className="shrink-0 w-20 text-center">Super Admin</span>
+              <span className="shrink-0 w-20 text-center">Alumni Only</span>
               <span className="shrink-0 w-32 text-center">Permissions</span>
             </div>
             {navPages.length === 0 ? (
@@ -583,6 +614,7 @@ export default function PagesContent() {
               <span className="shrink-0 w-4" />
               <span className="flex-1">Page</span>
               <span className="shrink-0 w-20 text-center">Super Admin</span>
+              <span className="shrink-0 w-20 text-center">Alumni Only</span>
               <span className="shrink-0 w-32 text-center">Permissions</span>
             </div>
             {popupPages.length === 0 ? (

@@ -194,6 +194,10 @@ export default function IncomingUsersContent() {
           rows={data.externalNew}
           onClassify={(u) => setClassifyTarget(u)}
           onAlumni={(u) => classify(u, 'alumni', 'active')}
+          // Decline = guest classification with 'denied' status — same
+          // pipeline Pending Staff's Deny uses, so the email lands on
+          // the denied list and future sign-ins stay locked out.
+          onDecline={(u) => classify(u, 'guest', 'denied')}
         />
       ) : (
         <ClassifiedPanel
@@ -313,10 +317,12 @@ function ExternalPanel({
   rows,
   onClassify,
   onAlumni,
+  onDecline,
 }: {
   rows: IncomingUser[];
   onClassify: (u: IncomingUser) => void;
   onAlumni: (u: IncomingUser) => void;
+  onDecline: (u: IncomingUser) => void;
 }) {
   if (rows.length === 0) {
     return <EmptyState title="No external sign-ins waiting" body="Anyone who signs in with a non-@sevenarrowsrecovery.com email will land here." />;
@@ -341,6 +347,9 @@ function ExternalPanel({
             </button>
             <button onClick={() => onAlumni(u)} className="px-3 py-1.5 rounded-md bg-white border border-black/10 text-foreground/70 text-[11px] font-semibold uppercase tracking-wider hover:bg-warm-bg/60">
               Mark alumni
+            </button>
+            <button onClick={() => onDecline(u)} className="px-3 py-1.5 rounded-md bg-white text-rose-700 border border-rose-200 text-[11px] font-semibold uppercase tracking-wider hover:bg-rose-50">
+              Decline
             </button>
           </div>
         </li>

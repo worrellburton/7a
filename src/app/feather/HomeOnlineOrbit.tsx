@@ -680,11 +680,7 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
             const viewing = online ? pathLabelFor(u.last_path) : null;
             const navTarget = online && u.last_path && u.last_path.startsWith('/feather') ? u.last_path : null;
             const onFire = (u.actions_today ?? 0) > ON_FIRE_THRESHOLD;
-            // Every face clicks through to that person's profile —
-            // /feather/alumni/u/[id] renders staff and alumni alike
-            // (the API behind it already serves any user and keeps
-            // PII behind the alumni's own opt-ins).
-            const Wrapper = 'button' as const;
+            const Wrapper: 'button' | 'div' = navTarget ? 'button' : 'div';
             const slotStyle: CSSProperties = {
               transform: `rotate(${angle}deg)`,
             };
@@ -695,8 +691,8 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
             return (
               <div key={u.id} className="orbit-slot" style={slotStyle}>
                 <Wrapper
-                  type="button"
-                  onClick={() => router.push(`/feather/alumni/u/${u.id}`)}
+                  type={navTarget ? 'button' : undefined}
+                  onClick={navTarget ? () => router.push(navTarget) : undefined}
                   onMouseEnter={(e: React.MouseEvent<HTMLElement>) => {
                     positionTooltipFor(e.currentTarget);
                     setHovered({ kind: 'user', user: u, viewing, navTarget, online });
@@ -707,10 +703,10 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                     setHovered({ kind: 'user', user: u, viewing, navTarget, online });
                   }}
                   onBlur={() => clearHover((h) => h.kind === 'user' && h.user.id === u.id)}
-                  className={`orbit-pin group ${mounted ? 'orbit-pin-in' : 'orbit-pin-pre'} cursor-pointer ${highlightUserId === u.id ? 'orbit-pin-your-move' : ''}`}
+                  className={`orbit-pin group ${mounted ? 'orbit-pin-in' : 'orbit-pin-pre'} ${navTarget ? 'cursor-pointer' : ''} ${highlightUserId === u.id ? 'orbit-pin-your-move' : ''}`}
                   style={pinStyle}
-                  title={`View ${u.full_name || 'profile'}`}
-                  aria-label={`View ${u.full_name || 'teammate'}'s profile`}
+                  title={navTarget ? `Go to ${viewing}` : undefined}
+                  aria-label={u.full_name || 'Teammate'}
                 >
                   {/* Counter-rotating wrapper keeps the face upright
                       while the parent ring spins. Gated on `mounted`

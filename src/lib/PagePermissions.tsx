@@ -231,6 +231,9 @@ interface PagePermissionsContextType {
   navPages: PageConfig[];
   popupPages: PageConfig[];
   setPageAdminOnly: (path: string, adminOnly: boolean) => void;
+  // Alumni-only flag: when set, the page is visible exclusively to
+  // alumni and super admins (canSeePage + PageGuard both honour it).
+  setPageAlumniOnly: (path: string, alumniOnly: boolean) => void;
   setPageDepartments: (path: string, allowedDepartments: string[]) => void;
   setPageDepartmentGroup: (path: string, departmentId: string | null) => void;
   isPageAdminOnly: (path: string) => boolean;
@@ -268,6 +271,7 @@ const PagePermissionsContext = createContext<PagePermissionsContextType>({
   navPages: defaultPages.filter((p) => p.section === 'nav'),
   popupPages: defaultPages.filter((p) => p.section === 'popup'),
   setPageAdminOnly: () => {},
+  setPageAlumniOnly: () => {},
   setPageDepartments: () => {},
   setPageDepartmentGroup: () => {},
   isPageAdminOnly: () => false,
@@ -409,6 +413,17 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
     });
   };
 
+  const setPageAlumniOnly = async (path: string, alumniOnly: boolean) => {
+    setPages((prev) => prev.map((p) => (p.path === path ? { ...p, alumniOnly } : p)));
+
+    await db({
+      action: 'upsert',
+      table: 'page_permissions',
+      data: [{ path, alumni_only: alumniOnly }],
+      onConflict: 'path',
+    });
+  };
+
   const setPageDepartments = async (path: string, allowedDepartments: string[]) => {
     setPages((prev) => prev.map((p) => (p.path === path ? { ...p, allowedDepartments } : p)));
 
@@ -491,7 +506,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
   const popupPages = sorted.filter((p) => p.section === 'popup');
 
   return (
-    <PagePermissionsContext.Provider value={{ pages, navPages, popupPages, setPageAdminOnly, setPageDepartments, setPageDepartmentGroup, isPageAdminOnly, isPageAllowedForDepartment, isPageAllowedForDepartmentSet, userOverrides, userExtraDepartmentIds, updatePageLayout, loading }}>
+    <PagePermissionsContext.Provider value={{ pages, navPages, popupPages, setPageAdminOnly, setPageAlumniOnly, setPageDepartments, setPageDepartmentGroup, isPageAdminOnly, isPageAllowedForDepartment, isPageAllowedForDepartmentSet, userOverrides, userExtraDepartmentIds, updatePageLayout, loading }}>
       {children}
     </PagePermissionsContext.Provider>
   );
