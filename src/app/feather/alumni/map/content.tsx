@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
@@ -84,7 +84,7 @@ function TextAnytime({ phone }: { phone: string }) {
 }
 
 export default function AlumniMapContent() {
-  const { user } = useAuth();
+  const { user, session } = useAuth();
   const [pins, setPins] = useState<AlumniPin[]>([]);
   const [loading, setLoading] = useState(true);
   const [editorOpen, setEditorOpen] = useState(false);
@@ -153,6 +153,25 @@ export default function AlumniMapContent() {
     }
   }, [user?.id]);
   useEffect(() => { void load(); }, [load]);
+
+  // Self-heal ungeocoded pins. A profile can end up on_map with a city
+  // but no lat/lng (the editor's geocode call failed, or the city was
+  // set outside the editor) — those alumni show in the list but land
+  // no map pin. When we notice any, fire one sweep at the server-side
+  // geocoder and re-fetch. Once per mount, so a city Nominatim can't
+  // resolve doesn't loop us forever.
+  const healAttemptedRef = useRef(false);
+  useEffect(() => {
+    if (healAttemptedRef.current || loading || !session?.access_token) return;
+    if (!pins.some((p) => p.lat == null && !!p.city)) return;
+    healAttemptedRef.current = true;
+    void fetch('/api/alumni/geocode-missing', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    })
+      .then((r) => { if (r.ok) void load(); })
+      .catch(() => { /* next page load retries */ });
+  }, [pins, loading, session?.access_token, load]);
 
   // Flip my on_map flag. If the user has no profile yet, route them
   // into the full editor so they can land a city + pin location;

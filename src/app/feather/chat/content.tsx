@@ -16,6 +16,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { useModal } from '@/lib/ModalProvider';
 import { supabase } from '@/lib/supabase';
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface Message {
@@ -125,6 +126,16 @@ export default function ChatContent() {
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 200;
     if (nearBottom) el.scrollTop = el.scrollHeight;
   }, [rows.length]);
+
+  // Read cursor: while this page is open, every batch of messages we
+  // render counts as read. PlatformShell's sidebar badge counts
+  // chat_messages newer than this stamp.
+  useEffect(() => {
+    if (!user?.id || rows.length === 0) return;
+    void supabase
+      .from('chat_reads')
+      .upsert({ user_id: user.id, room: ROOM, last_read_at: new Date().toISOString() }, { onConflict: 'user_id,room' });
+  }, [user?.id, rows.length]);
 
   // Typing-indicator presence channel. Each keystroke calls track()
   // with `is_typing=true`; a timer untracks after 3 seconds idle.
@@ -319,23 +330,44 @@ export default function ChatContent() {
               // and we don't want a `?` flash before realtime backfills.
               const displayAvatar = isMine ? (head.author_avatar_url || myAvatar) : head.author_avatar_url;
               const displayName = isMine ? (head.author_name || myName) : head.author_name;
+              // Alumni have a viewable profile at /feather/alumni/u/[id]
+              // (reachable by anyone signed in; the API enforces opt-in
+              // privacy on PII). Staff don't have an equivalent surface,
+              // so their names/avatars stay plain text.
+              const profileHref = head.author_kind === 'alumni' ? `/feather/alumni/u/${g.authorId}` : null;
+              const avatarEl = displayAvatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={displayAvatar} alt="" className="w-9 h-9 rounded-full object-cover border border-black/10" />
+              ) : (
+                <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20">
+                  {(displayName || '?').charAt(0).toUpperCase()}
+                </span>
+              );
               return (
                 <div key={head.id} className={`flex gap-3 ${isMine ? 'flex-row-reverse' : ''}`}>
                   <div className="shrink-0">
-                    {displayAvatar ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={displayAvatar} alt="" className="w-9 h-9 rounded-full object-cover border border-black/10" />
+                    {profileHref ? (
+                      <Link href={profileHref} aria-label={`View ${displayName || 'profile'}`} className="block hover:opacity-80 transition-opacity">
+                        {avatarEl}
+                      </Link>
                     ) : (
-                      <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20">
-                        {(displayName || '?').charAt(0).toUpperCase()}
-                      </span>
+                      avatarEl
                     )}
                   </div>
                   <div className={`min-w-0 max-w-[80%] ${isMine ? 'text-right' : ''}`}>
                     <div className={`flex items-baseline gap-2 ${isMine ? 'justify-end' : ''}`}>
-                      <p className="text-[12.5px] font-semibold text-foreground">
-                        {isMine ? (displayName || 'You') : (displayName || 'Someone')}
-                      </p>
+                      {profileHref ? (
+                        <Link
+                          href={profileHref}
+                          className="text-[12.5px] font-semibold text-foreground hover:text-primary hover:underline underline-offset-2 transition-colors"
+                        >
+                          {isMine ? (displayName || 'You') : (displayName || 'Someone')}
+                        </Link>
+                      ) : (
+                        <p className="text-[12.5px] font-semibold text-foreground">
+                          {isMine ? (displayName || 'You') : (displayName || 'Someone')}
+                        </p>
+                      )}
                       {head.author_kind === 'alumni' && !isMine && (
                         <span className="inline-block px-1.5 py-0.5 rounded-md text-[9.5px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
                           Alumni
@@ -424,7 +456,11 @@ export default function ChatContent() {
         </div>
       </div>
 
-      <footer className="border-t border-black/5 bg-white px-4 sm:px-6 lg:px-10 py-3">
+      {/* Composer — iMessage-style capsule: one frosted "liquid glass"
+          pill holding the textarea with a circular arrow-up send button
+          inset on the right. The capsule glows warmer the moment it has
+          focus or a draft, like the iOS field lighting up. */}
+      <footer className="border-t border-white/40 bg-gradient-to-t from-white/90 to-white/55 backdrop-blur-xl px-4 sm:px-6 lg:px-10 py-3">
         <div className="max-w-3xl mx-auto">
           {typing.length > 0 && (
             <p className="mb-1.5 text-[11px] text-foreground/55 italic">
@@ -438,8 +474,20 @@ export default function ChatContent() {
           )}
           <form
             onSubmit={(e) => { e.preventDefault(); void send(); }}
-            className="flex items-end gap-2"
+            className={`group/composer relative flex items-end rounded-[26px] border bg-white/55 backdrop-blur-2xl transition-all duration-300 ${
+              draft.trim()
+                ? 'border-primary/30 shadow-[0_0_0_1px_rgba(255,255,255,0.6)_inset,0_2px_18px_rgba(188,107,74,0.28),0_0_42px_rgba(216,137,102,0.22)]'
+                : 'border-white/60 shadow-[0_0_0_1px_rgba(255,255,255,0.5)_inset,0_2px_12px_rgba(0,0,0,0.06)] focus-within:border-primary/25 focus-within:shadow-[0_0_0_1px_rgba(255,255,255,0.6)_inset,0_2px_16px_rgba(188,107,74,0.18),0_0_32px_rgba(216,137,102,0.14)]'
+            }`}
           >
+            {/* Liquid-glass sheen — a soft top highlight that makes the
+                capsule read as curved glass instead of flat white. */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0 rounded-[26px] overflow-hidden"
+            >
+              <span className="absolute inset-x-3 top-0 h-1/2 rounded-[26px] bg-gradient-to-b from-white/80 to-transparent opacity-70" />
+            </span>
             <textarea
               value={draft}
               onChange={(e) => { setDraft(e.target.value); announceTyping(); }}
@@ -450,15 +498,27 @@ export default function ChatContent() {
                 }
               }}
               rows={Math.min(4, Math.max(1, draft.split('\n').length))}
-              placeholder="Send a message…"
-              className="flex-1 px-3 py-2 rounded-xl border border-black/10 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-primary/40 resize-none"
+              placeholder="Message…"
+              className="relative flex-1 min-w-0 bg-transparent border-0 text-sm leading-5 pl-4 pr-2 py-2.5 focus:outline-none focus:ring-0 resize-none placeholder:text-foreground/40"
             />
             <button
               type="submit"
               disabled={sending || !draft.trim()}
-              className="px-4 py-2 rounded-xl bg-primary text-white text-xs font-semibold uppercase tracking-wider hover:bg-primary-dark disabled:opacity-50 transition-colors"
+              aria-label="Send"
+              className={`relative shrink-0 m-1.5 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 ${
+                draft.trim() && !sending
+                  ? 'bg-primary text-white shadow-[0_0_14px_rgba(188,107,74,0.55)] hover:bg-primary-dark hover:shadow-[0_0_18px_rgba(188,107,74,0.7)] scale-100'
+                  : 'bg-foreground/10 text-foreground/35 scale-95'
+              }`}
             >
-              Send
+              {sending ? (
+                <span className="w-3.5 h-3.5 border-2 border-white/60 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 19V5" />
+                  <path d="m5 12 7-7 7 7" />
+                </svg>
+              )}
             </button>
           </form>
         </div>

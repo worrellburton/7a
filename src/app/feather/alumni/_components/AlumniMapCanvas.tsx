@@ -83,26 +83,15 @@ export default function AlumniMapCanvas({ pins }: { pins: AlumniMapPin[] }) {
     '';
   const [openId, setOpenId] = useState<string | null>(null);
 
-  // Center + zoom: fit to the bounds of the pins. Single pin →
-  // city-scale view; multi-pin → fit-to-bounds (computed once on
-  // mount, the map stays interactive after).
-  const { center, zoom } = useMemo(() => {
-    if (pins.length === 0) return { center: { lat: 34, lng: -111.5 }, zoom: 6 };
-    if (pins.length === 1) return { center: { lat: pins[0].lat, lng: pins[0].lng }, zoom: 9 };
-    let minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
-    for (const p of pins) {
-      if (p.lat < minLat) minLat = p.lat;
-      if (p.lat > maxLat) maxLat = p.lat;
-      if (p.lng < minLng) minLng = p.lng;
-      if (p.lng > maxLng) maxLng = p.lng;
-    }
-    return {
-      center: { lat: (minLat + maxLat) / 2, lng: (minLng + maxLng) / 2 },
-      // Rough zoom that fits a state-sized bound; the map will
-      // also auto-fit if we ever need to be more precise.
-      zoom: 6,
-    };
-  }, [pins]);
+  // Starting view: the whole continental United States, always.
+  // Used to fit-to-bounds of the pins, but as alumni spread coast to
+  // coast a bounds-fit centered awkwardly (and a Mexico-heavy frame
+  // on AZ-clustered pins) — a stable nationwide opener reads better
+  // and the map stays fully interactive for zooming in.
+  const { center, zoom } = useMemo(
+    () => ({ center: { lat: 39.0, lng: -97.5 }, zoom: 4 }),
+    [],
+  );
 
   if (!apiKey) {
     return (

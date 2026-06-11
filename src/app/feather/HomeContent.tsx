@@ -601,6 +601,50 @@ export default function HomeContent() {
     return () => { cancelled = true; };
   }, [session, user?.id]);
 
+  // The user's CURRENT role — users.job_title, the same field the
+  // Team page edits. The header used to show the titles of JDs the
+  // user had SIGNED, which goes stale the moment their role changes
+  // on the team page (e.g. promoted from Clinical Director to
+  // Executive Director but the header kept greeting the old title).
+  const [myRole, setMyRole] = useState<{ title: string; jdId: string | null } | null>(null);
+  useEffect(() => {
+    if (!session?.access_token || !user?.id) return;
+    let cancelled = false;
+    async function loadMyRole() {
+      const { data: meRow } = await supabase
+        .from('users')
+        .select('job_title')
+        .eq('id', user!.id)
+        .maybeSingle();
+      if (cancelled) return;
+      const title = ((meRow?.job_title as string | null) || '').trim();
+      if (!title) {
+        setMyRole(null);
+        return;
+      }
+      // Link the role to its JD when one exists — JDs and users are
+      // associated by title throughout the app (see the JD page's
+      // assignedUsers). ilike with no wildcards = case-insensitive
+      // exact match.
+      const { data: jdRows } = await supabase
+        .from('job_descriptions')
+        .select('id')
+        .ilike('title', title)
+        .is('archived_at', null)
+        .limit(1);
+      if (cancelled) return;
+      setMyRole({ title, jdId: (jdRows?.[0] as { id: string } | undefined)?.id ?? null });
+    }
+    loadMyRole();
+    return () => { cancelled = true; };
+  }, [session, user?.id]);
+
+  // Signed copy of the CURRENT role's JD, if any — lets the header
+  // title deep-link to the signed PDF like the old list did.
+  const signedMatchForRole = myRole
+    ? signedJds.find((j) => j.title.trim().toLowerCase() === myRole.title.toLowerCase()) ?? null
+    : null;
+
   // JD nag: pick the oldest pending signature that's been waiting >=
   // 3 days. Computed every render — cheap, depends only on
   // pendingSignatures. Hydrate dismissal from sessionStorage so a
@@ -729,7 +773,36 @@ export default function HomeContent() {
                 <h1 className="text-xl lg:text-2xl font-bold text-foreground leading-tight" style={{ fontFamily: 'var(--font-display)' }}>
                   {firstName}
                 </h1>
-                {signedJds.length > 0 && (
+                {myRole ? (
+                  /* Current role from the Team page (users.job_title) —
+                     always in sync with what admins set there. Links to
+                     the signed PDF when one exists, else the JD page. */
+                  <div
+                    className="mt-0.5 text-[11px] text-foreground/55 leading-snug"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {signedMatchForRole?.pdfUrl ? (
+                      <a
+                        href={signedMatchForRole.pdfUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:text-foreground hover:underline underline-offset-2"
+                      >
+                        {myRole.title}
+                      </a>
+                    ) : myRole.jdId ? (
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/feather/job-descriptions/${myRole.jdId}`)}
+                        className="hover:text-foreground hover:underline underline-offset-2"
+                      >
+                        {myRole.title}
+                      </button>
+                    ) : (
+                      <span>{myRole.title}</span>
+                    )}
+                  </div>
+                ) : signedJds.length > 0 && (
                   <div
                     className="mt-0.5 flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5 text-[11px] text-foreground/55 leading-snug"
                     style={{ fontFamily: 'var(--font-body)' }}
