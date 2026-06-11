@@ -3,10 +3,12 @@ import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 
 // GET /api/partnerships/[id]/history
 //
-// Returns every partner_log entry for one partner (newest first),
-// joined with the logging user's display name + avatar so the
-// modal can render the full timeline without a second round-trip.
-// Same shape as /api/contacts/[id]/history.
+// Partner and contact history are ONE stream. This returns the
+// UNIFIED contact_logs timeline for the partner's linked contact
+// (newest first) — so touchpoints logged from /feather/contacts and
+// from /feather/partnerships appear in the same history on both
+// pages. Falls back to legacy partner_logs only for a partner that
+// somehow has no linked contact.
 
 export const dynamic = 'force-dynamic';
 
@@ -16,11 +18,24 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const { id } = await ctx.params;
 
   const admin = getAdminSupabase();
-  const { data: logs, error } = await admin
-    .from('partner_logs')
-    .select('id, method, comments, contacted_by, contacted_at')
-    .eq('partner_id', id)
-    .order('contacted_at', { ascending: false });
+  const { data: partner } = await admin
+    .from('partners')
+    .select('contact_id')
+    .eq('id', id)
+    .maybeSingle();
+  const contactId = (partner as { contact_id: string | null } | null)?.contact_id ?? null;
+
+  const { data: logs, error } = contactId
+    ? await admin
+        .from('contact_logs')
+        .select('id, method, comments, contacted_by, contacted_at')
+        .eq('contact_id', contactId)
+        .order('contacted_at', { ascending: false })
+    : await admin
+        .from('partner_logs')
+        .select('id, method, comments, contacted_by, contacted_at')
+        .eq('partner_id', id)
+        .order('contacted_at', { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   const rows = (logs ?? []) as Array<{

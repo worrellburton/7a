@@ -20,6 +20,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DepartmentPageNav } from '../DepartmentPageNav';
+import FloatingScrollbar from '@/components/FloatingScrollbar';
 import { SearchSelectCell } from '@/components/SearchSelectCell';
 import {
   ContactMethodPicker,
@@ -54,6 +55,9 @@ interface Partner {
   id: string;
   name: string;
   type: PartnerType;
+  // Linked outreach contact — partners and contacts are one rolodex;
+  // this FK is what unifies their log histories.
+  contact_id?: string | null;
   // Outreach-style tier rating (Tier 1 / Tier 2 / Tier 3). Mirrors
   // contacts.rating so the same pill renders here and on the
   // outreach grid. NULL = unrated.
@@ -329,6 +333,23 @@ export default function PartnershipsContent() {
     return Array.from(set).sort();
   }, [rows]);
 
+  // Database health — share of partner records with the governance
+  // fields filled in. Mirrors the contacts grid's health pill so both
+  // rolodex surfaces speak the same language.
+  const dbHealth = useMemo(() => {
+    if (rows.length === 0) return null;
+    const checks: Array<(p: Partner) => boolean> = [
+      (p) => !!p.contact_info?.trim(),
+      (p) => !!p.location?.trim(),
+      (p) => !!p.specialty?.trim(),
+      (p) => !!p.website?.trim(),
+      (p) => (p.insurance?.length ?? 0) > 0,
+      (p) => !!p.rating,
+    ];
+    const score = rows.reduce((acc, p) => acc + checks.filter((f) => f(p)).length, 0);
+    return Math.round((score / (rows.length * checks.length)) * 100);
+  }, [rows]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
@@ -533,32 +554,6 @@ export default function PartnershipsContent() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setView((v) => (v === 'map' ? 'grid' : 'map'))}
-            aria-pressed={view === 'map'}
-            className={`inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2 rounded-lg border text-xs font-semibold uppercase tracking-wider transition-colors ${
-              view === 'map'
-                ? 'border-foreground bg-foreground text-white'
-                : 'border-black/10 bg-white text-foreground/70 hover:border-foreground/30 hover:text-foreground'
-            }`}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 20l-5.447-2.724A1 1 0 0 1 3 16.382V5.618a1 1 0 0 1 1.447-.894L9 7m0 13 6-3m-6 3V7m6 10 5.553 2.276A1 1 0 0 0 21 18.382V7.618a1 1 0 0 0-1.447-.894L15 4m0 13V4m-6 3 6-3" />
-            </svg>
-            Map
-          </button>
-          <button
-            type="button"
-            onClick={() => setInsightsOpen(true)}
-            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2 rounded-lg border border-black/10 bg-white text-foreground/70 text-xs font-semibold uppercase tracking-wider hover:border-foreground/30 hover:text-foreground transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 3v18h18" />
-              <path d="M7 15l4-6 4 4 5-9" />
-            </svg>
-            Insights
-          </button>
-          <button
-            type="button"
             onClick={() => setTierGuideOpen(true)}
             title="Open the tier framework: who counts as Tier 1 / 2 / 3 and how to work each"
             className="inline-flex items-center justify-center gap-1.5 px-3 py-2 sm:py-2 rounded-lg border border-black/10 bg-white text-foreground/70 text-xs font-semibold uppercase tracking-wider hover:border-foreground/30 hover:text-foreground transition-colors"
@@ -589,6 +584,56 @@ export default function PartnershipsContent() {
           </button>
         </div>
       </header>
+
+      {/* Pill tray — Total / Database health / Table·Map·Insights view
+          switch. Mirrors the contacts grid so the two rolodex surfaces
+          read as one product. */}
+      <div className="mb-4 flex flex-wrap items-center gap-2" style={{ fontFamily: 'var(--font-body)' }}>
+        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-black/10 text-[12px] text-foreground/70">
+          Total
+          <span className="font-bold text-foreground tabular-nums">{rows.length}</span>
+        </span>
+        {dbHealth != null && (
+          <span
+            title="Share of partner records with contact info, location, specialty, website, insurance, and tier filled in."
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] ${
+              dbHealth >= 75
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                : dbHealth >= 45
+                  ? 'bg-amber-50 border-amber-200 text-amber-800'
+                  : 'bg-red-50 border-red-200 text-red-700'
+            }`}
+          >
+            Database health
+            <span className="font-bold tabular-nums">{dbHealth}%</span>
+          </span>
+        )}
+        <div className="inline-flex items-center rounded-full bg-white border border-black/10 p-0.5">
+          {([
+            ['grid', 'Table'],
+            ['map', 'Map'],
+            ['insights', 'Insights'],
+          ] as const).map(([key, label]) => {
+            const active = key === 'insights' ? insightsOpen : view === key && !insightsOpen;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  if (key === 'insights') { setInsightsOpen(true); setView('grid'); }
+                  else { setInsightsOpen(false); setView(key); }
+                }}
+                aria-pressed={active}
+                className={`px-3 py-1 rounded-full text-[12px] font-semibold transition-colors ${
+                  active ? 'bg-foreground text-white' : 'text-foreground/60 hover:text-foreground'
+                }`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
       {/* Toolbar */}
       <div className="mb-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
@@ -890,9 +935,18 @@ function PartnersGrid({
   onResizeStart: () => void;
   onResizeEnd: () => void;
 }) {
+  // Floating horizontal scrollbar — same affordance as the contacts
+  // grid. The container's native scrollbar is hidden; the fixed bar
+  // at the bottom of the viewport is the visible control.
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
   return (
     <>
-      <div className="hidden md:block overflow-x-auto rounded-xl border border-black/10 bg-white">
+      <FloatingScrollbar tableRef={tableScrollRef} engagedSelector="[data-partners-table]" />
+      <div
+        ref={tableScrollRef}
+        data-partners-table
+        className="hidden md:block overflow-x-auto rounded-xl border border-black/10 bg-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
         <table className="w-full text-sm table-fixed">
         {/* <colgroup> drives actual column widths so resize is cheap
             (only one node per column needs its width set, not every
@@ -1756,6 +1810,54 @@ function PartnerForm({
   const [submitting, setSubmitting] = useState(false);
   const isFacility = FACILITY_TYPES.has(type);
 
+  // PROMOTE-A-CONTACT picker (create mode). Partners and contacts are
+  // one rolodex: a new partner starts from an existing outreach
+  // contact, which prefills the form and links the rows so they share
+  // one unified log history.
+  const [contactQuery, setContactQuery] = useState('');
+  const [contactResults, setContactResults] = useState<Array<{
+    id: string; name: string; company: string | null; email: string | null;
+    phone: string | null; location: string | null; rating: string | null;
+  }>>([]);
+  const [selectedContact, setSelectedContact] = useState<{ id: string; name: string; company: string | null } | null>(null);
+  useEffect(() => {
+    if (mode !== 'create') return;
+    // Strip characters that would break PostgREST's or() syntax.
+    const q = contactQuery.trim().replace(/[%,()]/g, ' ').trim();
+    if (q.length < 2) { setContactResults([]); return; }
+    let cancelled = false;
+    const t = setTimeout(() => {
+      void supabase
+        .from('contacts')
+        .select('id, name, company, email, phone, location, rating')
+        .or(`name.ilike.%${q}%,company.ilike.%${q}%`)
+        .order('name', { ascending: true })
+        .limit(8)
+        .then(({ data }) => {
+          if (!cancelled) {
+            setContactResults((data ?? []) as Array<{
+              id: string; name: string; company: string | null; email: string | null;
+              phone: string | null; location: string | null; rating: string | null;
+            }>);
+          }
+        });
+    }, 200);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [contactQuery, mode]);
+
+  function pickContact(c: { id: string; name: string; company: string | null; email: string | null; phone: string | null; location: string | null; rating: string | null }) {
+    setSelectedContact({ id: c.id, name: c.name, company: c.company });
+    setContactResults([]);
+    setContactQuery('');
+    // Prefill from the contact — the org usually lives in company with
+    // the person as point of contact. Never clobber typed values.
+    if (!name.trim()) setName(c.company || c.name);
+    if (!poc.trim()) setPoc(c.company ? c.name : '');
+    if (!contactInfo.trim()) setContactInfo([c.email, c.phone].filter(Boolean).join(' · '));
+    if (!location.trim() && c.location) setLocation(c.location);
+    if (!rating && (c.rating === 'Tier 1' || c.rating === 'Tier 2' || c.rating === 'Tier 3')) setRating(c.rating as ContactRating);
+  }
+
   function toggleArray(curr: string[], value: string): string[] {
     return curr.includes(value) ? curr.filter((v) => v !== value) : [...curr, value];
   }
@@ -1781,6 +1883,10 @@ function PartnerForm({
       notes: notes.trim() || null,
       comments: comments.trim() || null,
       rep: rep.trim() || null,
+      // Promotion link — when a contact was picked, the server ties
+      // the partner row to it (and logs the promotion on the unified
+      // history). Without one, the server finds-or-creates a match.
+      ...(mode === 'create' && selectedContact ? { contact_id: selectedContact.id } : {}),
     };
     try {
       await onSubmit(payload);
@@ -1814,6 +1920,62 @@ function PartnerForm({
         </header>
 
         <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {mode === 'create' && (
+            <div className="sm:col-span-2 rounded-xl border border-primary/25 bg-primary/5 p-4">
+              <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-primary mb-2">Promote a contact</p>
+              {selectedContact ? (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-primary/30 text-[13px] font-semibold text-foreground">
+                    {selectedContact.name}
+                    {selectedContact.company && <span className="font-normal text-foreground/55">· {selectedContact.company}</span>}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedContact(null)}
+                    className="text-[12px] text-foreground/55 hover:text-foreground underline underline-offset-2"
+                  >
+                    Change
+                  </button>
+                  <p className="w-full mt-1 text-[11.5px] text-foreground/55">
+                    This partner will link to {selectedContact.name.split(' ')[0]}&rsquo;s contact record — one shared log history across Contacts and Partners.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <input
+                    value={contactQuery}
+                    onChange={(e) => setContactQuery(e.target.value)}
+                    placeholder="Search contacts by name or company…"
+                    className="form-input"
+                  />
+                  {contactResults.length > 0 && (
+                    <ul className="mt-1.5 rounded-lg border border-black/10 bg-white divide-y divide-black/5 overflow-hidden">
+                      {contactResults.map((c) => (
+                        <li key={c.id}>
+                          <button
+                            type="button"
+                            onClick={() => pickContact(c)}
+                            className="w-full px-3 py-2 text-left hover:bg-warm-bg/60 transition-colors"
+                          >
+                            <span className="text-[13px] font-semibold text-foreground">{c.name}</span>
+                            {(c.company || c.location) && (
+                              <span className="ml-2 text-[12px] text-foreground/55">
+                                {[c.company, c.location].filter(Boolean).join(' · ')}
+                              </span>
+                            )}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <p className="mt-1.5 text-[11.5px] text-foreground/55">
+                    Partners start from a contact. Pick one to link the records and prefill the form — their log history carries over.
+                    Skip it and a matching contact is found or created automatically.
+                  </p>
+                </>
+              )}
+            </div>
+          )}
           <Field label="Name" required>
             <input value={name} onChange={(e) => setName(e.target.value)} required className="form-input" />
           </Field>
