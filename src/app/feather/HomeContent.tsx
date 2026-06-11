@@ -1052,13 +1052,13 @@ export default function HomeContent() {
             every breakpoint and the centerpiece stays uncluttered. */}
 
         {/* Mission tagline — closes the home page with a quiet brand
-            anchor below the team orbit. Bottom padding clears the
-            globally-fixed "Also here" presence pill (PageViewers.tsx,
-            anchored at `bottom-20`) so the headline reads above it
-            instead of being half-covered. */}
+            anchor below the team orbit. DESKTOP ONLY: on phones the
+            one-viewport layout pushed it up under the globally-fixed
+            "Also here" presence pill (PageViewers.tsx) and the two
+            overlapped, so the tagline is hidden below lg. */}
         <section
           aria-label="Mission tagline"
-          className="w-full max-w-4xl mx-auto pt-2 pb-28 sm:pb-24 px-4 flex flex-col items-center text-center"
+          className="hidden lg:flex w-full max-w-4xl mx-auto pt-2 pb-28 sm:pb-24 px-4 flex-col items-center text-center"
         >
           <p
             className="text-[10px] font-semibold tracking-[0.28em] uppercase text-foreground/45 mb-1.5"
