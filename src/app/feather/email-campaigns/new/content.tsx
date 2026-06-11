@@ -204,7 +204,9 @@ export default function NewEmailCampaignContent() {
         includeQuote: !!data.include_quote,
         includeInsuranceStrip: !!data.include_insurance_strip,
         includeSocialFooter: !!data.include_social_footer,
-        darkMode: !!data.dark_mode,
+        // Dark mode retired — old drafts saved with dark_mode=true
+        // load back as light so every build renders the light palette.
+        darkMode: false,
         featuredBlogId: data.featured_blog_id ?? null,
         featuredEpisodeSlug: data.featured_episode_slug ?? null,
         featuredPagePath: data.featured_page_path ?? null,
@@ -930,16 +932,10 @@ export default function NewEmailCampaignContent() {
           on={draft.includeSocialFooter}
           onChange={(v) => setDraft((p) => ({ ...p, includeSocialFooter: v }))}
         />
-        <Toggle
-          label={draft.darkMode ? 'Dark mode' : 'Light mode'}
-          description={
-            draft.darkMode
-              ? 'Body renders with the Desert Dusk background and Bone text.'
-              : 'Body renders with the Sand background and Ink text.'
-          }
-          on={draft.darkMode}
-          onChange={(v) => setDraft((p) => ({ ...p, darkMode: v }))}
-        />
+        {/* Dark-mode toggle removed — campaigns always render in the
+            light palette (Sand background, Ink text). The darkMode
+            field stays in the draft model pinned to false so the
+            build/save plumbing is unchanged. */}
       </section>
       )}
 
