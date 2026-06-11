@@ -16,7 +16,9 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { useModal } from '@/lib/ModalProvider';
 import { supabase } from '@/lib/supabase';
+import { GENERAL_ROOM, dmRoomFor } from '@/lib/chat-shared';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface Message {
@@ -38,11 +40,39 @@ interface TypingPresence {
   avatar_url: string | null;
 }
 
-const ROOM = 'general';
-
 export default function ChatContent() {
   const { user, session, userKind, isSuperAdmin, avatarUrl: myAvatarFromAuth } = useAuth();
   const modal = useModal();
+  // Active room: /feather/chat is the Everybody room; /feather/chat?with=<id>
+  // is a DM with that person (room key derived from the sorted uid
+  // pair, so both sides land in the same room). The chat-mode sidebar
+  // rail in PlatformShell drives this param.
+  const searchParams = useSearchParams();
+  const withId = searchParams.get('with');
+  const room = user?.id && withId ? dmRoomFor(user.id, withId) : GENERAL_ROOM;
+  const isDm = room !== GENERAL_ROOM;
+  const [otherUser, setOtherUser] = useState<{ name: string | null; avatar: string | null; kind: string | null } | null>(null);
+  useEffect(() => {
+    if (!withId) {
+      setOtherUser(null);
+      return;
+    }
+    let cancelled = false;
+    void supabase
+      .from('users')
+      .select('full_name, avatar_url, user_kind')
+      .eq('id', withId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        setOtherUser({
+          name: (data?.full_name as string | null) ?? null,
+          avatar: (data?.avatar_url as string | null) ?? null,
+          kind: (data?.user_kind as string | null) ?? null,
+        });
+      });
+    return () => { cancelled = true; };
+  }, [withId]);
   // OAuth metadata's full_name + avatar_url can be stale (or empty)
   // for any teammate who edited their profile via /app/profile —
   // those edits land on public.users, not the auth metadata. Pull
@@ -75,12 +105,14 @@ export default function ChatContent() {
   const [typing, setTyping] = useState<TypingPresence[]>([]);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Initial fetch + realtime subscriptions.
+  // Initial fetch + realtime subscriptions. Re-runs whenever the
+  // active room changes (switching between Everybody and a DM).
   useEffect(() => {
     if (!session?.access_token || !user?.id) return;
     let cancelled = false;
+    setRows([]);
     setLoading(true);
-    fetch(`/api/chat/messages?room=${ROOM}`, {
+    fetch(`/api/chat/messages?room=${encodeURIComponent(room)}`, {
       headers: { Authorization: `Bearer ${session.access_token}` },
     })
       .then(async (r) => (r.ok ? ((await r.json()) as { rows: Message[] }) : null))
@@ -91,18 +123,18 @@ export default function ChatContent() {
       .finally(() => { if (!cancelled) setLoading(false); });
 
     // Mark as read on mount + clear the red dot in the sidebar.
-    void fetch(`/api/chat/unread?room=${ROOM}`, {
+    void fetch(`/api/chat/unread?room=${encodeURIComponent(room)}`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
 
     const channel = supabase
-      .channel(`chat-${ROOM}-${user.id}-${Math.random().toString(36).slice(2, 8)}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `room=eq.${ROOM}` }, (payload) => {
+      .channel(`chat-${room}-${user.id}-${Math.random().toString(36).slice(2, 8)}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `room=eq.${room}` }, (payload) => {
         const row = payload.new as Message;
         setRows((prev) => (prev.some((m) => m.id === row.id) ? prev : [...prev, row]));
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `room=eq.${ROOM}` }, (payload) => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `room=eq.${room}` }, (payload) => {
         const row = payload.new as Message;
         setRows((prev) => prev.map((m) => (m.id === row.id ? { ...m, ...row } : m)));
       })
@@ -115,7 +147,7 @@ export default function ChatContent() {
       cancelled = true;
       void supabase.removeChannel(channel);
     };
-  }, [session?.access_token, user?.id]);
+  }, [session?.access_token, user?.id, room]);
 
   // Auto-scroll to bottom on new message.
   useEffect(() => {
@@ -134,8 +166,8 @@ export default function ChatContent() {
     if (!user?.id || rows.length === 0) return;
     void supabase
       .from('chat_reads')
-      .upsert({ user_id: user.id, room: ROOM, last_read_at: new Date().toISOString() }, { onConflict: 'user_id,room' });
-  }, [user?.id, rows.length]);
+      .upsert({ user_id: user.id, room, last_read_at: new Date().toISOString() }, { onConflict: 'user_id,room' });
+  }, [user?.id, rows.length, room]);
 
   // Typing-indicator presence channel. Each keystroke calls track()
   // with `is_typing=true`; a timer untracks after 3 seconds idle.
@@ -144,7 +176,7 @@ export default function ChatContent() {
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!user?.id) return;
-    const ch = supabase.channel(`chat-presence-${ROOM}`, { config: { presence: { key: user.id } } });
+    const ch = supabase.channel(`chat-presence-${room}`, { config: { presence: { key: user.id } } });
     presenceRef.current = ch;
     ch.on('presence', { event: 'sync' }, () => {
       const state = ch.presenceState();
@@ -172,7 +204,7 @@ export default function ChatContent() {
       presenceRef.current = null;
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
     };
-  }, [user?.id, myName, myAvatar]);
+  }, [user?.id, myName, myAvatar, room]);
 
   const announceTyping = useCallback(() => {
     const ch = presenceRef.current;
@@ -199,7 +231,7 @@ export default function ChatContent() {
       const res = await fetch('/api/chat/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ room: ROOM, body: text }),
+        body: JSON.stringify({ room, body: text }),
       });
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
@@ -289,13 +321,38 @@ export default function ChatContent() {
     <div className="flex flex-col h-[calc(100vh-1px)] max-h-[calc(100vh-1px)] overflow-hidden" style={{ fontFamily: 'var(--font-body)' }}>
       <header className="px-4 sm:px-6 lg:px-10 py-4 border-b border-black/5 bg-white/70 backdrop-blur">
         <div className="max-w-3xl mx-auto flex items-end justify-between gap-3 flex-wrap">
-          <div>
-            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">Chatroom</p>
-            <h1 className="text-lg font-semibold text-foreground tracking-tight">Seven Arrows chat</h1>
-            <p className="text-sm text-foreground/55 mt-0.5">
-              Open to staff + alumni. {userKind === 'alumni' && <span className="text-emerald-700 font-semibold">Welcome back.</span>}
-            </p>
-          </div>
+          {isDm ? (
+            <div className="flex items-center gap-3 min-w-0">
+              {otherUser?.avatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={otherUser.avatar} alt="" referrerPolicy="no-referrer" className="w-10 h-10 rounded-full object-cover border border-black/10" />
+              ) : (
+                <span className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-primary/10 text-primary text-sm font-bold border border-primary/20">
+                  {(otherUser?.name || '?').charAt(0).toUpperCase()}
+                </span>
+              )}
+              <div className="min-w-0">
+                <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">Direct message</p>
+                <h1 className="text-lg font-semibold text-foreground tracking-tight truncate">
+                  {otherUser?.name || 'Direct message'}
+                  {otherUser?.kind === 'alumni' && (
+                    <span className="ml-2 align-middle inline-block px-1.5 py-0.5 rounded-md text-[9.5px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Alumni
+                    </span>
+                  )}
+                </h1>
+                <p className="text-sm text-foreground/55 mt-0.5">Just the two of you.</p>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">Chatroom</p>
+              <h1 className="text-lg font-semibold text-foreground tracking-tight">Everybody</h1>
+              <p className="text-sm text-foreground/55 mt-0.5">
+                Open to staff + alumni. {userKind === 'alumni' && <span className="text-emerald-700 font-semibold">Welcome back.</span>}
+              </p>
+            </div>
+          )}
         </div>
       </header>
 
@@ -306,7 +363,9 @@ export default function ChatContent() {
           ) : groups.length === 0 ? (
             <div className="text-center py-16">
               <p className="text-sm font-semibold text-foreground">No messages yet</p>
-              <p className="mt-1 text-[12.5px] text-foreground/55">Be the first to say hi.</p>
+              <p className="mt-1 text-[12.5px] text-foreground/55">
+                {isDm ? `Say hi to ${otherUser?.name?.split(' ')[0] || 'them'} — this is the start of your conversation.` : 'Be the first to say hi.'}
+              </p>
             </div>
           ) : (
             groups.map((g) => {

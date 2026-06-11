@@ -8,6 +8,7 @@ import { db } from '@/lib/db';
 import HomeOnlineOrbit, { type OrbitHorse, type OrbitUser } from '../HomeOnlineOrbit';
 import { supabase } from '@/lib/supabase';
 import AlumniProfileEditor from './_components/AlumniProfileEditor';
+import HomeChatsRow from '../HomeChatsRow';
 import TimeSoberCard, { soberMilestoneLabel } from './_components/TimeSoberCard';
 import { toAvatarThumb } from '@/lib/avatarThumb';
 
@@ -111,6 +112,8 @@ export default function AlumniHubContent() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-5xl mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
+      {/* Chats strip — same component as the staff home. */}
+      <HomeChatsRow />
       <header className="mb-8 lg:mb-10">
         <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-primary mb-1.5">Alumni portal</p>
         <h1 className="text-2xl sm:text-3xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>

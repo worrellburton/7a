@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import ChatRail from './chat/ChatRail';
 import { useSidebarFlip } from './sidebar-flip';
 import Link from '@/components/HoverPrefetchLink';
 import { usePathname, useRouter } from 'next/navigation';
@@ -635,6 +636,10 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   const { navPages, popupPages, isPageAllowedForDepartment, isPageAllowedForDepartmentSet, userOverrides, userExtraDepartmentIds } = usePagePermissions();
   const pathname = usePathname();
   const router = useRouter();
+  // Chat gets its own sidebar experience: while anywhere under
+  // /feather/chat the page nav swaps for the conversation rail
+  // (back button + Everybody + DM threads).
+  const isChatMode = pathname === '/feather/chat' || pathname?.startsWith('/feather/chat/');
   const [navDepartments, setNavDepartments] = useState<NavDepartment[]>([]);
   // Counts of "new" submissions per nav path. Currently only powers
   // the badge on /app/website-requests; the structure leaves room for
@@ -677,7 +682,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   useEffect(() => {
     let cancelled = false;
     const load = () => {
-      fetch('/api/chat/unread?room=general', { cache: 'no-store', credentials: 'include' })
+      fetch('/api/chat/unread?all=1', { cache: 'no-store', credentials: 'include' })
         .then((r) => (r.ok ? r.json() : null))
         .then((json: { unread?: number } | null) => {
           if (cancelled || !json) return;
@@ -1243,6 +1248,14 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             search existed — that surfaced as 'pros can't see it'.
             Other Pages now also stays reachable from the same
             expanded state. */}
+        {isChatMode ? (
+          /* Chat mode — conversation rail replaces search + page nav.
+             Suspense because ChatRail reads useSearchParams. */
+          <Suspense fallback={null}>
+            <ChatRail variant="rail" />
+          </Suspense>
+        ) : (
+        <>
         <div className="px-3 pt-1 pb-2">
           {/* Collapsed: icon-only chip (sidebar w-16). Hover-expand
               hides this and shows the input below. */}
@@ -1598,6 +1611,8 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             );
           })()}
         </nav>
+        </>
+        )}
 
         {/* User settings — bottom left */}
         <div ref={userMenuRef} className="relative p-3 border-t border-gray-100">
@@ -1782,6 +1797,11 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   opt the drawer rows out without fighting specificity
                   on every callsite — they go back to natural display
                   and stack vertically inside the parent <ul>. */}
+              {isChatMode ? (
+                <Suspense fallback={null}>
+                  <ChatRail variant="drawer" onNavigate={() => setMobileMenuOpen(false)} />
+                </Suspense>
+              ) : (
               <ul className="flex-1 min-h-0 overflow-y-auto p-3 space-y-0.5">
                 {(() => {
                   const renderMobileLink = (item: PageConfig) => {
@@ -1854,6 +1874,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   );
                 })()}
               </ul>
+              )}
 
               {/* Account section — collapsed by default. Tapping the
                   user card at the bottom toggles it. Keeps the drawer
