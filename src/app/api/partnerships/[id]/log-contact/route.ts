@@ -3,10 +3,13 @@ import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 
 // POST /api/partnerships/[id]/log-contact
 //
-// Records an interaction in public.partner_logs AND bumps the
-// denormalised last_contact_* columns on public.partners so the
-// grid stays cheap to read. Same shape as the contacts equivalent
-// at /api/contacts/[id]/log-contact.
+// Partner and contact history are ONE stream: the canonical log row
+// goes into contact_logs (via the partner's linked contact), so a
+// touchpoint logged from /feather/partnerships shows up in the
+// contact's history on /feather/contacts and vice versa. A
+// partner_logs row is still written (back-compat for anything that
+// reads it) with contact_log_id pointing at its canonical twin.
+// Denormalised last_contact_* columns are bumped on BOTH rows.
 
 export const dynamic = 'force-dynamic';
 
@@ -55,14 +58,61 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const admin = getAdminSupabase();
   const now = new Date().toISOString();
 
+  // Resolve the partner's linked contact — the canonical home for
+  // the log. Partners created before the unification may lack one;
+  // create it on the fly so the history always has a contact anchor.
+  const { data: partner, error: pErr } = await admin
+    .from('partners')
+    .select('id, name, poc, type, location, contact_id')
+    .eq('id', id)
+    .maybeSingle();
+  if (pErr || !partner) return NextResponse.json({ error: pErr?.message ?? 'Partner not found' }, { status: pErr ? 500 : 404 });
+
+  let contactId = (partner as { contact_id: string | null }).contact_id;
+  if (!contactId) {
+    const p = partner as { name: string; poc: string | null; type: string | null; location: string | null };
+    const { data: created, error: cErr } = await admin
+      .from('contacts')
+      .insert({
+        name: (p.poc && p.poc.trim()) || p.name,
+        company: p.poc && p.poc.trim() ? p.name : null,
+        role: p.type,
+        location: p.location,
+        source: 'auto-from-partner-log',
+        source_partner_id: id,
+      })
+      .select('id')
+      .maybeSingle();
+    if (cErr || !created) return NextResponse.json({ error: cErr?.message ?? 'Could not create contact' }, { status: 500 });
+    contactId = (created as { id: string }).id;
+    await admin.from('partners').update({ contact_id: contactId }).eq('id', id);
+  }
+
+  // Canonical log row — contact_logs.
+  const { data: contactLog, error: clErr } = await admin
+    .from('contact_logs')
+    .insert({ contact_id: contactId, method, comments, contacted_by: user.id, contacted_at: now })
+    .select('id')
+    .maybeSingle();
+  if (clErr) return NextResponse.json({ error: clErr.message }, { status: 500 });
+
+  // Back-compat twin in partner_logs, pointed at its canonical row.
   const { error: logErr } = await admin.from('partner_logs').insert({
     partner_id: id,
     method,
     comments,
     contacted_by: user.id,
     contacted_at: now,
+    contact_log_id: (contactLog as { id: string } | null)?.id ?? null,
   });
   if (logErr) return NextResponse.json({ error: logErr.message }, { status: 500 });
+
+  // Bump the contact's denormalised last-contact fields too, so the
+  // contacts grid reflects the partner-side touchpoint immediately.
+  await admin
+    .from('contacts')
+    .update({ last_contact_at: now, last_contact_by: user.id, last_contact_method: method, last_contact_comments: comments })
+    .eq('id', contactId);
 
   const update: Record<string, unknown> = {
     last_contact_at: now,
