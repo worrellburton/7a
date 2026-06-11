@@ -16,6 +16,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { useModal } from '@/lib/ModalProvider';
 import { supabase } from '@/lib/supabase';
+import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 interface Message {
@@ -319,23 +320,44 @@ export default function ChatContent() {
               // and we don't want a `?` flash before realtime backfills.
               const displayAvatar = isMine ? (head.author_avatar_url || myAvatar) : head.author_avatar_url;
               const displayName = isMine ? (head.author_name || myName) : head.author_name;
+              // Alumni have a viewable profile at /feather/alumni/u/[id]
+              // (reachable by anyone signed in; the API enforces opt-in
+              // privacy on PII). Staff don't have an equivalent surface,
+              // so their names/avatars stay plain text.
+              const profileHref = head.author_kind === 'alumni' ? `/feather/alumni/u/${g.authorId}` : null;
+              const avatarEl = displayAvatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={displayAvatar} alt="" className="w-9 h-9 rounded-full object-cover border border-black/10" />
+              ) : (
+                <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20">
+                  {(displayName || '?').charAt(0).toUpperCase()}
+                </span>
+              );
               return (
                 <div key={head.id} className={`flex gap-3 ${isMine ? 'flex-row-reverse' : ''}`}>
                   <div className="shrink-0">
-                    {displayAvatar ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={displayAvatar} alt="" className="w-9 h-9 rounded-full object-cover border border-black/10" />
+                    {profileHref ? (
+                      <Link href={profileHref} aria-label={`View ${displayName || 'profile'}`} className="block hover:opacity-80 transition-opacity">
+                        {avatarEl}
+                      </Link>
                     ) : (
-                      <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20">
-                        {(displayName || '?').charAt(0).toUpperCase()}
-                      </span>
+                      avatarEl
                     )}
                   </div>
                   <div className={`min-w-0 max-w-[80%] ${isMine ? 'text-right' : ''}`}>
                     <div className={`flex items-baseline gap-2 ${isMine ? 'justify-end' : ''}`}>
-                      <p className="text-[12.5px] font-semibold text-foreground">
-                        {isMine ? (displayName || 'You') : (displayName || 'Someone')}
-                      </p>
+                      {profileHref ? (
+                        <Link
+                          href={profileHref}
+                          className="text-[12.5px] font-semibold text-foreground hover:text-primary hover:underline underline-offset-2 transition-colors"
+                        >
+                          {isMine ? (displayName || 'You') : (displayName || 'Someone')}
+                        </Link>
+                      ) : (
+                        <p className="text-[12.5px] font-semibold text-foreground">
+                          {isMine ? (displayName || 'You') : (displayName || 'Someone')}
+                        </p>
+                      )}
                       {head.author_kind === 'alumni' && !isMine && (
                         <span className="inline-block px-1.5 py-0.5 rounded-md text-[9.5px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
                           Alumni
