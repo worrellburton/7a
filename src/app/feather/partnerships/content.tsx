@@ -188,6 +188,85 @@ export default function PartnershipsContent() {
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<'grid' | 'map'>('grid');
   const [insightsOpen, setInsightsOpen] = useState(false);
+  // Org-wide top-to-bottom priority of the per-type sheets. Loaded
+  // from partner_type_order, kept live via realtime, reordered by
+  // dragging a card header (or its arrow buttons).
+  const [typeOrder, setTypeOrder] = useState<string[]>([...PARTNER_TYPES]);
+  const typeDragRef = useRef<string | null>(null);
+
+  const loadTypeOrder = useCallback(async () => {
+    const { data } = await supabase
+      .from('partner_type_order')
+      .select('type, sort_order')
+      .order('sort_order', { ascending: true });
+    const saved = ((data ?? []) as Array<{ type: string }>).map((r) => r.type);
+    if (saved.length > 0) {
+      // Saved order first, then any canonical types missing from it.
+      setTypeOrder([...saved, ...PARTNER_TYPES.filter((t) => !saved.includes(t))]);
+    }
+  }, []);
+  useEffect(() => { void loadTypeOrder(); }, [loadTypeOrder]);
+  useEffect(() => {
+    const ch = supabase
+      .channel(`partner-type-order-${Math.random().toString(36).slice(2, 8)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'partner_type_order' }, () => {
+        void loadTypeOrder();
+      })
+      .subscribe();
+    return () => { void supabase.removeChannel(ch); };
+  }, [loadTypeOrder]);
+
+  // One floating horizontal scrollbar serves every type sheet. All
+  // sheets share identical columns, so panning one pans them all —
+  // the page reads like a single spreadsheet split into sheets.
+  const sectionScrollEls = useRef(new Map<string, HTMLDivElement>());
+  const primaryScrollRef = useRef<HTMLDivElement | null>(null);
+  const scrollSyncingRef = useRef(false);
+  function registerSectionScroll(type: string, isFirst: boolean) {
+    return (el: HTMLDivElement | null) => {
+      if (el) sectionScrollEls.current.set(type, el);
+      else sectionScrollEls.current.delete(type);
+      if (isFirst) primaryScrollRef.current = el;
+    };
+  }
+  function syncHorizontalScroll(from: HTMLDivElement) {
+    if (scrollSyncingRef.current) return;
+    scrollSyncingRef.current = true;
+    for (const el of sectionScrollEls.current.values()) {
+      if (el !== from) el.scrollLeft = from.scrollLeft;
+    }
+    scrollSyncingRef.current = false;
+  }
+
+  async function persistTypeOrder(next: string[]) {
+    setTypeOrder(next);
+    await supabase.from('partner_type_order').upsert(
+      next.map((type, i) => ({ type, sort_order: i, updated_by: user?.id ?? null, updated_at: new Date().toISOString() })),
+      { onConflict: 'type' },
+    );
+  }
+
+  function moveType(type: string, dir: -1 | 1) {
+    const next = typeOrder.slice();
+    const from = next.indexOf(type);
+    const to = from + dir;
+    if (from === -1 || to < 0 || to >= next.length) return;
+    [next[from], next[to]] = [next[to], next[from]];
+    void persistTypeOrder(next);
+  }
+
+  function onTypeDrop(targetType: string) {
+    const dragType = typeDragRef.current;
+    typeDragRef.current = null;
+    if (!dragType || dragType === targetType) return;
+    const next = typeOrder.slice();
+    const from = next.indexOf(dragType);
+    const to = next.indexOf(targetType);
+    if (from === -1 || to === -1) return;
+    next.splice(from, 1);
+    next.splice(to, 0, dragType);
+    void persistTypeOrder(next);
+  }
   const [search, setSearch] = useState('');
   const [filterSpecialty, setFilterSpecialty] = useState<string>('');
   const [filterInsurance, setFilterInsurance] = useState<string>('');
@@ -363,8 +442,8 @@ export default function PartnershipsContent() {
 
   // Group + sort by Specialty (alpha), then by Name within group.
   // Compute the dynamic priority counter as we walk the sorted list.
-  const groupedRows = useMemo(() => {
-    const sorted = filtered.slice().sort((a, b) => {
+  function groupBySpecialty(list: Partner[]) {
+    const sorted = list.slice().sort((a, b) => {
       const sa = (a.specialty || '~~').toLowerCase();
       const sb = (b.specialty || '~~').toLowerCase();
       if (sa !== sb) return sa.localeCompare(sb);
@@ -382,7 +461,31 @@ export default function PartnershipsContent() {
       }
       return { row: r, priority, isFirstOfGroup: priority === 1 };
     });
-  }, [filtered]);
+  }
+
+  // One SHEET (card) per partner type, ordered by the org-wide
+  // priority saved in partner_type_order (drag a card up/down and
+  // everyone's page reorders live). Types with no rows after the
+  // current filters are skipped; unknown types (legacy data) append
+  // at the bottom alphabetically.
+  const typeSections = useMemo(() => {
+    const byType = new Map<string, Partner[]>();
+    for (const r of filtered) {
+      const key = r.type || 'Other';
+      const list = byType.get(key) ?? [];
+      list.push(r);
+      byType.set(key, list);
+    }
+    const known = typeOrder.filter((t) => byType.has(t));
+    const unknown = Array.from(byType.keys())
+      .filter((t) => !typeOrder.includes(t))
+      .sort();
+    return [...known, ...unknown].map((type) => ({
+      type,
+      count: byType.get(type)!.length,
+      rows: groupBySpecialty(byType.get(type)!),
+    }));
+  }, [filtered, typeOrder]);
 
   const visibleColumnsResolved = useMemo(() => {
     const order = columnOrder ?? DEFAULT_ORDER;
@@ -686,26 +789,97 @@ export default function PartnershipsContent() {
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
       )}
 
-      <PartnersGrid
-        loading={loading}
-        rows={groupedRows}
-        columns={visibleColumnsResolved}
-        onColDragStart={onColDragStart}
-        onColDrop={onColDrop}
-        onEdit={(p) => setEditing(p)}
-        onDowngrade={(p) => setDowngradeTarget(p)}
-        onLogContact={(p) => setLogTarget(p)}
-        onHistory={(p) => setHistoryTarget(p)}
-        actionMenuFor={actionMenuFor}
-        setActionMenuFor={setActionMenuFor}
-        specialties={specialties}
-        onInlineSpecialty={onInlineSpecialty}
-        columnWidths={columnWidths}
-        onResizeColumn={(key, w) => setColumnWidths((prev) => ({ ...prev, [key]: Math.round(w) }))}
-        onCommitColumnWidth={(key, w) => { void persistColumnWidth(key, w); }}
-        onResizeStart={() => { resizingRef.current = true; }}
-        onResizeEnd={() => { resizingRef.current = false; }}
-      />
+      {/* One sheet per partner type — each is a card, draggable (or
+          arrow-nudged) to set the org-wide top-to-bottom priority.
+          Empty types disappear with the current filters. */}
+      {loading && typeSections.length === 0 && (
+        <div className="rounded-2xl border border-black/10 bg-white px-4 py-12 text-center text-foreground/45">
+          Loading partners…
+        </div>
+      )}
+      {!loading && typeSections.length === 0 && (
+        <div className="rounded-2xl border border-black/10 bg-white px-4 py-12 text-center text-foreground/45">
+          No partners match. Click <span className="font-semibold">New partner</span> to add one.
+        </div>
+      )}
+      {typeSections.length > 0 && (
+        <FloatingScrollbar tableRef={primaryScrollRef} engagedSelector="[data-partners-table]" />
+      )}
+      <div className="space-y-5">
+        {typeSections.map((section, idx) => (
+          <section
+            key={section.type}
+            className="rounded-2xl border border-black/10 bg-warm-bg/30 p-3 sm:p-4"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={() => onTypeDrop(section.type)}
+          >
+            <header className="flex items-center gap-2.5 mb-3 px-1">
+              <button
+                type="button"
+                draggable
+                onDragStart={() => { typeDragRef.current = section.type; }}
+                title="Drag to reorder this sheet"
+                aria-label={`Reorder ${section.type}`}
+                className="cursor-grab active:cursor-grabbing text-foreground/30 hover:text-foreground/60 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="9" cy="6" r="1.4" /><circle cx="15" cy="6" r="1.4" />
+                  <circle cx="9" cy="12" r="1.4" /><circle cx="15" cy="12" r="1.4" />
+                  <circle cx="9" cy="18" r="1.4" /><circle cx="15" cy="18" r="1.4" />
+                </svg>
+              </button>
+              <h2 className="text-sm font-bold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+                {section.type}
+              </h2>
+              <span className="text-[11px] text-foreground/45 tabular-nums">
+                {section.count} {section.count === 1 ? 'partner' : 'partners'}
+              </span>
+              <span className="ml-auto inline-flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => moveType(section.type, -1)}
+                  disabled={idx === 0}
+                  aria-label={`Move ${section.type} up`}
+                  className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/40 hover:text-foreground hover:bg-white disabled:opacity-25 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 15l7-7 7 7" /></svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => moveType(section.type, 1)}
+                  disabled={idx === typeSections.length - 1}
+                  aria-label={`Move ${section.type} down`}
+                  className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/40 hover:text-foreground hover:bg-white disabled:opacity-25 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 9l-7 7-7-7" /></svg>
+                </button>
+              </span>
+            </header>
+            <PartnersGrid
+              loading={loading}
+              rows={section.rows}
+              columns={visibleColumnsResolved}
+              onColDragStart={onColDragStart}
+              onColDrop={onColDrop}
+              onEdit={(p) => setEditing(p)}
+              onDowngrade={(p) => setDowngradeTarget(p)}
+              onLogContact={(p) => setLogTarget(p)}
+              onHistory={(p) => setHistoryTarget(p)}
+              actionMenuFor={actionMenuFor}
+              setActionMenuFor={setActionMenuFor}
+              specialties={specialties}
+              onInlineSpecialty={onInlineSpecialty}
+              columnWidths={columnWidths}
+              onResizeColumn={(key, w) => setColumnWidths((prev) => ({ ...prev, [key]: Math.round(w) }))}
+              onCommitColumnWidth={(key, w) => { void persistColumnWidth(key, w); }}
+              onResizeStart={() => { resizingRef.current = true; }}
+              onResizeEnd={() => { resizingRef.current = false; }}
+              scrollContainerRef={registerSectionScroll(section.type, idx === 0)}
+              onHorizontalScroll={syncHorizontalScroll}
+            />
+          </section>
+        ))}
+      </div>
 
       {view === 'map' && (
         <div
@@ -915,6 +1089,8 @@ function PartnersGrid({
   onCommitColumnWidth,
   onResizeStart,
   onResizeEnd,
+  scrollContainerRef,
+  onHorizontalScroll,
 }: {
   loading: boolean;
   rows: { row: Partner; priority: number; isFirstOfGroup: boolean }[];
@@ -934,17 +1110,18 @@ function PartnersGrid({
   onCommitColumnWidth: (key: string, widthPx: number) => void;
   onResizeStart: () => void;
   onResizeEnd: () => void;
+  // Per-type sheets share ONE floating scrollbar in the parent; each
+  // grid registers its scroll container and reports scrolls so the
+  // parent can keep every sheet panned in lockstep.
+  scrollContainerRef?: (el: HTMLDivElement | null) => void;
+  onHorizontalScroll?: (el: HTMLDivElement) => void;
 }) {
-  // Floating horizontal scrollbar — same affordance as the contacts
-  // grid. The container's native scrollbar is hidden; the fixed bar
-  // at the bottom of the viewport is the visible control.
-  const tableScrollRef = useRef<HTMLDivElement | null>(null);
   return (
     <>
-      <FloatingScrollbar tableRef={tableScrollRef} engagedSelector="[data-partners-table]" />
       <div
-        ref={tableScrollRef}
+        ref={(el) => scrollContainerRef?.(el)}
         data-partners-table
+        onScroll={(e) => onHorizontalScroll?.(e.currentTarget)}
         className="hidden md:block overflow-x-auto rounded-xl border border-black/10 bg-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
         <table className="w-full text-sm table-fixed">
