@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 
@@ -28,7 +29,8 @@ interface Payload {
 }
 
 export default function AlumniProfileViewContent({ userId }: { userId: string }) {
-  const { session } = useAuth();
+  const { session, user } = useAuth();
+  const router = useRouter();
   const [data, setData] = useState<Payload | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,9 +62,22 @@ export default function AlumniProfileViewContent({ userId }: { userId: string })
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6 sm:py-8 max-w-3xl mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
-      <Link href="/feather/alumni" className="text-[11.5px] text-foreground/55 hover:text-foreground">
-        &larr; Alumni hub
-      </Link>
+      {/* Back — return to wherever the visitor CAME FROM (chat, the
+          reunion list, the online orbit…), not a hard-coded Alumni hub.
+          The old static link sent a chat user to the alumni home,
+          stranding them. Falls back to the hub when this page is the
+          first entry in the tab's history (e.g. opened from a shared
+          link). */}
+      <button
+        type="button"
+        onClick={() => {
+          if (typeof window !== 'undefined' && window.history.length > 1) router.back();
+          else router.push('/feather/alumni');
+        }}
+        className="text-[11.5px] text-foreground/55 hover:text-foreground"
+      >
+        &larr; Back
+      </button>
 
       {loading ? (
         <p className="mt-6 text-[13px] text-foreground/50">Loading profile…</p>
@@ -103,6 +118,19 @@ export default function AlumniProfileViewContent({ userId }: { userId: string })
                 </p>
               )}
             </div>
+            {/* DM — opens (or starts) the direct thread with this
+                person in chat. Hidden on your own profile. */}
+            {user?.id && user.id !== userId && (
+              <Link
+                href={`/feather/chat?with=${userId}`}
+                className="ml-auto shrink-0 inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-primary text-white text-[13px] font-bold hover:bg-primary-dark transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+                Message
+              </Link>
+            )}
           </section>
 
           {/* Bio */}
