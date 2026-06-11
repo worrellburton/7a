@@ -26,7 +26,7 @@ import { createPortal } from 'react-dom';
 // ONE place at a time, swapping the render slot rather than
 // duplicating. See `desktopSlotRef` / `mobileSlotRef` below.
 
-export default function HomeChipCluster({ children }: { children: ReactNode }) {
+export default function HomeChipCluster({ children, menuExtras }: { children: ReactNode; menuExtras?: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -96,13 +96,12 @@ export default function HomeChipCluster({ children }: { children: ReactNode }) {
     };
   }, [open]);
 
-  // Render path: when in mobile mode, the children live inside the
-  // portaled sheet ONLY when it's open. When closed (or on desktop)
-  // they live inline. We deliberately do NOT render the children in
-  // both places at once — that would mount each chip twice and break
-  // their internal queries.
+  // Render path: on desktop the children render inline. On mobile
+  // they live in the portaled sheet — which stays MOUNTED (hidden via
+  // display:none) the whole time the page is open, so the chips fetch
+  // their data on page load and the menu opens instantly with real
+  // numbers instead of loading states.
   const renderInline = !isMobile;
-  const renderInSheet = isMobile && open;
 
   return (
     <>
@@ -155,19 +154,28 @@ export default function HomeChipCluster({ children }: { children: ReactNode }) {
           partial transparency can't make avatars bleed through and
           look like they're in front of the panel even when they
           aren't. */}
-      {mounted && renderInSheet && pos && createPortal(
+      {mounted && isMobile && createPortal(
         <div
           ref={panelRef}
           role="menu"
           style={{
             position: 'fixed',
-            top: pos.top,
-            right: pos.right,
+            top: pos?.top ?? -9999,
+            right: pos?.right ?? 8,
             zIndex: 2147483647,
+            // Pre-mounted but invisible until opened — see render-path
+            // comment above.
+            display: open && pos ? undefined : 'none',
           }}
           className="flex flex-col items-stretch gap-2 bg-white border border-foreground/15 shadow-2xl p-3 rounded-2xl min-w-[220px] max-w-[calc(100vw-16px)]"
         >
           {children}
+          {menuExtras && (
+            <>
+              <div aria-hidden="true" className="h-px bg-foreground/10 my-1" />
+              {menuExtras}
+            </>
+          )}
         </div>,
         document.body,
       )}

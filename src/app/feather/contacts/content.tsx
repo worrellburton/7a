@@ -4652,8 +4652,11 @@ function ContactsPillTray({
       ),
     },
   ];
+  // Mobile: a tidy 2-column grid of full-width pills (the old
+  // flex-wrap + justify-end produced a ragged, right-hugging jumble
+  // on phones). Desktop: the original right-aligned dock.
   return (
-    <div className="sa-contacts-pill-row flex flex-wrap items-center gap-2 justify-end">
+    <div className="sa-contacts-pill-row grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
       {pills.map((p, i) => (
         <span
           key={p.key}
@@ -4688,6 +4691,16 @@ function ContactsPillTray({
         @media (prefers-reduced-motion: reduce) {
           .sa-pill-in {
             animation-duration: 0.01ms !important;
+          }
+        }
+        /* Mobile grid cells: stretch each pill (and the AddPill's
+           inner trigger) to fill its column so the tray reads as an
+           even two-up card row instead of variable-width chips. */
+        @media (max-width: 639px) {
+          .sa-contacts-pill-row .sa-pill-in,
+          .sa-contacts-pill-row .sa-pill-in > *,
+          .sa-contacts-pill-row .sa-pill-in > * > button:first-child {
+            width: 100%;
           }
         }
       `}</style>

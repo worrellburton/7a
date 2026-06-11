@@ -8,7 +8,7 @@ import { uploadFile, compressImage, generateAvatarThumbDataUrl } from '@/lib/upl
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import FeatureRequestModal from './kingdom-requests/FeatureRequestModal';
-import HomeChatsRow from './HomeChatsRow';
+import HomeChatButton from './HomeChatButton';
 import WhatsNewButton from './WhatsNewButton';
 import JdSignatureNagModal from './JdSignatureNagModal';
 // Temporarily not rendered — see HomeContent.tsx note. Keeping the
@@ -877,7 +877,39 @@ export default function HomeContent() {
                 with all the chips stacked. The chips themselves
                 only render once — the cluster swaps layout via
                 class toggles. */}
-            <HomeChipCluster>
+            <HomeChipCluster
+              // On mobile the create actions live inside this ⋯ menu
+              // (one trigger instead of ⋯ + a separate + button). The
+              // sheet's contents are pre-mounted so it opens instantly.
+              menuExtras={
+                <>
+                  <button
+                    role="menuitem"
+                    onClick={() => setFeatureRequestOpen(true)}
+                    className="w-full flex items-center gap-2.5 px-1 py-2 text-left text-sm font-semibold text-foreground hover:bg-primary/10 rounded-lg transition-colors"
+                  >
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary text-white shrink-0">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
+                      </svg>
+                    </span>
+                    <span className="uppercase tracking-wider text-[11px]">Feature request</span>
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => router.push('/feather/facilities?new=1')}
+                    className="w-full flex items-center gap-2.5 px-1 py-2 text-left text-sm font-semibold text-foreground hover:bg-foreground/10 rounded-lg transition-colors"
+                  >
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-foreground text-white shrink-0">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 5v14M5 12h14" />
+                      </svg>
+                    </span>
+                    <span className="uppercase tracking-wider text-[11px]">New facilities</span>
+                  </button>
+                </>
+              }
+            >
               {/* Mercury 7A bank-balance pill — super-admin only.
                   RLS on mercury_accounts hides the read for everyone
                   else, and the component itself returns null when
@@ -895,7 +927,11 @@ export default function HomeContent() {
                   count == 0. */}
               <HomeHardwareChip />
             </HomeChipCluster>
-            <div ref={addMenuRef} className="relative">
+            {/* Chat — upper-right button with a live unread badge.
+                Replaces the chat-chips strip that used to sit under
+                the welcome header. */}
+            <HomeChatButton />
+            <div ref={addMenuRef} className="relative hidden sm:block">
               <button
                 type="button"
                 onClick={() => setAddMenuOpen((v) => !v)}
@@ -954,12 +990,6 @@ export default function HomeContent() {
             </div> {/* end toggle + create cluster */}
 
             </div> {/* end TOP ROW */}
-
-            {/* Chats strip — Everybody + DM threads with unread
-                badges, one tap from the top of home. */}
-            <div className="mt-3">
-              <HomeChatsRow />
-            </div>
 
           </div>
         </header>
