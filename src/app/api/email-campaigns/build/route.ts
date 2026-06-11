@@ -14,11 +14,16 @@ import { buildEmailSystemPrompt, PROMPT_VERSION } from '@/lib/prompts/email-buil
 // existing HTML according to the note instead of starting over.
 //
 // Required env: ANTHROPIC_API_KEY
-// Optional env: ANTHROPIC_MODEL (defaults to claude-opus-4-8)
+// Optional env: ANTHROPIC_MODEL (defaults to claude-fable-5)
 
-const DEFAULT_MODEL = 'claude-opus-4-8';
+const DEFAULT_MODEL = 'claude-fable-5';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
+
+// Fable 5 turns run longer than Opus-tier (thinking is always on) —
+// give the function the full window so a rich build doesn't get
+// killed by the platform's default duration.
+export const maxDuration = 300;
 
 // Vertical, no-background / transparent variant so it reads on any
 // header treatment Claude picks (dark band, off-white card, etc.).
@@ -57,6 +62,21 @@ interface BuildBody {
 }
 
 const ADMISSIONS_PHONE = '(866) 718-1665';
+
+// "Jessica Collins" → "Jessica C." — pull-quote attributions use
+// first name + last initial, both for privacy (this is a recovery
+// program) and because the design brief's PILLAR 8b asks for it.
+// Computing it server-side removes the ambiguity that used to exist
+// between the prompt (initial only) and the context (full name) —
+// the model split the difference and rendered things like
+// "Jessica Co".
+function formatQuoteAttribution(fullName: string): string {
+  const parts = fullName.replace(/\s+/g, ' ').trim().split(' ');
+  if (parts.length === 0 || !parts[0]) return 'A grateful guest';
+  if (parts.length === 1) return parts[0];
+  const last = parts[parts.length - 1];
+  return `${parts[0]} ${last.charAt(0).toUpperCase()}.`;
+}
 
 interface DraftTextPayload {
   headline?: string;
@@ -398,8 +418,9 @@ Email-safe HTML rules for the gallery (Outlook + Apple Mail + Gmail web/native +
     );
   }
   if (includeQuote && quote && quoteText) {
+    const attribution = formatQuoteAttribution(quote.author_name);
     ctxLines.push(
-      `INCLUDE QUOTE: yes. Render the following Google review as a pull-quote block between the body copy and the CTA, per the PULL-QUOTE pillar. Do not paraphrase; quote the text verbatim. Attribution line is "— ${quote.author_name}" only (no rating, no "Google review", no date).\n  quote: "${quoteText}"\n  author: ${quote.author_name}`,
+      `INCLUDE QUOTE: yes. Render the following Google review as a pull-quote block between the body copy and the CTA, per the PULL-QUOTE pillar. Do not paraphrase; quote the text verbatim. The attribution line renders this EXACT string (no rating, no "Google review", no date, do not lengthen or shorten it): "${attribution}"\n  quote: "${quoteText}"\n  attribution: ${attribution}`,
     );
   } else if (includeQuote) {
     ctxLines.push(`INCLUDE QUOTE: requested, but no eligible Google review available. Skip the quote block.`);
@@ -412,6 +433,8 @@ Email-safe HTML rules for the gallery (Outlook + Apple Mail + Gmail web/native +
 
   const userContent = previousHtml && iterationNote
     ? `Revise the following email per the iteration note. Keep the same structure but apply the note. Return JSON with the updated subject + html.
+
+THE ITERATION NOTE WINS: if it conflicts with anything in the CONTEXT below (an attribution, a name, copy, a layout directive), apply the note's version — the note is the marketer's latest word and overrides the context.
 
 ITERATION NOTE:
 ${iterationNote}
@@ -436,14 +459,22 @@ ${ctxLines.join('\n\n')}`;
       },
       body: JSON.stringify({
         model,
-        // 16384 was 8192 — but a darkmode + multi-image + featured-
-        // horse + insurance-strip + social-footer email reliably blew
-        // past 8k tokens, truncating mid-HTML-string and producing the
-        // "Claude returned an unparseable response" toggle bug. Opus
-        // 4.7 supports well above this; the visible ceiling for our
-        // payloads sits around 12-14k.
-        max_tokens: 16384,
+        // 32000, was 16384. Two reasons: (1) a maxed-out build
+        // (darkmode + gallery + horse + insurance + social) peaked at
+        // 12-14k tokens on Opus, and Fable 5's new tokenizer counts
+        // ~30% more tokens for the same content — 16384 would have
+        // re-introduced the mid-HTML truncation bug ("…JESSICA CO").
+        // (2) We now FAIL LOUDLY on overflow (stop_reason check
+        // below) instead of silently shipping a repaired-but-chopped
+        // draft, so the ceiling needs real headroom.
+        max_tokens: 32000,
         system: systemPrompt,
+        // Fable 5: thinking is always on (omit the `thinking` param
+        // entirely — explicit configs are rejected). Effort 'medium'
+        // is the interactive sweet spot: it outperforms prior
+        // models' top settings while keeping the build inside the
+        // serverless window.
+        output_config: { effort: 'medium' },
         messages: [{ role: 'user', content: userContent }],
       }),
     });
@@ -454,7 +485,29 @@ ${ctxLines.join('\n\n')}`;
         { status: res.status },
       );
     }
-    const data = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
+    const data = (await res.json()) as {
+      content?: Array<{ type: string; text?: string }>;
+      stop_reason?: string;
+    };
+    // Fable 5 can decline a request via safety classifiers — HTTP 200
+    // with stop_reason "refusal" and empty/partial content. Surface
+    // it as a clear error instead of "unparseable response".
+    if (data.stop_reason === 'refusal') {
+      return NextResponse.json(
+        { error: 'The model declined this request. Rephrase the campaign prompt and try again.' },
+        { status: 502 },
+      );
+    }
+    // Output overflow used to be silently "repaired" by closing the
+    // truncated JSON — which is exactly how a chopped email (quote
+    // ending mid-sentence, attribution cut to "JESSICA CO") shipped
+    // to preview looking like a finished draft. Fail loudly instead.
+    if (data.stop_reason === 'max_tokens') {
+      return NextResponse.json(
+        { error: 'The email overflowed the output limit. Try again, or simplify the build (fewer modules/images).' },
+        { status: 502 },
+      );
+    }
     const raw = (data.content || [])
       .filter((b) => b.type === 'text')
       .map((b) => b.text || '')
