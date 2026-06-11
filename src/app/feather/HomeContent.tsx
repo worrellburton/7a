@@ -711,7 +711,7 @@ export default function HomeContent() {
             document flow so the welcome stacks above the orbit
             instead of overlapping it. */}
         <header
-          className={`relative lg:absolute lg:top-6 lg:left-10 lg:right-10 z-30 transition-all duration-500 ease-out ${
+          className={`relative lg:absolute lg:top-6 lg:left-10 lg:right-10 z-[60] transition-all duration-500 ease-out ${
             loaded ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
           }`}
         >
