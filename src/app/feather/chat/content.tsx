@@ -559,6 +559,12 @@ export default function ChatContent() {
               rows={Math.min(4, Math.max(1, draft.split('\n').length))}
               placeholder="Message…"
               className="relative flex-1 min-w-0 bg-transparent border-0 text-sm leading-5 pl-4 pr-2 py-2.5 focus:outline-none focus:ring-0 resize-none placeholder:text-foreground/40"
+              // Inline because the global `:focus-visible` accessibility
+              // outline in globals.css is unlayered CSS — it beats any
+              // Tailwind utility, and it was drawing a rectangular ring
+              // inside the glass capsule. The capsule's own focus-within
+              // glow is the focus indicator here.
+              style={{ outline: 'none' }}
             />
             <button
               type="submit"
