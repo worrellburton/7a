@@ -208,7 +208,7 @@ export default function ChatRail({
       </div>
 
       {/* Conversations */}
-      <nav className="sa-sidebar-scroll flex-1 min-h-0 p-3 pt-1 space-y-0.5 overflow-y-auto" aria-label="Conversations">
+      <nav className="sa-sidebar-scroll flex-1 min-h-0 p-3 pt-1 space-y-0.5 overflow-y-auto overflow-x-hidden" aria-label="Conversations">
         {conversations.map((c) => {
           const isActive = c.kind === 'general' ? !activeWith : activeWith === c.other?.id;
           const href = c.kind === 'general' ? '/feather/chat' : `/feather/chat?with=${c.other?.id}`;

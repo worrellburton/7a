@@ -1304,7 +1304,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             to them. Most visible on Windows + 125%/150% display
             scaling, where the viewport height the sticky parent gets
             ends up shorter than the nav's natural content height. */}
-        <nav className="sa-sidebar-scroll flex-1 min-h-0 p-3 space-y-0.5 overflow-y-auto">
+        <nav className="sa-sidebar-scroll flex-1 min-h-0 p-3 space-y-0.5 overflow-y-auto overflow-x-hidden">
           {(() => {
             let animIdx = 0;
             const renderLink = (item: PageConfig) => {
@@ -1802,7 +1802,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   <ChatRail variant="drawer" onNavigate={() => setMobileMenuOpen(false)} />
                 </Suspense>
               ) : (
-              <ul className="flex-1 min-h-0 overflow-y-auto p-3 space-y-0.5">
+              <ul className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-3 space-y-0.5">
                 {(() => {
                   const renderMobileLink = (item: PageConfig) => {
                     const isActive = pathname === item.path;
