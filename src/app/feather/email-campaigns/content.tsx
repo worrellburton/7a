@@ -686,104 +686,112 @@ function CampaignRowItem({
 
   return (
     <li>
-      <div className="flex items-center gap-3 px-4 py-3 hover:bg-warm-bg/40 transition-colors">
-        {expandable ? (
-          <button
-            type="button"
-            onClick={onToggle}
-            className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md border border-black/10 bg-white text-foreground/60 hover:bg-warm-bg/60"
-            aria-label={expanded ? 'Hide analytics' : 'Show analytics'}
-          >
-            <span aria-hidden className={`inline-block transition-transform ${expanded ? 'rotate-90' : ''}`}>▶</span>
-          </button>
-        ) : (
-          <span aria-hidden className="shrink-0 w-6 h-6" />
-        )}
-        <div className="flex-1 min-w-0">
-          <p className="text-[13.5px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>
-            {subject}
-          </p>
-          <p className="text-[11.5px] text-foreground/55 truncate mt-0.5 flex items-center gap-1.5 flex-wrap" style={{ fontFamily: 'var(--font-body)' }}>
-            <span>
-              {c.sent_at
-                ? `Sent ${formatExact(c.sent_at)} · ${formatRelative(c.sent_at)}`
-                : `Started ${formatRelative(c.created_at)}`}
-            </span>
-            {c.creator?.full_name && (
-              <>
-                <span aria-hidden className="text-foreground/30">·</span>
-                <span className="inline-flex items-center gap-1.5 min-w-0">
-                  {c.creator.avatar_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={toAvatarThumb(c.creator.avatar_url, 200) ?? c.creator.avatar_url}
-                      alt=""
-                      className="w-4 h-4 rounded-full object-cover bg-warm-bg shrink-0"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <span aria-hidden className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary/10 text-primary text-[8px] font-bold shrink-0">
-                      {c.creator.full_name.trim().charAt(0).toUpperCase()}
-                    </span>
-                  )}
-                  <span className="truncate">by {c.creator.full_name}</span>
-                </span>
-              </>
-            )}
-          </p>
-        </div>
-        {c.status === 'sent' && analytics && analytics.sent > 0 && (
-          <div className="shrink-0 flex items-center gap-2.5">
-            <RateRing label="Open" rate={analytics.openRate} color="#1f8a4c" />
-            <RateRing label="Click" rate={analytics.clickRate} color="#a45a18" />
+      {/* One line on sm+ (title | pill | rings | actions). On phones
+          the fixed-width trailing cluster was eating the whole row —
+          titles truncated to a single letter — so it wraps to a
+          second line under the title, indented past the expander. */}
+      <div className="px-4 py-3 hover:bg-warm-bg/40 transition-colors sm:flex sm:items-center sm:gap-3">
+        <div className="flex items-center gap-3 min-w-0 sm:flex-1">
+          {expandable ? (
+            <button
+              type="button"
+              onClick={onToggle}
+              className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md border border-black/10 bg-white text-foreground/60 hover:bg-warm-bg/60"
+              aria-label={expanded ? 'Hide analytics' : 'Show analytics'}
+            >
+              <span aria-hidden className={`inline-block transition-transform ${expanded ? 'rotate-90' : ''}`}>▶</span>
+            </button>
+          ) : (
+            <span aria-hidden className="shrink-0 w-6 h-6 hidden sm:inline-block" />
+          )}
+          <div className="flex-1 min-w-0">
+            <p className="text-[13.5px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>
+              {subject}
+            </p>
+            <p className="text-[11.5px] text-foreground/55 truncate mt-0.5 flex items-center gap-1.5 flex-wrap" style={{ fontFamily: 'var(--font-body)' }}>
+              <span>
+                {c.sent_at
+                  ? `Sent ${formatExact(c.sent_at)} · ${formatRelative(c.sent_at)}`
+                  : `Started ${formatRelative(c.created_at)}`}
+              </span>
+              {c.creator?.full_name && (
+                <>
+                  <span aria-hidden className="text-foreground/30">·</span>
+                  <span className="inline-flex items-center gap-1.5 min-w-0">
+                    {c.creator.avatar_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={toAvatarThumb(c.creator.avatar_url, 200) ?? c.creator.avatar_url}
+                        alt=""
+                        className="w-4 h-4 rounded-full object-cover bg-warm-bg shrink-0"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <span aria-hidden className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-primary/10 text-primary text-[8px] font-bold shrink-0">
+                        {c.creator.full_name.trim().charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                    <span className="truncate">by {c.creator.full_name}</span>
+                  </span>
+                </>
+              )}
+            </p>
           </div>
-        )}
-        <span
-          className={`shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-semibold uppercase tracking-wider ${tone}`}
-          style={{ fontFamily: 'var(--font-body)' }}
-        >
-          {STATUS_LABELS[c.status] ?? c.status}
-        </span>
-        {/* Preview opens the built email with iterate enabled but the
-            Send + Schedule controls hidden, so a marketer can tweak
-            wording on a scheduled campaign without touching the
-            schedule. Skipped for drafts that haven't been built yet
-            (status='draft' has no generated_html to preview). */}
-        {c.status !== 'draft' && (
+          <span
+            className={`shrink-0 px-2 py-0.5 rounded-full border text-[10px] font-semibold uppercase tracking-wider ${tone}`}
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            {STATUS_LABELS[c.status] ?? c.status}
+          </span>
+        </div>
+        <div className={`mt-2.5 sm:mt-0 flex items-center justify-end gap-2 sm:gap-3 shrink-0 ${expandable ? 'pl-9 sm:pl-0' : ''}`}>
+          {c.status === 'sent' && analytics && analytics.sent > 0 && (
+            <div className="shrink-0 mr-auto sm:mr-0 flex items-center gap-2.5">
+              <RateRing label="Open" rate={analytics.openRate} color="#1f8a4c" />
+              <RateRing label="Click" rate={analytics.clickRate} color="#a45a18" />
+            </div>
+          )}
+          {/* Preview opens the built email with iterate enabled but the
+              Send + Schedule controls hidden, so a marketer can tweak
+              wording on a scheduled campaign without touching the
+              schedule. Skipped for drafts that haven't been built yet
+              (status='draft' has no generated_html to preview). */}
+          {c.status !== 'draft' && (
+            <Link
+              href={`/feather/email-campaigns/${c.id}/finalize?preview=1`}
+              className="shrink-0 px-2.5 py-1.5 sm:py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+            >
+              Preview
+            </Link>
+          )}
           <Link
-            href={`/feather/email-campaigns/${c.id}/finalize?preview=1`}
-            className="shrink-0 px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+            href={resumeHref}
+            className="shrink-0 px-2.5 py-1.5 sm:py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
           >
-            Preview
+            Open
           </Link>
-        )}
-        <Link
-          href={resumeHref}
-          className="shrink-0 px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
-        >
-          Open
-        </Link>
-        {canManage && (
-          <button
-            type="button"
-            onClick={onDelete}
-            disabled={deleting}
-            aria-label={`Delete campaign "${subject}"`}
-            title="Delete campaign + every analytic that goes with it. Cannot be undone."
-            className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-md border border-black/10 bg-white text-foreground/55 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {deleting ? (
-              <span aria-hidden className="inline-block w-3 h-3 border-2 border-foreground/30 border-t-foreground/70 rounded-full animate-spin" />
-            ) : (
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <polyline points="3 6 5 6 21 6" />
-                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
-                <path d="M10 11v6M14 11v6" />
-                <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
-              </svg>
-            )}
-          </button>
-        )}
+          {canManage && (
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={deleting}
+              aria-label={`Delete campaign "${subject}"`}
+              title="Delete campaign + every analytic that goes with it. Cannot be undone."
+              className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-md border border-black/10 bg-white text-foreground/55 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {deleting ? (
+                <span aria-hidden className="inline-block w-3 h-3 border-2 border-foreground/30 border-t-foreground/70 rounded-full animate-spin" />
+              ) : (
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                  <path d="M10 11v6M14 11v6" />
+                  <path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" />
+                </svg>
+              )}
+            </button>
+          )}
+        </div>
       </div>
       {expanded && expandable && <CampaignAnalyticsDropdown campaignId={c.id} />}
     </li>
