@@ -302,7 +302,7 @@ export async function POST(req: NextRequest) {
   if (includeInsuranceStrip) {
     ctxLines.push(
       `INCLUDE INSURANCE STRIP: yes. Render a quiet "Insurance accepted" module BELOW the header / hero and ABOVE the body copy. Treatment:
-  - A small uppercase eyebrow that reads "IN-NETWORK WITH" (10.5px, letter-spacing 0.22em, color Copper #b87333), centered, 56px above + 28px below.
+  - A small uppercase eyebrow that reads "INSURANCES WE WORK WITH" (10.5px, letter-spacing 0.22em, color Copper #b87333), centered, 56px above + 28px below. Use EXACTLY that phrase — never "IN-NETWORK WITH" or any other wording.
   - One centered text row, NO IMAGES, listing the carriers separated by middle-dot dividers. Carrier names render in Ink (#3a3a3a) at 13px, font-weight 600, letter-spacing 0.04em, in small-caps via text-transform:uppercase. Dividers render as ${'`'}·${'`'} (U+00B7) wrapped in a span with color #c8b89c (warm taupe) and padding 0 10px. Whole row wrapped in a single <a href="${SITE_URL.replace(/\/$/, '')}/insurance" style="text-decoration:none;color:inherit;"> so a tap on the row opens the insurance landing page.
   - Underneath the row, one single 11px Ink line (italic optional), centered: "Most major plans accepted. Curious about yours? Reply to this email or call (866) 718-1665."
   Carrier names (USE EXACTLY these, in this order — do not abbreviate or expand):
