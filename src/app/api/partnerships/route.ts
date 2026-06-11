@@ -13,6 +13,10 @@ export const dynamic = 'force-dynamic';
 const FACILITY_TYPES = new Set(['Detox', 'RTC', 'Outpatient', 'Extended Care']);
 
 interface PartnerBody {
+  // When present, this partner is a PROMOTION of an existing outreach
+  // contact — the partner row links to it and the promotion is logged
+  // on the contact's unified history.
+  contact_id?: string | null;
   name?: string;
   type?: string;
   rating?: string | null;
@@ -126,11 +130,66 @@ export async function POST(req: NextRequest) {
   if (!payload.type) return NextResponse.json({ error: 'type is required' }, { status: 400 });
 
   const admin = getAdminSupabase();
+
+  // Resolve the linked contact. Three paths:
+  //   1. Explicit contact_id (the "promote a contact" flow) — verify
+  //      it exists.
+  //   2. Name/poc match against existing contacts — link, don't dupe.
+  //   3. Nothing matches — create the contact so every partner also
+  //      lives in the outreach rolodex.
+  let contactId: string | null = null;
+  if (typeof body.contact_id === 'string' && body.contact_id) {
+    const { data: c } = await admin.from('contacts').select('id').eq('id', body.contact_id).maybeSingle();
+    if (!c) return NextResponse.json({ error: 'contact_id does not match an existing contact' }, { status: 400 });
+    contactId = body.contact_id;
+  } else {
+    const probe = payload.poc || payload.name;
+    const { data: match } = await admin
+      .from('contacts')
+      .select('id')
+      .ilike('name', probe)
+      .limit(1)
+      .maybeSingle();
+    if (match) {
+      contactId = (match as { id: string }).id;
+    } else {
+      const { data: created, error: cErr } = await admin
+        .from('contacts')
+        .insert({
+          name: payload.poc || payload.name,
+          company: payload.poc ? payload.name : null,
+          role: payload.type,
+          location: payload.location,
+          source: 'partner',
+        })
+        .select('id')
+        .maybeSingle();
+      if (cErr || !created) return NextResponse.json({ error: cErr?.message ?? 'Could not create contact' }, { status: 500 });
+      contactId = (created as { id: string }).id;
+    }
+  }
+
   const { data, error } = await admin
     .from('partners')
-    .insert({ ...payload, created_by: user.id, updated_by: user.id })
+    .insert({ ...payload, contact_id: contactId, created_by: user.id, updated_by: user.id })
     .select('*')
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // The promotion itself counts as a touchpoint on the unified
+  // history — a 'Data Entry' log crediting whoever added the partner.
+  const now = new Date().toISOString();
+  await admin.from('contact_logs').insert({
+    contact_id: contactId,
+    method: 'Data Entry',
+    comments: `Promoted to partner: ${payload.name}`,
+    contacted_by: user.id,
+    contacted_at: now,
+  });
+  await admin
+    .from('contacts')
+    .update({ last_contact_at: now, last_contact_by: user.id, last_contact_method: 'Data Entry', last_contact_comments: `Promoted to partner: ${payload.name}` })
+    .eq('id', contactId);
+
   return NextResponse.json(data, { status: 201 });
 }
