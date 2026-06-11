@@ -2,23 +2,28 @@
 
 # Deployment workflow
 
-`main` is the live deploy branch — Vercel builds production from `main`.
-Every change ends there.
+`main` is the source-of-truth branch; **Vercel builds production from
+`master`** (confirmed 2026-06-11: pushes to `main` only create preview
+deployments — production sat five PRs stale until `master` was synced).
+Every change lands on `main` first, then `master` is synced from `main`
+to deploy.
 
 After every prompt that results in a code change, ship it:
 
 1. Commit on the current feature branch with a descriptive message.
 2. Push the feature branch: `git push -u origin <branch>`.
-3. Open a PR into `main` and merge it (squash is fine), OR if working
-   directly, merge the feature branch into `main`
-   (`git checkout main && git merge --no-ff <branch>`) and push:
-   `git push -u origin main`.
+3. Open a PR into `main` and merge it (squash is fine).
+4. **Deploy**: open a PR from `main` into `master` and merge it with a
+   MERGE COMMIT (not squash — squashing diverges the branches and the
+   next sync conflicts). Verify the merged tree is identical to `main`
+   before merging. This push to `master` is what triggers the
+   production deployment.
 
-That's it — merging to `main` deploys. There is no longer a `master`
-step. (`master` was the old deploy branch; it drifted behind `main`
-and silently dropped shipped features from production until the two
-were reconciled. Do not resurrect a second long-lived deploy branch —
-one source of truth.)
+Never commit work directly to `master` — it receives only syncs from
+`main`, so the two can never drift apart in content. (That drift is
+exactly what once silently dropped shipped features from production.)
+If the Vercel project's Production Branch setting is ever flipped to
+`main`, delete step 4 and retire `master` again.
 
 Never skip hooks (`--no-verify`), never force push, and never rewrite
 published history.
