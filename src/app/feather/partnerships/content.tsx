@@ -58,6 +58,9 @@ interface Partner {
   // Linked outreach contact — partners and contacts are one rolodex;
   // this FK is what unifies their log histories.
   contact_id?: string | null;
+  // Manual rank within the partner's type sheet (1 = our best partner
+  // of that type). Persisted; reorders propagate live via realtime.
+  priority?: number | null;
   // Outreach-style tier rating (Tier 1 / Tier 2 / Tier 3). Mirrors
   // contacts.rating so the same pill renders here and on the
   // outreach grid. NULL = unrated.
@@ -440,27 +443,18 @@ export default function PartnershipsContent() {
     });
   }, [rows, search, filterSpecialty, filterInsurance]);
 
-  // Group + sort by Specialty (alpha), then by Name within group.
-  // Compute the dynamic priority counter as we walk the sorted list.
-  function groupBySpecialty(list: Partner[]) {
+  // Rows within a sheet sort by their MANUAL priority rank (1 = our
+  // best partner of that type; nulls sink, then alpha). The displayed
+  // # is always the clean sequential position 1..N, even when stored
+  // priorities have gaps.
+  function rankRows(list: Partner[]) {
     const sorted = list.slice().sort((a, b) => {
-      const sa = (a.specialty || '~~').toLowerCase();
-      const sb = (b.specialty || '~~').toLowerCase();
-      if (sa !== sb) return sa.localeCompare(sb);
+      const pa = a.priority ?? Number.MAX_SAFE_INTEGER;
+      const pb = b.priority ?? Number.MAX_SAFE_INTEGER;
+      if (pa !== pb) return pa - pb;
       return a.name.localeCompare(b.name);
     });
-    let lastSpecialty: string | null = null;
-    let priority = 0;
-    return sorted.map((r) => {
-      const sKey = r.specialty || null;
-      if (sKey !== lastSpecialty) {
-        priority = 1;
-        lastSpecialty = sKey;
-      } else {
-        priority += 1;
-      }
-      return { row: r, priority, isFirstOfGroup: priority === 1 };
-    });
+    return sorted.map((r, i) => ({ row: r, priority: i + 1, isFirstOfGroup: false }));
   }
 
   // One SHEET (card) per partner type, ordered by the org-wide
@@ -483,9 +477,36 @@ export default function PartnershipsContent() {
     return [...known, ...unknown].map((type) => ({
       type,
       count: byType.get(type)!.length,
-      rows: groupBySpecialty(byType.get(type)!),
+      rows: rankRows(byType.get(type)!),
     }));
   }, [filtered, typeOrder]);
+
+  // Nudge a partner up/down inside its type sheet. Optimistic local
+  // re-rank, then a bulk priority write — partners realtime carries
+  // the change to every other open tab.
+  async function moveRowPriority(p: Partner, dir: -1 | 1) {
+    if (!session?.access_token) return;
+    const section = typeSections.find((s) => s.type === (p.type || 'Other'));
+    if (!section) return;
+    const ids = section.rows.map((r) => r.row.id);
+    const from = ids.indexOf(p.id);
+    const to = from + dir;
+    if (from === -1 || to < 0 || to >= ids.length) return;
+    const reordered = ids.slice();
+    [reordered[from], reordered[to]] = [reordered[to], reordered[from]];
+    const order = reordered.map((id, i) => ({ id, priority: i + 1 }));
+    const byId = new Map(order.map((o) => [o.id, o.priority]));
+    setRows((prev) => prev.map((r) => (byId.has(r.id) ? { ...r, priority: byId.get(r.id)! } : r)));
+    const res = await fetch('/api/partnerships/reorder', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ order }),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      alert(`Couldn't reorder: ${json.error ?? res.status}`);
+    }
+  }
 
   const visibleColumnsResolved = useMemo(() => {
     const order = columnOrder ?? DEFAULT_ORDER;
@@ -640,7 +661,7 @@ export default function PartnershipsContent() {
   if (!user) return null;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-10 max-w-[1600px] mx-auto pb-[max(1rem,env(safe-area-inset-bottom))]" style={{ fontFamily: 'var(--font-body)' }}>
+    <div className="p-4 sm:p-6 lg:p-8 w-full pb-[max(1rem,env(safe-area-inset-bottom))]" style={{ fontFamily: 'var(--font-body)' }}>
       <div className="mb-4">
         <DepartmentPageNav />
       </div>
@@ -682,8 +703,11 @@ export default function PartnershipsContent() {
             onClick={() => setShowCreate(true)}
             className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-4 py-2.5 sm:py-2 rounded-lg bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 transition-colors"
           >
-            <PlusIcon />
-            New partner
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 19V5" />
+              <path d="m5 12 7-7 7 7" />
+            </svg>
+            Promote contact to partner
           </button>
         </div>
       </header>
@@ -876,6 +900,7 @@ export default function PartnershipsContent() {
               onResizeEnd={() => { resizingRef.current = false; }}
               scrollContainerRef={registerSectionScroll(section.type, idx === 0)}
               onHorizontalScroll={syncHorizontalScroll}
+              onMoveRow={moveRowPriority}
             />
           </section>
         ))}
@@ -940,8 +965,7 @@ export default function PartnershipsContent() {
       )}
 
       {showCreate && (
-        <PartnerForm
-          mode="create"
+        <PromoteContactModal
           onClose={() => setShowCreate(false)}
           onSubmit={handleCreate}
         />
@@ -1091,6 +1115,7 @@ function PartnersGrid({
   onResizeEnd,
   scrollContainerRef,
   onHorizontalScroll,
+  onMoveRow,
 }: {
   loading: boolean;
   rows: { row: Partner; priority: number; isFirstOfGroup: boolean }[];
@@ -1115,6 +1140,8 @@ function PartnersGrid({
   // parent can keep every sheet panned in lockstep.
   scrollContainerRef?: (el: HTMLDivElement | null) => void;
   onHorizontalScroll?: (el: HTMLDivElement) => void;
+  // Nudge a row's manual priority rank up/down within its sheet.
+  onMoveRow?: (p: Partner, dir: -1 | 1) => void;
 }) {
   return (
     <>
@@ -1179,17 +1206,45 @@ function PartnersGrid({
           ) : rows.length === 0 ? (
             <tr><td colSpan={columns.length + 1} className="px-3 py-12 text-center text-foreground/45">No partners yet. Click <span className="font-semibold">New partner</span> to add one.</td></tr>
           ) : (
-            rows.map(({ row, priority, isFirstOfGroup }) => (
+            rows.map(({ row, priority, isFirstOfGroup }, rowIdx) => (
               <tr
                 key={row.id}
-                className={`align-middle h-12 hover:bg-warm-bg/40 transition-colors ${isFirstOfGroup ? 'border-t-2 border-t-primary/15' : ''}`}
+                className={`group/prow align-middle h-12 hover:bg-warm-bg/40 transition-colors ${isFirstOfGroup ? 'border-t-2 border-t-primary/15' : ''}`}
               >
                 {columns.map((c) => (
                   <td
                     key={c.key}
                     className={`px-3 py-0 h-12 max-w-[260px] overflow-hidden whitespace-nowrap ${c.align === 'right' ? 'text-right' : ''} ${c.key === 'priority' ? 'sticky left-0 bg-white z-[1] font-semibold tabular-nums text-foreground/55' : ''}`}
                   >
-                    <CellRenderer column={c} partner={row} priority={priority} onEdit={onEdit} specialties={specialties} onInlineSpecialty={onInlineSpecialty} />
+                    {c.key === 'priority' && onMoveRow ? (
+                      /* Rank cell: the 1..N position plus hover nudge
+                         arrows — 1 is our best partner of this type. */
+                      <span className="inline-flex items-center gap-0.5">
+                        <span className="inline-flex flex-col opacity-0 group-hover/prow:opacity-100 transition-opacity">
+                          <button
+                            type="button"
+                            onClick={() => onMoveRow(row, -1)}
+                            disabled={rowIdx === 0}
+                            aria-label={`Move ${row.name} up`}
+                            className="inline-flex items-center justify-center w-4 h-3.5 text-foreground/35 hover:text-primary disabled:opacity-20"
+                          >
+                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 15l7-7 7 7" /></svg>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onMoveRow(row, 1)}
+                            disabled={rowIdx === rows.length - 1}
+                            aria-label={`Move ${row.name} down`}
+                            className="inline-flex items-center justify-center w-4 h-3.5 text-foreground/35 hover:text-primary disabled:opacity-20"
+                          >
+                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M19 9l-7 7-7-7" /></svg>
+                          </button>
+                        </span>
+                        <span>{priority}</span>
+                      </span>
+                    ) : (
+                      <CellRenderer column={c} partner={row} priority={priority} onEdit={onEdit} specialties={specialties} onInlineSpecialty={onInlineSpecialty} />
+                    )}
                   </td>
                 ))}
                 <td className="sticky right-0 z-10 backdrop-blur-md backdrop-saturate-150 bg-white/75 hover:bg-warm-bg/40 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-2 py-0 h-12 text-right relative align-middle">
@@ -1956,6 +2011,166 @@ function KpiTile({ label, value, accent }: { label: string; value: number; accen
   );
 }
 
+// ─── Promote a contact ──────────────────────────────────────────
+// The only way to create a partner: pick an existing outreach
+// contact and a partner type — no form to fill. Everything else
+// derives from the contact (server links the records + logs the
+// promotion on the unified history); details are editable later via
+// Edit partner.
+
+function PromoteContactModal({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void;
+  onSubmit: (payload: Partial<Partner>) => Promise<void> | void;
+}) {
+  interface PickerContact {
+    id: string; name: string; company: string | null; email: string | null;
+    phone: string | null; location: string | null; rating: string | null;
+  }
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<PickerContact[]>([]);
+  const [selected, setSelected] = useState<PickerContact | null>(null);
+  const [type, setType] = useState<PartnerType>('Detox');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    // Strip characters that would break PostgREST's or() syntax.
+    const q = query.trim().replace(/[%,()]/g, ' ').trim();
+    if (q.length < 2) { setResults([]); return; }
+    let cancelled = false;
+    const t = setTimeout(() => {
+      void supabase
+        .from('contacts')
+        .select('id, name, company, email, phone, location, rating')
+        .or(`name.ilike.%${q}%,company.ilike.%${q}%`)
+        .order('name', { ascending: true })
+        .limit(8)
+        .then(({ data }) => { if (!cancelled) setResults((data ?? []) as PickerContact[]); });
+    }, 200);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [query]);
+
+  async function promote() {
+    if (!selected || submitting) return;
+    setSubmitting(true);
+    const rating = selected.rating && ['Tier 1', 'Tier 2', 'Tier 3'].includes(selected.rating)
+      ? (selected.rating as ContactRating)
+      : null;
+    try {
+      await onSubmit({
+        contact_id: selected.id,
+        // Org usually lives in company with the person as POC.
+        name: selected.company || selected.name,
+        poc: selected.company ? selected.name : null,
+        contact_info: [selected.email, selected.phone].filter(Boolean).join(' · ') || null,
+        location: selected.location,
+        rating,
+        type,
+      } as Partial<Partner>);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-6" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 pb-[env(safe-area-inset-bottom)]"
+      >
+        <div className="sm:hidden pt-2 pb-1 flex justify-center">
+          <span className="block w-10 h-1 rounded-full bg-foreground/15" />
+        </div>
+        <header className="px-5 sm:px-6 py-3 sm:py-4 border-b border-black/5 flex items-center justify-between sticky top-0 bg-white z-10">
+          <div>
+            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">Promote</p>
+            <h2 className="text-lg font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+              Promote a contact to partner
+            </h2>
+          </div>
+          <button type="button" onClick={onClose} className="text-foreground/50 hover:text-foreground p-2 -mr-2" aria-label="Close">
+            <CloseIcon />
+          </button>
+        </header>
+
+        <div className="px-5 sm:px-6 py-5 space-y-4">
+          {selected ? (
+            <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-primary/30 text-[13px] font-semibold text-foreground">
+                  {selected.name}
+                  {selected.company && <span className="font-normal text-foreground/55">· {selected.company}</span>}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSelected(null)}
+                  className="text-[12px] text-foreground/55 hover:text-foreground underline underline-offset-2"
+                >
+                  Change
+                </button>
+              </div>
+              <p className="mt-2 text-[11.5px] text-foreground/55">
+                Their contact details carry over and the two records share one log history. You can edit partner specifics afterwards.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <input
+                autoFocus
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search contacts by name or company…"
+                className="form-input"
+              />
+              {results.length > 0 && (
+                <ul className="mt-1.5 rounded-lg border border-black/10 bg-white divide-y divide-black/5 overflow-hidden">
+                  {results.map((c) => (
+                    <li key={c.id}>
+                      <button
+                        type="button"
+                        onClick={() => { setSelected(c); setResults([]); setQuery(''); }}
+                        className="w-full px-3 py-2 text-left hover:bg-warm-bg/60 transition-colors"
+                      >
+                        <span className="text-[13px] font-semibold text-foreground">{c.name}</span>
+                        {(c.company || c.location) && (
+                          <span className="ml-2 text-[12px] text-foreground/55">
+                            {[c.company, c.location].filter(Boolean).join(' · ')}
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="mt-1.5 text-[11.5px] text-foreground/55">
+                Every partner starts as a contact. Not in the rolodex yet? Add them on the Contacts page first.
+              </p>
+            </div>
+          )}
+
+          <label className="block">
+            <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-foreground/50 mb-1.5">Partner type</span>
+            <select value={type} onChange={(e) => setType(e.target.value as PartnerType)} className="form-input">
+              {PARTNER_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </label>
+
+          <button
+            type="button"
+            onClick={promote}
+            disabled={!selected || submitting}
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-lg bg-foreground text-white text-xs font-semibold uppercase tracking-wider hover:bg-foreground/85 disabled:opacity-40 transition-colors"
+          >
+            {submitting ? 'Promoting…' : 'Promote to partner'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Create / edit form ────────────────────────────────────────
 
 function PartnerForm({
@@ -1987,54 +2202,6 @@ function PartnerForm({
   const [submitting, setSubmitting] = useState(false);
   const isFacility = FACILITY_TYPES.has(type);
 
-  // PROMOTE-A-CONTACT picker (create mode). Partners and contacts are
-  // one rolodex: a new partner starts from an existing outreach
-  // contact, which prefills the form and links the rows so they share
-  // one unified log history.
-  const [contactQuery, setContactQuery] = useState('');
-  const [contactResults, setContactResults] = useState<Array<{
-    id: string; name: string; company: string | null; email: string | null;
-    phone: string | null; location: string | null; rating: string | null;
-  }>>([]);
-  const [selectedContact, setSelectedContact] = useState<{ id: string; name: string; company: string | null } | null>(null);
-  useEffect(() => {
-    if (mode !== 'create') return;
-    // Strip characters that would break PostgREST's or() syntax.
-    const q = contactQuery.trim().replace(/[%,()]/g, ' ').trim();
-    if (q.length < 2) { setContactResults([]); return; }
-    let cancelled = false;
-    const t = setTimeout(() => {
-      void supabase
-        .from('contacts')
-        .select('id, name, company, email, phone, location, rating')
-        .or(`name.ilike.%${q}%,company.ilike.%${q}%`)
-        .order('name', { ascending: true })
-        .limit(8)
-        .then(({ data }) => {
-          if (!cancelled) {
-            setContactResults((data ?? []) as Array<{
-              id: string; name: string; company: string | null; email: string | null;
-              phone: string | null; location: string | null; rating: string | null;
-            }>);
-          }
-        });
-    }, 200);
-    return () => { cancelled = true; clearTimeout(t); };
-  }, [contactQuery, mode]);
-
-  function pickContact(c: { id: string; name: string; company: string | null; email: string | null; phone: string | null; location: string | null; rating: string | null }) {
-    setSelectedContact({ id: c.id, name: c.name, company: c.company });
-    setContactResults([]);
-    setContactQuery('');
-    // Prefill from the contact — the org usually lives in company with
-    // the person as point of contact. Never clobber typed values.
-    if (!name.trim()) setName(c.company || c.name);
-    if (!poc.trim()) setPoc(c.company ? c.name : '');
-    if (!contactInfo.trim()) setContactInfo([c.email, c.phone].filter(Boolean).join(' · '));
-    if (!location.trim() && c.location) setLocation(c.location);
-    if (!rating && (c.rating === 'Tier 1' || c.rating === 'Tier 2' || c.rating === 'Tier 3')) setRating(c.rating as ContactRating);
-  }
-
   function toggleArray(curr: string[], value: string): string[] {
     return curr.includes(value) ? curr.filter((v) => v !== value) : [...curr, value];
   }
@@ -2060,10 +2227,6 @@ function PartnerForm({
       notes: notes.trim() || null,
       comments: comments.trim() || null,
       rep: rep.trim() || null,
-      // Promotion link — when a contact was picked, the server ties
-      // the partner row to it (and logs the promotion on the unified
-      // history). Without one, the server finds-or-creates a match.
-      ...(mode === 'create' && selectedContact ? { contact_id: selectedContact.id } : {}),
     };
     try {
       await onSubmit(payload);
@@ -2097,62 +2260,6 @@ function PartnerForm({
         </header>
 
         <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {mode === 'create' && (
-            <div className="sm:col-span-2 rounded-xl border border-primary/25 bg-primary/5 p-4">
-              <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-primary mb-2">Promote a contact</p>
-              {selectedContact ? (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white border border-primary/30 text-[13px] font-semibold text-foreground">
-                    {selectedContact.name}
-                    {selectedContact.company && <span className="font-normal text-foreground/55">· {selectedContact.company}</span>}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedContact(null)}
-                    className="text-[12px] text-foreground/55 hover:text-foreground underline underline-offset-2"
-                  >
-                    Change
-                  </button>
-                  <p className="w-full mt-1 text-[11.5px] text-foreground/55">
-                    This partner will link to {selectedContact.name.split(' ')[0]}&rsquo;s contact record — one shared log history across Contacts and Partners.
-                  </p>
-                </div>
-              ) : (
-                <>
-                  <input
-                    value={contactQuery}
-                    onChange={(e) => setContactQuery(e.target.value)}
-                    placeholder="Search contacts by name or company…"
-                    className="form-input"
-                  />
-                  {contactResults.length > 0 && (
-                    <ul className="mt-1.5 rounded-lg border border-black/10 bg-white divide-y divide-black/5 overflow-hidden">
-                      {contactResults.map((c) => (
-                        <li key={c.id}>
-                          <button
-                            type="button"
-                            onClick={() => pickContact(c)}
-                            className="w-full px-3 py-2 text-left hover:bg-warm-bg/60 transition-colors"
-                          >
-                            <span className="text-[13px] font-semibold text-foreground">{c.name}</span>
-                            {(c.company || c.location) && (
-                              <span className="ml-2 text-[12px] text-foreground/55">
-                                {[c.company, c.location].filter(Boolean).join(' · ')}
-                              </span>
-                            )}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <p className="mt-1.5 text-[11.5px] text-foreground/55">
-                    Partners start from a contact. Pick one to link the records and prefill the form — their log history carries over.
-                    Skip it and a matching contact is found or created automatically.
-                  </p>
-                </>
-              )}
-            </div>
-          )}
           <Field label="Name" required>
             <input value={name} onChange={(e) => setName(e.target.value)} required className="form-input" />
           </Field>
