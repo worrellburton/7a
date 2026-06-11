@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
+import { isDmRoom, isDmParticipant } from '@/lib/chat-shared';
 
 // GET  /api/chat/messages?room=general  — newest 100 messages with
 //                                         author display name + avatar
 // POST /api/chat/messages                — send a new message
 //
-// One global room ('general') backs the page today; the optional
-// `room` filter is here so we can split staff-only / alumni-only
-// rooms later without changing the route.
+// Rooms: 'general' is the everybody room; 'dm:<uidA>:<uidB>' rooms are
+// private DMs — both verbs refuse anyone who isn't one of the two
+// participants (RLS enforces the same for direct PostgREST/realtime
+// access; this is the API-side mirror since we query as admin here).
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +31,9 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url);
   const room = url.searchParams.get('room') || 'general';
+  if (isDmRoom(room) && !isDmParticipant(room, user.id)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
   const admin = getAdminSupabase();
   const { data, error } = await admin
     .from('chat_messages')
@@ -75,6 +80,9 @@ export async function POST(req: NextRequest) {
   try { body = await req.json(); } catch { /* allow empty */ }
   const room = typeof body.room === 'string' && body.room.trim() ? body.room.trim() : 'general';
   const text = typeof body.body === 'string' ? body.body.trim() : '';
+  if (isDmRoom(room) && !isDmParticipant(room, user.id)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
   if (!text) return NextResponse.json({ error: 'body is empty' }, { status: 400 });
   if (text.length > 4000) return NextResponse.json({ error: 'body too long (max 4000)' }, { status: 413 });
 

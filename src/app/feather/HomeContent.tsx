@@ -8,6 +8,7 @@ import { uploadFile, compressImage, generateAvatarThumbDataUrl } from '@/lib/upl
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import FeatureRequestModal from './kingdom-requests/FeatureRequestModal';
+import HomeChatsRow from './HomeChatsRow';
 import WhatsNewButton from './WhatsNewButton';
 import JdSignatureNagModal from './JdSignatureNagModal';
 // Temporarily not rendered — see HomeContent.tsx note. Keeping the
@@ -953,6 +954,12 @@ export default function HomeContent() {
             </div> {/* end toggle + create cluster */}
 
             </div> {/* end TOP ROW */}
+
+            {/* Chats strip — Everybody + DM threads with unread
+                badges, one tap from the top of home. */}
+            <div className="mt-3">
+              <HomeChatsRow />
+            </div>
 
           </div>
         </header>
