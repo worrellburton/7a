@@ -96,34 +96,40 @@ export default function HomeHardwareChip() {
   const count = items?.length ?? 0;
 
   // "This isn't right" handler. Confirms via modal so a clumsy
-  // tap doesn't fire an alert, then writes one row to
-  // public.hardware_flags. Marks the item locally so the row
-  // collapses into a "Flagged" confirmation pill.
+  // tap doesn't fire an alert, then files the flag through
+  // /api/hardware/flag — the server writes the hardware_flags row
+  // (red alert on the Hardware page) AND emails Rosa, Pamela, and
+  // Bobby that someone said this hardware isn't right. Marks the
+  // item locally so the row collapses into a "Flagged" pill.
   const flagItem = useCallback(async (item: AssignedItem) => {
-    if (!user?.id) return;
+    if (!user?.id || !session?.access_token) return;
     const ok = await modal.confirm(`Flag "${item.model || item.type}"?`, {
-      message: 'An admin will be alerted on the Hardware page that this assignment looks wrong. You can leave a short note (optional) when you click Confirm.',
+      message: 'This marks the item on the Hardware page and emails Rosa, Pamela, and Bobby that the assignment looks wrong.',
       confirmLabel: 'Flag this',
       tone: 'danger',
     });
     if (!ok) return;
     setDecisions((cur) => ({ ...cur, [item.id]: 'flagged' }));
-    const { error } = await supabase.from('hardware_flags').insert({
-      item_id: item.id,
-      flagged_by: user.id,
-      message: null,
-      reported_assigned_to: item.assigned_to,
-    });
-    if (error) {
+    try {
+      const res = await fetch('/api/hardware/flag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ item_id: item.id }),
+      });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(json.error ?? `HTTP ${res.status}`);
+      }
+    } catch (e) {
       // Roll back the local check so the user can retry.
       setDecisions((cur) => {
         const copy = { ...cur };
         delete copy[item.id];
         return copy;
       });
-      await modal.alert("Couldn't file the flag", { message: error.message });
+      await modal.alert("Couldn't file the flag", { message: e instanceof Error ? e.message : String(e) });
     }
-  }, [user?.id, modal]);
+  }, [user?.id, session?.access_token, modal]);
 
   const confirmItem = useCallback((item: AssignedItem) => {
     setDecisions((cur) => ({ ...cur, [item.id]: 'ok' }));
@@ -313,7 +319,7 @@ function HardwareCheckInModal({
                       </p>
                     ) : decision === 'flagged' ? (
                       <p className="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-rose-50 text-rose-800 text-[11px] font-semibold border border-rose-200">
-                        ⚑ Flagged — admin will see this
+                        ⚑ Flagged — Rosa, Pamela &amp; Bobby were emailed
                       </p>
                     ) : (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
