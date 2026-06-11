@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react';
 
 // Single source of truth for the "log a contact" method options.
-// Both /app/outreach and /app/partnerships log contact interactions
+// Both /feather/outreach and /feather/partnerships log contact interactions
 // against contacts / partners with the same allowed method set; this
 // file keeps the type, the visual tones, and the SVG icons in one
 // place so adding a new method (e.g. Smoke Signals) is a one-line
@@ -31,7 +31,7 @@ export interface ContactMethodOption {
   label: string;
   // tailwind tones for the pill/chip rendering of this method in the table
   tone: string;
-  // tone used in the bars chart on /app/outreach
+  // tone used in the bars chart on /feather/outreach
   barGradient: string;
   helpText: string;
   Icon: () => ReactNode;

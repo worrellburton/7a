@@ -32,7 +32,7 @@ export interface PageConfig {
   // When true, the page is visible exclusively to users with
   // user_kind='alumni'. Staff / admins / super-admins lose sidebar
   // entry + route access. Defaults to false; toggled per-page from
-  // /app/admin/user-permissions → Alumni tab.
+  // /feather/admin/user-permissions → Alumni tab.
   alumniOnly?: boolean;
   // Optional external URL. When set, the sidebar renders this page
   // as a target="_blank" anchor instead of an internal Link, and
@@ -42,47 +42,57 @@ export interface PageConfig {
 }
 
 export const defaultPages: PageConfig[] = [
-  { path: '/app', label: 'Home', adminOnly: false, section: 'nav', sort_order: 0, allowedDepartments: [], departmentId: null },
-  // Connect-4 tournament page (/app/games/connect4) used to be a
+  { path: '/feather', label: 'Home', adminOnly: false, section: 'nav', sort_order: 0, allowedDepartments: [], departmentId: null },
+  // Connect-4 tournament page (/feather/games/connect4) used to be a
   // top-level nav entry but the same game now lives inside the
-  // Arcade (/app/arcade/connect-four), so the standalone sidebar
+  // Arcade (/feather/arcade/connect-four), so the standalone sidebar
   // link was redundant. The tournament route still resolves —
   // anyone with a bookmark or a direct link reaches it.
   // Hardware inventory — admin-only because the list contains PINs,
   // account credentials, and asset values that aren't appropriate
   // for general staff visibility.
-  { path: '/app/hardware', label: 'Hardware', adminOnly: true, section: 'nav', sort_order: 80, allowedDepartments: [], departmentId: null },
+  { path: '/feather/hardware', label: 'Hardware', adminOnly: true, section: 'nav', sort_order: 80, allowedDepartments: [], departmentId: null },
   // External link to the marketing site. Routed through the sidebar
   // like any other entry so it participates in recency reordering;
   // the externalUrl field makes PlatformShell render it as an
   // anchor (target=_blank) instead of an internal Link.
-  { path: '/app/website', label: 'Website', adminOnly: false, section: 'nav', sort_order: 99, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9', externalUrl: 'https://www.sevenarrowsrecoveryarizona.com/' },
-  { path: '/app/facilities', label: 'Facilities', adminOnly: false, section: 'nav', sort_order: 1, allowedDepartments: [], departmentId: null },
-  { path: '/app/compliance', label: 'Compliance', adminOnly: false, section: 'nav', sort_order: 2, allowedDepartments: [], departmentId: null },
-  { path: '/app/groups', label: 'Groups', adminOnly: false, section: 'nav', sort_order: 3, allowedDepartments: [], departmentId: null },
-  { path: '/app/notes', label: 'Notes', adminOnly: false, section: 'nav', sort_order: 12, allowedDepartments: [], departmentId: null },
-  { path: '/app/policies', label: 'Policies', adminOnly: false, section: 'nav', sort_order: 13, allowedDepartments: [], departmentId: null },
-  { path: '/app/clients', label: 'Clients', adminOnly: false, section: 'nav', sort_order: 14, allowedDepartments: [], departmentId: null },
-  { path: '/app/kingdom-requests', label: 'Kingdom Requests', adminOnly: false, section: 'popup', sort_order: 10, allowedDepartments: [], departmentId: null },
-  { path: '/app/calendar', label: 'Calendar', adminOnly: false, section: 'nav', sort_order: 4, allowedDepartments: [], departmentId: null },
-  { path: '/app/equine', label: 'Horses', adminOnly: false, section: 'nav', sort_order: 5, allowedDepartments: [], departmentId: null },
-  { path: '/app/billing', label: 'Billing', adminOnly: false, section: 'nav', sort_order: 6, allowedDepartments: [], departmentId: null },
-  { path: '/app/calls', label: 'Calls', adminOnly: false, section: 'nav', sort_order: 7, allowedDepartments: [], departmentId: null },
-  { path: '/app/fleet', label: 'Fleet', adminOnly: false, section: 'nav', sort_order: 8, allowedDepartments: [], departmentId: null },
-  { path: '/app/finance', label: 'Finance', adminOnly: true, section: 'nav', sort_order: 9, allowedDepartments: [], departmentId: null },
-  { path: '/app/job-descriptions', label: 'Job Descriptions', adminOnly: false, section: 'nav', sort_order: 10, allowedDepartments: [], departmentId: null },
-  { path: '/app/tours', label: 'Tours', adminOnly: false, section: 'nav', sort_order: 11, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
-  { path: '/app/contacts', label: 'Contacts', adminOnly: false, section: 'nav', sort_order: 15.2, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
-  { path: '/app/partnerships', label: 'Partners', adminOnly: false, section: 'nav', sort_order: 15.4, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
-  { path: '/app/donations', label: 'Donations', adminOnly: false, section: 'nav', sort_order: 15.6, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
-  { path: '/app/intake-paperwork', label: 'Intake Paperwork', adminOnly: false, section: 'nav', sort_order: 16, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
-  { path: '/app/seo', label: 'SEO', adminOnly: false, section: 'nav', sort_order: 20, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
-  { path: '/app/geo', label: 'GEO', adminOnly: false, section: 'nav', sort_order: 21, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
-  { path: '/app/analytics', label: 'Analytics', adminOnly: false, section: 'nav', sort_order: 22, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
-  { path: '/app/images', label: 'Images', adminOnly: false, section: 'nav', sort_order: 18, allowedDepartments: [], departmentId: null, navGroup: 'Media' },
-  { path: '/app/video', label: 'Video', adminOnly: false, section: 'nav', sort_order: 19, allowedDepartments: [], departmentId: null, navGroup: 'Media' },
-  { path: '/app/website-requests', label: 'Website Requests', adminOnly: false, section: 'nav', sort_order: 23, allowedDepartments: ['dfde0b96-c605-40dd-84e5-281af2f6d8e9'], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
-  { path: '/app/landing', label: 'Landing', adminOnly: false, section: 'nav', sort_order: 24, allowedDepartments: ['dfde0b96-c605-40dd-84e5-281af2f6d8e9'], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/feather/website', label: 'Website', adminOnly: false, section: 'nav', sort_order: 99, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9', externalUrl: 'https://www.sevenarrowsrecoveryarizona.com/' },
+  { path: '/feather/facilities', label: 'Facilities', adminOnly: false, section: 'nav', sort_order: 1, allowedDepartments: [], departmentId: null },
+  // Identity — the canonical "who we are" reference doc. Same surface
+  // any team member would reach for when pitching the program or
+  // drafting outbound copy. Org-wide (adminOnly: false, no department)
+  // because every role benefits from speaking from the same brief.
+  { path: '/feather/identity', label: 'Identity', adminOnly: false, section: 'nav', sort_order: 1.5, allowedDepartments: [], departmentId: null },
+  { path: '/feather/compliance', label: 'Compliance', adminOnly: false, section: 'nav', sort_order: 2, allowedDepartments: [], departmentId: null },
+  { path: '/feather/groups', label: 'Groups', adminOnly: false, section: 'nav', sort_order: 3, allowedDepartments: [], departmentId: null },
+  { path: '/feather/notes', label: 'Notes', adminOnly: false, section: 'nav', sort_order: 12, allowedDepartments: [], departmentId: null },
+  { path: '/feather/policies', label: 'Policies', adminOnly: false, section: 'nav', sort_order: 13, allowedDepartments: [], departmentId: null },
+  { path: '/feather/clients', label: 'Clients', adminOnly: false, section: 'nav', sort_order: 14, allowedDepartments: [], departmentId: null },
+  { path: '/feather/kingdom-requests', label: 'Kingdom Requests', adminOnly: false, section: 'popup', sort_order: 10, allowedDepartments: [], departmentId: null },
+  { path: '/feather/calendar', label: 'Calendar', adminOnly: false, section: 'nav', sort_order: 4, allowedDepartments: [], departmentId: null },
+  { path: '/feather/equine', label: 'Horses', adminOnly: false, section: 'nav', sort_order: 5, allowedDepartments: [], departmentId: null },
+  { path: '/feather/billing', label: 'Billing', adminOnly: false, section: 'nav', sort_order: 6, allowedDepartments: [], departmentId: null },
+  { path: '/feather/calls', label: 'Calls', adminOnly: false, section: 'nav', sort_order: 7, allowedDepartments: [], departmentId: null },
+  { path: '/feather/fleet', label: 'Fleet', adminOnly: false, section: 'nav', sort_order: 8, allowedDepartments: [], departmentId: null },
+  { path: '/feather/finance', label: 'Finance', adminOnly: true, section: 'nav', sort_order: 9, allowedDepartments: [], departmentId: null },
+  { path: '/feather/job-descriptions', label: 'Job Descriptions', adminOnly: false, section: 'nav', sort_order: 10, allowedDepartments: [], departmentId: null },
+  { path: '/feather/tours', label: 'Tours', adminOnly: false, section: 'nav', sort_order: 11, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/feather/contacts', label: 'Contacts', adminOnly: false, section: 'nav', sort_order: 15.2, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/feather/partnerships', label: 'Partners', adminOnly: false, section: 'nav', sort_order: 15.4, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/feather/donations', label: 'Donations', adminOnly: false, section: 'nav', sort_order: 15.6, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/feather/intake-paperwork', label: 'Intake Paperwork', adminOnly: false, section: 'nav', sort_order: 16, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/feather/seo', label: 'SEO', adminOnly: false, section: 'nav', sort_order: 20, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/feather/geo', label: 'GEO', adminOnly: false, section: 'nav', sort_order: 21, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/feather/analytics', label: 'Analytics', adminOnly: false, section: 'nav', sort_order: 22, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/feather/images', label: 'Images', adminOnly: false, section: 'nav', sort_order: 18, allowedDepartments: [], departmentId: null, navGroup: 'Media' },
+  { path: '/feather/video', label: 'Video', adminOnly: false, section: 'nav', sort_order: 19, allowedDepartments: [], departmentId: null, navGroup: 'Media' },
+  // Radio — the staff station. Anyone signed in can listen; uploading
+  // / deleting tracks is super-admin-only, enforced inside the page by
+  // isSuperAdmin and server-side by RLS on radio_songs + the `radio`
+  // storage bucket (migration 20260610_radio_songs).
+  { path: '/feather/radio', label: 'Radio', adminOnly: false, section: 'nav', sort_order: 19.5, allowedDepartments: [], departmentId: null, navGroup: 'Media' },
+  { path: '/feather/website-requests', label: 'Website Requests', adminOnly: false, section: 'nav', sort_order: 23, allowedDepartments: ['dfde0b96-c605-40dd-84e5-281af2f6d8e9'], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/feather/landing', label: 'Landing', adminOnly: false, section: 'nav', sort_order: 24, allowedDepartments: ['dfde0b96-c605-40dd-84e5-281af2f6d8e9'], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   // Social Media is super-admin-only — posting attribution and the
   // Ayrshare account are tied to the org, so the page itself is
   // gated by adminOnly here AND a runtime is_super_admin check
@@ -90,7 +100,7 @@ export const defaultPages: PageConfig[] = [
   // it in the sidebar but bounce to the app root if they navigate
   // in directly. Every /api/social-media/* route enforces the same
   // server-side via requireSuperAdmin.
-  { path: '/app/social-media', label: 'Social Media', adminOnly: true, superAdminOnly: true, section: 'nav', sort_order: 25, allowedDepartments: [], departmentId: null },
+  { path: '/feather/social-media', label: 'Social Media', adminOnly: true, superAdminOnly: true, section: 'nav', sort_order: 25, allowedDepartments: [], departmentId: null },
   // Content — super-admin-only AI blog pipeline. Same gating pattern
   // as Social Media: adminOnly here for the sidebar, runtime
   // is_super_admin check inside the page + every /api/content/*
@@ -100,85 +110,85 @@ export const defaultPages: PageConfig[] = [
   // Contacts / Partners / Email Campaigns in their sidebar. The
   // server gate (src/lib/content-server.ts requireSuperAdmin) ALSO
   // accepts Marketing department members + per-user overrides
-  // (set via /app/admin/user-permissions → Content tab), so the
+  // (set via /feather/admin/user-permissions → Content tab), so the
   // page is reachable by:
   //   - super admins (always)
   //   - anyone in the Marketing & Admissions department
-  //   - anyone with a user_page_permissions row for /app/content
+  //   - anyone with a user_page_permissions row for /feather/content
   // Runtime is_super_admin OR override check inside the page guards
   // the editor surface; every /api/content/* route runs the same
   // gate server-side.
-  { path: '/app/content', label: 'Content', adminOnly: false, section: 'nav', sort_order: 26, allowedDepartments: ['dfde0b96-c605-40dd-84e5-281af2f6d8e9'], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/feather/content', label: 'Content', adminOnly: false, section: 'nav', sort_order: 26, allowedDepartments: ['dfde0b96-c605-40dd-84e5-281af2f6d8e9'], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   // Email Campaigns — marketing-email build → recipients → send.
   // Lives in the Marketing department group like social-media; not
   // admin-only since the same marketing folks own the social channel.
-  { path: '/app/email-campaigns', label: 'Email Campaigns', adminOnly: false, section: 'nav', sort_order: 27, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
+  { path: '/feather/email-campaigns', label: 'Email Campaigns', adminOnly: false, section: 'nav', sort_order: 27, allowedDepartments: [], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   // Touchpoint logs — the daily 🪵 board. Org-wide accountability
   // surface, so dept-agnostic (matches Kaizen's pattern) and the
   // auto-upsert on first-load won't wipe a department assignment.
-  { path: '/app/logs', label: 'Logs', adminOnly: false, section: 'nav', sort_order: 27.5, allowedDepartments: [], departmentId: null },
-  { path: '/app/document-manager', label: 'Document Manager', adminOnly: false, section: 'nav', sort_order: 17, allowedDepartments: [], departmentId: null },
+  { path: '/feather/logs', label: 'Logs', adminOnly: false, section: 'nav', sort_order: 27.5, allowedDepartments: [], departmentId: null },
+  { path: '/feather/document-manager', label: 'Document Manager', adminOnly: false, section: 'nav', sort_order: 17, allowedDepartments: [], departmentId: null },
   // Org Chart is now accessed from inside another page (no longer in the popup menu).
-  { path: '/app/reviews', label: 'Reviews', adminOnly: true, section: 'popup', sort_order: 6, allowedDepartments: [], departmentId: null },
+  { path: '/feather/reviews', label: 'Reviews', adminOnly: true, section: 'popup', sort_order: 6, allowedDepartments: [], departmentId: null },
   // Levers — super-admin-only broadcast tools (e.g. JD reminder
   // popup). Like Social Media, the page is gated by adminOnly here
   // AND a runtime is_super_admin check inside so non-super admins
   // see it surface but bounce to the app root if they navigate in.
-  { path: '/app/levers', label: 'Levers and switches', adminOnly: true, superAdminOnly: true, section: 'popup', sort_order: 7, allowedDepartments: [], departmentId: null },
-  { path: '/app/team', label: 'Team', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
+  { path: '/feather/levers', label: 'Levers and switches', adminOnly: true, superAdminOnly: true, section: 'popup', sort_order: 7, allowedDepartments: [], departmentId: null },
+  { path: '/feather/team', label: 'Team', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
   // Kaizen — super-admin-only daily codebase scan. Lives in the
   // regular sidebar nav for discoverability; the runtime
   // is_super_admin check inside the page bounces non-super admins
-  // to /app, and every /api/kaizen/* route enforces super-admin
+  // to /feather, and every /api/kaizen/* route enforces super-admin
   // server-side via requireSuperAdmin.
-  { path: '/app/kaizen', label: 'Kaizen', adminOnly: true, superAdminOnly: true, section: 'nav', sort_order: 90, allowedDepartments: [], departmentId: null },
+  { path: '/feather/kaizen', label: 'Kaizen', adminOnly: true, superAdminOnly: true, section: 'nav', sort_order: 90, allowedDepartments: [], departmentId: null },
   // Mercury — super-admin-only bookkeeping mirror. The page
   // registered as adminOnly here keeps it out of the rail for
   // non-admins; a runtime is_super_admin check inside content.tsx
   // bounces an admin (non-super) who navigates in directly, and
   // every /api/mercury/* route enforces requireSuperAdmin
   // server-side.
-  { path: '/app/mercury', label: 'Mercury', adminOnly: true, superAdminOnly: true, section: 'nav', sort_order: 9.5, allowedDepartments: [], departmentId: null },
+  { path: '/feather/mercury', label: 'Mercury', adminOnly: true, superAdminOnly: true, section: 'nav', sort_order: 9.5, allowedDepartments: [], departmentId: null },
   // HIPAA technical-safeguards audit. Super-admin-gated at the
   // route level (the page itself renders a locked panel for
   // non-super-admins), and the /api/hipaa/scan endpoint enforces
   // the same. Sits in popup (not nav) so it's reachable when
   // needed without claiming a permanent rail slot.
-  { path: '/app/hipaa', label: 'HIPAA audit', adminOnly: true, superAdminOnly: true, section: 'popup', sort_order: 8, allowedDepartments: [], departmentId: null },
+  { path: '/feather/hipaa', label: 'HIPAA audit', adminOnly: true, superAdminOnly: true, section: 'popup', sort_order: 8, allowedDepartments: [], departmentId: null },
   // Chat — open to all staff + alumni. PageGuard's per-user override
   // for guests still applies (a guest sees Chat only when a super
-  // admin grants /app/chat in their allow-list).
-  { path: '/app/chat', label: 'Chat', adminOnly: false, section: 'nav', sort_order: 26, allowedDepartments: [], departmentId: null },
+  // admin grants /feather/chat in their allow-list).
+  { path: '/feather/chat', label: 'Chat', adminOnly: false, section: 'nav', sort_order: 26, allowedDepartments: [], departmentId: null },
   // Arcade — Seven Arrows themed games + leaderboards, open to
   // both staff and alumni. canSeePage in PlatformShell adds
-  // /app/arcade to the cross-portal allowlist so the alumni-only
+  // /feather/arcade to the cross-portal allowlist so the alumni-only
   // gate doesn't hide it from staff.
-  { path: '/app/arcade', label: 'Arcade', adminOnly: false, section: 'nav', sort_order: 27, allowedDepartments: [], departmentId: null },
+  { path: '/feather/arcade', label: 'Arcade', adminOnly: false, section: 'nav', sort_order: 27, allowedDepartments: [], departmentId: null },
 
   // ── Alumni portal ──────────────────────────────────────────
   // Alumni-only surfaces. Every entry below carries alumniOnly:true
   // so the sidebar hides them from staff + admins. The pages
   // themselves also gate via userKind === 'alumni' at runtime so a
-  // staff member who pastes the URL bounces back to /app. The
+  // staff member who pastes the URL bounces back to /feather. The
   // moderation page is the one exception — it's gated for staff.
   // Sort orders 100-107 keep alumni surfaces grouped at the
   // bottom of the alumni's sidebar.
-  { path: '/app/alumni', label: 'Home', adminOnly: false, section: 'nav', sort_order: 100, allowedDepartments: [], departmentId: null, alumniOnly: true },
-  { path: '/app/alumni/reunion', label: 'Reunion', adminOnly: false, section: 'nav', sort_order: 101, allowedDepartments: [], departmentId: null, alumniOnly: true },
-  { path: '/app/alumni/map', label: 'Map', adminOnly: false, section: 'nav', sort_order: 102, allowedDepartments: [], departmentId: null, alumniOnly: true },
-  { path: '/app/alumni/peer-support', label: 'Peer support', adminOnly: false, section: 'nav', sort_order: 103, allowedDepartments: [], departmentId: null, alumniOnly: true },
-  { path: '/app/alumni/meetups', label: 'Meetups', adminOnly: false, section: 'nav', sort_order: 104, allowedDepartments: [], departmentId: null, alumniOnly: true },
-  { path: '/app/alumni/scholarships', label: 'Scholarships', adminOnly: false, section: 'nav', sort_order: 105, allowedDepartments: [], departmentId: null, alumniOnly: true },
-  { path: '/app/alumni/resources', label: 'Resources', adminOnly: false, section: 'nav', sort_order: 106, allowedDepartments: [], departmentId: null, alumniOnly: true },
-  { path: '/app/alumni/stories', label: 'Voices & talks', adminOnly: false, section: 'nav', sort_order: 107, allowedDepartments: [], departmentId: null, alumniOnly: true },
-  // Alumni-side My Profile. Lives at /app/alumni/profile (not the
-  // staff /app/profile) so the alumni form — opt-ins, sobriety
+  { path: '/feather/alumni', label: 'Home', adminOnly: false, section: 'nav', sort_order: 100, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/feather/alumni/reunion', label: 'Reunion', adminOnly: false, section: 'nav', sort_order: 101, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/feather/alumni/map', label: 'Map', adminOnly: false, section: 'nav', sort_order: 102, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/feather/alumni/peer-support', label: 'Peer support', adminOnly: false, section: 'nav', sort_order: 103, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/feather/alumni/meetups', label: 'Meetups', adminOnly: false, section: 'nav', sort_order: 104, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/feather/alumni/scholarships', label: 'Scholarships', adminOnly: false, section: 'nav', sort_order: 105, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/feather/alumni/resources', label: 'Resources', adminOnly: false, section: 'nav', sort_order: 106, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/feather/alumni/stories', label: 'Voices & talks', adminOnly: false, section: 'nav', sort_order: 107, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  // Alumni-side My Profile. Lives at /feather/alumni/profile (not the
+  // staff /feather/profile) so the alumni form — opt-ins, sobriety
   // date, interests — is the canonical identity surface for
   // them. PlatformShell pins this to slot 2 of the alumni
   // sidebar; the path itself is alumniOnly so staff never see
   // the link unless they're a super admin auditing.
-  { path: '/app/alumni/profile', label: 'My Profile', adminOnly: false, section: 'popup', sort_order: 0.2, allowedDepartments: [], departmentId: null, alumniOnly: true },
-  // /app/alumni/u/[id] is intentionally NOT registered here. It's a
+  { path: '/feather/alumni/profile', label: 'My Profile', adminOnly: false, section: 'popup', sort_order: 0.2, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  // /feather/alumni/u/[id] is intentionally NOT registered here. It's a
   // dynamic route that anyone signed in can reach via a direct link
   // (the reunion guest list, alumni online list, etc.). The API at
   // /api/alumni/profile/[id] already enforces opt-in privacy on the
@@ -188,32 +198,32 @@ export const defaultPages: PageConfig[] = [
   // it from non-staff in the sidebar; an alumni who tries to navigate
   // in directly bounces back via the runtime is_admin check in the
   // page itself.
-  { path: '/app/alumni/moderation', label: 'Alumni moderation', adminOnly: true, section: 'popup', sort_order: 107, allowedDepartments: [], departmentId: null },
+  { path: '/feather/alumni/moderation', label: 'Alumni moderation', adminOnly: true, section: 'popup', sort_order: 107, allowedDepartments: [], departmentId: null },
   // Staff-facing alumni roster. adminOnly + an entry in
   // lib/alumni-admin-paths.ts so alumni admins (is_alumni_admin)
   // also see it in their sidebar even when is_admin is false.
-  // Lives at /app/alumni-roster (not under /app/alumni/*) so it
+  // Lives at /feather/alumni-roster (not under /feather/alumni/*) so it
   // doesn't confuse the alumni-portal namespace.
-  { path: '/app/alumni-roster', label: 'Alumni', adminOnly: true, section: 'nav', sort_order: 28, allowedDepartments: [], departmentId: null },
+  { path: '/feather/alumni-roster', label: 'Alumni', adminOnly: true, section: 'nav', sort_order: 28, allowedDepartments: [], departmentId: null },
   // Super-admin gate is enforced inside the page itself + on every
   // /api/incoming-users/* route. adminOnly here keeps the link out
   // of regular admins' popup; the page bounces non-super admins to
-  // /app on direct navigation.
+  // /feather on direct navigation.
   // My Profile lives in the popup section so it's manageable from
-  // /app/admin/pages alongside the other admin / utility links. The
+  // /feather/admin/pages alongside the other admin / utility links. The
   // PlatformShell renders its dedicated My Profile button so we
-  // skip /app/profile in the popup rendering loops to avoid a
+  // skip /feather/profile in the popup rendering loops to avoid a
   // duplicate entry in the user popup / mobile drawer.
-  { path: '/app/profile', label: 'My Profile', adminOnly: false, section: 'popup', sort_order: 0.1, allowedDepartments: [], departmentId: null },
+  { path: '/feather/profile', label: 'My Profile', adminOnly: false, section: 'popup', sort_order: 0.1, allowedDepartments: [], departmentId: null },
   // Pages / Incoming Users / Departments / APIs / User Permissions
   // were previously five separate popup entries. They live under
-  // /app/admin now — the index there links out to all of them.
-  { path: '/app/admin', label: 'Admin', adminOnly: true, section: 'popup', sort_order: 0.5, allowedDepartments: [], departmentId: null },
+  // /feather/admin now — the index there links out to all of them.
+  { path: '/feather/admin', label: 'Admin', adminOnly: true, section: 'popup', sort_order: 0.5, allowedDepartments: [], departmentId: null },
   // Operational health snapshot — stuck campaigns, cron failures,
   // failed-send counts. Super-admin only (the page also runtime-
   // gates on isSuperAdmin, and /api/admin/health is requireSuperAdmin).
-  { path: '/app/admin/health', label: 'Health', adminOnly: true, section: 'popup', sort_order: 0.6, allowedDepartments: [], departmentId: null },
-  { path: '/app/activity', label: 'Activity', adminOnly: true, section: 'popup', sort_order: 5, allowedDepartments: [], departmentId: null },
+  { path: '/feather/admin/health', label: 'Health', adminOnly: true, section: 'popup', sort_order: 0.6, allowedDepartments: [], departmentId: null },
+  { path: '/feather/activity', label: 'Activity', adminOnly: true, section: 'popup', sort_order: 5, allowedDepartments: [], departmentId: null },
 ];
 
 interface PagePermissionsContextType {
@@ -387,7 +397,7 @@ export function PagePermissionsProvider({ children }: { children: React.ReactNod
   const setPageAdminOnly = async (path: string, adminOnly: boolean) => {
     // Team + Pages-admin must always stay admin-only — locking
      // those out would brick the org chart + the pages registry.
-    if (path === '/app/team' || path === '/app/admin/pages') return;
+    if (path === '/feather/team' || path === '/feather/admin/pages') return;
 
     setPages((prev) => prev.map((p) => (p.path === path ? { ...p, adminOnly } : p)));
 

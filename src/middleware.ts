@@ -16,17 +16,44 @@ interface RedirectEntry {
 
 type RedirectMap = Record<string, RedirectEntry>;
 
+// Module-scope cache. `next: { revalidate }` is silently ignored in
+// middleware (no Data Cache there), so before this every request
+// paid a same-origin HTTP hop + lambda + Supabase query before TTFB.
+// The /active route now also sends s-maxage=60 so the CDN absorbs
+// most fetches; this cache is belt-and-braces for the instances that
+// stay warm between requests. 60s staleness matches the admin-edit
+// expectation already documented on the route.
+const REDIRECT_CACHE_TTL_MS = 60_000;
+let cachedMap: RedirectMap | null = null;
+let cachedAt = 0;
+let inflight: Promise<RedirectMap> | null = null;
+
 async function fetchRedirectMap(origin: string): Promise<RedirectMap> {
-  try {
-    const res = await fetch(`${origin}/api/seo/redirects/active`, {
-      next: { revalidate: 60, tags: ['redirects'] },
-    });
-    if (!res.ok) return {};
-    const json = (await res.json()) as { map?: RedirectMap };
-    return json.map ?? {};
-  } catch {
-    return {};
-  }
+  const now = Date.now();
+  if (cachedMap && now - cachedAt < REDIRECT_CACHE_TTL_MS) return cachedMap;
+  // Coalesce concurrent misses into one upstream fetch — a traffic
+  // burst on a cold instance shouldn't fan out into N parallel
+  // identical requests.
+  if (inflight) return inflight;
+  inflight = (async () => {
+    try {
+      const res = await fetch(`${origin}/api/seo/redirects/active`, {
+        next: { revalidate: 60, tags: ['redirects'] },
+      });
+      if (!res.ok) return cachedMap ?? {};
+      const json = (await res.json()) as { map?: RedirectMap };
+      cachedMap = json.map ?? {};
+      cachedAt = Date.now();
+      return cachedMap;
+    } catch {
+      // Network hiccup: serve the stale map if we have one rather
+      // than dropping every redirect on the floor.
+      return cachedMap ?? {};
+    } finally {
+      inflight = null;
+    }
+  })();
+  return inflight;
 }
 
 function lookup(map: RedirectMap, pathname: string): RedirectEntry | null {
@@ -54,14 +81,14 @@ export async function middleware(req: NextRequest) {
 
   // OAuth fallback: if Supabase's Site URL config ever drops a visitor
   // back at the root with ?code=... (instead of /auth/callback), funnel
-  // the code through our real callback route so they still land on /app
+  // the code through our real callback route so they still land on /feather
   // instead of stranding on the marketing homepage with a dangling code.
   const oauthCode = searchParams.get('code');
   if (oauthCode && !pathname.startsWith('/auth/')) {
     const callback = req.nextUrl.clone();
     callback.pathname = '/auth/callback';
     if (!callback.searchParams.get('next')) {
-      callback.searchParams.set('next', '/app');
+      callback.searchParams.set('next', '/feather');
     }
     return NextResponse.redirect(callback);
   }
@@ -70,7 +97,7 @@ export async function middleware(req: NextRequest) {
   // internals, or obvious static asset extensions.
   if (
     pathname.startsWith('/api') ||
-    pathname.startsWith('/app') ||
+    pathname.startsWith('/feather') ||
     pathname.startsWith('/auth') ||
     pathname.startsWith('/_next') ||
     /\.[a-z0-9]{2,5}(?:\?|$)/i.test(pathname)
@@ -135,8 +162,8 @@ export async function middleware(req: NextRequest) {
 
 export const config = {
   // Run on every request except obvious non-HTML assets. The function
-  // itself also exits early on /api, /app, /_next.
+  // itself also exits early on /api, /feather, /_next.
   matcher: [
-    '/((?!api|app|auth|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)',
+    '/((?!api|feather|auth|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml).*)',
   ],
 };

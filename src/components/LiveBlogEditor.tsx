@@ -8,7 +8,7 @@ import DbBlogRenderer from './DbBlogRenderer';
 // Live-edit overlay mounted by the public blog page when ?edit=1 is in
 // the URL. Wraps DbBlogRenderer with click-to-edit behaviour on prose
 // blocks (and hero title / tagline) so editors can fix typos directly
-// on the rendered page without round-tripping to /app/content/<id>.
+// on the rendered page without round-tripping to /feather/content/<id>.
 //
 // Auth: we read the supabase session client-side to attach a token to
 // the PATCH; the /api/content/[id] route itself is super-admin gated,

@@ -37,5 +37,19 @@ export async function GET() {
     };
   }
 
-  return NextResponse.json({ map });
+  // CDN-cacheable: middleware fetches this on (potentially) every
+  // marketing pageview, and `next: { revalidate }` hints are ignored
+  // inside middleware — there is no Data Cache there. Without this
+  // header every visitor paid a same-origin hop + lambda + Supabase
+  // query before TTFB. s-maxage=60 keeps admin edits visible within
+  // a minute; stale-while-revalidate serves the old map instantly
+  // while the refresh happens off the request path.
+  return NextResponse.json(
+    { map },
+    {
+      headers: {
+        'Cache-Control': 'public, s-maxage=60, stale-while-revalidate=300',
+      },
+    },
+  );
 }

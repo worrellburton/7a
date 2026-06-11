@@ -71,7 +71,7 @@ function readSummary(rowValues: { value?: string }[] | undefined): SummaryValues
 }
 
 export async function GET(req: Request) {
-  const { error: authError } = await requirePageAccess('/app/analytics');
+  const { error: authError } = await requirePageAccess('/feather/analytics');
   if (authError) return authError;
 
   if (!hasGoogleOAuth() || !process.env.GA4_PROPERTY_ID) {

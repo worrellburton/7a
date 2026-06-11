@@ -4,7 +4,7 @@ import { getServerSupabase } from '@/lib/supabase-server';
 // GET /api/geo/audit/latest?site=<optional>
 // Admin-only. Returns the most recent GEO audit row from
 // public.geo_audits, or { audit: null } if none exists yet. Used by
-// /app/geo/audit to hydrate on mount so a cold browser sees the
+// /feather/geo/audit to hydrate on mount so a cold browser sees the
 // latest team-wide run.
 
 export const dynamic = 'force-dynamic';

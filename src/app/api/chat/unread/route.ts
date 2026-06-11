@@ -17,6 +17,32 @@ export async function GET(req: NextRequest) {
   const room = url.searchParams.get('room') || 'general';
 
   const admin = getAdminSupabase();
+
+  // ?all=1 — aggregate unread across the general room AND every DM
+  // room the caller participates in. Powers the sidebar Chat badge so
+  // a waiting DM lights it up, not just Everybody traffic.
+  if (url.searchParams.get('all') === '1') {
+    const { data: reads } = await admin
+      .from('chat_reads')
+      .select('room, last_read_at')
+      .eq('user_id', user.id);
+    const cursorByRoom = new Map<string, string>();
+    for (const r of reads ?? []) cursorByRoom.set(r.room as string, r.last_read_at as string);
+
+    const { data: msgs } = await admin
+      .from('chat_messages')
+      .select('room, user_id, created_at, deleted_at')
+      .or(`room.eq.general,and(room.like.dm:%,room.like.%${user.id}%)`)
+      .order('created_at', { ascending: false })
+      .limit(1000);
+    let unread = 0;
+    for (const m of (msgs ?? []) as Array<{ room: string; user_id: string; created_at: string; deleted_at: string | null }>) {
+      if (m.user_id === user.id || m.deleted_at) continue;
+      const cursor = cursorByRoom.get(m.room);
+      if (!cursor || m.created_at > cursor) unread++;
+    }
+    return NextResponse.json({ unread, last_at: null });
+  }
   const { data: read } = await admin
     .from('chat_reads')
     .select('last_read_at')

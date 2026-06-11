@@ -6,7 +6,7 @@ import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 //                          stamps it to the supplied ISO string, or
 //                          falls back to now() server-side.
 //
-// Drives the "new since you were last here" highlight on /app/outreach:
+// Drives the "new since you were last here" highlight on /feather/outreach:
 // any contact whose updated_at is greater than the user's seen_at
 // renders in a primary tone and bubbles to the top of the sort.
 

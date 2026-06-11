@@ -8,7 +8,7 @@ import type { SuggestProvider } from '@/lib/contact-suggest';
 // Super-admin lever that runs the same "find one + dedup + insert"
 // flow as the hourly cron, but attributed to the puller and with
 // the provider exposed as an optional override. The lever UI on
-// /app/levers calls this with provider='auto' to mirror cron
+// /feather/levers calls this with provider='auto' to mirror cron
 // parity (so a manual pull doesn't break the alternation rhythm),
 // but the body accepts an explicit 'claude' | 'gemini' for the
 // admin who wants to compare outputs side-by-side.

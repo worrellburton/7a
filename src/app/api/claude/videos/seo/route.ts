@@ -4,7 +4,7 @@ import { getAdminSupabase, getUserFromRequest } from '@/lib/supabase-server';
 // Per-video SEO pass: ask Claude to read the video's prompt + the
 // thumbnail (when present) and return SEO metadata we persist on the
 // site_videos row. Mirrors the SEO Images flow conceptually so the
-// "SEO Video" button on /app/seo behaves like its image sibling.
+// "SEO Video" button on /feather/seo behaves like its image sibling.
 //
 // Request:  { videoId }
 // Response: { video, model }

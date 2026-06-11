@@ -3,17 +3,17 @@ import { getAdminSupabase } from '@/lib/supabase-server';
 import { requirePageAccess } from '@/lib/page-access';
 
 // GET /api/google/oauth/status — readable by any user the
-// /app/analytics page is open to. Reports whether a Google refresh
+// /feather/analytics page is open to. Reports whether a Google refresh
 // token is on file and which source it came from (DB vs the legacy
 // env-var fallback). The Analytics page renders the "Connect
 // Google" banner based on this, so non-admin viewers who have been
-// granted /app/analytics need to read the status too (only the
+// granted /feather/analytics need to read the status too (only the
 // /oauth/start + /oauth/callback writes stay admin-only).
 
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const { isAdmin, isSuperAdmin, error: authError } = await requirePageAccess('/app/analytics');
+  const { isAdmin, isSuperAdmin, error: authError } = await requirePageAccess('/feather/analytics');
   if (authError) return authError;
 
   const admin = getAdminSupabase();

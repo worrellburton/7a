@@ -8,7 +8,7 @@ import { EPISODES, episodeHref } from '@/lib/episodes';
 //                                    schema_json overrides
 //
 // Hand-coded blog posts live as .tsx files. This endpoint lets the
-// dashboard at /app/content/static/<slug> edit byline, mark-reviewed,
+// dashboard at /feather/content/static/<slug> edit byline, mark-reviewed,
 // and schema without touching the filesystem — overrides live in
 // public.static_blog_meta and the public blog page reads them.
 

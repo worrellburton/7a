@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
@@ -77,7 +77,16 @@ interface RemoteCursor extends CursorPayload {
 const TRAIL_LENGTH = 8;
 const TRAIL_LIFETIME_MS = 600;
 
-const CHANNEL = 'presence-cursors';
+// Channel is scoped per pathname. The old global 'presence-cursors'
+// channel meant every connected client received every other client's
+// ~25 msg/s cursor stream across the whole org regardless of which
+// page they were on — a quadratic message + render fan-out, plus
+// Supabase Realtime billing on traffic that was then dropped on the
+// floor at render time. Scoping the channel means a tab only joins
+// the room for its current page.
+function channelForPath(path: string): string {
+  return `presence-cursors:${path}`;
+}
 const THROTTLE_MS = 40; // ~25 fps
 const STALE_MS = 4000;
 
@@ -192,7 +201,7 @@ export function PresenceCursors() {
     return () => window.removeEventListener('cursor-color-change', onChange);
   }, []);
 
-  // Same pattern for cursor_effect — the picker on /app/profile fires
+  // Same pattern for cursor_effect — the picker on /feather/profile fires
   // a 'cursor-effect-change' CustomEvent so the new effect ships in
   // the very next outgoing broadcast (no reload, no waiting for the
   // db round-trip).
@@ -208,14 +217,30 @@ export function PresenceCursors() {
   }, []);
 
   // Subscribe to the channel and clean up stale cursors every second.
+  // Channel key includes pathname so we tear down + rejoin on route
+  // change. That keeps every tab in just one room — the page they're
+  // looking at — instead of the old org-wide firehose.
   useEffect(() => {
-    if (!user?.id) return;
-    const ch = supabase.channel(CHANNEL, { config: { broadcast: { self: false } } });
+    if (!user?.id || !pathname) return;
+    if (!showOthers) {
+      // User opted out of seeing other cursors. Skip the whole
+      // channel — no subscribe, no broadcast intake, no rAF.
+      // Outgoing broadcasts still fire via the mousemove effect
+      // below (subject to its own channel-existence check), so
+      // other people can still see this user; we just don't pay
+      // the receiver cost.
+      return;
+    }
+    const ch = supabase.channel(channelForPath(pathname), { config: { broadcast: { self: false } } });
     channelRef.current = ch;
 
     ch.on('broadcast', { event: 'cursor' }, (msg) => {
       const c = msg.payload as CursorPayload;
       if (!c || c.user_id === user.id) return;
+      // Defense in depth: with the per-path channel we shouldn't
+      // receive cross-path payloads at all, but a stale tab that
+      // still references the old global channel could leak one.
+      if (c.path !== pathname) return;
       const arrivedAt = Date.now();
       setCursors((prev) => {
         const previous = prev[c.user_id];
@@ -327,8 +352,11 @@ export function PresenceCursors() {
       onUnload();
       supabase.removeChannel(ch);
       channelRef.current = null;
+      // Drop stale cursors from the previous room so the next
+      // page's overlay doesn't inherit ghosts.
+      setCursors({});
     };
-  }, [user?.id]);
+  }, [user?.id, pathname, showOthers]);
 
   // Throttled mousemove broadcaster.
   useEffect(() => {
@@ -378,9 +406,17 @@ export function PresenceCursors() {
   // gate the rAF loop on cursor presence so an empty page doesn't
   // burn a frame budget for nothing.
   const [, setNow] = useState(0);
-  const hasCursors = Object.keys(cursors).length > 0;
+  // Only spin the rAF loop when a cursor on THIS path is actually
+  // visible. The old check (Object.keys(cursors).length > 0) counted
+  // cursors on other paths too, so a single teammate elsewhere kept
+  // a 60fps re-render loop alive on every tab.
+  const visibleCount = useMemo(
+    () => Object.values(cursors).filter((c) => c.path === pathname).length,
+    [cursors, pathname],
+  );
+  const needsTick = showOthers && visibleCount > 0;
   useEffect(() => {
-    if (!hasCursors) return;
+    if (!needsTick) return;
     let raf = 0;
     const loop = () => {
       setNow((n) => (n + 1) % 1_000_000);
@@ -388,7 +424,7 @@ export function PresenceCursors() {
     };
     raf = window.requestAnimationFrame(loop);
     return () => window.cancelAnimationFrame(raf);
-  }, [hasCursors]);
+  }, [needsTick]);
 
   if (!user || viewport.w === 0) return null;
   // Per-user opt-out lives in localStorage (toggled from the account
