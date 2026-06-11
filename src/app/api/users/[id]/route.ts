@@ -26,13 +26,17 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
 
   const supabase = getAdminSupabase();
 
+  // The UI's "Super Admin" toggle writes users.is_admin (see
+  // api-gates.ts requireAdmin), so accept either column — requiring
+  // is_super_admin alone rejected real super admins promoted through
+  // the Team page.
   const { data: requesterRow, error: requesterErr } = await supabase
     .from('users')
-    .select('is_super_admin')
+    .select('is_admin, is_super_admin')
     .eq('id', requester.id)
     .maybeSingle();
   if (requesterErr) return NextResponse.json({ error: requesterErr.message }, { status: 500 });
-  if (!requesterRow?.is_super_admin) {
+  if (!requesterRow?.is_super_admin && !requesterRow?.is_admin) {
     return NextResponse.json({ error: 'Forbidden — super admin only' }, { status: 403 });
   }
 

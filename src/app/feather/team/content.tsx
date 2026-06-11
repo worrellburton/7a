@@ -231,7 +231,11 @@ export default function UsersContent() {
       showToast("You can't delete yourself");
       return;
     }
-    if (!isSuperAdmin) {
+    // The platform's "Super Admin" toggle writes users.is_admin (see
+    // api-gates.ts requireAdmin), so accept either flag — checking
+    // only is_super_admin locked out real super admins like the ones
+    // flipped on via the Team page toggle.
+    if (!isSuperAdmin && !isAdmin) {
       showToast('Only super admins can delete users');
       return;
     }
