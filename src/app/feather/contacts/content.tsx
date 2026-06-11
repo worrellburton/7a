@@ -1368,10 +1368,12 @@ export default function ContactsContent() {
           Hidden on sm+ because admissions on desktop has the full
           row of header actions (Add Contact / Upload CSV / etc.)
           and doesn't need a thumb-reachable quick action.
-          When the modal is OPEN, the same button morphs into a
-          "Save" submit button bound to the modal's form via the
-          form= attribute — one thumb-target for both opening and
-          submitting, no extra modal footer button to reach for. */}
+          When a contact's details panel is expanded the FAB hides —
+          the card's own LOG button is already on screen, and three
+          stacked logging affordances (card LOG + panel button + FAB)
+          read as clutter on a phone. It stays while the quick-log
+          modal is open because it doubles as the modal's Save. */}
+      {(showNewLog || expandedDetailsId === null) && (
       <button
         type={showNewLog ? 'submit' : 'button'}
         form={showNewLog ? 'quick-log-form' : undefined}
@@ -1388,6 +1390,7 @@ export default function ContactsContent() {
           </>
         )}
       </button>
+      )}
       {showSuggest && (
         <SuggestWithClaudeModal
           token={session?.access_token ?? null}
@@ -7690,7 +7693,11 @@ function ContactDetailsDrawer({
           <button
             type="button"
             onClick={onLogContact}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-[10px] font-semibold hover:bg-primary/90 transition-colors"
+            // Desktop-only: on mobile this panel always sits directly
+            // under the card's own LOG button, so a third logging
+            // affordance (card LOG + this + the NEW LOG FAB) stacked
+            // in one viewport read as clutter.
+            className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-[10px] font-semibold hover:bg-primary/90 transition-colors"
           >
             <PhoneIcon />
             Log a contact
