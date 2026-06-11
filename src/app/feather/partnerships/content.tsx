@@ -481,20 +481,12 @@ export default function PartnershipsContent() {
     }));
   }, [filtered, typeOrder]);
 
-  // Nudge a partner up/down inside its type sheet. Optimistic local
-  // re-rank, then a bulk priority write — partners realtime carries
-  // the change to every other open tab.
-  async function moveRowPriority(p: Partner, dir: -1 | 1) {
+  // Persist a sheet's full id order: optimistic local re-rank, then a
+  // bulk priority write — partners realtime carries the change to
+  // every other open tab.
+  async function applyRowOrder(ids: string[]) {
     if (!session?.access_token) return;
-    const section = typeSections.find((s) => s.type === (p.type || 'Other'));
-    if (!section) return;
-    const ids = section.rows.map((r) => r.row.id);
-    const from = ids.indexOf(p.id);
-    const to = from + dir;
-    if (from === -1 || to < 0 || to >= ids.length) return;
-    const reordered = ids.slice();
-    [reordered[from], reordered[to]] = [reordered[to], reordered[from]];
-    const order = reordered.map((id, i) => ({ id, priority: i + 1 }));
+    const order = ids.map((id, i) => ({ id, priority: i + 1 }));
     const byId = new Map(order.map((o) => [o.id, o.priority]));
     setRows((prev) => prev.map((r) => (byId.has(r.id) ? { ...r, priority: byId.get(r.id)! } : r)));
     const res = await fetch('/api/partnerships/reorder', {
@@ -506,6 +498,35 @@ export default function PartnershipsContent() {
       const json = await res.json().catch(() => ({}));
       alert(`Couldn't reorder: ${json.error ?? res.status}`);
     }
+  }
+
+  // Nudge a partner up/down inside its type sheet.
+  async function moveRowPriority(p: Partner, dir: -1 | 1) {
+    const section = typeSections.find((s) => s.type === (p.type || 'Other'));
+    if (!section) return;
+    const ids = section.rows.map((r) => r.row.id);
+    const from = ids.indexOf(p.id);
+    const to = from + dir;
+    if (from === -1 || to < 0 || to >= ids.length) return;
+    const reordered = ids.slice();
+    [reordered[from], reordered[to]] = [reordered[to], reordered[from]];
+    await applyRowOrder(reordered);
+  }
+
+  // Drag a row onto another row in the same sheet: the dragged partner
+  // takes the target's slot and everything between shifts by one.
+  async function dropRowOn(draggedId: string, targetId: string, type: string) {
+    if (draggedId === targetId) return;
+    const section = typeSections.find((s) => s.type === type);
+    if (!section) return;
+    const ids = section.rows.map((r) => r.row.id);
+    const from = ids.indexOf(draggedId);
+    const to = ids.indexOf(targetId);
+    if (from === -1 || to === -1) return;
+    const reordered = ids.slice();
+    reordered.splice(from, 1);
+    reordered.splice(to, 0, draggedId);
+    await applyRowOrder(reordered);
   }
 
   const visibleColumnsResolved = useMemo(() => {
@@ -901,6 +922,7 @@ export default function PartnershipsContent() {
               scrollContainerRef={registerSectionScroll(section.type, idx === 0)}
               onHorizontalScroll={syncHorizontalScroll}
               onMoveRow={moveRowPriority}
+              onRowDrop={(draggedId, targetId) => { void dropRowOn(draggedId, targetId, section.type); }}
             />
           </section>
         ))}
@@ -1208,6 +1230,7 @@ function PartnersGrid({
   scrollContainerRef,
   onHorizontalScroll,
   onMoveRow,
+  onRowDrop,
 }: {
   loading: boolean;
   rows: { row: Partner; priority: number; isFirstOfGroup: boolean }[];
@@ -1234,7 +1257,13 @@ function PartnersGrid({
   onHorizontalScroll?: (el: HTMLDivElement) => void;
   // Nudge a row's manual priority rank up/down within its sheet.
   onMoveRow?: (p: Partner, dir: -1 | 1) => void;
+  // Drag a row (by its rank cell) onto another row to re-rank it there.
+  onRowDrop?: (draggedId: string, targetId: string) => void;
 }) {
+  // Row drag state lives in the grid: which row is in flight, and
+  // which row it's hovering so the drop slot gets an indicator bar.
+  const [dragRowId, setDragRowId] = useState<string | null>(null);
+  const [dragOverRowId, setDragOverRowId] = useState<string | null>(null);
   return (
     <>
       <div
@@ -1311,12 +1340,39 @@ function PartnersGrid({
             rows.map(({ row, priority, isFirstOfGroup }, rowIdx) => (
               <tr
                 key={row.id}
-                className={`group/prow align-middle h-12 hover:bg-warm-bg/40 transition-colors ${isFirstOfGroup ? 'border-t-2 border-t-primary/15' : ''}`}
+                onDragOver={(e) => {
+                  if (!dragRowId || dragRowId === row.id) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (dragOverRowId !== row.id) setDragOverRowId(row.id);
+                }}
+                onDrop={(e) => {
+                  if (dragRowId && dragRowId !== row.id) {
+                    e.preventDefault();
+                    onRowDrop?.(dragRowId, row.id);
+                  }
+                  setDragRowId(null);
+                  setDragOverRowId(null);
+                }}
+                className={`group/prow align-middle h-12 hover:bg-warm-bg/40 transition-colors ${isFirstOfGroup ? 'border-t-2 border-t-primary/15' : ''} ${dragRowId === row.id ? 'opacity-40' : ''} ${dragRowId && dragOverRowId === row.id && dragRowId !== row.id ? 'bg-primary/5 shadow-[inset_0_2px_0_0_rgba(188,107,74,0.55)]' : ''}`}
               >
                 {columns.map((c) => (
                   <td
                     key={c.key}
-                    className={`px-3 py-0 h-12 max-w-[260px] overflow-hidden whitespace-nowrap ${c.align === 'right' ? 'text-right' : ''} ${c.key === 'priority' ? 'sticky left-0 bg-white z-[1] font-semibold tabular-nums text-foreground/55' : ''}`}
+                    // The rank cell doubles as the row's drag handle —
+                    // grab it to pull the partner to a new slot.
+                    draggable={c.key === 'priority' && !!onRowDrop}
+                    onDragStart={c.key === 'priority' && onRowDrop ? (e) => {
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', row.id);
+                      setDragRowId(row.id);
+                    } : undefined}
+                    onDragEnd={c.key === 'priority' && onRowDrop ? () => {
+                      setDragRowId(null);
+                      setDragOverRowId(null);
+                    } : undefined}
+                    title={c.key === 'priority' && onRowDrop ? 'Drag to reorder' : undefined}
+                    className={`px-3 py-0 h-12 max-w-[260px] overflow-hidden whitespace-nowrap ${c.align === 'right' ? 'text-right' : ''} ${c.key === 'priority' ? 'sticky left-0 bg-white z-[1] font-semibold tabular-nums text-foreground/55' : ''} ${c.key === 'priority' && onRowDrop ? 'cursor-grab active:cursor-grabbing' : ''}`}
                   >
                     {c.key === 'priority' && onMoveRow ? (
                       /* Rank cell: the 1..N position plus hover nudge
@@ -2160,17 +2216,23 @@ function PromoteContactModal({
   useEffect(() => {
     // Strip characters that would break PostgREST's or() syntax.
     const q = query.trim().replace(/[%,()]/g, ' ').trim();
-    if (q.length < 2) { setResults([]); return; }
     let cancelled = false;
+    // Auto-fill: an empty box still shows the rolodex (most recently
+    // touched contacts first) so promoting is pick-from-a-list, not
+    // type-from-memory. Typing narrows it live from the first letter.
     const t = setTimeout(() => {
-      void supabase
+      let req = supabase
         .from('contacts')
-        .select('id, name, company, email, phone, location, rating')
-        .or(`name.ilike.%${q}%,company.ilike.%${q}%`)
-        .order('name', { ascending: true })
+        .select('id, name, company, email, phone, location, rating');
+      if (q.length > 0) {
+        req = req.or(`name.ilike.%${q}%,company.ilike.%${q}%`).order('name', { ascending: true });
+      } else {
+        req = req.order('last_contact_at', { ascending: false, nullsFirst: false });
+      }
+      void req
         .limit(8)
         .then(({ data }) => { if (!cancelled) setResults((data ?? []) as PickerContact[]); });
-    }, 200);
+    }, q ? 150 : 0);
     return () => { cancelled = true; clearTimeout(t); };
   }, [query]);
 
@@ -2197,15 +2259,17 @@ function PromoteContactModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-6" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm p-0 sm:p-6" onClick={onClose}>
+      {/* Liquid-glass panel: translucent, heavily blurred, with a
+          bright inner ring so the edge catches light like glass. */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 pb-[env(safe-area-inset-bottom)]"
+        className="w-full sm:max-w-lg max-h-[92vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl bg-white/65 backdrop-blur-2xl backdrop-saturate-150 shadow-2xl ring-1 ring-white/60 border border-white/40 pb-[env(safe-area-inset-bottom)]"
       >
         <div className="sm:hidden pt-2 pb-1 flex justify-center">
           <span className="block w-10 h-1 rounded-full bg-foreground/15" />
         </div>
-        <header className="px-5 sm:px-6 py-3 sm:py-4 border-b border-black/5 flex items-center justify-between sticky top-0 bg-white z-10">
+        <header className="px-5 sm:px-6 py-3 sm:py-4 border-b border-white/40 flex items-center justify-between sticky top-0 bg-white/40 backdrop-blur-xl z-10">
           <div>
             <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">Promote</p>
             <h2 className="text-lg font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
@@ -2244,16 +2308,20 @@ function PromoteContactModal({
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search contacts by name or company…"
-                className="form-input"
+                className="form-input !bg-white/55 !border-white/60 backdrop-blur-md rounded-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] focus:!bg-white/75 transition-colors"
+                // Inline because the unlayered global :focus-visible
+                // outline beats utility classes — same fix as the chat
+                // composer; the glass ring below is the focus cue.
+                style={{ outline: 'none', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.7)' }}
               />
               {results.length > 0 && (
-                <ul className="mt-1.5 rounded-lg border border-black/10 bg-white divide-y divide-black/5 overflow-hidden">
+                <ul className="mt-1.5 rounded-xl border border-white/55 bg-white/55 backdrop-blur-xl divide-y divide-white/40 overflow-hidden shadow-lg">
                   {results.map((c) => (
                     <li key={c.id}>
                       <button
                         type="button"
                         onClick={() => { setSelected(c); setResults([]); setQuery(''); }}
-                        className="w-full px-3 py-2 text-left hover:bg-warm-bg/60 transition-colors"
+                        className="w-full px-3 py-2 text-left hover:bg-white/70 transition-colors"
                       >
                         <span className="text-[13px] font-semibold text-foreground">{c.name}</span>
                         {(c.company || c.location) && (
@@ -2274,7 +2342,12 @@ function PromoteContactModal({
 
           <label className="block">
             <span className="block text-[10px] font-bold uppercase tracking-[0.18em] text-foreground/50 mb-1.5">Partner type</span>
-            <select value={type} onChange={(e) => setType(e.target.value as PartnerType)} className="form-input">
+            <select
+              value={type}
+              onChange={(e) => setType(e.target.value as PartnerType)}
+              className="form-input !bg-white/55 !border-white/60 backdrop-blur-md rounded-xl"
+              style={{ outline: 'none' }}
+            >
               {PARTNER_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </label>
