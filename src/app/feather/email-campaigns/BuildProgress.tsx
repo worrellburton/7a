@@ -22,6 +22,7 @@
 // model is slow.
 
 import { useEffect, useRef, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 
 const FRESH_STEPS = [
   'Reading the brief…',
@@ -42,15 +43,16 @@ const ITERATE_STEPS = [
 
 const STORAGE_KEY = 'sa.email-build-durations';
 const MAX_HISTORY = 12;
-// First-time defaults (no history yet). Tuned from observed Claude
-// Opus latencies: a fresh build runs ~30s, an iteration ~15s.
-const DEFAULT_FRESH_MS = 30_000;
-const DEFAULT_ITERATE_MS = 15_000;
+// First-time defaults (no history yet). Tuned for Claude Fable 5
+// (always-on thinking) — a fresh build typically runs ~45-75s, an
+// iteration ~25-40s. Real history replaces these after a few builds.
+const DEFAULT_FRESH_MS = 60_000;
+const DEFAULT_ITERATE_MS = 30_000;
 // Floor + ceiling on the estimate so a single weird measurement
 // (5s spike, 4-minute Anthropic incident) doesn't move the bar
 // into territory that mis-represents the next build.
 const MIN_ESTIMATE_MS = 8_000;
-const MAX_ESTIMATE_MS = 90_000;
+const MAX_ESTIMATE_MS = 180_000;
 
 type Mode = 'fresh' | 'iterate';
 
@@ -88,6 +90,33 @@ function recordDuration(mode: Mode, ms: number) {
   } catch {
     /* quota / private-mode — silently ignore */
   }
+  // Also persist to the shared timings table so every device's
+  // progress bar estimates off the same real history. Fire-and-
+  // forget — losing one sample never blocks the UI.
+  void supabase
+    .from('email_build_timings')
+    .insert({ mode, duration_ms: Math.round(ms) })
+    .then(() => { /* recorded */ });
+}
+
+// Median of the last MAX_HISTORY shared timings for this mode. The
+// DB is the cross-device source of truth; localStorage stays as the
+// zero-latency first paint.
+async function fetchSharedEstimate(mode: Mode): Promise<number | null> {
+  try {
+    const { data } = await supabase
+      .from('email_build_timings')
+      .select('duration_ms')
+      .eq('mode', mode)
+      .order('created_at', { ascending: false })
+      .limit(MAX_HISTORY);
+    const values = ((data ?? []) as Array<{ duration_ms: number }>)
+      .map((r) => r.duration_ms)
+      .filter((n) => typeof n === 'number' && isFinite(n) && n > 0);
+    return median(values);
+  } catch {
+    return null;
+  }
 }
 
 function median(values: number[]): number | null {
@@ -111,17 +140,29 @@ export function BuildProgress({ mode }: { mode: 'fresh' | 'iterate' }) {
   const [pct, setPct] = useState(0);
   const [stepIdx, setStepIdx] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
-  // Compute the estimate exactly once per mount — re-reading
-  // localStorage every frame is wasted work, and the estimate
-  // shouldn't shift mid-build.
+  // Seed the estimate synchronously from localStorage (instant first
+  // paint), then refine once from the shared DB history — the
+  // cross-device median is the better number, especially on a fresh
+  // browser with no local history. The ref means the animation loop
+  // picks the refinement up on its next frame without restarting.
   const estimateRef = useRef<number>(estimateMs(mode));
   const startedAtRef = useRef<number>(Date.now());
+  useEffect(() => {
+    let cancelled = false;
+    void fetchSharedEstimate(mode).then((med) => {
+      if (cancelled || med == null) return;
+      estimateRef.current = Math.max(MIN_ESTIMATE_MS, Math.min(MAX_ESTIMATE_MS, med));
+    });
+    return () => { cancelled = true; };
+  }, [mode]);
 
   useEffect(() => {
     const start = startedAtRef.current;
-    const estimate = estimateRef.current;
     let raf = 0;
     const tick = () => {
+      // Read the ref every frame so the async DB refinement (and the
+      // localStorage seed before it) both steer the same animation.
+      const estimate = estimateRef.current;
       const elapsed = Date.now() - start;
       // Phase A — 0 → 90% over `estimate` with an ease-out curve so
       // momentum is front-loaded (matches how Claude actually feels:
