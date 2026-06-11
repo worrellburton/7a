@@ -18,10 +18,13 @@ import { findSitePage } from '@/lib/site-pages';
 // blank lines). The final build step renders it into a designed
 // HTML email.
 
-const DEFAULT_MODEL = 'claude-opus-4-8';
+const DEFAULT_MODEL = 'claude-fable-5';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
 const SITE_URL = 'https://www.sevenarrowsrecoveryarizona.com/';
+
+// Fable 5 thinks before writing — allow for the longer turn.
+export const maxDuration = 300;
 
 interface DraftBody {
   prompt?: unknown;
@@ -134,8 +137,13 @@ Return ONLY the JSON object. No preamble, no markdown fences.`;
       },
       body: JSON.stringify({
         model,
-        max_tokens: 2048,
+        // 4096, was 2048 — Fable 5's tokenizer counts ~30% more
+        // tokens for the same content.
+        max_tokens: 4096,
         system: systemPrompt,
+        // Fable 5: omit `thinking` (always on); 'medium' effort is
+        // plenty for a four-field copy draft and keeps latency sane.
+        output_config: { effort: 'medium' },
         messages: [{ role: 'user', content: userContent }],
       }),
     });
@@ -143,7 +151,13 @@ Return ONLY the JSON object. No preamble, no markdown fences.`;
       const text = await res.text();
       return NextResponse.json({ error: `Anthropic API error (${res.status}): ${text}` }, { status: res.status });
     }
-    const data = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
+    const data = (await res.json()) as { content?: Array<{ type: string; text?: string }>; stop_reason?: string };
+    if (data.stop_reason === 'refusal') {
+      return NextResponse.json(
+        { error: 'The model declined this request. Rephrase the campaign prompt and try again.' },
+        { status: 502 },
+      );
+    }
     const raw = (data.content || []).filter((b) => b.type === 'text').map((b) => b.text || '').join('').trim();
     const parsed = parseJson(raw);
     if (!parsed) {

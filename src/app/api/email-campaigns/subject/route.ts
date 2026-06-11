@@ -9,7 +9,11 @@ import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 // Persists the result back onto the campaign row so revisits
 // don't re-spend tokens.
 
-const DEFAULT_MODEL = 'claude-opus-4-8';
+const DEFAULT_MODEL = 'claude-fable-5';
+
+// Fable 5 thinks before answering, even for a one-liner — give the
+// function room beyond the platform default.
+export const maxDuration = 120;
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
 
@@ -69,7 +73,10 @@ Return ONLY the subject line.`;
       },
       body: JSON.stringify({
         model,
-        max_tokens: 256,
+        // 512, was 256 — headroom for Fable 5's tokenizer.
+        max_tokens: 512,
+        // One subject line doesn't need deep deliberation.
+        output_config: { effort: 'low' },
         messages: [{ role: 'user', content: prompt }],
       }),
     });
@@ -77,7 +84,13 @@ Return ONLY the subject line.`;
       const text = await res.text();
       return NextResponse.json({ error: `Anthropic API error (${res.status}): ${text}` }, { status: res.status });
     }
-    const data = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
+    const data = (await res.json()) as { content?: Array<{ type: string; text?: string }>; stop_reason?: string };
+    if (data.stop_reason === 'refusal') {
+      return NextResponse.json(
+        { error: 'The model declined this request. Try regenerating the subject.' },
+        { status: 502 },
+      );
+    }
     const subject = (data.content || [])
       .filter((b) => b.type === 'text')
       .map((b) => b.text || '')
