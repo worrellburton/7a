@@ -165,7 +165,8 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
           includeQuote: campaign.include_quote,
           includeInsuranceStrip: campaign.include_insurance_strip,
           includeSocialFooter: campaign.include_social_footer,
-          darkMode: campaign.dark_mode,
+          // Dark mode retired — rebuilds always render the light palette.
+          darkMode: false,
           featuredBlogId: campaign.featured_blog_id,
           featuredEpisodeSlug: campaign.featured_episode_slug,
           featuredPagePath: campaign.featured_page_path,
