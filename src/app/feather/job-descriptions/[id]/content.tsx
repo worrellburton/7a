@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { useModal } from '@/lib/ModalProvider';
 import { db, getAuthToken } from '@/lib/db';
+import { supabase } from '@/lib/supabase';
 import { logActivity } from '@/lib/activity';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
@@ -175,6 +176,21 @@ export default function JobDescriptionDetailContent() {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [expandedVersion, setExpandedVersion] = useState<number | null>(null);
 
+  // The job as last successfully WRITTEN to the database. The blur
+  // handlers compare against this — not `job` — because onChange
+  // updates `job` on every keystroke, so by blur time the two always
+  // matched and the "did anything change?" guard skipped the DB write
+  // on every typed edit. (That's the bug that let "Save vN" snapshot
+  // text into jd_versions while the live row silently kept the old
+  // wording — a refresh then "lost" the edit.)
+  const persistedRef = useRef<JobDescription | null>(null);
+  // Surfaced when a write fails — db() returns {error} instead of
+  // throwing, so without this the UI faked success.
+  const [saveError, setSaveError] = useState<string | null>(null);
+  // Live-sync channel: every persisted patch is broadcast so everyone
+  // else viewing this JD sees the change in real time.
+  const liveChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
   useEffect(() => {
     if (!session?.access_token || !id) return;
     let cancelled = false;
@@ -204,7 +220,7 @@ export default function JobDescriptionDetailContent() {
       if (cancelled) return;
       if (Array.isArray(jobRows) && jobRows.length > 0) {
         const raw = jobRows[0] as Record<string, unknown>;
-        setJob({
+        const loaded: JobDescription = {
           id: String(raw.id),
           title: (raw.title as string) || '',
           department_id: (raw.department_id as string | null) || null,
@@ -219,7 +235,9 @@ export default function JobDescriptionDetailContent() {
           activity: Array.isArray(raw.activity) ? (raw.activity as ActivityEntry[]) : [],
           archived_at: (raw.archived_at as string | null) || null,
           version: typeof raw.version === 'number' ? (raw.version as number) : 1,
-        });
+        };
+        setJob(loaded);
+        persistedRef.current = loaded;
       } else {
         setNotFound(true);
       }
@@ -234,6 +252,32 @@ export default function JobDescriptionDetailContent() {
       cancelled = true;
     };
   }, [session, id]);
+
+  // Live sync — one broadcast channel per JD. Everyone with the page
+  // open receives each persisted patch (and each saved version) and
+  // merges it straight into their working state, so edits show up in
+  // real time across viewers. self:false keeps the editor from
+  // double-applying their own writes.
+  useEffect(() => {
+    if (!id || !session?.access_token) return;
+    const ch = supabase.channel(`jd-live-${id}`, { config: { broadcast: { self: false } } });
+    ch.on('broadcast', { event: 'patch' }, ({ payload }) => {
+      const fields = (payload as { fields?: Partial<JobDescription> }).fields;
+      if (!fields) return;
+      setJob((prev) => (prev ? { ...prev, ...fields } : prev));
+      if (persistedRef.current) persistedRef.current = { ...persistedRef.current, ...fields };
+    });
+    ch.on('broadcast', { event: 'version' }, ({ payload }) => {
+      const row = (payload as { row?: JdVersion }).row;
+      if (row) setVersions((prev) => [row, ...prev.filter((v) => v.version !== row.version)]);
+    });
+    ch.subscribe();
+    liveChannelRef.current = ch;
+    return () => {
+      void supabase.removeChannel(ch);
+      liveChannelRef.current = null;
+    };
+  }, [id, session?.access_token]);
 
   const deptById = useMemo(() => new Map(departments.map((d) => [d.id, d])), [departments]);
   const dept = job?.department_id ? deptById.get(job.department_id) || null : null;
@@ -268,7 +312,20 @@ export default function JobDescriptionDetailContent() {
       last_edited_by_name: editorName,
     };
     if (activitySummary) dbPatch.activity = nextActivity;
-    await db({ action: 'update', table: 'job_descriptions', data: dbPatch, match: { id: job.id } });
+    const result = await db({ action: 'update', table: 'job_descriptions', data: dbPatch, match: { id: job.id } });
+    if (result && typeof result === 'object' && 'error' in result && (result as { error?: unknown }).error) {
+      // db() returns {error} rather than throwing — without this check
+      // a failed write looked exactly like a successful one.
+      setSaveError(String((result as { error: unknown }).error));
+      return;
+    }
+    setSaveError(null);
+    persistedRef.current = next;
+    // Mirror the persisted fields to everyone else on this page.
+    // last_edited_by (a uuid) isn't part of the JobDescription shape,
+    // so it stays out of the broadcast.
+    const { last_edited_by: _omit, ...broadcastFields } = dbPatch;
+    void liveChannelRef.current?.send({ type: 'broadcast', event: 'patch', payload: { fields: broadcastFields } });
     if (activitySummary && user) {
       logActivity({
         userId: user.id,
@@ -287,10 +344,11 @@ export default function JobDescriptionDetailContent() {
   async function renameTitle(newTitle: string) {
     if (!job) return;
     if (!canEdit) return;
-    const oldTitle = job.title;
+    // Compare against the PERSISTED title — `job.title` already holds
+    // the new text by blur time (onChange updates it per keystroke).
+    const oldTitle = persistedRef.current?.title ?? job.title;
     const trimmed = newTitle;
-    setJob({ ...job, title: trimmed });
-    await db({ action: 'update', table: 'job_descriptions', data: { title: trimmed }, match: { id: job.id } });
+    await patchJob({ title: trimmed }, 'Renamed role');
     const affected = users.filter((u) => (u.job_title || '').trim().toLowerCase() === oldTitle.trim().toLowerCase());
     if (affected.length > 0 && trimmed.trim() !== oldTitle.trim()) {
       await Promise.all(
@@ -321,7 +379,10 @@ export default function JobDescriptionDetailContent() {
 
   function updateResponsibility(i: number, value: string) {
     if (!job) return;
-    const prior = job.responsibilities[i];
+    // Guard against the LAST PERSISTED value, not job state — onChange
+    // already wrote the keystroke into job, so comparing against it
+    // made this a no-op for every typed edit (nothing ever saved).
+    const prior = (persistedRef.current ?? job).responsibilities[i];
     if (prior === value) return;
     patchJob({ responsibilities: job.responsibilities.map((r, idx) => (idx === i ? value : r)) }, 'Edited a responsibility');
   }
@@ -351,7 +412,8 @@ export default function JobDescriptionDetailContent() {
 
   function updateRequirement(i: number, value: string) {
     if (!job) return;
-    const prior = job.requirements[i];
+    // Same persisted-value guard as updateResponsibility — see there.
+    const prior = (persistedRef.current ?? job).requirements[i];
     if (prior === value) return;
     patchJob({ requirements: job.requirements.map((r, idx) => (idx === i ? value : r)) }, 'Edited a requirement');
   }
@@ -519,8 +581,14 @@ export default function JobDescriptionDetailContent() {
           saved_by_name: editorName,
         },
       });
-      const row: JdVersion = Array.isArray(created)
-        ? (created[0] as JdVersion)
+      // db() returns {error} instead of throwing — the old code fell
+      // through to a locally fabricated row here, so a failed insert
+      // looked saved until the next refresh wiped it.
+      if (created && typeof created === 'object' && 'error' in created && (created as { error?: unknown }).error) {
+        throw new Error(String((created as { error: unknown }).error));
+      }
+      const row: JdVersion = created && typeof created === 'object' && 'id' in created
+        ? (created as JdVersion)
         : ({
             id: '',
             job_description_id: job.id,
@@ -535,6 +603,7 @@ export default function JobDescriptionDetailContent() {
             saved_by_name: editorName,
           } as JdVersion);
       setVersions((prev) => [row, ...prev]);
+      void liveChannelRef.current?.send({ type: 'broadcast', event: 'version', payload: { row } });
       await patchJob({ version: nextVersion } as Partial<JobDescription>, `Saved version ${nextVersion}`);
     } catch (err) {
       setVersionError(err instanceof Error ? err.message : String(err));
@@ -941,7 +1010,7 @@ export default function JobDescriptionDetailContent() {
                 readOnly={!canEdit}
                 onChange={(e) => setJob({ ...job, title: e.target.value })}
                 onBlur={(e) => {
-                  if (e.target.value.trim() !== job.title.trim()) {
+                  if (e.target.value.trim() !== (persistedRef.current?.title ?? '').trim()) {
                     renameTitle(e.target.value.trim());
                   }
                 }}
@@ -1096,7 +1165,7 @@ export default function JobDescriptionDetailContent() {
               disabled={!canEdit}
               onChange={(v) => setJob({ ...job, summary: v })}
               onBlur={(v) => {
-                if (v !== job.summary) patchJob({ summary: v }, 'Edited summary');
+                if (v !== (persistedRef.current?.summary ?? '')) patchJob({ summary: v }, 'Edited summary');
               }}
               placeholder="A short overview of the role…"
               className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:border-primary bg-white min-h-[16rem] leading-6"
@@ -1609,6 +1678,22 @@ export default function JobDescriptionDetailContent() {
             </button>
           </div>
         </div>
+
+        {/* A write to job_descriptions failed — say so loudly instead of
+            letting the page pretend the edit saved. */}
+        {saveError && (
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-40 jd-print-hide">
+            <div className="bg-red-600 text-white rounded-full shadow-xl flex items-center gap-3 pl-4 pr-2 py-2 text-xs" style={{ fontFamily: 'var(--font-body)' }}>
+              <span className="max-w-[320px] truncate" title={saveError}>Save failed: {saveError}</span>
+              <button
+                onClick={() => setSaveError(null)}
+                className="px-2 py-1 rounded-full bg-white/15 hover:bg-white/25 font-semibold"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Sticky Save New Version footer — appears when working state differs
             from the latest snapshot. Persists edits as a new immutable version. */}
