@@ -1094,6 +1094,98 @@ function ResizeHandle({
   );
 }
 
+// Trailing sticky columns: the Contact summary sits to the left of the
+// slim actions cell, so its `right` offset is the actions column width.
+const ACTIONS_COL_PX = 48;
+const CONTACT_COL_PX = 230;
+
+function fmtAgo(iso: string | null): string {
+  if (!iso) return '—';
+  const ms = Date.now() - new Date(iso).getTime();
+  if (ms < 60_000) return 'just now';
+  const mins = Math.floor(ms / 60_000);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 14) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function staleness(iso: string | null): 'fresh' | 'cooling' | 'stale' | 'never' {
+  if (!iso) return 'never';
+  const days = (Date.now() - new Date(iso).getTime()) / 86_400_000;
+  if (days < 7) return 'fresh';
+  if (days < 21) return 'cooling';
+  return 'stale';
+}
+
+// Last-contact summary for the sticky Contact column — same shape as
+// the contacts grid's LastContactSummaryCell so the two rolodexes read
+// identically: logger avatar + name, method pill, staleness-toned
+// relative time. Re-renders every 30s so "10m ago" stays honest.
+function PartnerLastContactCell({ partner }: { partner: Partner }) {
+  const [, force] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => force((n) => n + 1), 30_000);
+    return () => clearInterval(t);
+  }, []);
+
+  if (!partner.last_contact_at) {
+    return (
+      <div className="flex items-center gap-2.5">
+        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-foreground/5 border border-foreground/10 text-foreground/30 text-[11px] shrink-0">
+          —
+        </span>
+        <div className="min-w-0">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-foreground/5 text-foreground/45 border-foreground/10">
+            Never
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  const s = staleness(partner.last_contact_at);
+  const textTone =
+    s === 'fresh' ? 'text-emerald-700' :
+    s === 'cooling' ? 'text-amber-700' :
+    'text-rose-700';
+
+  return (
+    <div className="flex items-center gap-2.5 min-w-0">
+      {partner.last_contact_by_avatar_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={partner.last_contact_by_avatar_url}
+          alt=""
+          className="w-7 h-7 rounded-full object-cover border border-black/10 shrink-0"
+        />
+      ) : (
+        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-[10px] font-bold border border-primary/20 shrink-0">
+          {(partner.last_contact_by_name || '?').charAt(0).toUpperCase()}
+        </span>
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="text-[11.5px] font-semibold text-foreground truncate leading-tight">
+          {partner.last_contact_by_name || '—'}
+        </p>
+        <div
+          className="mt-0.5 flex items-center gap-1.5 text-[10.5px] leading-tight"
+          title={new Date(partner.last_contact_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+        >
+          {partner.last_contact_method && (
+            <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[partner.last_contact_method]}`}>
+              {partner.last_contact_method}
+            </span>
+          )}
+          <span className={`font-semibold ${textTone}`}>{fmtAgo(partner.last_contact_at)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PartnersGrid({
   loading,
   rows,
@@ -1162,7 +1254,8 @@ function PartnersGrid({
             const w = columnWidths[c.key] ?? DEFAULT_COL_WIDTHS_PX[c.key] ?? 180;
             return <col key={c.key} style={{ width: `${w}px` }} />;
           })}
-          <col style={{ width: '40px' }} />
+          <col style={{ width: `${CONTACT_COL_PX}px` }} />
+          <col style={{ width: `${ACTIONS_COL_PX}px` }} />
         </colgroup>
         <thead className="bg-warm-bg/50 text-left text-[11px] uppercase tracking-wider text-foreground/55">
           <tr>
@@ -1197,14 +1290,23 @@ function PartnersGrid({
                 </th>
               );
             })}
-            <th className="sticky right-0 z-10 bg-warm-bg/50 backdrop-blur-md px-3 py-2 w-[88px] text-right">Actions</th>
+            {/* Contact summary + actions are pinned to the right edge
+                (mirrors the contacts grid) so the engagement state and
+                the log button never scroll out of view. */}
+            <th
+              style={{ right: `${ACTIONS_COL_PX}px` }}
+              className="sticky z-10 bg-warm-bg/50 backdrop-blur-md border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-3 py-2 whitespace-nowrap"
+            >
+              Contact
+            </th>
+            <th className="sticky right-0 z-10 bg-warm-bg/50 backdrop-blur-md px-3 py-2 text-right" aria-label="Actions" />
           </tr>
         </thead>
         <tbody className="divide-y divide-black/5">
           {loading ? (
-            <tr><td colSpan={columns.length + 1} className="px-3 py-12 text-center text-foreground/45">Loading partners…</td></tr>
+            <tr><td colSpan={columns.length + 2} className="px-3 py-12 text-center text-foreground/45">Loading partners…</td></tr>
           ) : rows.length === 0 ? (
-            <tr><td colSpan={columns.length + 1} className="px-3 py-12 text-center text-foreground/45">No partners yet. Click <span className="font-semibold">New partner</span> to add one.</td></tr>
+            <tr><td colSpan={columns.length + 2} className="px-3 py-12 text-center text-foreground/45">No partners yet. Click <span className="font-semibold">New partner</span> to add one.</td></tr>
           ) : (
             rows.map(({ row, priority, isFirstOfGroup }, rowIdx) => (
               <tr
@@ -1247,8 +1349,16 @@ function PartnersGrid({
                     )}
                   </td>
                 ))}
-                <td className="sticky right-0 z-10 backdrop-blur-md backdrop-saturate-150 bg-white/75 hover:bg-warm-bg/40 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-2 py-0 h-12 text-right relative align-middle">
-                  <div className="flex items-center justify-end gap-1">
+                {/* Sticky Contact cell — log button + last-contact
+                    summary, pinned just left of the actions cell.
+                    Solid (not blurred) background: per-row backdrop
+                    blur janks scroll once sheets get long, same
+                    rationale as the contacts grid. */}
+                <td
+                  style={{ right: `${ACTIONS_COL_PX}px` }}
+                  className="sticky z-10 border-l border-black/5 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] bg-white/95 group-hover/prow:bg-white px-3 py-0 h-12 align-middle transition-colors"
+                >
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => onLogContact(row)}
@@ -1258,6 +1368,18 @@ function PartnersGrid({
                     >
                       <span aria-hidden>🪵</span>
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => onHistory(row)}
+                      className="min-w-0 flex-1 text-left rounded-md px-1 -mx-1 hover:bg-warm-bg/60 transition-colors"
+                      title="View contact history"
+                    >
+                      <PartnerLastContactCell partner={row} />
+                    </button>
+                  </div>
+                </td>
+                <td className="sticky right-0 z-10 bg-white/95 group-hover/prow:bg-white px-2 py-0 h-12 text-right relative align-middle transition-colors">
+                  <div className="flex items-center justify-end">
                     <button
                       type="button"
                       onClick={() => setActionMenuFor(actionMenuFor === row.id ? null : row.id)}
