@@ -4652,10 +4652,10 @@ function ContactsPillTray({
       ),
     },
   ];
+  // Mobile: a tidy 2-column grid of full-width pills (the old
+  // flex-wrap + justify-end produced a ragged, right-hugging jumble
+  // on phones). Desktop: the original right-aligned dock.
   return (
-    {/* Mobile: a tidy 2-column grid of full-width pills (the old
-        flex-wrap + justify-end produced a ragged, right-hugging
-        jumble on phones). Desktop: the original right-aligned dock. */}
     <div className="sa-contacts-pill-row grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
       {pills.map((p, i) => (
         <span
