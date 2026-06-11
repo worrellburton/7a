@@ -1430,6 +1430,15 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     }}
                   >
                     {getPageIcon(item.path)}
+                    {/* Unread dot — pinned to the icon so it reads even
+                        while the rail is collapsed to icons-only (the
+                        count chip below only shows on hover-expand). */}
+                    {(navBadges[item.path] ?? 0) > 0 && (
+                      <span
+                        aria-hidden="true"
+                        className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-primary ring-2 ring-white animate-pulse"
+                      />
+                    )}
                   </span>
                   {/* Phase 5: text translateX nudge — 2px right shift
                       so the label "leans into" the cursor on hover.

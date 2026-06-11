@@ -57,8 +57,10 @@ export default function WebsiteRequestsContent() {
   // these submissions in their day-to-day work.)
   if (!user) return null;
 
+  // Full-bleed width (was max-w-7xl) — the Forms/Careers tables have
+  // enough columns that a capped container clipped the right edge.
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style={{ fontFamily: 'var(--font-body)' }}>
+    <div className="w-full px-4 sm:px-6 lg:px-8 py-8" style={{ fontFamily: 'var(--font-body)' }}>
       <header className="mb-6">
         <p className="text-xs uppercase tracking-[0.22em] text-foreground/50 mb-1">Marketing &amp; Admissions</p>
         <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
@@ -1314,7 +1316,9 @@ function VobsPanel() {
   return (
     <Section count={rows.length} loading={loading} error={error} emptyText="No VOB requests yet.">
       <div className="overflow-x-auto border border-black/10 rounded-xl bg-white">
-        <table className="w-full text-sm border-collapse">
+        {/* min-w keeps every column readable — the wrapper scrolls
+            horizontally instead of crushing the rightmost columns. */}
+        <table className="w-full min-w-[1280px] text-sm border-collapse">
           <thead className="bg-warm-bg/60 text-left text-[11px] uppercase tracking-wider text-foreground/55">
             <tr>
               <Th>Name</Th>
@@ -2182,7 +2186,8 @@ function FormsPanel({
 
       {visible.length > 0 && (
         <div className="overflow-x-auto border border-black/10 rounded-xl bg-white">
-          <table className="w-full text-sm border-collapse">
+          {/* Same min-w + horizontal scroll treatment as the Forms table. */}
+          <table className="w-full min-w-[1280px] text-sm border-collapse">
             <thead className="bg-warm-bg/60 text-left text-[11px] uppercase tracking-wider text-foreground/55">
               <tr>
                 <Th>Name</Th>
@@ -2373,7 +2378,9 @@ function CareersPanel() {
   return (
     <Section count={rows.length} loading={loading} error={error} emptyText="No careers submissions yet.">
       <div className="overflow-x-auto border border-black/10 rounded-xl bg-white">
-        <table className="w-full text-sm border-collapse">
+        {/* min-w keeps every column readable — the wrapper scrolls
+            horizontally instead of crushing the rightmost columns. */}
+        <table className="w-full min-w-[1280px] text-sm border-collapse">
           <thead className="bg-warm-bg/60 text-left text-[11px] uppercase tracking-wider text-foreground/55">
             <tr>
               <Th>Name</Th>

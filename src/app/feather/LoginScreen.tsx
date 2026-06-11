@@ -1017,7 +1017,7 @@ function SignInButton({ onSignIn }: { onSignIn: () => void }) {
       </div>
 
       <p className="mt-3 text-[11px] text-white/60 tracking-wide">
-        Staff & family access only. Protected by Google OAuth.
+        Staff, alumni & family. New accounts are welcomed in by the team.
       </p>
 
       <style jsx global>{`
@@ -1050,6 +1050,206 @@ function SignInButton({ onSignIn }: { onSignIn: () => void }) {
     </div>
   );
 }
+
+/* ── Email auth panel ───────────────────────────────────────────── */
+
+type EmailMode = 'signin' | 'signup' | 'reset';
+
+// Email + password flows inside the glass panel. Sign-ups ride the
+// same database triggers as Google OAuth: handle_user_sign_in mirrors
+// the new auth user into public.users, and users_set_initial_status
+// parks any non-@sevenarrowsrecovery.com address in 'on_hold' — the
+// Incoming Users queue — until an admin approves them.
+function EmailAuthPanel() {
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<EmailMode>('signin');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+
+  const switchMode = (m: EmailMode) => {
+    setMode(m);
+    setNotice(null);
+  };
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    const addr = email.trim().toLowerCase();
+    if (!addr) {
+      setNotice({ tone: 'error', text: 'Enter your email address.' });
+      return;
+    }
+    setBusy(true);
+    setNotice(null);
+    try {
+      if (mode === 'signin') {
+        const { error } = await supabase.auth.signInWithPassword({ email: addr, password });
+        if (error) {
+          setNotice({
+            tone: 'error',
+            text: /confirm/i.test(error.message)
+              ? 'Your email isn’t confirmed yet — check your inbox for the confirmation link.'
+              : 'That email and password don’t match our records.',
+          });
+        }
+        // On success the auth listener swaps this screen out — nothing to do.
+      } else if (mode === 'signup') {
+        if (fullName.trim().length < 2) {
+          setNotice({ tone: 'error', text: 'Tell us your name so the team knows who’s arriving.' });
+          return;
+        }
+        if (password.length < 6) {
+          setNotice({ tone: 'error', text: 'Pick a password of at least 6 characters.' });
+          return;
+        }
+        const { data, error } = await supabase.auth.signUp({
+          email: addr,
+          password,
+          options: {
+            data: { full_name: fullName.trim() },
+            emailRedirectTo: `${window.location.origin}/auth/callback?next=/feather`,
+          },
+        });
+        if (error) {
+          setNotice({ tone: 'error', text: error.message });
+        } else if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          // Supabase signals "email already registered" with an
+          // identity-less user instead of an error.
+          setNotice({ tone: 'error', text: 'That email already has an account — try signing in instead.' });
+        } else if (!data.session) {
+          setNotice({
+            tone: 'ok',
+            text: 'Almost there — confirm your email from the link we just sent. After that, your account waits in our welcome queue until a team member lets you in.',
+          });
+        }
+        // With a live session the auth listener takes over; brand-new
+        // accounts land on the "you're in the welcome queue" screen.
+      } else {
+        const { error } = await supabase.auth.resetPasswordForEmail(addr, {
+          redirectTo: `${window.location.origin}/auth/callback?next=/auth/reset`,
+        });
+        if (error) setNotice({ tone: 'error', text: error.message });
+        else setNotice({ tone: 'ok', text: 'Reset link sent — check your inbox, then follow it to choose a new password.' });
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const inputClass =
+    'w-full rounded-2xl bg-white/10 border border-white/25 px-4 py-3 text-sm text-white placeholder:text-white/45 backdrop-blur-md focus:outline-none focus:border-accent/70 focus:bg-white/15 transition-colors';
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="mt-4 text-[13px] text-white/75 hover:text-white underline-offset-4 hover:underline transition-colors"
+        style={{ fontFamily: 'var(--font-body)' }}
+      >
+        Sign in with Email
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-5 w-full text-left animate-email-in" style={{ fontFamily: 'var(--font-body)' }}>
+      <div className="flex items-center gap-4 mb-4">
+        <span className="flex-1 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+        <span className="text-[10px] uppercase tracking-[0.28em] text-white/55">or with email</span>
+        <span className="flex-1 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+      </div>
+
+      {/* Mode switcher — pill tabs, glassy. */}
+      <div className="flex rounded-full bg-white/10 border border-white/20 p-1 mb-4 backdrop-blur-md">
+        {([['signin', 'Sign in'], ['signup', 'Create account']] as const).map(([m, label]) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => switchMode(m)}
+            className={`flex-1 rounded-full py-1.5 text-[12px] font-semibold transition-all ${
+              mode === m ? 'bg-white text-stone-900 shadow' : 'text-white/70 hover:text-white'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      <form onSubmit={submit} className="space-y-2.5">
+        {mode === 'signup' && (
+          <input
+            type="text"
+            autoComplete="name"
+            placeholder="Your full name"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            className={inputClass}
+          />
+        )}
+        <input
+          type="email"
+          autoComplete="email"
+          placeholder="you@example.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className={inputClass}
+        />
+        {mode !== 'reset' && (
+          <input
+            type="password"
+            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+            placeholder={mode === 'signup' ? 'Choose a password' : 'Password'}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className={inputClass}
+          />
+        )}
+
+        {notice && (
+          <p
+            role="status"
+            className={`text-[12.5px] leading-relaxed rounded-2xl px-4 py-3 border backdrop-blur-md ${
+              notice.tone === 'ok'
+                ? 'bg-emerald-400/15 border-emerald-300/40 text-emerald-50'
+                : 'bg-red-400/15 border-red-300/40 text-red-50'
+            }`}
+          >
+            {notice.text}
+          </p>
+        )}
+
+        <button
+          type="submit"
+          disabled={busy}
+          className="w-full rounded-2xl bg-white/90 hover:bg-white text-stone-900 text-sm font-bold py-3 shadow-[0_4px_24px_rgba(255,180,130,0.35)] hover:shadow-[0_4px_32px_rgba(255,180,130,0.5)] transition-all disabled:opacity-60"
+        >
+          {busy ? 'One moment…' : mode === 'signin' ? 'Sign in' : mode === 'signup' ? 'Create account' : 'Send reset link'}
+        </button>
+      </form>
+
+      <div className="mt-3 flex items-center justify-between text-[12px] text-white/65">
+        {mode === 'reset' ? (
+          <button type="button" onClick={() => switchMode('signin')} className="hover:text-white underline-offset-4 hover:underline">
+            ← Back to sign in
+          </button>
+        ) : (
+          <button type="button" onClick={() => switchMode('reset')} className="hover:text-white underline-offset-4 hover:underline">
+            Forgot password?
+          </button>
+        )}
+        {mode === 'signup' && (
+          <span className="text-white/50 text-[11px]">New accounts are approved by the team.</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Main screen ────────────────────────────────────────────────── */
 
 export default function LoginScreen({
   onSignIn,
@@ -1084,70 +1284,71 @@ export default function LoginScreen({
           // Reserve room for the taller marquee strip (4.5rem circles +
           // hover caption + 1.75rem bottom offset) and respect the home
           // indicator on notched devices.
-          paddingBottom: 'calc(10rem + env(safe-area-inset-bottom, 0px))',
-          paddingTop: 'env(safe-area-inset-top, 0px)',
+          paddingBottom: 'calc(9rem + env(safe-area-inset-bottom, 0px))',
+          paddingTop: 'calc(1.5rem + env(safe-area-inset-top, 0px))',
         }}
       >
-        <p
-          className="text-white/70 text-[11px] uppercase tracking-[0.32em] mb-3 animate-greeting-in"
-          style={{ fontFamily: 'var(--font-body)' }}
-        >
-          {theme.greeting}
-        </p>
-        <AnimatedLogo />
-        <QuoteRibbon />
-
-        {/* Explicit "Sign in" cue + pointer arrow. Earlier visitors
-            were missing the Continue-with-Google CTA because the
-            screen reads as a quote/greeting card on first glance. The
-            label + bouncing arrow remove that ambiguity by naming
-            the page state explicitly and pointing at the button. */}
-        <div className="flex flex-col items-center mt-1 mb-2 animate-greeting-in">
-          <p
-            className="text-white text-lg sm:text-xl font-bold tracking-[0.18em] uppercase"
-            style={{ fontFamily: 'var(--font-display)' }}
-          >
-            Sign in
-          </p>
-          <p
-            className="mt-1 text-white/65 text-[12px]"
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            Tap the button below to continue
-          </p>
-          <svg
-            className="w-6 h-6 text-accent mt-2 animate-signin-arrow motion-reduce:animate-none"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.4"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            viewBox="0 0 24 24"
+        {/* The welcome panel — liquid glass. Layered: a soft warm halo
+            behind, a frosted card with a top sheen so it reads as
+            curved glass, everything floating over the hero photo. */}
+        <div className="relative animate-panel-in">
+          <div
             aria-hidden="true"
-          >
-            <path d="M12 5v14" />
-            <path d="m6 13 6 6 6-6" />
-          </svg>
+            className="pointer-events-none absolute -inset-4 rounded-[36px] blur-2xl opacity-70"
+            style={{
+              background:
+                'radial-gradient(ellipse at 50% 0%, rgba(255,190,140,0.35), rgba(188,107,74,0.15) 55%, transparent 80%)',
+            }}
+          />
+          <div className="relative rounded-[32px] border border-white/25 bg-white/10 backdrop-blur-2xl shadow-[0_8px_60px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.35)] px-6 sm:px-9 py-8 overflow-hidden">
+            {/* Glass sheen — diagonal highlight across the top. */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute -top-1/2 -left-1/4 w-[150%] h-[80%] rotate-[-8deg] bg-gradient-to-b from-white/20 to-transparent"
+            />
+
+            <p
+              className="relative text-white/75 text-[11px] uppercase tracking-[0.32em] mb-2 animate-greeting-in"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              {theme.greeting}
+            </p>
+            <AnimatedLogo />
+            <p
+              className="relative mt-2 mb-6 text-white/80 text-[13.5px] leading-relaxed max-w-sm mx-auto"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Welcome home. Sign in to reach the team, the ranch, and
+              everything in between.
+            </p>
+
+            <SignInButton onSignIn={onSignIn} />
+            <EmailAuthPanel />
+          </div>
         </div>
 
-        <SignInButton onSignIn={onSignIn} />
-        <style jsx global>{`
-          @keyframes greeting-in {
-            from { opacity: 0; letter-spacing: 0.5em; }
-            to   { opacity: 1; letter-spacing: 0.32em; }
-          }
-          .animate-greeting-in { animation: greeting-in 1.4s cubic-bezier(.2,.7,.2,1) 0.2s both; }
-          @keyframes signin-arrow {
-            0%, 100% { transform: translateY(0); opacity: 0.85; }
-            50%      { transform: translateY(6px); opacity: 1; }
-          }
-          .animate-signin-arrow { animation: signin-arrow 1.6s ease-in-out infinite; }
-          @media (prefers-reduced-motion: reduce) {
-            .animate-greeting-in { animation: none !important; opacity: 1; }
-            .animate-signin-arrow { animation: none !important; }
-          }
-        `}</style>
+        <QuoteRibbon />
       </section>
+      <style jsx global>{`
+        @keyframes greeting-in {
+          from { opacity: 0; letter-spacing: 0.5em; }
+          to   { opacity: 1; letter-spacing: 0.32em; }
+        }
+        .animate-greeting-in { animation: greeting-in 1.4s cubic-bezier(.2,.7,.2,1) 0.2s both; }
+        @keyframes panel-in {
+          from { opacity: 0; transform: translateY(14px) scale(0.985); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .animate-panel-in { animation: panel-in 0.9s cubic-bezier(.2,.7,.2,1) 0.15s both; }
+        @keyframes email-in {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .animate-email-in { animation: email-in 0.4s ease-out both; }
+        @media (prefers-reduced-motion: reduce) {
+          .animate-greeting-in, .animate-panel-in, .animate-email-in { animation: none !important; opacity: 1; }
+        }
+      `}</style>
     </main>
   );
 }
