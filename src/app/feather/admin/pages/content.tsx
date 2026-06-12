@@ -307,23 +307,29 @@ export default function PagesContent() {
           <p className="text-xs text-foreground/30 font-mono">{page.path}</p>
         </div>
 
-        {/* Move-back-to-top affordance — visible only on pages that
-            currently sit inside a department group, so admins don't
-            need to drag-and-drop to undo a grouping. */}
-        {grouped && (
-          <button
-            type="button"
-            onClick={(e) => { e.stopPropagation(); ungroupPage(page.path); }}
-            title="Move out of this group (back to top of sidebar)"
-            aria-label={`Move ${page.label} out of group`}
-            className="shrink-0 w-7 h-7 inline-flex items-center justify-center rounded border border-black/10 bg-white text-foreground/45 hover:text-primary hover:border-primary/40 transition-colors"
-          >
-            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <polyline points="11 17 6 12 11 7" />
-              <line x1="6" y1="12" x2="20" y2="12" />
-            </svg>
-          </button>
-        )}
+        {/* Trailing controls live in FIXED-WIDTH slots that render on
+            every row (empty or not), so the toggle columns line up no
+            matter what the permissions chip contains or whether the
+            ungroup arrow is present. */}
+        <div className="shrink-0 w-7 flex justify-center">
+          {/* Move-back-to-top affordance — visible only on pages that
+              currently sit inside a department group, so admins don't
+              need to drag-and-drop to undo a grouping. */}
+          {grouped && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); ungroupPage(page.path); }}
+              title="Move out of this group (back to top of sidebar)"
+              aria-label={`Move ${page.label} out of group`}
+              className="w-7 h-7 inline-flex items-center justify-center rounded border border-black/10 bg-white text-foreground/45 hover:text-primary hover:border-primary/40 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="11 17 6 12 11 7" />
+                <line x1="6" y1="12" x2="20" y2="12" />
+              </svg>
+            </button>
+          )}
+        </div>
 
         {/* Super Admin Only toggle */}
         <div className="shrink-0 w-20 flex justify-center">
@@ -369,77 +375,88 @@ export default function PagesContent() {
           </button>
         </div>
 
-        {/* Department permissions chip */}
-        <button
-          onClick={() => !locked && setPermissionsFor(page.path)}
-          disabled={locked}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors shrink-0 ${
-            restricted
-              ? 'bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20'
-              : 'bg-warm-bg/60 text-foreground/50 hover:bg-warm-bg border border-gray-200'
-          } ${locked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
-          style={{ fontFamily: 'var(--font-body)' }}
-          aria-label={`Set permissions for ${page.label}`}
-          title={locked ? 'Always admin only' : 'Set department permissions'}
-        >
-          {restricted ? (
-            <>
-              {page.allowedDepartments.map(deptId => {
-                const deptUsers = getUsersInDept(deptId);
-                return (
-                  <span key={deptId} className="flex items-center gap-1">
-                    <span
-                      className="w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: getDeptColor(deptId) }}
-                    />
-                    <span>{getDeptName(deptId)}</span>
-                    {deptUsers.length > 0 && (
-                      <span className="flex -space-x-1.5 ml-0.5">
-                        {deptUsers.slice(0, 4).map(u => (
-                          <span key={u.id} className="relative group/avatar">
-                            {u.avatar_url ? (
-                              <img
-                                src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
-                                alt={u.full_name || u.email}
-                                className="w-4 h-4 rounded-full border border-white"
-                              />
-                            ) : (
-                              <span className="w-4 h-4 rounded-full bg-primary/20 text-primary text-[8px] font-bold flex items-center justify-center border border-white">
-                                {(u.full_name || u.email || '?').charAt(0).toUpperCase()}
-                              </span>
-                            )}
-                            <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 rounded-lg bg-foreground text-white text-[10px] whitespace-nowrap opacity-0 group-hover/avatar:opacity-100 pointer-events-none transition-opacity z-10 shadow-lg">
-                              {u.full_name || u.email}
-                            </span>
+        {/* Department permissions chip — fixed-width slot like the
+            toggles. A restricted page summarizes to "first dept (+N)
+            · avatar stack" and truncates rather than growing and
+            shoving the toggle columns out of line; the modal shows
+            the full picture. */}
+        <div className="shrink-0 w-36 flex justify-center">
+          <button
+            onClick={() => !locked && setPermissionsFor(page.path)}
+            disabled={locked}
+            className={`max-w-full flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+              restricted
+                ? 'bg-primary/10 text-primary hover:bg-primary/20 border border-primary/20'
+                : 'bg-warm-bg/60 text-foreground/50 hover:bg-warm-bg border border-gray-200'
+            } ${locked ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer'}`}
+            style={{ fontFamily: 'var(--font-body)' }}
+            aria-label={`Set permissions for ${page.label}`}
+            title={
+              locked
+                ? 'Always admin only'
+                : restricted
+                ? page.allowedDepartments.map((d) => getDeptName(d)).join(', ')
+                : 'Set department permissions'
+            }
+          >
+            {restricted ? (() => {
+              const firstDept = page.allowedDepartments[0];
+              const deptUsers = getUsersInDept(firstDept);
+              const moreDepts = page.allowedDepartments.length - 1;
+              return (
+                <>
+                  <span
+                    className="w-2 h-2 rounded-full shrink-0"
+                    style={{ backgroundColor: getDeptColor(firstDept) }}
+                  />
+                  <span className="truncate">{getDeptName(firstDept)}</span>
+                  {moreDepts > 0 && <span className="shrink-0 text-foreground/45">+{moreDepts}</span>}
+                  {deptUsers.length > 0 && (
+                    <span className="flex -space-x-1.5 shrink-0">
+                      {deptUsers.slice(0, 3).map(u => (
+                        u.avatar_url ? (
+                          <img
+                            key={u.id}
+                            src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
+                            alt={u.full_name || u.email}
+                            title={u.full_name || u.email}
+                            className="w-4 h-4 rounded-full border border-white"
+                          />
+                        ) : (
+                          <span key={u.id} title={u.full_name || u.email} className="w-4 h-4 rounded-full bg-primary/20 text-primary text-[8px] font-bold flex items-center justify-center border border-white">
+                            {(u.full_name || u.email || '?').charAt(0).toUpperCase()}
                           </span>
-                        ))}
-                        {deptUsers.length > 4 && (
-                          <span className="w-4 h-4 rounded-full bg-gray-200 text-foreground/50 text-[8px] font-bold flex items-center justify-center border border-white">
-                            +{deptUsers.length - 4}
-                          </span>
-                        )}
-                      </span>
-                    )}
-                  </span>
-                );
-              })}
-            </>
-          ) : (
-            <>
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="10" rx="2" />
-                <path d="M7 11V7a5 5 0 019.9-1" />
-              </svg>
-              Everyone
-            </>
-          )}
-        </button>
+                        )
+                      ))}
+                      {deptUsers.length > 3 && (
+                        <span className="w-4 h-4 rounded-full bg-gray-200 text-foreground/50 text-[8px] font-bold flex items-center justify-center border border-white">
+                          +{deptUsers.length - 3}
+                        </span>
+                      )}
+                    </span>
+                  )}
+                </>
+              );
+            })() : (
+              <>
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="10" rx="2" />
+                  <path d="M7 11V7a5 5 0 019.9-1" />
+                </svg>
+                Everyone
+              </>
+            )}
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-10">
+    // Capped width: the row is title + a fixed ~430px control rail,
+    // so on a wide monitor an uncapped container just inserts a huge
+    // dead gap between the page name and its toggles.
+    <div className="p-4 sm:p-6 lg:p-10 max-w-[1060px] mx-auto">
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-2 mb-1">
@@ -482,9 +499,10 @@ export default function PagesContent() {
               <span className="w-4 shrink-0" />
               <span className="shrink-0 w-4" />
               <span className="flex-1">Page</span>
+              <span className="shrink-0 w-7" />
               <span className="shrink-0 w-20 text-center">Super Admin</span>
               <span className="shrink-0 w-20 text-center">Alumni Only</span>
-              <span className="shrink-0 w-32 text-center">Permissions</span>
+              <span className="shrink-0 w-36 text-center">Permissions</span>
             </div>
             {navPages.length === 0 ? (
               <div className="px-5 py-8 text-center text-sm text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
@@ -613,9 +631,10 @@ export default function PagesContent() {
               <span className="w-4 shrink-0" />
               <span className="shrink-0 w-4" />
               <span className="flex-1">Page</span>
+              <span className="shrink-0 w-7" />
               <span className="shrink-0 w-20 text-center">Super Admin</span>
               <span className="shrink-0 w-20 text-center">Alumni Only</span>
-              <span className="shrink-0 w-32 text-center">Permissions</span>
+              <span className="shrink-0 w-36 text-center">Permissions</span>
             </div>
             {popupPages.length === 0 ? (
               <div className="px-5 py-8 text-center text-sm text-foreground/30" style={{ fontFamily: 'var(--font-body)' }}>
