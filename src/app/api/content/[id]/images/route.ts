@@ -176,8 +176,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     // Roll status back so the UI doesn't stay stuck on the swirling
     // placeholder grid waiting for images that will never arrive —
     // the user should land back in the Review panel, see the copyable
-    // error, and be able to retry.
-    await admin.from('blogs').update({ status: 'review' }).eq('id', id);
+    // error, and be able to retry. ('reviewing' is the real enum
+    // value; this used to write the nonexistent 'review'.)
+    await admin.from('blogs').update({ status: 'reviewing' }).eq('id', id);
     return NextResponse.json({ error: 'all image generations failed', failures }, { status: 503 });
   }
 
