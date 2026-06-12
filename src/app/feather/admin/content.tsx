@@ -63,9 +63,9 @@ const PAGES: AdminPage[] = [
     ),
   },
   {
-    href: '/feather/alumni-roster',
+    href: '/feather/admin/alumni',
     title: 'Alumni',
-    description: 'The full alumni roster: profiles, sobriety dates, check-in streaks, and contact opt-ins.',
+    description: 'The alumni side in one place: incoming sign-ins, the roster, alumni-only pages, and alumni admins.',
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2" />
