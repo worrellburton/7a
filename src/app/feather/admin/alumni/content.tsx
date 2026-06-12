@@ -174,7 +174,9 @@ export default function AlumniAdminContent() {
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <IncomingAlumniPanel session={session} canEdit={canEdit} />
+        {/* Alumni admins may approve incoming alumni (the classify API
+            allows them exactly that move); declining stays admin. */}
+        <IncomingAlumniPanel session={session} canApprove={canEdit || isAlumniAdmin} canDecline={canEdit} />
         <AlumniRosterPanel session={session} />
         <AlumniPagesPanel canEdit={canEdit} />
         <AlumniAdminsPanel canEdit={canEdit} />
@@ -185,7 +187,11 @@ export default function AlumniAdminContent() {
 
 // ─── 1. Incoming sign-ins → alumni ─────────────────────────────
 
-function IncomingAlumniPanel({ session, canEdit }: { session: ReturnType<typeof useAuth>['session']; canEdit: boolean }) {
+function IncomingAlumniPanel({ session, canApprove, canDecline }: {
+  session: ReturnType<typeof useAuth>['session'];
+  canApprove: boolean;
+  canDecline: boolean;
+}) {
   const [data, setData] = useState<IncomingPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
@@ -255,8 +261,8 @@ function IncomingAlumniPanel({ session, canEdit }: { session: ReturnType<typeof 
                 <p className="text-[13px] font-semibold text-foreground truncate">{u.full_name || u.email || 'Unknown'}</p>
                 <p className="text-[11px] text-foreground/50 truncate">{u.email} · signed in {fmtAgo(u.last_sign_in ?? u.created_at)}</p>
               </div>
-              {canEdit && (
-                <div className="shrink-0 flex items-center gap-1.5">
+              <div className="shrink-0 flex items-center gap-1.5">
+                {canApprove && (
                   <button
                     type="button"
                     disabled={busyId === u.id}
@@ -265,6 +271,8 @@ function IncomingAlumniPanel({ session, canEdit }: { session: ReturnType<typeof 
                   >
                     Approve as alumnus
                   </button>
+                )}
+                {canDecline && (
                   <button
                     type="button"
                     disabled={busyId === u.id}
@@ -273,8 +281,8 @@ function IncomingAlumniPanel({ session, canEdit }: { session: ReturnType<typeof 
                   >
                     Decline
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </li>
           ))}
         </ul>
