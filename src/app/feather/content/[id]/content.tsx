@@ -155,7 +155,13 @@ export default function BlogEditor({ id }: { id: string }) {
 
   const token = session?.access_token ?? null;
   const reachedReview = !!blog.body_markdown;
-  const reachedSelect = blog.status === 'selecting' || blog.status === 'built' || blog.status === 'published';
+  // Like reachedReview, derived from DATA rather than the status
+  // label: the status only advances to 'selecting' at the tail of the
+  // (minutes-long) image-generation request, so a dropped connection
+  // or killed function strands a blog at status='images' with real
+  // images saved — and the Build card silently never appeared. If
+  // images exist, the select/build stage is real.
+  const reachedSelect = images.length > 0 || blog.status === 'selecting' || blog.status === 'built' || blog.status === 'published';
   const reachedBuild = blog.status === 'built' || blog.status === 'published';
   const reachedPublish = blog.status === 'published';
 
@@ -1265,7 +1271,14 @@ function ImagesPanel({ blog, images, token, onChange, approving }: { blog: DbBlo
       const res = await fetch(`/api/content/${blog.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ selected_image_ids: Array.from(selected) }),
+        // Saving a selection also self-heals a status stranded before
+        // 'selecting' (the images route only stamps it at the very end
+        // of a minutes-long request) — without regressing blogs that
+        // already moved on to built/published.
+        body: JSON.stringify({
+          selected_image_ids: Array.from(selected),
+          ...(blog.status !== 'built' && blog.status !== 'published' ? { status: 'selecting' } : {}),
+        }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
