@@ -31,6 +31,11 @@ interface DbBlog {
   title: string | null;
   status: 'draft' | 'reviewing' | 'images' | 'selecting' | 'built' | 'published';
   prompt: string | null;
+  // Step 1 dual-mode: 'prompt' drafts from the brief, 'content'
+  // means source_content holds the admin's own copy and Generate
+  // body uses it as the main content (format-only pass).
+  source_mode?: 'prompt' | 'content' | null;
+  source_content?: string | null;
   body_markdown: string | null;
   layout: Layout | null;
   selected_image_ids: string[] | null;
@@ -192,6 +197,8 @@ export default function BlogEditor({ id }: { id: string }) {
           <PromptPanel
             blogId={blog.id}
             prompt={blog.prompt ?? ''}
+            sourceMode={blog.source_mode === 'content' ? 'content' : 'prompt'}
+            sourceContent={blog.source_content ?? ''}
             token={token}
             onChange={() => void load()}
           />
@@ -456,62 +463,136 @@ function Panel({ heading, step, children }: { heading: string; step: number | st
   );
 }
 
-function PromptPanel({ blogId, prompt, token, onChange }: { blogId: string; prompt: string; token: string | null; onChange: () => void }) {
-  // Step 1 is editable now — clicking '+ New blog' on the list page
-  // drops the user here with a placeholder, and they refine the
-  // prompt before clicking Generate body. Auto-saves on blur via
-  // PATCH /api/content/[id]; refreshes the parent so GeneratePanel
-  // reads the freshest prompt on its next click.
+function PromptPanel({ blogId, prompt, sourceMode, sourceContent, token, onChange }: {
+  blogId: string;
+  prompt: string;
+  sourceMode: 'prompt' | 'content';
+  sourceContent: string;
+  token: string | null;
+  onChange: () => void;
+}) {
+  // Step 1 is dual-mode: write a PROMPT for Claude to draft from, or
+  // paste YOUR OWN CONTENT — Generate body then uses that copy as the
+  // main content (structured for the site, wording preserved). The
+  // mode persists to blogs.source_mode so the generate route knows
+  // which path to take; both textareas auto-save on blur via
+  // PATCH /api/content/[id], and the parent refresh keeps
+  // GeneratePanel reading the freshest source on its next click.
+  const [mode, setMode] = useState<'prompt' | 'content'>(sourceMode);
   const [draft, setDraft] = useState(prompt);
+  const [contentDraft, setContentDraft] = useState(sourceContent);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  // Keep the textarea in sync when the parent refetches a newer
-  // prompt (e.g. another tab edited it). Only does so when the user
-  // isn't mid-edit — comparing against the last saved value, not
-  // the in-progress draft.
+  // Keep each field in sync when the parent refetches a newer value
+  // (e.g. another tab edited it). Only does so when the user isn't
+  // mid-edit — comparing against the last saved value, not the
+  // in-progress draft.
   const lastSavedRef = useRef(prompt);
+  const lastSavedContentRef = useRef(sourceContent);
+  const lastSavedModeRef = useRef(sourceMode);
   useEffect(() => {
     if (lastSavedRef.current !== prompt) {
       lastSavedRef.current = prompt;
       setDraft(prompt);
     }
   }, [prompt]);
+  useEffect(() => {
+    if (lastSavedContentRef.current !== sourceContent) {
+      lastSavedContentRef.current = sourceContent;
+      setContentDraft(sourceContent);
+    }
+  }, [sourceContent]);
+  useEffect(() => {
+    if (lastSavedModeRef.current !== sourceMode) {
+      lastSavedModeRef.current = sourceMode;
+      setMode(sourceMode);
+    }
+  }, [sourceMode]);
 
-  async function save() {
-    const trimmed = draft.trim();
-    if (trimmed === lastSavedRef.current.trim()) return;
-    if (!token) return;
+  async function patchBlog(body: Record<string, unknown>) {
+    if (!token) return false;
     setSaving(true);
     setErr(null);
     try {
       const res = await fetch(`/api/content/${blogId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ prompt: trimmed }),
+        body: JSON.stringify(body),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((json as { error?: string }).error ?? `HTTP ${res.status}`);
-      lastSavedRef.current = trimmed;
       onChange();
+      return true;
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
+      return false;
     } finally {
       setSaving(false);
     }
   }
 
+  async function save() {
+    if (mode === 'prompt') {
+      const trimmed = draft.trim();
+      if (trimmed === lastSavedRef.current.trim()) return;
+      if (await patchBlog({ prompt: trimmed })) lastSavedRef.current = trimmed;
+    } else {
+      const trimmed = contentDraft.trim();
+      if (trimmed === lastSavedContentRef.current.trim()) return;
+      if (await patchBlog({ source_content: trimmed })) lastSavedContentRef.current = trimmed;
+    }
+  }
+
+  async function switchMode(next: 'prompt' | 'content') {
+    if (next === mode) return;
+    setMode(next);
+    if (await patchBlog({ source_mode: next })) lastSavedModeRef.current = next;
+  }
+
   return (
-    <Panel heading="Prompt" step={1}>
-      <textarea
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={() => void save()}
-        rows={4}
-        placeholder="Describe what this post should be about — topic, angle, anything the model should hold onto."
-        className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13.5px] leading-relaxed bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 resize-y"
-      />
+    <Panel heading={mode === 'content' ? 'Your own content' : 'Prompt'} step={1}>
+      <div className="mb-3 inline-flex items-center rounded-lg border border-black/10 bg-warm-bg/40 p-0.5 gap-0.5" role="tablist" aria-label="Step 1 source">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'prompt'}
+          onClick={() => void switchMode('prompt')}
+          className={`px-3 py-1 rounded-md text-[11.5px] font-semibold transition-colors ${mode === 'prompt' ? 'bg-foreground text-white' : 'text-foreground/60 hover:text-foreground'}`}
+        >
+          Prompt
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={mode === 'content'}
+          onClick={() => void switchMode('content')}
+          className={`px-3 py-1 rounded-md text-[11.5px] font-semibold transition-colors ${mode === 'content' ? 'bg-foreground text-white' : 'text-foreground/60 hover:text-foreground'}`}
+        >
+          Your own content
+        </button>
+      </div>
+      {mode === 'prompt' ? (
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => void save()}
+          rows={4}
+          placeholder="Describe what this post should be about — topic, angle, anything the model should hold onto."
+          className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13.5px] leading-relaxed bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 resize-y"
+        />
+      ) : (
+        <textarea
+          value={contentDraft}
+          onChange={(e) => setContentDraft(e.target.value)}
+          onBlur={() => void save()}
+          rows={12}
+          placeholder="Paste the full copy for this post. Generate body will use it as the main content — structured for the site (title, headings, paragraphs) with your wording preserved, not rewritten."
+          className="w-full rounded-lg border border-black/10 px-3 py-2 text-[13.5px] leading-relaxed bg-white focus:outline-none focus:ring-2 focus:ring-primary/30 resize-y"
+        />
+      )}
       <div className="mt-1 flex items-center gap-2 text-[11px] text-foreground/45">
         {saving ? <span>Saving…</span> : <span>Auto-saves when you click away.</span>}
+        {mode === 'content' && !saving && <span>· Your copy becomes the post body as-written.</span>}
         {err && <span className="text-rose-700">· {err}</span>}
       </div>
     </Panel>
@@ -933,10 +1014,13 @@ function GeneratePanel({ blog, token, onComplete }: { blog: DbBlog; token: strin
       setBusy(false);
     }
   }
+  const ownContent = blog.source_mode === 'content';
   return (
     <Panel heading="Generate body" step={2}>
       <p className="text-[12.5px] text-foreground/65 mb-3 leading-relaxed">
-        Runs Claude (opus 4.7) against the prompt to draft a full SEO/GEO-friendly investigative post for sevenarrowsrecoveryarizona.com.
+        {ownContent
+          ? 'Uses the copy you pasted in Step 1 as the main content — Claude only structures it for the site (title, headings, paragraphs, lists). Your wording is preserved, nothing new is written.'
+          : 'Runs Claude against the prompt to draft a full SEO/GEO-friendly investigative post for sevenarrowsrecoveryarizona.com.'}
         {blog.body_markdown ? ' A body is already saved — re-running replaces it.' : ''}
       </p>
       {err && <ErrorWithCopy message={err.message} details={err.details} />}
@@ -948,7 +1032,7 @@ function GeneratePanel({ blog, token, onComplete }: { blog: DbBlog; token: strin
       >
         {busy
           ? `Generating… ${Math.round(progress.progress * 100)}%`
-          : blog.body_markdown ? 'Regenerate body' : 'Generate blog'}
+          : blog.body_markdown ? 'Regenerate body' : ownContent ? 'Use my content as the body' : 'Generate blog'}
       </button>
       {progress.running && <ProgressBar value={progress.progress} />}
     </Panel>
@@ -2595,6 +2679,8 @@ function PipelineToolsCollapsed({
           <PromptPanel
             blogId={blog.id}
             prompt={blog.prompt ?? ''}
+            sourceMode={blog.source_mode === 'content' ? 'content' : 'prompt'}
+            sourceContent={blog.source_content ?? ''}
             token={token}
             onChange={onChange}
           />
