@@ -21,7 +21,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     // listing only what's used keeps the payload tight.
     admin
       .from('blogs')
-      .select('id, slug, title, status, prompt, body_markdown, layout, selected_image_ids, created_at, updated_at, published_at, created_by, author_slug, reviewer_slug, last_reviewed_at')
+      .select('id, slug, title, status, prompt, source_mode, source_content, body_markdown, layout, selected_image_ids, created_at, updated_at, published_at, created_by, author_slug, reviewer_slug, last_reviewed_at')
       .eq('id', id)
       .maybeSingle(),
     // Revisions grow unbounded for prolific editors; cap at 50 (the
@@ -57,6 +57,11 @@ interface PatchBody {
   body_markdown?: string;
   layout?: unknown;
   prompt?: string;
+  // Step 1 dual-mode: 'prompt' drafts from the brief; 'content'
+  // means source_content holds the admin's own copy and Generate
+  // body uses it as the main content.
+  source_mode?: 'prompt' | 'content';
+  source_content?: string | null;
   // E-E-A-T byline fields. author_slug + reviewer_slug match
   // BLOG_AUTHORS entries in /lib/blogAuthors.ts; last_reviewed_at
   // is set by the 'Mark reviewed today' button so MedicalWebPage
@@ -81,6 +86,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if ('body_markdown' in body) patch.body_markdown = body.body_markdown;
   if ('layout' in body) patch.layout = body.layout;
   if ('prompt' in body) patch.prompt = body.prompt;
+  if ('source_mode' in body && (body.source_mode === 'prompt' || body.source_mode === 'content')) patch.source_mode = body.source_mode;
+  if ('source_content' in body) patch.source_content = body.source_content;
   if ('author_slug' in body) patch.author_slug = body.author_slug;
   if ('reviewer_slug' in body) patch.reviewer_slug = body.reviewer_slug;
   if ('last_reviewed_at' in body) patch.last_reviewed_at = body.last_reviewed_at;
