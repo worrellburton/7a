@@ -51,13 +51,19 @@ export async function GET() {
   const all = (data ?? []) as UserRow[];
   const isSa = (u: UserRow) => (u.email || '').toLowerCase().endsWith(SA_DOMAIN);
 
-  // Alumni Admin scope: only the alumni bucket. Other buckets stay
-  // empty arrays so the UI's existing structure doesn't blow up.
+  // Alumni Admin scope: the alumni bucket PLUS unclassified external
+  // sign-ins — marking an incoming alumnus as alumni is squarely the
+  // role's job (the classify route enforces that's the ONLY move they
+  // can make). Staff/guest buckets stay empty arrays so the UI's
+  // existing structure doesn't blow up.
   if (alumniScoped) {
     const alumni = all.filter((u) => u.user_kind === 'alumni');
+    const externalNew = all.filter(
+      (u) => !isSa(u) && u.user_kind === 'staff' && (u.status === 'on_hold' || u.status === null),
+    );
     return NextResponse.json({
       pendingStaff: [],
-      externalNew: [],
+      externalNew,
       guests: [],
       alumni,
     });

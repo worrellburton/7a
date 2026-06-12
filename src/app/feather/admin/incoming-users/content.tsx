@@ -50,14 +50,14 @@ export default function IncomingUsersContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState<boolean | null>(null);
-  // Alumni Admin viewers (without Super Admin) land directly on the
-  // Classified tab because the server narrows their payload to
-  // user_kind='alumni' rows only — the pending/external buckets
-  // come back empty and would be confusing as the default view.
+  // Alumni Admin viewers (without Super Admin) work the External +
+  // Alumni tabs: the server scopes their payload to unclassified
+  // external sign-ins (which they may ONLY mark as alumni) plus the
+  // alumni bucket. Pending staff is out of scope, so bounce off it.
   const alumniScoped = isAlumniAdmin && !viewerIsSuperAdmin;
-  const [tab, setTab] = useState<TabKey>(alumniScoped ? 'classified' : 'pendingStaff');
+  const [tab, setTab] = useState<TabKey>(alumniScoped ? 'external' : 'pendingStaff');
   useEffect(() => {
-    if (alumniScoped && tab !== 'classified') setTab('classified');
+    if (alumniScoped && tab === 'pendingStaff') setTab('external');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [alumniScoped]);
   const [classifyTarget, setClassifyTarget] = useState<IncomingUser | null>(null);
@@ -153,24 +153,22 @@ export default function IncomingUsersContent() {
         <h1 className="text-lg font-semibold text-foreground tracking-tight">Incoming Users</h1>
         <p className="text-sm text-foreground/55 mt-0.5">
           {alumniScoped
-            ? 'Every alumni account that has signed in. Other user kinds are out-of-scope for your role.'
+            ? 'Incoming sign-ins you can welcome in as alumni, plus every alumni account on the platform. Other user kinds are out-of-scope for your role.'
             : 'Triage every account that signs in — approve staff, classify outsiders as Guest or Alumni, and shape what guests can see.'}
         </p>
       </header>
 
       <div className="mb-5 inline-flex items-center rounded-lg border border-black/10 bg-white p-1 gap-1">
         {!alumniScoped && (
-          <>
-            <TabButton active={tab === 'pendingStaff'} onClick={() => setTab('pendingStaff')}>
-              Pending staff
-              <Count n={counts.pendingStaff} tone="amber" />
-            </TabButton>
-            <TabButton active={tab === 'external'} onClick={() => setTab('external')}>
-              External sign-ins
-              <Count n={counts.external} tone="blue" />
-            </TabButton>
-          </>
+          <TabButton active={tab === 'pendingStaff'} onClick={() => setTab('pendingStaff')}>
+            Pending staff
+            <Count n={counts.pendingStaff} tone="amber" />
+          </TabButton>
         )}
+        <TabButton active={tab === 'external'} onClick={() => setTab('external')}>
+          External sign-ins
+          <Count n={counts.external} tone="blue" />
+        </TabButton>
         <TabButton active={tab === 'classified'} onClick={() => setTab('classified')}>
           {alumniScoped ? 'Alumni' : 'Classified'}
           <Count n={counts.classified} tone="muted" />
@@ -198,6 +196,9 @@ export default function IncomingUsersContent() {
           // pipeline Pending Staff's Deny uses, so the email lands on
           // the denied list and future sign-ins stay locked out.
           onDecline={(u) => classify(u, 'guest', 'denied')}
+          // Alumni admins get exactly one move here (Mark alumni) —
+          // the classify API enforces the same restriction.
+          alumniActionsOnly={alumniScoped}
         />
       ) : (
         <ClassifiedPanel
@@ -318,11 +319,15 @@ function ExternalPanel({
   onClassify,
   onAlumni,
   onDecline,
+  alumniActionsOnly = false,
 }: {
   rows: IncomingUser[];
   onClassify: (u: IncomingUser) => void;
   onAlumni: (u: IncomingUser) => void;
   onDecline: (u: IncomingUser) => void;
+  /** Alumni-admin viewers: hide Classify + Decline, leaving only
+   *  Mark alumni — the one transition their role may perform. */
+  alumniActionsOnly?: boolean;
 }) {
   if (rows.length === 0) {
     return <EmptyState title="No external sign-ins waiting" body="Anyone who signs in with a non-@sevenarrowsrecovery.com email will land here." />;
@@ -342,15 +347,26 @@ function ExternalPanel({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={() => onClassify(u)} className="px-3 py-1.5 rounded-md bg-foreground text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-foreground/85">
-              Classify
-            </button>
-            <button onClick={() => onAlumni(u)} className="px-3 py-1.5 rounded-md bg-white border border-black/10 text-foreground/70 text-[11px] font-semibold uppercase tracking-wider hover:bg-warm-bg/60">
+            {!alumniActionsOnly && (
+              <button onClick={() => onClassify(u)} className="px-3 py-1.5 rounded-md bg-foreground text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-foreground/85">
+                Classify
+              </button>
+            )}
+            <button
+              onClick={() => onAlumni(u)}
+              className={`px-3 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wider ${
+                alumniActionsOnly
+                  ? 'bg-foreground text-white hover:bg-foreground/85'
+                  : 'bg-white border border-black/10 text-foreground/70 hover:bg-warm-bg/60'
+              }`}
+            >
               Mark alumni
             </button>
-            <button onClick={() => onDecline(u)} className="px-3 py-1.5 rounded-md bg-white text-rose-700 border border-rose-200 text-[11px] font-semibold uppercase tracking-wider hover:bg-rose-50">
-              Decline
-            </button>
+            {!alumniActionsOnly && (
+              <button onClick={() => onDecline(u)} className="px-3 py-1.5 rounded-md bg-white text-rose-700 border border-rose-200 text-[11px] font-semibold uppercase tracking-wider hover:bg-rose-50">
+                Decline
+              </button>
+            )}
           </div>
         </li>
       ))}
