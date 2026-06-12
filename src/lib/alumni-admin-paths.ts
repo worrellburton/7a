@@ -15,6 +15,9 @@
 export const ALUMNI_ADMIN_PATHS: ReadonlySet<string> = new Set<string>([
   '/feather/admin/user-permissions',
   '/feather/admin/incoming-users',
+  // The alumni-admin hub itself — one stop for incoming alumni,
+  // the roster, alumni-only pages, and the alumni-admin role.
+  '/feather/admin/alumni',
   // Staff-facing roster of every alumnus. Alumni Admins live in this
   // page day-to-day, so they must reach it without is_admin.
   '/feather/alumni-roster',
