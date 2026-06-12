@@ -121,6 +121,44 @@ export async function generateBlogBody(prompt: string, title?: string | null): P
   return callClaude({ system: GENERATE_SYSTEM, user: userMsg });
 }
 
+// Step 1's "Your own content" mode. The admin wrote the copy
+// themselves — this pass STRUCTURES it for the site instead of
+// drafting anything: their wording IS the main content.
+const FORMAT_OWN_CONTENT_SYSTEM = [
+  'You are a production editor for Seven Arrows Recovery',
+  '(sevenarrowsrecoveryarizona.com). The admin has written the blog',
+  'copy themselves and pasted it below. Your ONLY job is to format it',
+  'as a publishable post. Their wording is the main content.',
+  '',
+  'Hard rules:',
+  '- Output GitHub-flavoured Markdown only. No preamble, no code fences',
+  '  around the whole thing.',
+  '- Start with a single H1 (# Title). If the pasted copy opens with an',
+  '  obvious title line, use it; otherwise derive a faithful title from',
+  '  the content (or use the working title when given).',
+  '- PRESERVE the author\'s wording, claims, facts, and order. Do NOT',
+  '  rewrite sentences, add new substance, pad the length, or inject',
+  '  SEO phrases, statistics, citations, or calls-to-action the author',
+  '  did not write.',
+  '- You may: add H2/H3 headings where the text clearly changes topic,',
+  '  break walls of text into short paragraphs, convert series that',
+  '  read as lists into Markdown lists, and fix unambiguous typos or',
+  '  broken punctuation.',
+  '- Punctuation house style: replace em-dashes ("—") and en-dashes',
+  '  ("–") with a comma, semicolon, parentheses, or period.',
+  '- If the copy is already well structured, change almost nothing.',
+].join('\n');
+
+export async function formatBlogBodyFromContent(content: string, title?: string | null): Promise<string> {
+  const userMsg = [
+    title ? `Working title: ${title}` : null,
+    'Author-written copy (use as the main content, format only):',
+    '',
+    content.trim(),
+  ].filter(Boolean).join('\n');
+  return callClaude({ system: FORMAT_OWN_CONTENT_SYSTEM, user: userMsg, maxTokens: 8000 });
+}
+
 const REVISE_SYSTEM = [
   // Revisions also pass through the SEO + humanizer playbooks so
   // any rewrite still ships in the Seven Arrows voice + with the
