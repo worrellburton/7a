@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import Link from '@/components/HoverPrefetchLink';
 import { useModal } from '@/lib/ModalProvider';
 
 // Inline "click to pick from a list, or type a new value" cell. Used
@@ -28,10 +29,18 @@ export function SearchSelectCell({
   onDeleteOption,
   placeholder = 'Set value…',
   className = '',
+  href,
 }: {
   value: string | null | undefined;
   options: string[];
   onSave: (next: string | null) => Promise<void> | void;
+  // When set (and a value is present), the cell's value renders as a
+  // LINK to this destination — clicking the name navigates there
+  // instead of opening the picker. The picker moves to a small chevron
+  // that only appears on hover, so the cell reads as "click to open,
+  // hover to edit." Columns that don't pass href keep the original
+  // click-anywhere-to-edit behaviour.
+  href?: string;
   // Optional bulk-edit hooks. When provided, the dropdown reveals a
   // pencil + trash button next to each option on hover. Edit kicks
   // off an inline rename input; delete confirms then runs the
@@ -104,8 +113,47 @@ export function SearchSelectCell({
     if ((next ?? '') !== (value ?? '')) await onSave(next);
   }
 
+  // Link mode: the value is a navigable link and the picker hides
+  // behind a hover-revealed chevron. Only kicks in when a destination
+  // AND a value are present (an empty cell has nothing to link to, so
+  // it falls back to the plain click-to-set button below).
+  const linkMode = !!href && !!display;
+
   return (
     <>
+      {linkMode ? (
+        <div
+          className={`group/sscell inline-flex items-center gap-1 max-w-full rounded-md px-1.5 -mx-1.5 py-0.5 transition-colors hover:bg-warm-bg/60 ${className}`}
+        >
+          <Link
+            href={href as string}
+            onClick={(e) => e.stopPropagation()}
+            title={`Open ${display}`}
+            className="min-w-0 truncate whitespace-nowrap text-foreground/80 hover:text-primary hover:underline"
+          >
+            {display}
+          </Link>
+          {/* Edit affordance — only on hover (or while open). Opens the
+              same picker dropdown used everywhere else, so the value
+              can be searched, changed, renamed or cleared without
+              leaving the page. Hidden at rest so the cell reads as
+              "click the name to open it." */}
+          <button
+            ref={triggerRef}
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            title="Change value"
+            aria-label="Change value"
+            className={`shrink-0 ml-auto inline-flex items-center justify-center w-5 h-5 rounded transition-all ${open ? 'opacity-100 rotate-180 text-foreground/70 bg-warm-bg' : 'opacity-0 group-hover/sscell:opacity-100 text-foreground/45 hover:text-foreground/75 hover:bg-warm-bg'}`}
+          >
+            <svg width="9" height="9" viewBox="0 0 12 12" fill="none">
+              <path d="M3 4.5L6 7.5L9 4.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        </div>
+      ) : (
       <button
         ref={triggerRef}
         type="button"
@@ -135,6 +183,7 @@ export function SearchSelectCell({
           </svg>
         </span>
       </button>
+      )}
       {open && pos && typeof document !== 'undefined' && createPortal(
         <div
           ref={popRef}
