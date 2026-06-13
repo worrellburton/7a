@@ -1184,6 +1184,7 @@ export default function ContactsContent() {
           onAddContact={() => setShowAdd(true)}
           onAddWithAI={() => setShowSuggest(true)}
           onUploadCsv={() => setShowImport(true)}
+          onAddLog={() => setShowNewLog(true)}
         />
       </header>
 
@@ -4532,6 +4533,7 @@ function ContactsPillTray({
   onAddContact,
   onAddWithAI,
   onUploadCsv,
+  onAddLog,
 }: {
   totalContacts: number;
   logsToday: number;
@@ -4545,6 +4547,7 @@ function ContactsPillTray({
   onAddContact: () => void;
   onAddWithAI: () => void;
   onUploadCsv: () => void;
+  onAddLog: () => void;
 }) {
   const governanceTone =
     governanceScore == null ? '#a3a3a3' :
@@ -4554,7 +4557,7 @@ function ContactsPillTray({
   // Each pill stands alone — no surrounding "tray" container. The
   // stagger delays below give a soft cascade entry on first paint
   // (each pill rises + fades from a slight scale-down, 60ms apart).
-  const pills: Array<{ key: string; node: React.ReactNode }> = [
+  const pills: Array<{ key: string; node: React.ReactNode; desktopOnly?: boolean }> = [
     {
       key: 'total',
       node: (
@@ -4651,6 +4654,15 @@ function ContactsPillTray({
         />
       ),
     },
+    // Desktop-only "Add log" action, docked to the right of Add
+    // Contacts. On phones the bottom "New log" FAB already covers
+    // this, so the pill is hidden below the sm breakpoint (the exact
+    // width where the FAB takes over) — the two never show at once.
+    {
+      key: 'addlog',
+      desktopOnly: true,
+      node: <AddLogPill onAddLog={onAddLog} />,
+    },
   ];
   // Mobile: a tidy 2-column grid of full-width pills (the old
   // flex-wrap + justify-end produced a ragged, right-hugging jumble
@@ -4660,7 +4672,7 @@ function ContactsPillTray({
       {pills.map((p, i) => (
         <span
           key={p.key}
-          className="sa-pill-in"
+          className={`sa-pill-in${p.desktopOnly ? ' sa-pill-desktop-only' : ''}`}
           style={{ ['--pill-delay' as string]: `${i * 70}ms` }}
         >
           {p.node}
@@ -4687,6 +4699,18 @@ function ContactsPillTray({
         .sa-pill-in {
           display: inline-flex;
           animation: sa-pill-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1) var(--pill-delay, 0ms) both;
+        }
+        /* Desktop-only pills (e.g. Add log). Hidden below the sm
+           breakpoint where the bottom "New log" FAB takes over.
+           Declared after .sa-pill-in so it wins the display tie on
+           mobile; the min-width query re-shows it on desktop. */
+        .sa-pill-desktop-only {
+          display: none;
+        }
+        @media (min-width: 640px) {
+          .sa-pill-desktop-only {
+            display: inline-flex;
+          }
         }
         @media (prefers-reduced-motion: reduce) {
           .sa-pill-in {
@@ -4878,6 +4902,33 @@ function AddPill({
   );
 }
 
+// Single-action "Add log" pill. Sits to the right of the Add
+// Contacts pill on desktop and opens the same quick-log flow as the
+// mobile "New log" FAB (pick a person by name + log a touchpoint).
+// No dropdown — one click straight to the modal. Styled to match the
+// Add Contacts action pill (dark filled icon circle) so the two read
+// as a paired action cluster at the end of the dock.
+function AddLogPill({ onAddLog }: { onAddLog: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onAddLog}
+      className="inline-flex items-center gap-2 pl-1 pr-3.5 py-1 rounded-full transition-all bg-white/90 supports-[backdrop-filter]:bg-white/75 supports-[backdrop-filter]:backdrop-blur-md hover:bg-white shadow-[0_6px_16px_-8px_rgba(40,30,25,0.24),0_1px_4px_-2px_rgba(40,30,25,0.10)] hover:shadow-[0_8px_22px_-8px_rgba(40,30,25,0.30)] ring-1 ring-black/5 hover:ring-black/10"
+    >
+      <span className="inline-flex items-center justify-center w-9 h-9 rounded-full bg-foreground text-white shrink-0 shadow-[0_2px_6px_-1px_rgba(40,30,25,0.35)]">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M12 20h9" />
+          <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+        </svg>
+      </span>
+      <span className="text-left whitespace-nowrap">
+        <span className="block text-[9px] font-bold uppercase tracking-[0.18em] text-foreground/50 leading-tight">Add</span>
+        <span className="block text-[12.5px] font-bold leading-tight text-foreground">Log</span>
+      </span>
+    </button>
+  );
+}
+
 function InsightsCard({
   fallback,
   viewMode,
@@ -4885,6 +4936,7 @@ function InsightsCard({
   onAddContact,
   onAddWithAI,
   onUploadCsv,
+  onAddLog,
 }: {
   fallback: { week: number; month: number; total: number; never: number; missingEmail: number };
   viewMode: 'table' | 'map' | 'insights';
@@ -4892,6 +4944,7 @@ function InsightsCard({
   onAddContact: () => void;
   onAddWithAI: () => void;
   onUploadCsv: () => void;
+  onAddLog: () => void;
 }) {
   const [data, setData] = useState<InsightsPayload | null>(null);
   const [mode, setMode] = useState<'logs' | 'duration'>('logs');
@@ -4956,6 +5009,7 @@ function InsightsCard({
         onAddContact={onAddContact}
         onAddWithAI={onAddWithAI}
         onUploadCsv={onUploadCsv}
+        onAddLog={onAddLog}
       />
       {/* Expansion panels live in a separate frosted card below the
           tray. Renders only when a pill is open — keeps the page
