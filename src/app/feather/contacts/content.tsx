@@ -3876,34 +3876,21 @@ const ContactCell = memo(function ContactCell({
         </div>
       );
     case 'company':
+      // Click the company name → its company page (the cluster of
+      // everyone at that company, their unified log history, notes and
+      // promotion). Hover reveals a chevron to change the company
+      // inline. With no company set there's no page to open, so the
+      // cell falls back to the plain click-to-add picker.
       return (
-        <div className="flex items-center gap-1 group/company">
-          <div className="min-w-0 flex-1">
-            <SearchSelectCell
-              value={contact.company}
-              options={companyOptions}
-              onSave={(next) => onSaveField(contact.id, 'company', next ?? '')}
-              onRenameOption={renameFor('company')}
-              onDeleteOption={deleteFor('company')}
-              placeholder="Add company…"
-            />
-          </div>
-          {/* Jump to the company page — the cluster of everyone at this
-              company, their unified log history, notes, and promotion. */}
-          {contact.company && contact.company.trim() && (
-            <Link
-              href={`/feather/contacts/company/${companySlug(contact.company)}`}
-              onClick={(e) => e.stopPropagation()}
-              title={`Open ${contact.company} company page`}
-              aria-label={`Open ${contact.company} company page`}
-              className="shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md text-foreground/30 opacity-0 group-hover/company:opacity-100 hover:text-primary hover:bg-warm-bg transition-all"
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M7 17L17 7M17 7H8M17 7v9" />
-              </svg>
-            </Link>
-          )}
-        </div>
+        <SearchSelectCell
+          value={contact.company}
+          options={companyOptions}
+          onSave={(next) => onSaveField(contact.id, 'company', next ?? '')}
+          onRenameOption={renameFor('company')}
+          onDeleteOption={deleteFor('company')}
+          placeholder="Add company…"
+          href={contact.company && contact.company.trim() ? `/feather/contacts/company/${companySlug(contact.company)}` : undefined}
+        />
       );
     case 'website':
       return (
