@@ -97,6 +97,7 @@ export default function AlumniAftercarePage() {
       />
       <PageHero
         label="Alumni & aftercare"
+        breadcrumbSchema={false}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Treatment', href: '/treatment' },

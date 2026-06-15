@@ -109,6 +109,7 @@ export default function FamilyProgramPage() {
       />
       <PageHero
         label="Family program"
+        breadcrumbSchema={false}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Our program', href: '/our-program' },

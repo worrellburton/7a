@@ -189,6 +189,7 @@ export default function EquineAssistedPage() {
       />
       <PageHero
         label="Equine-assisted therapy"
+        breadcrumbSchema={false}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Our program', href: '/our-program' },

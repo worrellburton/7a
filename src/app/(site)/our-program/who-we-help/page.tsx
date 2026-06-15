@@ -126,6 +126,7 @@ export default function WhoWeHelpPage() {
       />
       <PageHero
         label="Who we help"
+        breadcrumbSchema={false}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Our program', href: '/our-program' },
