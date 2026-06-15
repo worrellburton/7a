@@ -1,0 +1,128 @@
+# Autonomous codebase-improvement loop.
+#
+# Every 6 hours, Claude Code finds ONE safe, self-contained improvement,
+# implements it, VERIFIES it (tsc + production build), and ships it to
+# production via the repo's main -> master deploy flow (see CLAUDE.md).
+# The per-run report lands in the PR description and the Actions run
+# summary.
+#
+# REQUIRED secret:
+#   ANTHROPIC_API_KEY  - Anthropic API key the agent runs on.
+#
+# RECOMMENDED secret (for unattended auto-merge through main's branch
+# protection — the `build` status check):
+#   GH_PAT  - a fine-grained PAT with Contents:write + Pull requests:write.
+#             Pushes made with the default GITHUB_TOKEN do NOT trigger the
+#             `build` CI check, so without a PAT the agent's PR can't go
+#             green on its own and it will safely stop at an open PR
+#             instead of merging. With GH_PAT the push triggers CI, the
+#             agent waits for green, then merges and syncs master.
+#
+# Manual test: Actions tab -> "Codebase improvement loop" -> Run workflow.
+
+name: Codebase improvement loop
+
+on:
+  schedule:
+    # 00:00, 06:00, 12:00, 18:00 UTC — every 6 hours.
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+# Never let two runs overlap (they'd race on main/master).
+concurrency:
+  group: codebase-improvement-loop
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  id-token: write
+  actions: read
+
+jobs:
+  improve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      # gh CLI auth — prefer a PAT (so branch pushes trigger the `build`
+      # CI check that main's protection requires) and fall back to the
+      # workflow token.
+      GH_TOKEN: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+      # Build-time placeholders so `next build` doesn't bail on the
+      # "missing env var" guard — mirrors .github/workflows/pages.yml.
+      # No request fires during build; the guards just want non-empty.
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co' }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-anon-key' }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || 'placeholder-service-role' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          # Persist these creds for the agent's git pushes; the PAT (if
+          # set) is what lets the pushed branch run CI.
+          token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          persist-credentials: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run improvement agent
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          github_token: ${{ secrets.GH_PAT || secrets.GITHUB_TOKEN }}
+          # Capable model for an unattended agent that auto-ships to
+          # production. Swap to claude-sonnet-4-6 to cut cost (4 runs/day).
+          claude_args: |
+            --model claude-opus-4-8
+            --max-turns 80
+            --allowedTools Read,Edit,Write,Glob,Grep,Bash
+          prompt: |
+            You are running UNATTENDED on a 6-hour schedule. Find exactly ONE
+            safe, high-value codebase improvement, implement it, verify it, and
+            ship it to production — WITHOUT breaking any working functionality.
+
+            FIRST: read CLAUDE.md and AGENTS.md and follow them exactly —
+            especially the deployment workflow (main is the source of truth;
+            production deploys only when `master` is synced from `main` with a
+            MERGE commit, never a squash). This is also NOT stock Next.js; read
+            node_modules/next/dist/docs before writing Next-specific code.
+
+            PICK (exactly one, additive and low-risk):
+            SEO/metadata, accessibility, dead-code removal, type-safety,
+            a small performance win, or read-path resilience. AVOID auth,
+            payments/billing, data mutations, migrations, and any large or
+            cross-cutting refactor. When in doubt, pick the smaller change or
+            make no change at all.
+
+            DO NOT BREAK FUNCTIONALITY — this is a hard gate. Before shipping you
+            MUST confirm BOTH:
+              - `npx tsc --noEmit -p tsconfig.json` exits 0
+              - `npm run build` succeeds
+            If either fails and you can't trivially fix it, `git reset --hard`
+            and ship nothing this run. Never ship a red build.
+
+            SHIP IT (per CLAUDE.md): commit on a new `claude/<slug>` branch,
+            push it, open a PR into `main`, wait for the required `build` status
+            check to pass (`gh pr checks <number> --watch`), squash-merge it,
+            then open a PR from `main` into `master` and merge with a MERGE
+            commit. Verify the merged master tree matches main. Never force-push,
+            never skip hooks, never commit directly to master.
+
+            REPORT: put the report — what the improvement was, what it changed,
+            and what it accomplishes — in the PR description, and also append it
+            to "$GITHUB_STEP_SUMMARY" so it appears in the Actions run.
+
+            IF BLOCKED (verification fails, the `build` check can't run because
+            no PAT is configured, or anything is ambiguous): leave the repo in a
+            CLEAN state — an open PR or no changes, never a half-merged or broken
+            state — and explain clearly in "$GITHUB_STEP_SUMMARY". A safe no-op
+            is always better than a risky change.
