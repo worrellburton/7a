@@ -130,17 +130,18 @@ export async function POST(req: NextRequest) {
   }
   const CHUNK = 100;
   let created = 0;
-  const insertedIds: string[] = [];
+  const insertedRows: Array<{ id: string; name: string | null }> = [];
   for (let i = 0; i < inserts.length; i += CHUNK) {
     const slice = inserts.slice(i, i + CHUNK);
-    const { error, data } = await admin.from('contacts').insert(slice).select('id');
+    const { error, data } = await admin.from('contacts').insert(slice).select('id, name');
     if (error) {
       errors.push({ row: i + 1, reason: `Batch starting at row ${i + 1} failed: ${error.message}` });
       continue;
     }
     created += data?.length ?? 0;
-    for (const row of (data ?? []) as Array<{ id: string }>) insertedIds.push(row.id);
+    for (const row of (data ?? []) as Array<{ id: string; name: string | null }>) insertedRows.push(row);
   }
+  const insertedIds = insertedRows.map((r) => r.id);
 
   // Per-row 'New Contact' touchpoint so each imported contact
   // shows up in the outreach activity feed + home log-rain
@@ -167,6 +168,29 @@ export async function POST(req: NextRequest) {
         // themselves landed; only the activity feed is impacted.
       }
     }
+
+    // Also surface every imported contact on the platform-wide
+    // /feather/activity feed — one 'contact.created' row each, the
+    // same entry the single-add path writes. Without this, CSV-imported
+    // contacts only showed up in the outreach log-rain and never in the
+    // activity feed. Chunked + best-effort: a feed hiccup must not fail
+    // an import whose contacts already landed.
+    for (let i = 0; i < insertedRows.length; i += LOG_CHUNK) {
+      const slice = insertedRows.slice(i, i + LOG_CHUNK);
+      const { error: feedErr } = await admin.from('activity_log').insert(
+        slice.map((r) => ({
+          user_id: user.id,
+          type: 'contact.created',
+          target_kind: 'contact',
+          target_id: r.id,
+          target_label: r.name,
+          target_path: '/feather/contacts',
+          metadata: { source: 'csv_import' },
+        })),
+      );
+      if (feedErr) console.warn('[contacts/import] activity_log insert failed:', feedErr.message);
+    }
+
     await admin.from('contacts').update({
       last_contact_at: nowIso,
       last_contact_by: user.id,
