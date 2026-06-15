@@ -26,13 +26,18 @@ export default function PageGuard({ children }: { children: React.ReactNode }) {
   const passAdminGate = isAdmin || alumniAdminPass || alumniViewerPass;
   const deniedAdmin = isPageAdminOnly(pathname) && !passAdminGate;
   const deniedDept = !passAdminGate && !isPageAllowedForDepartmentSet(pathname, [departmentId, ...userExtraDepartmentIds]);
-  // Alumni-only pages (the alumni portal + the alumni chat) admit only
-  // alumni and super admins — mirrors PlatformShell's canSeePage. Without
-  // this, an employee could reach an alumni-only route by direct URL even
-  // though its sidebar link is hidden from them.
+  // Alumni-only pages (the alumni portal) admit alumni + super admins —
+  // mirrors PlatformShell's canSeePage. Without this, an employee could
+  // reach an alumni-only route by direct URL even though its sidebar link
+  // is hidden from them.
   const isAlumniOnlyPage = pages.find((p) => p.path === pathname)?.alumniOnly === true;
   const deniedAlumniOnly = isAlumniOnlyPage && userKind !== 'alumni' && !isSuperAdmin;
-  const denied = override === false ? true : override === true ? false : (deniedAlumniOnly || deniedAdmin || deniedDept);
+  // Chat is the one alumni-only surface with NO super-admin exception —
+  // it's a private alumni-to-alumni space, so even super admins are kept
+  // out (no moderator access).
+  const isChat = pathname === '/feather/chat' || pathname.startsWith('/feather/chat/');
+  const deniedChat = isChat && userKind !== 'alumni';
+  const denied = override === false ? true : override === true ? false : (deniedAlumniOnly || deniedChat || deniedAdmin || deniedDept);
 
   useEffect(() => {
     if (authLoading || permLoading || !user) return;
