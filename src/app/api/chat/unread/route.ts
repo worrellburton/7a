@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
+import { getAdminSupabase } from '@/lib/supabase-server';
+import { requireChatAccess } from '@/lib/chat-server';
 
 // GET  /api/chat/unread?room=general  — { unread: number, last_at: iso | null }
 // POST /api/chat/unread?room=general  — bump chat_reads.last_read_at to now
@@ -11,8 +12,9 @@ import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireChatAccess(req);
+  if (gate instanceof NextResponse) return gate;
+  const user = gate.user;
   const url = new URL(req.url);
   const room = url.searchParams.get('room') || 'general';
 
@@ -70,8 +72,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireChatAccess(req);
+  if (gate instanceof NextResponse) return gate;
+  const user = gate.user;
   const url = new URL(req.url);
   const room = url.searchParams.get('room') || 'general';
 

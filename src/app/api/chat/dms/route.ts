@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser } from '@/lib/api-gates';
 import { getAdminSupabase } from '@/lib/supabase-server';
 import { GENERAL_ROOM, dmOtherParticipant } from '@/lib/chat-shared';
+import { requireChatAccess } from '@/lib/chat-server';
 
 // GET /api/chat/dms — the caller's conversation list.
 //
@@ -32,7 +32,7 @@ export interface ChatConversation {
 }
 
 export async function GET(req: NextRequest) {
-  const gate = await requireUser(req);
+  const gate = await requireChatAccess(req);
   if (gate instanceof NextResponse) return gate;
   const me = gate.user.id;
 
@@ -101,6 +101,10 @@ export async function GET(req: NextRequest) {
   const conversations: ChatConversation[] = [];
   for (const [room, entry] of byRoom.entries()) {
     const otherId = dmOtherParticipant(room, me);
+    // Keep the Everybody room + alumni-to-alumni DMs only. Any legacy
+    // DM thread with an employee is dropped from the list so an alum's
+    // conversations stay alumni-only.
+    if (otherId && userMap.get(otherId)?.user_kind !== 'alumni') continue;
     conversations.push({
       room,
       kind: room === GENERAL_ROOM ? 'general' : 'dm',
