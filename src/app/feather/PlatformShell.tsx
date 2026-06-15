@@ -684,9 +684,9 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   // room and stores the count under '/feather/chat'. The nav row's
   // existing badge renderer picks it up automatically. Cleared
   // by the chat page on mount via /api/chat/unread POST.
-  // Chat is alumni-only, so only poll for users who can actually see
-  // it (alumni + super admins) — everyone else would just 403.
-  const canSeeChat = isAlumni || isSuperAdmin;
+  // Chat is strictly alumni-only, so only alumni poll the unread badge —
+  // everyone else (super admins included) would just 403.
+  const canSeeChat = isAlumni;
   useEffect(() => {
     if (!canSeeChat) return;
     let cancelled = false;
@@ -720,6 +720,11 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     const override = userOverrides[item.path];
     if (override === false) return false;
     if (override === true) return true;
+    // Chat is a private alumni-to-alumni space with NO super-admin
+    // exception — strictly alumni, so even super admins don't see the
+    // link. Checked before the generic alumniOnly rule below (which
+    // would otherwise let super admins in).
+    if (item.path === '/feather/chat') return isAlumni;
     // Alumni-only pages: alumni see them by membership, AND super
     // admins see them too so they can administer + spot-check the
     // alumni portal without switching accounts. Regular staff +
