@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { MetadataRoute } from 'next';
 import { getAdminSupabase } from '@/lib/supabase-server';
+import { getPublishedBlogEpisodes, getHiddenSlugs } from '@/lib/episodes';
 
 // Dynamic sitemap. Walks src/app/(site) at build/request time to
 // enumerate every static page.tsx route, then layers in DB-backed
@@ -100,6 +101,36 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       items.push({
         url: `${ORIGIN}/who-we-are/meet-our-team/${row.public_slug}`,
         lastModified: now,
+        changeFrequency: 'monthly',
+        priority: 0.5,
+      });
+    }
+  } catch {
+    // Swallow — admin client unavailable in some preview contexts.
+  }
+
+  // Layer in published DB-backed blog posts — the "Recovery Roadmap"
+  // episodes served by the /who-we-are/blog/[slug] dynamic route. The
+  // filesystem walk above only sees the handful of hand-coded static
+  // blog folders; the AI-pipeline posts live solely in the `blogs`
+  // table, so without this block they never reach the sitemap (or
+  // Search Console). Visibility-hidden slugs are excluded, and any slug
+  // that also has a static folder is skipped so it isn't listed twice
+  // (static routes take precedence in Next.js). Best-effort — failure
+  // here must not break the static sitemap.
+  try {
+    const [episodes, hidden] = await Promise.all([
+      getPublishedBlogEpisodes(),
+      getHiddenSlugs(),
+    ]);
+    const alreadyEmitted = new Set(routes);
+    for (const ep of episodes) {
+      if (hidden.has(ep.slug)) continue;
+      const routePath = `/who-we-are/blog/${ep.slug}`;
+      if (alreadyEmitted.has(routePath)) continue;
+      items.push({
+        url: `${ORIGIN}${routePath}`,
+        lastModified: ep.publishedAt ? new Date(ep.publishedAt) : now,
         changeFrequency: 'monthly',
         priority: 0.5,
       });
