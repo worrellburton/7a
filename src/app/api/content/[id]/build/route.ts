@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase } from '@/lib/supabase-server';
 import { requireSuperAdmin } from '@/lib/content-server';
-import { buildBlogLayout } from '@/lib/content-claude';
+import { buildBlogLayout, buildBlogLayoutFromMarkdown } from '@/lib/content-claude';
 
 // POST /api/content/[id]/build
 //
@@ -22,7 +22,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const admin = getAdminSupabase();
   const { data: blog, error: readErr } = await admin
     .from('blogs')
-    .select('id, title, body_markdown, selected_image_ids')
+    .select('id, title, body_markdown, selected_image_ids, source_mode')
     .eq('id', id)
     .maybeSingle();
   if (readErr) return NextResponse.json({ error: readErr.message }, { status: 500 });
@@ -46,17 +46,25 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: `could not load all ${ids.length} selected images` }, { status: 500 });
   }
 
+  const buildArgs = {
+    title: blog.title ?? 'Untitled',
+    bodyMarkdown: blog.body_markdown,
+    images: imgs.map((i) => ({
+      url: i.url as string,
+      alt: (i.alt as string) ?? '',
+      ai: (i.provider as string) !== 'library',
+    })),
+  };
+
   let layout;
   try {
-    layout = await buildBlogLayout({
-      title: blog.title ?? 'Untitled',
-      bodyMarkdown: blog.body_markdown,
-      images: imgs.map((i) => ({
-        url: i.url as string,
-        alt: (i.alt as string) ?? '',
-        ai: (i.provider as string) !== 'library',
-      })),
-    });
+    // 'content' blogs are the admin's OWN copy — build them
+    // deterministically so 100% of the author's words survive into
+    // the layout. Only 'prompt' (AI-drafted) blogs go through the
+    // art-director model build, which is free to condense and restyle.
+    layout = blog.source_mode === 'content'
+      ? buildBlogLayoutFromMarkdown(buildArgs)
+      : await buildBlogLayout(buildArgs);
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 503 });
   }
