@@ -55,7 +55,7 @@ export default function ScienceAndWisdom() {
           >
             Healing is not <em className="not-italic text-primary">purely cognitive</em>. It is <em className="not-italic text-primary">embodied</em>, <em className="not-italic text-primary">relational</em>, deeply human.
           </h2>
-          <p className="text-foreground/70 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+          <p className="text-foreground/70 text-sm leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
             We integrate neuroscience, evidence-based practice, and time-honored
             approaches to healing — and hold them as complementary, not
             competing, truths.

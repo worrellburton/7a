@@ -232,7 +232,7 @@ export default function InsuranceBCBSPage() {
               BCBS Addiction Treatment Coverage
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed max-w-2xl mx-auto text-lg"
+              className="text-foreground/70 leading-relaxed max-w-2xl mx-auto text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Most Blue Cross Blue Shield plans cover the following services at Seven Arrows Recovery.
@@ -349,7 +349,7 @@ export default function InsuranceBCBSPage() {
             Use Your BCBS Insurance for Rehab Today
           </h2>
           <p
-            className="text-foreground/70 leading-relaxed text-lg mb-10 max-w-2xl mx-auto"
+            className="text-foreground/70 leading-relaxed text-sm mb-10 max-w-2xl mx-auto"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Your Blue Cross Blue Shield insurance can cover the cost of life-changing addiction

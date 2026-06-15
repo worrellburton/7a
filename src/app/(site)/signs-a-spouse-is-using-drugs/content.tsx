@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Substance abuse doesn’t just affect individuals—it creates ripple effects that touch everyone close to them, especially spouses. If you’ve noticed your partner acting differently and you’re starting to worry about signs a spouse is using drugs, it’s essential to pay attention to these signs. Recognizing the signs a spouse is using drugs can help you take timely action and get the support your family needs."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"In many cases, the signs start small: changes in behavior, shifts in mood, or secretive habits that don’t add up. Over time, these issues can grow into serious concerns that affect emotional, financial, and physical well-being. Below, we explore the top five signs a spouse is using drugs, and what you can do to help them find a path to recovery."}
             </p>
             <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>

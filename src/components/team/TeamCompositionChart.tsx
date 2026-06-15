@@ -192,7 +192,7 @@ export default function TeamCompositionChart({ team }: Props) {
               Five disciplines, <em className="not-italic text-primary">one team</em>.
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed text-base lg:text-lg mb-8 max-w-xl"
+              className="text-foreground/70 leading-relaxed text-sm mb-8 max-w-xl"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Recovery is interdisciplinary by necessity. We staff Seven Arrows

@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Deciding to seek help for addiction is a significant step toward recovery and healthier life choices. One crucial aspect of this journey is determining the best treatment facility and approach for your needs. Among the many factors to consider, one pivotal question often arises: Should I travel for addiction treatment?"}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"The decision to travel for addiction treatment can be life-changing, offering numerous benefits and challenges. Here, we explore the pros and cons to help you make an informed decision."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>

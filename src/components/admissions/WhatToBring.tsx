@@ -143,7 +143,7 @@ export default function WhatToBring() {
             The <em className="not-italic text-primary">honest</em> packing list.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Six categories of what to pack &mdash; and one short list of

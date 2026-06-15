@@ -22,13 +22,13 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Since stress is an inevitable part of life, learning stress-management is essential to living a healthy life. If you’re recovering from addiction or substance abuse, building a stress-management strategy can help you maintain sobriety and a lifestyle of wholeness."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
               {"What is Stress-Management?"}
             </h2>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Throughout our day-to-day lives, we all experience stress and stressors. But not all stress is “bad.” According to the Handbook of Stress and Health, “mild to moderate levels of stress, within a person’s coping range, can ultimately produce positive outcomes.” In other words, some stress can be helpful in situations when we need to complete a task, or are in a competitive activity such as sports. Feeling a bit of pressure can help us yield our optimal performance and efficiency."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">

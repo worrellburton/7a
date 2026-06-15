@@ -171,7 +171,7 @@ export default function InsuranceCignaPage() {
               Cigna Addiction Treatment Coverage
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed max-w-2xl mx-auto text-lg"
+              className="text-foreground/70 leading-relaxed max-w-2xl mx-auto text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Most Cigna plans cover the following treatment services. Your specific coverage depends
@@ -288,7 +288,7 @@ export default function InsuranceCignaPage() {
             Use Your Cigna Insurance for Rehab Today
           </h2>
           <p
-            className="text-foreground/70 leading-relaxed text-lg mb-10 max-w-2xl mx-auto"
+            className="text-foreground/70 leading-relaxed text-sm mb-10 max-w-2xl mx-auto"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Cigna insurance can cover most or all of the cost of addiction treatment at Seven Arrows

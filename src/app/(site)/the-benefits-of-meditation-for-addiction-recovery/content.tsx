@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Meditation is a practice that dates back centuries, and its benefits for mental health are widely recognized. In today’s fast-paced and stressful world, finding ways to achieve a balanced mind and a healthy mental state is more important than ever. That’s where meditation comes in. By engaging in regular meditation, we can tap into the healing power of this ancient practice and experience profound positive changes in our well-being and disposition."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Meditation offers a variety of benefits for mental health. One of the key advantages is its ability to reduce stress and anxiety. Individuals suffering from addiction often have underlying stress and trauma that impact their desire to use substances."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">

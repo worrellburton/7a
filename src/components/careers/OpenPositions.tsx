@@ -100,7 +100,7 @@ export default function OpenPositions() {
             Two ways to <em className="not-italic text-primary">tell us you&rsquo;re interested</em>.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             We hire BHTs constantly — apply below. For everything else,

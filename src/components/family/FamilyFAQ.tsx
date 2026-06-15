@@ -47,7 +47,7 @@ export default function FamilyFAQ() {
             What families <em className="not-italic text-primary">actually</em> ask.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Ten direct answers to the questions our admissions team fields

@@ -53,7 +53,7 @@ export default function SenseOfCoherence() {
           <h2 id="soc-heading" className="text-foreground font-bold tracking-tight mb-5" style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3.1rem)', lineHeight: 1.03 }}>
             Three domains. <em className="not-italic text-primary">One felt sense.</em>
           </h2>
-          <p className="text-foreground/70 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+          <p className="text-foreground/70 text-sm leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
             Aaron Antonovsky&rsquo;s Sense of Coherence — the felt
             experience that life is comprehensible, manageable, and
             meaningful — sits at the center of every phase of

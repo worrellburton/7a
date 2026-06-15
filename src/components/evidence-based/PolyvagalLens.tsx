@@ -96,7 +96,7 @@ export default function PolyvagalLens() {
           >
             Every session reads the <em className="not-italic text-primary">nervous system first</em>.
           </h2>
-          <p className="text-foreground/70 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+          <p className="text-foreground/70 text-sm leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
             We recognize the central role of the autonomic nervous system in
             healing. Clinicians track which state a client is in before any
             intervention — because the intervention the nervous system needs

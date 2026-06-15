@@ -62,7 +62,7 @@ export default function WhoFAQ() {
             Questions we <em className="not-italic text-primary">actually</em> get asked.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Direct answers to the questions our admissions team fields most

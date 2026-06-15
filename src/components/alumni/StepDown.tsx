@@ -78,7 +78,7 @@ export default function StepDown() {
             Four rungs <em className="not-italic text-primary">down</em> from residential.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Moving from 24-hour residential straight to weekly outpatient

@@ -64,7 +64,7 @@ export default function InsuranceVerify() {
               Free, confidential, <em className="not-italic text-primary">no commitment</em>.
             </h2>
             <p
-              className="text-foreground/75 text-lg leading-relaxed mb-5"
+              className="text-foreground/75 text-sm leading-relaxed mb-5"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               We verify benefits with most major insurance plans and return a

@@ -34,7 +34,7 @@ export default function PathologyToSalutogenesis() {
           <h2 id="salutogenesis-heading" className="text-foreground font-bold tracking-tight mb-6" style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3.1rem)', lineHeight: 1.02 }}>
             From pathology to <em className="not-italic text-primary">health creation</em>.
           </h2>
-          <p className="text-foreground/70 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+          <p className="text-foreground/70 text-sm leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
             Our approach draws from <strong className="text-foreground">salutogenesis</strong>&mdash; a
             paradigm introduced by Aaron Antonovsky that shifts focus from
             what makes people sick to what actively creates health.

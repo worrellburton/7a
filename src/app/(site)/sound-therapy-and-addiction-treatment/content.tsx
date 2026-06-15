@@ -22,13 +22,13 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Embarking on the path to addiction recovery is a courageous journey that requires a holistic approach to healing. At Seven Arrows Recovery, we integrate both traditional therapies and innovative practices like sound therapy and addiction treatment to support your recovery. One such practice that has gained increasing recognition for its effectiveness is sound therapy. By using sound vibrations through techniques like sound baths, tuning forks, gongs, and drum circles, sound therapy and addiction treatment together help foster relaxation, emotional release, and overall well-being. If you’ve been wondering, “Does sound therapy work?” or “Can sound therapy treat addiction?” we’re here to explain how it can play a vital role in your healing process."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
               {"How Do Sound Therapy & Addiction Treatment Coincide?"}
             </h2>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Sound therapy and addiction treatment are intricately connected, with sound therapy serving as a powerful tool to realign the body’s energy and promote emotional healing. Using instruments such as singing bowls, gongs, and chimes, sound therapy helps guide individuals toward deep relaxation. Studies show that sound therapy can positively influence brainwave patterns, calm the nervous system, and balance emotions—critical elements in overcoming addiction."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>

@@ -44,7 +44,7 @@ export default function PageContent() {
         <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
           <AuthorByline episode={episode} />
           <p
-            className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+            className="text-sm text-foreground/75 leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             If you&apos;ve been in any kind of trauma-informed therapy in
@@ -57,7 +57,7 @@ export default function PageContent() {
           </p>
 
           <p
-            className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+            className="mt-5 text-sm text-foreground/75 leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             This episode is the plain-English version we use with
@@ -82,7 +82,7 @@ export default function PageContent() {
             </h2>
 
             <p
-              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Every craving, every flare of anger, every quiet collapse
@@ -95,7 +95,7 @@ export default function PageContent() {
             </p>
 
             <p
-              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-5 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               The single most useful thing polyvagal theory gives you is a
@@ -151,7 +151,7 @@ export default function PageContent() {
             </div>
 
             <p
-              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-10 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               That&apos;s the whole map. Three states. The next three
@@ -175,7 +175,7 @@ export default function PageContent() {
             </h2>
 
             <p
-              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Ventral is the state your nervous system is built to spend
@@ -188,7 +188,7 @@ export default function PageContent() {
             </p>
 
             <p
-              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-5 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               When people describe their best version of themselves, they
@@ -256,7 +256,7 @@ export default function PageContent() {
             </div>
 
             <p
-              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-10 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               For people coming out of long stretches of dysregulation,
@@ -283,7 +283,7 @@ export default function PageContent() {
             </h2>
 
             <p
-              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Sympathetic is the state most people in modern life
@@ -297,7 +297,7 @@ export default function PageContent() {
             </p>
 
             <p
-              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-5 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               The trick of sympathetic is that it can disguise itself as
@@ -364,7 +364,7 @@ export default function PageContent() {
             </div>
 
             <p
-              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-10 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Sympathetic is not the enemy. The same activation that
@@ -391,7 +391,7 @@ export default function PageContent() {
             </h2>
 
             <p
-              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Dorsal is what the nervous system does when sympathetic
@@ -405,7 +405,7 @@ export default function PageContent() {
             </p>
 
             <p
-              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-5 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Because dorsal is quiet, the people around you often miss
@@ -470,7 +470,7 @@ export default function PageContent() {
             </div>
 
             <p
-              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-10 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Dorsal is also not the enemy. It&apos;s an old, deep
@@ -500,7 +500,7 @@ export default function PageContent() {
             </h2>
 
             <p
-              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               The most useful image for what these three states are doing
@@ -513,7 +513,7 @@ export default function PageContent() {
             </p>
 
             <p
-              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-5 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               That detail explains a lot of recoveries that look like
@@ -589,7 +589,7 @@ export default function PageContent() {
             </div>
 
             <p
-              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-10 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Two practical implications. <span className="font-semibold">First:</span>{' '}
@@ -626,7 +626,7 @@ export default function PageContent() {
             </h2>
 
             <p
-              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               The single biggest reason willpower-based recovery
@@ -639,7 +639,7 @@ export default function PageContent() {
             </p>
 
             <p
-              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-5 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Here&apos;s the same urge, the same person, in each
@@ -714,7 +714,7 @@ export default function PageContent() {
             </div>
 
             <p
-              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-10 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               &quot;Just white-knuckle it&quot; is, in polyvagal terms,
@@ -744,7 +744,7 @@ export default function PageContent() {
             </h2>
 
             <p
-              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               You don&apos;t need to remember any of the vocabulary in
@@ -822,7 +822,7 @@ export default function PageContent() {
             </div>
 
             <p
-              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-10 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               That&apos;s it. <span className="font-semibold">Up or down? Spend or find?</span>{' '}

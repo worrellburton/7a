@@ -73,7 +73,7 @@ export default function TraumaTreatmentPage() {
             Guiding Principles of a Trauma-Informed Approach
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed max-w-3xl mb-12"
+            className="text-foreground/70 text-sm leading-relaxed max-w-3xl mb-12"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Trauma-Informed Care (TIC) is guided by six core principles developed by the{' '}

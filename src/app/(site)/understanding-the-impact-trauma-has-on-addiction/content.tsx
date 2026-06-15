@@ -22,13 +22,13 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Addiction is powerful, and its impact can overwhelm an individual, altering their mental and physical health, relationships, and overall quality of life. Dependent behaviors, including substance use disorders, are complex and often stem from various underlying factors. One significant root cause that increasingly garners attention is trauma. Trauma’s destructive influence can ignite and perpetuate addiction, creating a vicious cycle that may feel impossible to break. Understanding the connection between trauma and substance use disorder is crucial for effective treatment and long-term recovery."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
               {"The Connection Between Trauma and Addiction"}
             </h2>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Trauma refers to the emotional and psychological effects of profoundly distressing events. These experiences can range from early childhood abuse, neglect, and loss to adult experiences of assault, domestic violence, or witnessing a catastrophic event. Trauma fundamentally changes how individuals perceive their world and themselves, embedding deep within their psyche, often becoming a silent driver of various maladaptive behaviors, including addiction."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">

@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Substance abuse and addiction wire your brain to prioritize substances above everything else. Your lifestyle bends to accommodate them, and your enjoyment of things you used to love slowly wanes. One of the ways that these patterns and their underlying causes are addressed in residential treatment is through exercise—the rewiring of the brain and healing of the body."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Because exercise releases chemicals that are beneficial for your body, incorporating rigorous physical activity into your routine can be life-changing. Keeping up a fitness regime is one of the best ways to support your ongoing recovery and to rebuild new pathways in the brain."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>

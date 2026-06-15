@@ -83,7 +83,7 @@ export default function LifeAtTheRanch() {
           >
             Your <em className="not-italic text-primary">commute</em>, reconsidered.
           </h2>
-          <p className="text-foreground/70 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+          <p className="text-foreground/70 text-sm leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
             A rough sense of where you&rsquo;ll spend your workdays. Full
             campus tour available as part of the interview process.
           </p>

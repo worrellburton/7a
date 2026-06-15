@@ -22,13 +22,13 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"In recent years, the opioid crisis in the United States has escalated at an alarming rate, with fentanyl at its core. Fentanyl, a synthetic opioid, is up to 100 times more potent than morphine and about 50 times stronger than heroin. Originally intended for pain management in patients with severe medical conditions, its potency makes it highly addictive and incredibly dangerous when misused. Understanding the signs and symptoms of fentanyl addiction is critical not only for those who may be struggling with it but also for their loved ones, who can play an essential role in the recovery journey."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
               {"What is Fentanyl, and Why is it So Dangerous?"}
             </h2>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Legally, Fentanyl can be prescribed by doctors to manage severe pain. Many patients who receive Fentanyl prescriptions are either battling cancer or recovering from major surgeries. Illicit use of Fentanyl is far more dangerous, as it is highly addictive and potent. The National Institute on Drug Abuse (NIDA) reports that synthetic opioids caused more than 70,000 deaths from overdoses in 2021."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">

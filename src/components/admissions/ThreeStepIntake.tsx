@@ -71,7 +71,7 @@ export default function ThreeStepIntake() {
             Three steps from first call to <em className="not-italic text-primary">first day</em>.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             We&rsquo;ve been doing this long enough that the process is

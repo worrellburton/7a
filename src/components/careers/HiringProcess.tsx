@@ -83,7 +83,7 @@ export default function HiringProcess() {
             <em className="not-italic text-primary">Five</em> steps, usually three to four weeks.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             We hire deliberately and answer every applicant. Here&rsquo;s

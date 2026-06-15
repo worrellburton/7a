@@ -82,7 +82,7 @@ export default function TheTransition() {
             The first year, <em className="not-italic text-primary">phase by phase</em>.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Research is consistent: the 90 days after residential treatment

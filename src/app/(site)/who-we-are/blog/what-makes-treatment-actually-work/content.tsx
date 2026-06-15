@@ -64,13 +64,13 @@ export default function PageContent() {
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
             {/* Opening */}
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               Comparing rehabs is, for most families, a spreadsheet exercise. CBT. DBT. EMDR. Somatic experiencing. Equine. Brainspotting. Twelve-step. SMART. Maybe a yoga column. You count the modalities, weight them by what you have read about online, and try to pick the program with the longest list.
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               We understand the impulse. When you are scared, a list feels like control. But it is the wrong unit of measurement, and we say that as the program with the list.
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               The single most-replicated finding in psychotherapy outcome research is not that one modality is best. It is that the quality of the relationship between the client and the clinician — what researchers call the <em>therapeutic alliance</em> — predicts whether someone gets better, regardless of the modality on the door. In a field that loves to argue about acronyms, this is one of the few things almost everyone agrees on.
             </p>
 

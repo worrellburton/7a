@@ -107,7 +107,7 @@ export default function TraumAddictionPage() {
               Why Traditional Models Fall Short
             </h2>
             <p
-              className="text-foreground/70 text-lg leading-relaxed mb-6"
+              className="text-foreground/70 text-sm leading-relaxed mb-6"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Trauma and addiction have historically been treated as separate clinical domains.
@@ -117,7 +117,7 @@ export default function TraumAddictionPage() {
               delaying trauma work indefinitely.
             </p>
             <p
-              className="text-foreground/70 text-lg leading-relaxed"
+              className="text-foreground/70 text-sm leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               This creates a gap where trauma remains unaddressed while addiction persists.
@@ -162,7 +162,7 @@ export default function TraumAddictionPage() {
               A Salutogenic Approach
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Our approach draws from <strong>salutogenesis</strong> — a paradigm introduced by

@@ -153,7 +153,7 @@ export default function LocationPhoenixPage() {
           </div>
           <div className="max-w-4xl mx-auto space-y-6">
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               As Arizona's capital and the fifth-largest city in the United States, Phoenix faces
@@ -163,7 +163,7 @@ export default function LocationPhoenixPage() {
               difficult to escape the environments and social circles tied to active use.
             </p>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Seven Arrows Recovery is located approximately 200 miles southeast of Phoenix in
@@ -173,7 +173,7 @@ export default function LocationPhoenixPage() {
               in a peaceful, distraction-free setting at the base of the Swisshelm Mountains.
             </p>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Our admissions team coordinates transportation from Phoenix, including pickup
@@ -194,7 +194,7 @@ export default function LocationPhoenixPage() {
               Comprehensive Addiction Treatment for Phoenix Residents
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               From the moment you arrive, every element of your care plan is built around
@@ -232,7 +232,7 @@ export default function LocationPhoenixPage() {
               Insurance Accepted for Phoenix Area Clients
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               We work with most major insurance carriers and can verify your benefits quickly—often

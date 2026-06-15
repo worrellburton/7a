@@ -22,13 +22,13 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Finding the right path to recovery is a deeply personal journey that touches every aspect of an individual’s life. At Seven Arrows Recovery, we believe this journey should be as unique as the person seeking help. While traditional addiction treatment methods have been proven effective, drug rehabs with horses provide a truly transformative experience that may not be achieved through conventional therapies alone. If you’re asking, “Are there drug rehabs with horses?” the answer is yes—and these equine drug rehabs are gaining popularity for their ability to offer healing in ways traditional treatment might not."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
               {"What a Drug Rehab Program with Horses Entails"}
             </h2>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Drug rehab centers with horses integrate equine-assisted therapy (EAT) into their programs, creating a dual path for both emotional and physical healing. At Seven Arrows Recovery, we’ve made this innovative therapy a core component of our services. By combining evidence-based therapies with equine drug rehabs, participants embark on a therapeutic journey that fosters growth, trust, and personal transformation. In these programs, individuals engage with horses in a structured, supportive environment that promotes accountability, emotional healing, and self-reflection."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>

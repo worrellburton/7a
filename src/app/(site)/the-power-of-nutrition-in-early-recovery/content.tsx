@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"At Seven Arrows Recovery Center in Arizona, embracing nutrition in recovery is a foundational step toward holistic healing for those dealing with substance abuse. Integrating functional medicine and meal planning, this innovative approach emphasizes the role of antioxidants, neuroplasticity, and neurotransmitters in fostering a healthier lifestyle after addiction."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Understanding how eating right can enhance your overall wellness is pivotal in recovery. Seven Arrows offers patient-centered nutritional programs, blending cutting-edge clinical practices with integrative healing methods, to support personal rediscovery and re-establishing sacred stability in one’s life."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
