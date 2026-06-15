@@ -74,7 +74,7 @@ export default async function MeetOurTeamPage() {
               Individualized care, <em className="not-italic text-primary">built into the structure.</em>
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Seven Arrows is intentionally designed as a small, highly attuned
@@ -85,7 +85,7 @@ export default async function MeetOurTeamPage() {
               supports safety, resilience, and meaningful growth.
             </p>
             <p
-              className="text-foreground/70 leading-relaxed text-lg mt-5"
+              className="text-foreground/70 leading-relaxed text-sm mt-5"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               From your first call through discharge and beyond, you are supported

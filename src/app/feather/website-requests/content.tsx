@@ -2422,7 +2422,7 @@ function CareersPanel() {
                   </Td>
                   <Td>
                     {rest ? (
-                      <p className="text-xs text-foreground/80 line-clamp-3 whitespace-pre-wrap max-w-[380px]">{rest}</p>
+                      <p className="text-xs text-foreground/80 whitespace-pre-wrap break-words max-w-[380px]">{rest}</p>
                     ) : (
                       <span className="text-foreground/40">—</span>
                     )}
