@@ -640,6 +640,11 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   // /feather/chat the page nav swaps for the conversation rail
   // (back button + Everybody + DM threads).
   const isChatMode = pathname === '/feather/chat' || pathname?.startsWith('/feather/chat/');
+  // Home pins the desktop rail open (expanded, not the collapsed
+  // icon-rail); every inner page keeps the hover-to-expand behaviour.
+  // Alumni home is /feather/alumni; staff home is /feather. Chat mode
+  // swaps the rail for the conversation pane, so never pin there.
+  const railPinnedOpen = !isChatMode && pathname === (isAlumni ? '/feather/alumni' : '/feather');
   const [navDepartments, setNavDepartments] = useState<NavDepartment[]>([]);
   // Counts of "new" submissions per nav path. Currently only powers
   // the badge on /app/website-requests; the structure leaves room for
@@ -1192,7 +1197,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           absolutely positioned and slides out to `w-64` over the
           page on group-hover, restoring labels + section headers
           via an opacity fade. Click-away or unhover collapses back. */}
-      <aside data-sidebar-rail className="group/sidebar w-16 shrink-0 hidden lg:block relative z-30">
+      <aside data-sidebar-rail className={`group/sidebar ${railPinnedOpen ? 'w-64 rail-pinned' : 'w-16'} shrink-0 hidden lg:block relative z-30`}>
         {/* Sticky sized to the real viewport. The `100vh/0.82`
             divisor here was compensating for `.app-shell { zoom: 0.82 }`
             at lg+, but that transform was removed (see globals.css —
@@ -1206,7 +1211,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             (collapsed) to w-64 (expanded) on hover. Glass treatment
             lives here now so the column-only collapsed state still
             shows the frosted background behind the icons. */}
-        <div className="absolute inset-y-0 left-0 w-16 group-hover/sidebar:w-64 transition-[width] duration-200 ease-out overflow-hidden bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-2xl border-r border-white/60 flex flex-col shadow-[0_0_0_0_rgba(0,0,0,0)] group-hover/sidebar:shadow-[0_18px_48px_-22px_rgba(60,48,42,0.32)]">
+        <div className="absolute inset-y-0 left-0 w-16 group-hover/sidebar:w-64 rail-open:w-64 transition-[width] duration-200 ease-out overflow-hidden bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-2xl border-r border-white/60 flex flex-col shadow-[0_0_0_0_rgba(0,0,0,0)] group-hover/sidebar:shadow-[0_18px_48px_-22px_rgba(60,48,42,0.32)] rail-open:shadow-[0_18px_48px_-22px_rgba(60,48,42,0.32)]">
         {/* Glass treatment — semi-transparent white, heavy backdrop
             blur, an inner specular sheen line at the top and a
             subtle vertical gradient that fades down so the panel
@@ -1229,7 +1234,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                 group-hover/sidebar gate the search bar + Other-pages
                 section use, so the collapsed icon-rail stays clean. */}
             <span
-              className="hidden group-hover/sidebar:inline text-[15px] font-semibold tracking-tight text-foreground/85 lowercase"
+              className="hidden group-hover/sidebar:inline rail-open:inline text-[15px] font-semibold tracking-tight text-foreground/85 lowercase"
               style={{ fontFamily: 'var(--font-display)' }}
             >
               feather
@@ -1267,7 +1272,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             }}
             aria-label="Search pages"
             title="Search pages"
-            className="group-hover/sidebar:hidden w-full inline-flex items-center justify-center h-9 rounded-xl text-foreground/50 hover:text-primary hover:bg-warm-bg/60 transition-colors"
+            className="group-hover/sidebar:hidden rail-open:hidden w-full inline-flex items-center justify-center h-9 rounded-xl text-foreground/50 hover:text-primary hover:bg-warm-bg/60 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden>
               <circle cx="11" cy="11" r="7" />
@@ -1275,7 +1280,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             </svg>
           </button>
           {/* Expanded: full input. */}
-          <label className="relative hidden group-hover/sidebar:block">
+          <label className="relative hidden group-hover/sidebar:block rail-open:block">
             <span aria-hidden className="absolute left-2.5 top-1/2 -translate-y-1/2 text-foreground/35">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <circle cx="11" cy="11" r="7" />
@@ -1357,8 +1362,8 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     <span className="text-foreground/40">
                       {getPageIcon(item.path)}
                     </span>
-                    <span className="flex-1 whitespace-nowrap transition-[opacity,transform] duration-200 ease-out opacity-0 group-hover/sidebar:opacity-100 group-hover/nav:translate-x-0.5">{item.label}</span>
-                    <svg className="w-3 h-3 text-foreground/35 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <span className="flex-1 whitespace-nowrap transition-[opacity,transform] duration-200 ease-out opacity-0 group-hover/sidebar:opacity-100 rail-open:opacity-100 group-hover/nav:translate-x-0.5">{item.label}</span>
+                    <svg className="w-3 h-3 text-foreground/35 opacity-0 group-hover/sidebar:opacity-100 rail-open:opacity-100 transition-opacity duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                       <path d="M14 3h7v7" />
                       <path d="M21 3l-9 9" />
                       <path d="M21 14v5a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h5" />
@@ -1458,7 +1463,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       whitespace-nowrap + opacity fade so the label
                       doesn't wrap or peek out while the rail is in
                       its collapsed (icon-only) state. */}
-                  <span className="flex-1 whitespace-nowrap transition-[opacity,transform] duration-200 ease-out opacity-0 group-hover/sidebar:opacity-100 group-hover/nav:translate-x-0.5">{item.label}</span>
+                  <span className="flex-1 whitespace-nowrap transition-[opacity,transform] duration-200 ease-out opacity-0 group-hover/sidebar:opacity-100 rail-open:opacity-100 group-hover/nav:translate-x-0.5">{item.label}</span>
                   {/* Super-admin-only badge — a small mask icon
                       that surfaces when item.superAdminOnly is set
                       (Mercury, Social Media, Kaizen, Levers, HIPAA).
@@ -1469,7 +1474,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   {item.superAdminOnly && (
                     <span
                       aria-label="Only for super admins"
-                      className="relative ml-1 inline-flex items-center text-amber-600 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 group/sa"
+                      className="relative ml-1 inline-flex items-center text-amber-600 opacity-0 group-hover/sidebar:opacity-100 rail-open:opacity-100 transition-opacity duration-200 group/sa"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                         <path d="M3 11c0-1 1-2 2-2h14c1 0 2 1 2 2v1c0 1-1 2-2 2h-3.2c-.4 1.6-1.9 2.7-3.8 2.7s-3.4-1.1-3.8-2.7H5c-1 0-2-1-2-2v-1z" />
@@ -1510,7 +1515,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                     return (
                       <span
                         aria-label={labelOnly ? 'alumni-only page' : 'alumni page'}
-                        className={`inline-flex items-center px-1 py-0.5 rounded text-[7.5px] font-bold uppercase tracking-[0.08em] whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200 ${
+                        className={`inline-flex items-center px-1 py-0.5 rounded text-[7.5px] font-bold uppercase tracking-[0.08em] whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 rail-open:opacity-100 transition-opacity duration-200 ${
                           labelOnly
                             ? 'bg-violet-500/15 text-violet-700 border border-violet-500/30'
                             : 'bg-violet-500/8 text-violet-700/80 border border-violet-500/15'
@@ -1523,7 +1528,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   {(navBadges[item.path] ?? 0) > 0 && (
                     <span
                       aria-label={`${navBadges[item.path]} new`}
-                      className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-bold tabular-nums whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200"
+                      className="ml-auto inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-primary text-white text-[10px] font-bold tabular-nums whitespace-nowrap opacity-0 group-hover/sidebar:opacity-100 rail-open:opacity-100 transition-opacity duration-200"
                     >
                       {navBadges[item.path]! > 99 ? '99+' : navBadges[item.path]}
                     </span>
@@ -1557,7 +1562,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             if (searchMatchedPages != null) {
               if (searchMatchedPages.length === 0) {
                 return (
-                  <p className="px-3 py-2 text-[12px] text-foreground/45 italic hidden group-hover/sidebar:block" style={{ fontFamily: 'var(--font-body)' }}>
+                  <p className="px-3 py-2 text-[12px] text-foreground/45 italic hidden group-hover/sidebar:block rail-open:block" style={{ fontFamily: 'var(--font-body)' }}>
                     No pages match &ldquo;{navSearch}&rdquo;
                   </p>
                 );
@@ -1591,7 +1596,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                   // because Tailwind's `hidden` class triggers
                   // display:none, which hard-blocks layout for the
                   // icon stack entirely.
-                  <div className="mt-2 pt-2 border-t border-foreground/10 hidden group-hover/sidebar:block">
+                  <div className="mt-2 pt-2 border-t border-foreground/10 hidden group-hover/sidebar:block rail-open:block">
                     <button
                       type="button"
                       onClick={() => setOtherPagesOpen((v) => !v)}
@@ -1671,7 +1676,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             </Link>
             <button
               onClick={() => setUserMenuOpen(!userMenuOpen)}
-              className="flex-1 min-w-0 flex items-center gap-3 text-left opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-200"
+              className="flex-1 min-w-0 flex items-center gap-3 text-left opacity-0 group-hover/sidebar:opacity-100 rail-open:opacity-100 transition-opacity duration-200"
               aria-label="Account menu"
               aria-expanded={userMenuOpen}
             >
