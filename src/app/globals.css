@@ -9,6 +9,14 @@
    consistently in light mode regardless of the OS preference. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Platform sidebar (src/app/feather/PlatformShell.tsx) normally expands
+   on hover via group-hover/sidebar:* utilities. On the Feather home
+   screen the rail is pinned open instead: PlatformShell adds `.rail-pinned`
+   to the <aside class="group/sidebar">, and every expand hook carries a
+   parallel `rail-open:` utility. `rail-open:` fires for any descendant of
+   a pinned rail, so "hover OR pinned" both reach the same expanded state. */
+@custom-variant rail-open (.rail-pinned &);
+
 @theme inline {
   --color-background: #ffffff;
   --color-foreground: #1a1a1a;
