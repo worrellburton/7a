@@ -1910,7 +1910,9 @@ function BuildPanel({ blog, images, token, onChange }: { blog: DbBlog; images: D
   return (
     <Panel heading="Build the blog" step={5}>
       <p className="text-[12.5px] text-foreground/65 mb-3 leading-relaxed">
-        Asks Claude to compose a layout JSON — alternating prose, the 7 chosen images, SVG icons, a WebGL animation, pull quotes and a closing callout. The public page renders from this layout.
+        {blog.source_mode === 'content'
+          ? 'Lays out your own copy faithfully — a hero, your full text in its original order, and your chosen images interleaved. Nothing is rewritten, summarised, or dropped. The public page renders from this layout.'
+          : 'Asks Claude to compose a layout JSON — alternating prose, the chosen images, SVG icons, a WebGL animation, pull quotes and a closing callout. The public page renders from this layout.'}
       </p>
       {ready && (chosenAi > 0 || chosenLib > 0) && (
         <p className="mb-3 text-[11.5px] text-foreground/55">
