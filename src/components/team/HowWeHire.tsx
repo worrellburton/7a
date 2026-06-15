@@ -69,7 +69,7 @@ export default function HowWeHire() {
             We hire <em className="not-italic text-primary">slowly</em>, on purpose.
           </h2>
           <p
-            className="text-foreground/70 leading-relaxed text-base lg:text-lg"
+            className="text-foreground/70 leading-relaxed text-sm"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             A small team only stays high-quality if every seat is filled

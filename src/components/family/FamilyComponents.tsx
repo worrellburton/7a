@@ -93,7 +93,7 @@ export default function FamilyComponents() {
             Five <em className="not-italic text-primary">concrete</em> supports.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Not platitudes — actual services with a cadence, a point of

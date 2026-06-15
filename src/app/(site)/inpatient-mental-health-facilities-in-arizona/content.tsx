@@ -22,13 +22,13 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Understanding how to find the best inpatient mental health facilities in Arizona is crucial in your journey to healing and recovery. With various options available, each offering different approaches and services, it can be overwhelming to choose the right one. At Seven Arrows Recovery, we understand the significance of finding a treatment center that aligns with your unique needs and values. This guide will help you make an informed decision and take the first step toward lasting mental well-being."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
               {"Understanding Your Needs for Inpatient Mental Health Facilities in Arizona"}
             </h2>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Before beginning your search for the best inpatient mental health treatment in Arizona, assessing your personal needs is essential. Are you dealing with depression, anxiety, PTSD, or other mental health conditions? Are you facing a dual diagnosis with co-occurring substance use disorders? Understanding your unique situation helps you focus on treatment centers that best support your challenges. Identifying the type of care you need is crucial in finding a facility that will effectively aid your recovery."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>

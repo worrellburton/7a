@@ -155,7 +155,7 @@ export default function Modalities() {
           >
             A wide clinical toolkit, <em className="not-italic text-primary">one relational spine</em>.
           </h2>
-          <p className="text-foreground/70 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+          <p className="text-foreground/70 text-sm leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
             The modalities below are the ones most people recognize — our
             clinicians draw on many more as each client&rsquo;s work unfolds.
             Every service is delivered through a polyvagal-informed lens. The

@@ -74,7 +74,7 @@ export default function WhyAccreditation() {
           Held to the <em className="not-italic text-primary">highest standards</em> of care.
         </h2>
         <p
-          className="text-foreground/70 leading-relaxed max-w-2xl mx-auto text-lg mb-10"
+          className="text-foreground/70 leading-relaxed max-w-2xl mx-auto text-sm mb-10"
           style={{
             fontFamily: 'var(--font-body)',
             opacity: visible ? 1 : 0,

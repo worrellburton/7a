@@ -82,7 +82,7 @@ export default function OurValues() {
             <em className="not-italic text-primary">Six</em> commitments we actually keep.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Short enough to remember. Specific enough to catch us when we

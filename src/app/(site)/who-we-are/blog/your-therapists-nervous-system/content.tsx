@@ -43,7 +43,7 @@ export default function PageContent() {
         <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
           <AuthorByline episode={episode} />
           <p
-            className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+            className="text-sm text-foreground/75 leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             You can have the right modality, the right diagnosis, the right
@@ -56,7 +56,7 @@ export default function PageContent() {
           </p>
 
           <p
-            className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+            className="mt-5 text-sm text-foreground/75 leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             This episode is about the part of treatment we almost never talk
@@ -78,7 +78,7 @@ export default function PageContent() {
             </h2>
 
             <p
-              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Co-regulation is the technical name for something every mammal
@@ -93,7 +93,7 @@ export default function PageContent() {
             </p>
 
             <p
-              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-5 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               That&apos;s the part of treatment we don&apos;t put on the
@@ -144,7 +144,7 @@ export default function PageContent() {
             </div>
 
             <p
-              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-10 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               The implication is uncomfortable for our profession: a clinician
@@ -170,7 +170,7 @@ export default function PageContent() {
             </h2>
 
             <p
-              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               The two-minute walk between rooms is not a break. It is a
@@ -184,7 +184,7 @@ export default function PageContent() {
             </p>
 
             <p
-              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-5 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Every Seven Arrows clinician has a between-session reset they
@@ -246,7 +246,7 @@ export default function PageContent() {
             </div>
 
             <p
-              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-10 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Asked privately, most clinicians will admit this is the part of
@@ -275,7 +275,7 @@ export default function PageContent() {
             </h2>
 
             <p
-              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Most clients can&apos;t name it. They describe a session with a
@@ -336,7 +336,7 @@ export default function PageContent() {
             </div>
 
             <p
-              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-10 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               None of this is on the intake checklist and none of it is in
@@ -364,7 +364,7 @@ export default function PageContent() {
             </h2>
 
             <p
-              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Performing calm looks identical to regulated presence on the
@@ -379,7 +379,7 @@ export default function PageContent() {
             </p>
 
             <p
-              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-5 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               The cost lands on you. A nervous system that is being held
@@ -443,7 +443,7 @@ export default function PageContent() {
             </div>
 
             <p
-              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-10 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               The hardest part of this for our profession is that performing
@@ -472,7 +472,7 @@ export default function PageContent() {
             </h2>
 
             <p
-              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Most clinicians who haven&apos;t done their own nervous-system
@@ -551,7 +551,7 @@ export default function PageContent() {
             </div>
 
             <p
-              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-10 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               The right number of these to see in a clinician you&apos;re
@@ -659,7 +659,7 @@ export default function PageContent() {
             </h2>
 
             <p
-              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               The license is the floor, not the ceiling. Every clinician
@@ -719,7 +719,7 @@ export default function PageContent() {
             </div>
 
             <p
-              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-10 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               None of this is glamorous. It&apos;s slower than the industry

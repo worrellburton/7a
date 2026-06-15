@@ -87,7 +87,7 @@ export default function SubstancesAndConditions() {
             Substances and what comes <em className="not-italic text-primary">with</em> them.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             We treat substance use disorders and the mental-health conditions

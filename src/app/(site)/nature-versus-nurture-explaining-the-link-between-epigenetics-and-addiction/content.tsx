@@ -25,10 +25,10 @@ export default function PageContent() {
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
               {"What Are Epigenetics?"}
             </h2>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Nature and nurture are often set as opposing forces. Does our innate nature or genes make us do what we do? Or are our actions determined by our environment and how we are nurtured?"}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"The research field of epigenetics examines these questions. Its findings show an important relationship between the two influences. In short, our environment influences the expression of our genes and our genes impact our predisposition toward environments."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">

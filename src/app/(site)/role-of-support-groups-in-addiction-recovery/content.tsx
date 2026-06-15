@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Addiction recovery can be filled with many ups and downs. This is because becoming sober is just the beginning of your sobriety journey. While you’ll be leading a healthier, happier life, throughout your recovery journey you’ll still be faced with old triggers that run the risk of potentially jeopardizing your sobriety. In fact, around 50% of recovering addicts will relapse after receiving substance use disorder treatment. Fortunately, there are a variety of resources, like addiction support groups, that offer recovering addicts support and motivation to guide them along their recovery journey."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"At Seven Arrows, we are a leading drug rehab in Arizona that provides a range of treatment options, including holistic addiction treatment, to help you heal along your recovery journey. We’re here to help you every step of the way to not just overcome your addiction, but lead a healthier, happier quality of life. If you or someone you know is struggling with addiction, you don’t have to suffer in silence. Contact us today to start your road to recovery."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>

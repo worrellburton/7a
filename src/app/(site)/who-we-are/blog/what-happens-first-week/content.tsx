@@ -335,13 +335,13 @@ export default function PageContent() {
           <AuthorByline episode={episode} />
 
           {/* Opening */}
-          <p className="text-lg text-foreground/80 leading-relaxed mb-6" style={{ fontFamily: 'var(--font-body)' }}>
+          <p className="text-sm text-foreground/80 leading-relaxed mb-6" style={{ fontFamily: 'var(--font-body)' }}>
             If you&apos;re reading this, there&apos;s a good chance you&apos;re terrified. Maybe you&apos;re sitting in a parking lot, scrolling on your phone, wondering what would happen if you actually made the call. Maybe a loved one sent you this link. Maybe it&apos;s 3 a.m. and you can&apos;t sleep again.
           </p>
-          <p className="text-lg text-foreground/80 leading-relaxed mb-6" style={{ fontFamily: 'var(--font-body)' }}>
+          <p className="text-sm text-foreground/80 leading-relaxed mb-6" style={{ fontFamily: 'var(--font-body)' }}>
             Whatever brought you here — <strong>you&apos;re not alone, and you&apos;re not too far gone.</strong>
           </p>
-          <p className="text-lg text-foreground/80 leading-relaxed mb-8" style={{ fontFamily: 'var(--font-body)' }}>
+          <p className="text-sm text-foreground/80 leading-relaxed mb-8" style={{ fontFamily: 'var(--font-body)' }}>
             The unknown is the scariest part. So let&apos;s take it away. Here&apos;s exactly what your first week at Seven Arrows Recovery looks like — day by day, hour by hour. No sugarcoating, no clinical jargon. Just the truth, told with compassion.
           </p>
 

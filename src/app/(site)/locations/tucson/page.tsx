@@ -97,7 +97,7 @@ export default function LocationTucsonPage() {
           </div>
           <div className="max-w-4xl mx-auto space-y-6">
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Tucson is a vibrant, culturally rich city—but it is not immune to the substance
@@ -106,7 +106,7 @@ export default function LocationTucsonPage() {
               treatment remains a critical need for Tucson families.
             </p>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Seven Arrows Recovery sits approximately 90 miles east of Tucson along I-10—about
@@ -117,7 +117,7 @@ export default function LocationTucsonPage() {
               loved ones joining the process.
             </p>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Despite the short distance, our Cochise County campus feels like another world.
@@ -139,7 +139,7 @@ export default function LocationTucsonPage() {
               Full-Spectrum Addiction Care for Tucson Residents
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Our clinical team develops an individualized treatment plan for every client,
@@ -177,7 +177,7 @@ export default function LocationTucsonPage() {
               Close Enough for Family to Stay Involved
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Addiction affects the whole family. Because our campus is just 90 minutes from
@@ -198,7 +198,7 @@ export default function LocationTucsonPage() {
               Insurance Accepted for Tucson Area Clients
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               We accept most major insurance plans and can verify your coverage quickly. Our

@@ -22,13 +22,13 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Addiction is a deeply complex and multifaceted challenge, and it is often intertwined with a history of trauma. In the contemporary landscape of addiction treatment, a new approach has emerged, gaining recognition for its compassionate and integrative methods—this is known as trauma-informed care. So, what is trauma-informed addiction treatment? Trauma-informed care in addiction treatment acknowledges the intricate relationship between trauma and substance use disorder, ensuring that the treatment process is sensitive, supportive, and tailored to the individual’s experiences. In this article, we will delve into the concept of trauma-informed care, what to expect from a trauma-informed addiction treatment program like Seven Arrows Recovery, the benefits of such an approach, and why it is important for those seeking help to consider this type of program."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
               {"Understanding Trauma-Informed Care"}
             </h2>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Trauma-informed care is a framework for working with individuals that shifts the focus from “what’s wrong with you” to “what happened to you.” This approach is particularly relevant in addiction treatment, as many individuals struggling with substance use disorders have a history of trauma. Trauma can stem from various sources, including physical, emotional, or sexual abuse, neglect, loss, or witnessing violence. The effects of trauma are pervasive, often influencing behaviors, emotional regulation, and overall well-being."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">

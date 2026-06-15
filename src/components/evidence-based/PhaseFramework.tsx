@@ -109,7 +109,7 @@ export default function PhaseFramework() {
           >
             A structured, trauma-informed progression — <em className="not-italic text-primary">capacity before processing</em>.
           </h2>
-          <p className="text-foreground/70 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+          <p className="text-foreground/70 text-sm leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
             Every phase builds the resources needed for the next. Nobody here
             is asked to process a memory their nervous system is not yet
             equipped to hold.

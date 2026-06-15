@@ -85,7 +85,7 @@ export default function AreasWeServePage() {
               Serving Arizona and Beyond
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Our boutique campus in Cochise County provides a healing environment far from the
@@ -129,7 +129,7 @@ export default function AreasWeServePage() {
             Healing Starts With a Change of Environment
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed mb-6"
+            className="text-foreground/70 text-sm leading-relaxed mb-6"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Research shows that removing oneself from familiar environments, people, and routines
@@ -138,7 +138,7 @@ export default function AreasWeServePage() {
             setting where the desert landscape itself becomes part of the healing process.
           </p>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             At the same time, we are accessible. Tucson International Airport is within driving

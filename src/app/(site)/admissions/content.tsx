@@ -129,7 +129,7 @@ export default function PageContent() {
             Ready When You Are
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed mb-8 max-w-2xl mx-auto"
+            className="text-foreground/70 text-sm leading-relaxed mb-8 max-w-2xl mx-auto"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Call us at <a href="tel:+15206148088" className="text-primary font-semibold hover:underline">(520) 614-8088</a> and
@@ -191,7 +191,7 @@ export default function PageContent() {
           <div className="max-w-3xl mx-auto text-center mb-12">
             {tab === 'self' ? (
               <p
-                className="text-foreground/70 leading-relaxed text-lg"
+                className="text-foreground/70 leading-relaxed text-sm"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
                 Welcome, and congratulations on taking this first step towards a better life.
@@ -200,7 +200,7 @@ export default function PageContent() {
               </p>
             ) : (
               <p
-                className="text-foreground/70 leading-relaxed text-lg"
+                className="text-foreground/70 leading-relaxed text-sm"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
                 We applaud you for reaching out and assisting a loved one in finding treatment.

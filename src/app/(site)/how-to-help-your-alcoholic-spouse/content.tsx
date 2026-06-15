@@ -22,7 +22,7 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Alcohol abuse is a pervasive issue that affects millions of individuals and their families worldwide. When someone you love is struggling with alcohol use disorder (AUD), the impact reverberates throughout the household, causing emotional, psychological, and sometimes even physical distress. If you’re wondering how to help your alcoholic spouse, you’ve already taken the first step. Recognizing the signs that your spouse may have a drinking problem is the first critical step toward helping them find the support and recovery they need."}
             </p>
             <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
@@ -40,7 +40,7 @@ export default function PageContent() {
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
               {"Actions to Take if You Suspect Your Spouse is Abusing Alcohol"}
             </h2>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Suspecting that your spouse is struggling with alcohol abuse is a challenging realization. However, taking the right steps can make a significant difference in addressing the issue and paving the way for recovery."}
             </p>
             <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>

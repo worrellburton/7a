@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"At Seven Arrows Recovery, we understand that the journey to recovery is deeply personal and challenging. Our mission is to support you every step of the way, offering a holistic blend of evidence-based and innovative therapies tailored to your unique needs. One creative approach that has shown tremendous promise is Animal-Assisted Therapy (AAT), and understanding the benefits of animal-assisted therapies can help you integrate them into your treatment plan."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Animals can naturally bring joy, comfort, and companionship into our lives. In the context of addiction treatment, they can play a transformative role, helping individuals reconnect with their emotions, build healthier relationships, and find new motivation on the path to recovery."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>

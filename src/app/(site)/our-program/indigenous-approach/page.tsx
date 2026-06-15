@@ -126,7 +126,7 @@ export default function IndigenousApproachPage() {
               Healing Through Tradition
             </h2>
             <p
-              className="text-foreground/70 text-lg leading-relaxed mb-4"
+              className="text-foreground/70 text-sm leading-relaxed mb-4"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Long before modern medicine, indigenous peoples understood that
@@ -137,7 +137,7 @@ export default function IndigenousApproachPage() {
               the natural world.
             </p>
             <p
-              className="text-foreground/70 text-lg leading-relaxed"
+              className="text-foreground/70 text-sm leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Our approach is guided by deep respect for the traditions we draw
@@ -175,7 +175,7 @@ export default function IndigenousApproachPage() {
             Experience the Healing Power of the Land
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed mb-8"
+            className="text-foreground/70 text-sm leading-relaxed mb-8"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Discover how indigenous healing traditions can open new pathways to

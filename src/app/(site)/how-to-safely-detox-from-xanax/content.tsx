@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Detoxing from Xanax can feel scary, but necessary at the same time. It’s an important step toward recovery, but many people worry about what will happen when they stop. Xanax, or alprazolam, is a benzodiazepine that’s often prescribed for anxiety or panic disorders. At first, it brings relief and helps calm the mind. Over time, though, the body can become dependent on it. What once felt helpful can start to feel like something you can’t live without. In order to heal from addiction, you must first safely detox from Xanax."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Stopping Xanax suddenly without medical help is not safe. Withdrawal can be severe and, in some cases, life-threatening. Symptoms may include shaking, confusion, or seizures. Because of these risks, medically supervised detox is essential. At Seven Arrows Recovery, our goal is to help people safely detox from Xanax with care and support throughout the process."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">

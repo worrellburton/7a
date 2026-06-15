@@ -122,7 +122,7 @@ export default function FourDimensions() {
             Four dimensions, <em className="not-italic text-primary">one life</em>.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Recovery that holds isn&rsquo;t a single intervention &mdash;

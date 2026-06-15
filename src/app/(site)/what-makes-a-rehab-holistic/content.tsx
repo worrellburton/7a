@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Holistic rehab centers take a comprehensive approach to addiction treatment, addressing not only the physical aspects of addiction but also the emotional, mental, and spiritual components. These centers recognize that addiction is a multifaceted issue, one that affects every part of an individual’s life. Therefore, they integrate a wide range of therapies, from traditional methods like counseling and medication to alternative practices such as yoga, meditation, and acupuncture."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"This approach ensures that treatment is not just about managing symptoms but about fostering overall well-being, helping individuals reconnect with themselves on a deeper level. Holistic rehab also emphasizes the importance of lifestyle changes, community support, and the development of healthy coping mechanisms, ensuring that individuals are equipped to maintain sobriety long after they leave the facility. By focusing on healing the mind, body, and spirit, these centers offer a path to recovery that is as much about personal transformation as it is about overcoming addiction."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">

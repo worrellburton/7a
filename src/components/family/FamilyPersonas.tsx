@@ -86,7 +86,7 @@ export default function FamilyPersonas() {
             Everyone has a <em className="not-italic text-primary">specific</em> grief.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             The work with a parent is not the work with a partner. Our family

@@ -76,7 +76,7 @@ export default function BoundariesVsEnabling() {
             The difference, <em className="not-italic text-primary">in practice</em>.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Neither is a character verdict. Enabling is what love looks like

@@ -25,10 +25,10 @@ export default function PageContent() {
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
               {"What Does Rebuilding Look Like in Recovery?"}
             </h2>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Recovery from substance abuse and addiction is a lifelong process and can come in many forms. But still many people continue to think that residential treatments and detox programs are the most important part of addiction recovery. And while these often mark key moments of a person’s recovery journey, they are only the beginning."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Rebuilding a healthy life doesn’t happen right away. If the situation is severe, a person may require medically-assisted inpatient detox. After this, they will likely transition to a full-time residential program with a range of out-patient therapies. From there, aftercare programs provide the ongoing support for long-term sobriety."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">

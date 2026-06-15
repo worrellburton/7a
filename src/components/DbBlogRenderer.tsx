@@ -310,7 +310,7 @@ function RenderBlock({ block }: { block: LayoutBlock }) {
           )}
           <h1 className="font-display text-3xl sm:text-5xl font-bold text-foreground leading-tight">{block.title}</h1>
           {block.tagline && (
-            <p className="mt-3 text-base sm:text-lg text-foreground/65 leading-relaxed">{block.tagline}</p>
+            <p className="mt-3 text-sm text-foreground/65 leading-relaxed">{block.tagline}</p>
           )}
         </header>
       );

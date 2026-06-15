@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"When beginning the journey to recovery, knowing what to look for in a local detox center or rehab is one of the most important decisions you can make. Detox is the first and often most challenging phase of overcoming addiction. The facility you choose will set the tone for your recovery, laying the groundwork for everything that follows. At Seven Arrows Recovery in Arizona, we understand how overwhelming this decision can feel. But with the right guidance, you can choose a center that prioritizes your safety, healing, and long-term well-being."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Understanding what to look for in a local detox center means considering more than just location or cost. It’s about finding a facility that offers comprehensive care, compassionate staff, and a personalized approach to your unique recovery needs. Below, we’ll walk through the core elements that define a high-quality detox program and explain why Seven Arrows Recovery stands out as a trusted partner in early addiction treatment."}
             </p>
             <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>

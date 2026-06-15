@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"In the battle against addiction, one of the most effective and research-backed approaches is medication-assisted treatment, also known as MAT. By combining FDA-approved medications with counseling and behavioral therapies, MAT can help people restore stability, ease cravings, and rebuild their lives after addiction. But one question remains on the minds of many in recovery and treatment circles: should you use medication-assisted treatment long-term?"}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"The answer isn’t a straightforward yes or no. Whether to continue or stop MAT will vary based on the individual, their health needs, and their long-term recovery goals. At Seven Arrows Recovery, we understand that recovery looks different for everyone, and whether you stay on MAT for months, years, or longer, your efforts and commitment to healing matter most."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>

@@ -83,7 +83,7 @@ export default function PaymentOptions() {
             <em className="not-italic text-primary">More options</em> than you think.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Cost is often the first concern. We walk through the full picture

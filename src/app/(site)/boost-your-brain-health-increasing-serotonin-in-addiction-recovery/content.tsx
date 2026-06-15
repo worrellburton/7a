@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Serotonin, a crucial neurotransmitter, plays a key role in regulating mood, sleep, and appetite. Its deficiencies often lead to conditions such as depression and anxiety. Understanding ways to increase serotonin without drugs can be an invaluable tool in enhancing brain health and overall well-being. Seven Arrows Recovery Center emphasizes elevating serotonin levels through natural methods and exploring the role of holistic treatment in recovery."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Here, we explore dietary adjustments, exercise, sunlight exposure, and mindfulness, providing practical strategies for boosting serotonin levels naturally. These approaches not only aim to increase serotonin in the brain but also offer comprehensive benefits to mental health without relying on medication."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>

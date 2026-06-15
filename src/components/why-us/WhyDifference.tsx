@@ -109,7 +109,7 @@ export default function WhyDifference() {
             The Seven Arrows <em className="not-italic text-primary">difference</em>.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Our treatment philosophy blends multiple clinical disciplines into a

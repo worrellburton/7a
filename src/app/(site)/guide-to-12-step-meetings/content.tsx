@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"The journey to recovery is deeply personal, filled with unique challenges and moments of profound growth. At Seven Arrows Recovery, we understand that each person’s path is different, and supporting these individual journeys is at the heart of what we do. For many, 12-Step Meetings provide a stable foundation on which to build lasting sobriety. This simple guide to 12-Step Meetings explains and illuminates how they fit into a broader recovery journey."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"12-step meetings are often among the first steps to build a strong support network. Rooted in accountability and fellowship, these meetings offer a structured yet flexible path to healing. They serve as safe havens where individuals are encouraged to grow through vulnerability, shared experiences, and spiritual reflection."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>

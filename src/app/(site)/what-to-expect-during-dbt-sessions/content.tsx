@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Finding the perfect therapy solution for your addiction recovery or mental health needs can seem daunting. At Seven Arrows Recovery, we pride ourselves on offering highly effective therapies grounded in scientific research. DBT, or dialectical behavioral therapy, has enabled thousands of people to make powerful, life-changing progress in their recovery. If you or a loved one is considering DBT as part of your treatment plan, read below to learn what to expect during DBT sessions."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"DBT is much more than talk therapy. It’s a concrete, supportive, and effective form of therapy that can allow you to work through powerful emotions, learn to foster healthier relationships, and take control of your addiction triggers. If you’re wondering how DBT can help you or your addicted loved one, it’s important to understand exactly how DBT works."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">

@@ -92,7 +92,7 @@ export default function ConditionsBento() {
           <h2 id="cond-heading" className="text-foreground font-bold tracking-tight mb-5" style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 3.9vw, 3rem)', lineHeight: 1.03 }}>
             The <em className="not-italic text-primary">eight</em> we see most.
           </h2>
-          <p className="text-foreground/70 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+          <p className="text-foreground/70 text-sm leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
             Every condition below changes substance use &mdash; and every
             substance changes the condition. Both get treated, together, here.
           </p>

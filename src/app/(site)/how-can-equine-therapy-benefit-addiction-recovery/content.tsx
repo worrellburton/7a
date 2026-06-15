@@ -22,13 +22,13 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Addiction is an ongoing issue affecting millions of people worldwide. Whether it’s substances like drugs and alcohol or behaviors such as gambling, addiction disrupts lives, fractures families, and depletes communities. Traditional approaches to addiction recovery often include a combination of medical treatment, counseling, and support groups. However, recent years have seen a surge in alternative therapies that address the holistic needs of individuals struggling with addiction. One such alternative with proven benefits is equine therapy."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
               {"What is Equine Therapy?"}
             </h2>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Equine therapy, also known as horse therapy or equine-assisted therapy, is a therapeutic approach that involves interactions between patients and horses. This therapy style can be part of an individual or group session and typically includes activities like grooming, feeding, and leading horses, as well as more structured exercises under the guidance of a trained therapist."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">

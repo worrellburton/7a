@@ -25,10 +25,10 @@ export default function PageContent() {
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
               {"What Are Co-Occurring Disorders?"}
             </h2>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Did you know that the brain is one of the most complex parts of the human body? It regulates and cooperates with multiple systems, and keeps everything in balance with one another."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Because of these complexities, it should not surprise you that substance abuse and addiction affect the brain in significant ways. Addiction can instigate, perpetuate, and sometimes mask symptoms of other mental and emotional disorders. And since substances like drugs and alcohol influence the brain and chemical balances, it can be tricky to identify how or why something started."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">

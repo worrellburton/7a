@@ -97,7 +97,7 @@ export default function LocationMesaPage() {
           </div>
           <div className="max-w-4xl mx-auto space-y-6">
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Mesa is Arizona's third-largest city and the heart of the East Valley, home to
@@ -108,7 +108,7 @@ export default function LocationMesaPage() {
               can develop.
             </p>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Seven Arrows Recovery is located roughly 190 miles southeast of Mesa in Cochise
@@ -118,7 +118,7 @@ export default function LocationMesaPage() {
               familiar routines, and the social dynamics that can sabotage early recovery.
             </p>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               For East Valley families, the logistics are straightforward. Our admissions team
@@ -140,7 +140,7 @@ export default function LocationMesaPage() {
               Evidence-Based Treatment for Mesa Families
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Our clinical team builds each treatment plan from the ground up. Whether you are
@@ -178,7 +178,7 @@ export default function LocationMesaPage() {
               Returning Stronger to the East Valley
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Recovery does not end when treatment does. Before discharge, our clinical team
@@ -201,7 +201,7 @@ export default function LocationMesaPage() {
               Insurance Options for Mesa Residents
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Cost should never be a barrier to getting help. We accept most major insurance

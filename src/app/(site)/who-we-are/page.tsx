@@ -96,7 +96,7 @@ export default function WhoWeArePage() {
               A Place to Heal, Grow, and Begin Again
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed text-lg mb-6"
+              className="text-foreground/70 leading-relaxed text-sm mb-6"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Seven Arrows Recovery was founded on a simple belief: lasting recovery happens when
@@ -105,7 +105,7 @@ export default function WhoWeArePage() {
               where the desert landscape itself becomes part of the healing process.
             </p>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               With intentionally small group sizes, a world-class clinical team, and our proprietary

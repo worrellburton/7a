@@ -171,7 +171,7 @@ export default function InsuranceUHCPage() {
               UHC Addiction Treatment Coverage
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed max-w-2xl mx-auto text-lg"
+              className="text-foreground/70 leading-relaxed max-w-2xl mx-auto text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               UnitedHealthcare plans typically cover the following addiction treatment services at
@@ -288,7 +288,7 @@ export default function InsuranceUHCPage() {
             Use Your UHC Insurance for Rehab Today
           </h2>
           <p
-            className="text-foreground/70 leading-relaxed text-lg mb-10 max-w-2xl mx-auto"
+            className="text-foreground/70 leading-relaxed text-sm mb-10 max-w-2xl mx-auto"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Your UnitedHealthcare insurance can cover addiction treatment at Seven Arrows Recovery.
