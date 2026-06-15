@@ -535,6 +535,24 @@ export default function JobDescriptionDetailContent() {
     if (user && job) logActivity({ userId: user.id, type: 'jd.signature_removed', targetKind: 'job_description', targetId: job.id, targetLabel: `${job.title}${removed?.signer_name ? ' · ' + removed.signer_name : ''}`, targetPath: `/feather/job-descriptions/${job.id}` });
   }
 
+  // The signer's most-recent signature request for this JD: the row
+  // with the highest job_description_version (ties prefer a completed
+  // signature). Lets the Send-for-Signature modal tell "signed the
+  // current version" apart from "signed an older version and is due a
+  // resend" — there's no unique (job, signer) row, so each resend is a
+  // fresh row stamped with the current version.
+  function latestSigFor(userId: string): SignatureRow | null {
+    let best: SignatureRow | null = null;
+    for (const s of signatures) {
+      if (s.signer_user_id !== userId) continue;
+      if (!best) { best = s; continue; }
+      const bv = best.job_description_version ?? 0;
+      const sv = s.job_description_version ?? 0;
+      if (sv > bv || (sv === bv && s.signed_at && !best.signed_at)) best = s;
+    }
+    return best;
+  }
+
   // Latest saved version snapshot (highest version number).
   const latestVersion = versions.length > 0 ? versions[0] : null;
 
@@ -1470,7 +1488,12 @@ export default function JobDescriptionDetailContent() {
                       </span>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-foreground/80 truncate">{s.signer_name || 'Unnamed'}</p>
+                      <p className="text-foreground/80 truncate flex items-center gap-1.5">
+                        <span className="truncate">{s.signer_name || 'Unnamed'}</span>
+                        {typeof s.job_description_version === 'number' && (
+                          <span className="shrink-0 text-[9px] font-semibold text-foreground/45 bg-foreground/[0.06] rounded px-1 py-0.5 leading-none">v{s.job_description_version}</span>
+                        )}
+                      </p>
                       <p className="text-[10px] text-foreground/40">
                         {s.signed_at
                           ? `Signed ${new Date(s.signed_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}`
@@ -1753,10 +1776,16 @@ export default function JobDescriptionDetailContent() {
                 {assignedUsers
                   .filter((u) => !sigFilter.trim() || (u.full_name || '').toLowerCase().includes(sigFilter.trim().toLowerCase()))
                   .map((u) => {
-                    const existing = signatures.find((s) => s.signer_user_id === u.id);
-                    const signed = !!existing?.signed_at;
-                    const pending = !!existing && !signed;
-                    const disabled = sigBusy || signed || pending;
+                    const existing = latestSigFor(u.id);
+                    const sigVer = existing?.job_description_version ?? 0;
+                    // "Outdated" = they signed (or were sent) an earlier
+                    // version than the one currently live, so they're due
+                    // a fresh signature on the new version.
+                    const outdated = !!existing && sigVer < job.version;
+                    const signedCurrent = !!existing?.signed_at && !outdated;
+                    const pendingCurrent = !!existing && !existing.signed_at && !outdated;
+                    const canResend = !!existing && outdated;
+                    const disabled = sigBusy || signedCurrent || pendingCurrent;
                     return (
                       <button
                         key={u.id}
@@ -1767,7 +1796,7 @@ export default function JobDescriptionDetailContent() {
                         }}
                         className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-warm-bg/40 text-left border-b border-gray-100 last:border-b-0 disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:bg-transparent"
                         style={{ fontFamily: 'var(--font-body)' }}
-                        title={signed ? 'Already signed' : pending ? 'Waiting to be signed' : ''}
+                        title={signedCurrent ? 'Already signed the current version' : pendingCurrent ? 'Waiting to be signed' : canResend ? `Resend the current version (v${job.version})` : ''}
                       >
                         {u.avatar_url ? (
                           // eslint-disable-next-line @next/next/no-img-element
@@ -1778,10 +1807,20 @@ export default function JobDescriptionDetailContent() {
                           </span>
                         )}
                         <span className="flex-1 truncate">{u.full_name || 'Unnamed'}</span>
-                        {signed ? (
+                        {signedCurrent ? (
                           <span className="text-[10px] font-medium text-emerald-600 whitespace-nowrap">Signed</span>
-                        ) : pending ? (
+                        ) : pendingCurrent ? (
                           <span className="text-[10px] font-medium text-amber-600 whitespace-nowrap">Waiting to be signed</span>
+                        ) : canResend ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary whitespace-nowrap">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M21 2v6h-6" />
+                              <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                              <path d="M3 22v-6h6" />
+                              <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+                            </svg>
+                            {existing!.signed_at ? `Signed v${sigVer} · Resend v${job.version}` : `Sent v${sigVer} · Resend v${job.version}`}
+                          </span>
                         ) : u.job_title ? (
                           <span className="text-[10px] text-foreground/40 truncate max-w-[120px]">{u.job_title}</span>
                         ) : null}
@@ -1791,23 +1830,45 @@ export default function JobDescriptionDetailContent() {
               </div>
               <div className="mt-3 flex items-center justify-between gap-2">
                 {(() => {
-                  const unsent = assignedUsers.filter((u) => !signatures.some((s) => s.signer_user_id === u.id));
-                  if (unsent.length < 2) return <span />;
+                  // Two bulk actions: send to everyone who's never been
+                  // sent, and resend the current version to everyone whose
+                  // latest signature is for an older version.
+                  const unsent = assignedUsers.filter((u) => !latestSigFor(u.id));
+                  const outdated = assignedUsers.filter((u) => {
+                    const s = latestSigFor(u.id);
+                    return !!s && (s.job_description_version ?? 0) < job.version;
+                  });
+                  const sendAll = async (group: typeof assignedUsers) => {
+                    for (const u of group) {
+                      // eslint-disable-next-line no-await-in-loop
+                      await sendForSignature(u);
+                    }
+                    setSigOpen(false);
+                  };
+                  if (unsent.length < 2 && outdated.length < 2) return <span />;
                   return (
-                    <button
-                      onClick={async () => {
-                        for (const u of unsent) {
-                          // eslint-disable-next-line no-await-in-loop
-                          await sendForSignature(u);
-                        }
-                        setSigOpen(false);
-                      }}
-                      disabled={sigBusy}
-                      className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 disabled:opacity-40"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      Send to everybody
-                    </button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {unsent.length >= 2 && (
+                        <button
+                          onClick={() => sendAll(unsent)}
+                          disabled={sigBusy}
+                          className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs font-medium hover:bg-primary/90 disabled:opacity-40"
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        >
+                          Send to everybody
+                        </button>
+                      )}
+                      {outdated.length >= 2 && (
+                        <button
+                          onClick={() => sendAll(outdated)}
+                          disabled={sigBusy}
+                          className="px-3 py-1.5 rounded-lg border border-primary text-primary text-xs font-medium hover:bg-primary/5 disabled:opacity-40"
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        >
+                          Resend v{job.version} to all ({outdated.length})
+                        </button>
+                      )}
+                    </div>
                   );
                 })()}
                 <button
