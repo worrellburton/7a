@@ -307,6 +307,104 @@ export async function buildBlogLayout(args: {
   throw new Error(`Failed to parse layout JSON: ${second.error}`);
 }
 
+// ── "Your own content" build ─────────────────────────────────────
+// Deterministic, verbatim layout builder for blogs whose Step-1 source
+// is the admin's OWN copy (source_mode='content').
+//
+// The art-director build above (buildBlogLayout) asks Claude to compose
+// a designed page and, to hit its "10-14 blocks, prose <600 chars, cut
+// the body where needed" budget, it summarises and DROPS material —
+// measured at ~45-55% of the body surviving into prose. That is fine for
+// an AI-drafted post (the model is condensing its own words) but wrong
+// for a post the author wrote themselves: it silently truncates and
+// reworms their copy.
+//
+// For own-content posts we therefore skip the model entirely: chunk the
+// FULL markdown into prose blocks with zero rewriting, interleave the
+// selected images, and front it with a hero. Concatenating the prose
+// blocks reproduces the body exactly, so 100% of the author's words
+// ship. No dash-scrubbing here on purpose — the body already passed
+// through formatBlogBodyFromContent's house-style pass, and scrubbing
+// again could corrupt legitimate "--" sequences in the author's copy.
+export function buildBlogLayoutFromMarkdown(args: {
+  bodyMarkdown: string;
+  title: string;
+  images: { url: string; alt: string; ai?: boolean }[];
+}): Layout {
+  const md = args.bodyMarkdown.replace(/\r\n/g, '\n').trim();
+
+  // Pull a leading H1 for the hero and strip it from the body so the
+  // title isn't duplicated (hero renders it, and ProseMarkdown would
+  // render an in-body H1 again). Only treat it as the title when it is
+  // genuinely the first non-empty line.
+  let heroTitle = (args.title ?? '').trim();
+  let rest = md;
+  const h1 = md.match(/^#\s+(.+?)\s*$/m);
+  if (h1 && h1.index !== undefined && md.slice(0, h1.index).trim() === '') {
+    if (!heroTitle) heroTitle = h1[1].trim();
+    rest = md.slice(h1.index + h1[0].length).replace(/^\n+/, '');
+  }
+  if (!heroTitle) heroTitle = 'Untitled';
+
+  // Split the body into prose chunks WITHOUT dropping anything. Units
+  // are paragraph/heading/list blocks separated by blank lines; we
+  // accumulate units into a prose block until the next unit would push
+  // it past a soft, mobile-friendly size, then start a new block. A
+  // heading always opens a fresh block so each section starts cleanly.
+  // Every unit lands in exactly one block — nothing is discarded.
+  const units = rest.split(/\n{2,}/).map((u) => u.trim()).filter(Boolean);
+  const SOFT_MAX = 700; // chars — a comfortable phone swipe, never a cap
+  const isHeading = (u: string) => /^#{1,6}\s/.test(u);
+  const chunks: string[] = [];
+  let cur = '';
+  for (const u of units) {
+    if (cur && (isHeading(u) || cur.length + 2 + u.length > SOFT_MAX)) {
+      chunks.push(cur);
+      cur = u;
+    } else {
+      cur = cur ? `${cur}\n\n${u}` : u;
+    }
+  }
+  if (cur) chunks.push(cur);
+  if (chunks.length === 0) chunks.push(rest); // degenerate: keep whatever we have
+
+  const imgs = args.images;
+  const blocks: LayoutBlock[] = [];
+  // Hero with the first selected image.
+  blocks.push({
+    type: 'hero',
+    title: heroTitle,
+    ...(imgs[0] ? { image: { url: imgs[0].url, alt: imgs[0].alt } } : {}),
+  });
+
+  // Distribute the remaining images across the gaps between prose
+  // chunks at roughly even spacing. Never place an image after the last
+  // chunk (the post should close on the author's words); any left over
+  // from rounding are appended so every selected pick still ships.
+  const inlineImages = imgs.slice(1);
+  const gap = inlineImages.length > 0
+    ? Math.max(1, Math.floor(chunks.length / (inlineImages.length + 1)))
+    : 0;
+  let imgPtr = 0;
+  chunks.forEach((chunk, idx) => {
+    blocks.push({ type: 'prose', markdown: chunk });
+    if (
+      imgPtr < inlineImages.length &&
+      idx < chunks.length - 1 &&
+      (idx + 1) % gap === 0
+    ) {
+      const im = inlineImages[imgPtr++];
+      blocks.push({ type: 'image', url: im.url, alt: im.alt });
+    }
+  });
+  while (imgPtr < inlineImages.length) {
+    const im = inlineImages[imgPtr++];
+    blocks.push({ type: 'image', url: im.url, alt: im.alt });
+  }
+
+  return { blocks };
+}
+
 /** Belt-and-braces em-dash scrubber. The system prompt tells Claude
  * not to use em-dashes or en-dashes; this walks every string in the
  * Layout and rewrites any that snuck through with a comma plus a
