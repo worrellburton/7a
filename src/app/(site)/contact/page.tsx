@@ -79,6 +79,7 @@ export default function ContactPage() {
       />
       <PageHero
         label="Contact"
+        breadcrumbSchema={false}
         breadcrumbs={[{ label: 'Home', href: '/' }, { label: 'Contact' }]}
         title={[
           'A real person. ',
