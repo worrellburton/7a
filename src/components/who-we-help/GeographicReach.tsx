@@ -89,7 +89,7 @@ export default function GeographicReach() {
             Arizona&rsquo;s only <em className="not-italic text-primary">160-acre ranch rehab</em> &mdash; open to the country.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Our campus sits in Cochise County in the southeastern corner of

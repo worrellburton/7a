@@ -22,13 +22,13 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Native American healing traditions have played a significant role in addiction recovery for centuries. By incorporating cultural and spiritual practices into treatment programs, individuals can benefit from a holistic approach that addresses the interconnected aspects of their well-being, all of which can impact addiction and recovery. Understanding and embracing these traditions can enhance the effectiveness of addiction recovery efforts, fostering a deeper sense of healing and connection."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
               {"Understanding the Connection between Culture, Spirituality, and Addiction Recovery"}
             </h2>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Addiction is not solely a physical ailment, but a complex issue that often stems from deeper emotional and spiritual struggles. To address addiction effectively, it is crucial to understand the connection between culture, spirituality, and the recovery process. By treating the symptoms alone, the root of the disease is left untreated, and the chances of relapse increase."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">

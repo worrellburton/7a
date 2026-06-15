@@ -47,7 +47,7 @@ export default function AdmissionsFAQ() {
             The <em className="not-italic text-primary">real</em> questions.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Twelve direct answers to the questions admissions fields most

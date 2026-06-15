@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               At Seven Arrows Recovery, we know addiction treatment is not always easy. It takes courage to make positive changes in your recovery process, but we&rsquo;re here to help. If you&rsquo;re using Suboxone and want to know more about your options for transitioning to Sublocade, you&rsquo;ve come to the right place. Sublocade is a unique and effective way to treat opioid addiction and could be the next step you need in your recovery. It&rsquo;s a great way to make medication management easy while also offering long-term stability during the tapering process.
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               In this guide, we&rsquo;ll discuss what to expect during the transition from Suboxone to Sublocade, why this treatment can help you taper off MAT more easily, review insurance coverage, and learn how Seven Arrows Recovery in Arizona can help you every step of the way.
             </p>
 

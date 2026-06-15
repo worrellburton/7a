@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Watching someone you love struggle with addiction is one of the most painful experiences you can go through. You see the damage it’s doing, to their health, their relationships, and their future, and you just want to help. But when they resist treatment, you may find yourself asking the hard question: Can I force someone to go to rehab?"}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"It’s a question that comes from a place of desperation and deep concern, and while the answer depends on several factors, like where you live, their age, and the severity of their condition, it’s not always as straightforward as you’d hope."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>

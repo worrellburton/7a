@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"In the modern, fast-paced world, stress and burnout have become common challenges, especially for those facing drug addiction. Our holistic drug rehab center acknowledges the importance of addressing stress and burnout as part of the comprehensive recovery process. This blog will explore effective strategies for managing stress and burnout, fostering inner balance and well-being on the journey to a healthier, drug-free life."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Seven Arrows Recovery is a top-rated drug rehab in Arizona that can help. Contact us today to learn more about our Arizona holistic treatment options."}
             </p>
             <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>

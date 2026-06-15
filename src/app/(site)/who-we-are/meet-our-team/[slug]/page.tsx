@@ -200,7 +200,7 @@ export default async function TeamMemberPage({ params }: Params) {
             >
               Get to know {firstName}.
             </h2>
-            <p className="text-foreground/80 text-base sm:text-lg leading-relaxed whitespace-pre-line">
+            <p className="text-foreground/80 text-sm leading-relaxed whitespace-pre-line">
               {member.bio}
             </p>
           </div>

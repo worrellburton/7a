@@ -302,13 +302,13 @@ export default function PageContent() {
             <AuthorByline episode={episode} />
 
             {/* Opening */}
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               There is a moment that many of our clients describe — a quiet, private moment — when something shifts. Maybe it was waking up after another night you cannot fully remember. Maybe it was watching your hands shake before your first drink of the day. Or perhaps it was the look on someone&apos;s face when they realized you were not okay.
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               Whatever that moment looked like for you, we want you to know: recognizing it is not a sign of failure. It is, in fact, the very beginning of something brave. At Seven Arrows Recovery, we have walked alongside hundreds of people who stood exactly where you might be standing right now — wondering whether what they are experiencing is &ldquo;bad enough&rdquo; to warrant help.
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               The answer is simpler than you think: if you are asking the question, the answer matters. Let us walk through what addiction actually looks like — not the Hollywood version, but the real, human version.
             </p>
 

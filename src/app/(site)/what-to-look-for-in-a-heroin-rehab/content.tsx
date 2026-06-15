@@ -22,13 +22,13 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Heroin addiction is a devastating disease that affects individuals and families across the country. If you or someone you love is struggling, finding the right treatment center is critical. Knowing what to look for in a heroin rehab can help you choose a program that offers not only effective care but also long-term support for recovery. From medically supervised detox to personalized therapy, the best heroin rehab centers offer a comprehensive, compassionate approach that meets each individual’s unique needs."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
               {"Why Knowing What to Look for in a Heroin Rehab Matters"}
             </h2>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Choosing a heroin rehab is not just about finding a place to stop using drugs; it’s about selecting a facility that will support lasting recovery. When evaluating what to look for in a heroin rehab or treatment center, several key elements should be considered. Understanding what to look for in a heroin rehab can help you make an informed decision that leads to long-term healing."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">

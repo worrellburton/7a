@@ -83,7 +83,7 @@ export default function RelapseToolkit() {
             A toolkit you <em className="not-italic text-primary">already know how to use</em>.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Relapse is not a sign of failure — it&rsquo;s a signal that the

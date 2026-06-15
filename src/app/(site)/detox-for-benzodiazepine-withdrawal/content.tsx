@@ -25,10 +25,10 @@ export default function PageContent() {
             <h3 className="text-xl lg:text-2xl font-bold text-foreground mb-3 mt-8" style={{ fontFamily: 'var(--font-display)' }}>
               {"Understanding Benzodiazepines: Use, Abuse, and Withdrawal Symptoms"}
             </h3>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Benzodiazepines, often referred to as “benzos,” are a class of medications primarily prescribed to treat conditions such as anxiety, insomnia, and seizures. These drugs include well-known names like Xanax, Valium, Ativan, and Klonopin. While they offer significant therapeutic benefits when used as prescribed, there’s a dark side to these medications that we cannot ignore. If you or someone you know is struggling with benzodiazepine withdrawal, you may be wondering, should I go to detox for benzodiazepine withdrawals?"}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Benzodiazepine abuse can begin innocently, with a legitimate prescription that gets out of hand. However, over time, tolerance builds, requiring higher doses to achieve the same effects, which creates a slippery slope toward dependency and abuse. Signs of benzodiazepine abuse might include:"}
             </p>
             <ul className="list-disc pl-6 space-y-2 mb-8 text-foreground/80 leading-relaxed">

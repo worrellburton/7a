@@ -233,7 +233,7 @@ export default function InsuranceAetnaPage() {
               Aetna Addiction Treatment Coverage
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed max-w-2xl mx-auto text-lg"
+              className="text-foreground/70 leading-relaxed max-w-2xl mx-auto text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Aetna plans typically cover the following treatment services at Seven Arrows Recovery.
@@ -350,7 +350,7 @@ export default function InsuranceAetnaPage() {
             Use Your Aetna Insurance for Rehab Today
           </h2>
           <p
-            className="text-foreground/70 leading-relaxed text-lg mb-10 max-w-2xl mx-auto"
+            className="text-foreground/70 leading-relaxed text-sm mb-10 max-w-2xl mx-auto"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Do not let insurance questions delay your recovery. Our admissions team verifies Aetna

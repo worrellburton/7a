@@ -97,7 +97,7 @@ export default function WhyWorkHere() {
             A <em className="not-italic text-primary">clinical</em> program disguised as a ranch.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Six reasons clinicians who have worked in larger programs keep

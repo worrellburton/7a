@@ -25,10 +25,10 @@ export default function PageContent() {
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
               {"Understanding Methamphetamine Addiction"}
             </h2>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Methamphetamine, commonly referred to as meth or crystal meth, is a powerful and addictive stimulant that significantly impacts the central nervous system. The profound effects of this drug can lead to intense euphoria, but devastating consequences follow these fleeting moments. Many find themselves asking, “How long does meth stay in your system?”. Well, addiction can quickly take hold, altering not only the body but the mind and spirit as well. Recognizing the signs of meth abuse in yourself or a loved one is the first step in seeking help and initiating the recovery journey."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Those who are addicted to meth often exhibit noticeable physical changes and behaviors. Some of the common signs of how meth affects your body include severe weight loss, dental issues known as “meth mouth,” skin sores due to obsessive skin picking, and increased physical activity that’s often erratic or compulsive. Additionally, meth users may display symptoms such as anxiety, confusion, insomnia, mood disturbances, and sometimes even violent behavior. Awareness of these signs is essential to intervene promptly and offer the necessary support."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>

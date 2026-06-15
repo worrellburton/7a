@@ -171,7 +171,7 @@ export default function InsuranceTRICAREPage() {
               Coverage by TRICARE Plan Type
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed max-w-2xl mx-auto text-lg"
+              className="text-foreground/70 leading-relaxed max-w-2xl mx-auto text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Seven Arrows Recovery works with multiple TRICARE plan types. Here is a general
@@ -345,7 +345,7 @@ export default function InsuranceTRICAREPage() {
             You Served Your Country — Now Let Us Serve You
           </h2>
           <p
-            className="text-foreground/70 leading-relaxed text-lg mb-10 max-w-2xl mx-auto"
+            className="text-foreground/70 leading-relaxed text-sm mb-10 max-w-2xl mx-auto"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Your TRICARE benefits can cover addiction treatment at Seven Arrows Recovery. Our

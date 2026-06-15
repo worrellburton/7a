@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Methamphetamine addiction can take a devastating toll on your body, mind, and overall well-being. If you or your loved one is struggling with meth use, know that seeking help is the first courageous step toward reclaiming a healthier, more fulfilling life. However, one of the most intimidating aspects of quitting meth is facing meth withdrawal. Knowing what to expect during meth withdrawal may help you feel prepared for the important first step in recovery."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Meth withdrawal is a powerful and challenging process—but it’s also a sign that your body is beginning to heal. Though it can feel overwhelming, this phase is a necessary and temporary step toward long-term recovery. At Seven Arrows Recovery, we recognize the strength it takes to face withdrawal head-on, and we’re here to provide the expertise, compassion, and structured care you need to get through it."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">

@@ -280,13 +280,13 @@ export default function PageContent() {
             <AuthorByline episode={episode} />
 
             {/* Opening */}
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               If you&apos;re reading this, there&apos;s a good chance equine therapy shows up somewhere in the brochure for a place you&apos;re considering, and you have no idea what to picture. Maybe you&apos;re wondering if it&apos;s riding lessons in disguise. Maybe you&apos;ve seen a photo of someone crying into a horse&apos;s neck on Instagram and felt suspicious, or moved, or both.
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               You deserve the real, human version — the one nobody puts in the marketing. So let&apos;s take the mystery out of it.
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               Equine therapy is not a metaphor, a photo opportunity, or a spiritual test you have to pass. It&apos;s a structured clinical session — licensed therapist, evidence-based model, specific goals — that happens to take place on the ground, next to a horse. Here is what actually happens in it, and why we keep seeing it move people who have been stuck for years.
             </p>
 

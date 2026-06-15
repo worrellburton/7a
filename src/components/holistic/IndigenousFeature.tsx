@@ -130,7 +130,7 @@ export default function IndigenousFeature() {
               Held by <em className="not-italic text-primary">carriers</em>, not borrowed.
             </h2>
             <p
-              className="text-foreground/75 text-lg leading-relaxed mb-10 max-w-xl"
+              className="text-foreground/75 text-sm leading-relaxed mb-10 max-w-xl"
               style={{
                 fontFamily: 'var(--font-body)',
                 opacity: visible ? 1 : 0,

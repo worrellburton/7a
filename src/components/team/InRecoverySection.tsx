@@ -150,7 +150,7 @@ export default function InRecoverySection() {
             Many of us are <em className="not-italic text-primary">in recovery</em> ourselves.
           </h2>
           <p
-            className="text-foreground/70 leading-relaxed text-base lg:text-lg max-w-xl"
+            className="text-foreground/70 leading-relaxed text-sm max-w-xl"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             A meaningful share of the people you&rsquo;ll meet at Seven

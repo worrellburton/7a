@@ -25,10 +25,10 @@ export default function PageContent() {
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
               {"How Does Nutrition Impact Addiction Recovery?"}
             </h2>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"The relationship between food and healing is a significant one. For those in substance abuse or addiction recovery, nutrition becomes all the more essential to this process of restoration. Recently, studies have shown the important role that gut biome health and nutrition have on neurological responses—and this is just the beginning."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"At Seven Arrows Recovery, we understand this important relationship between nutrition and the healing process. When interviewed about the role of food and addiction recovery, Seven Arrows chef, Sandra Bradley, agrees and explains:"}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">

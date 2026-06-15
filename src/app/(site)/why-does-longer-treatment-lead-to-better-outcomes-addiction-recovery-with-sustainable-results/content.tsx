@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Many people approach addiction recovery as though it’s a microwave: systematic, straightforward, and—above all else—fast. The “30-day treatment” myth doesn’t help with these misconceptions either."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"But does microwave cooking lead to the best-tasting and healthiest version of your food? Definitely not. The same goes for addiction recovery: does a “quick treatment” lead to your most sustainable and holistic recovery from substance abuse and addiction? The research says no."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">

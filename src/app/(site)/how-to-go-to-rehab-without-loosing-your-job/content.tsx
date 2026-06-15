@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Going to rehab can be a life-changing decision, but for many individuals, the fear of losing their job can prevent them from seeking the help they need. However, thanks to the Family and Medical Leave Act (FMLA), employees have the right to take unpaid leave for medical reasons, including substance abuse treatment. In this article, we will explore how FMLA can enable you to attend rehab without jeopardizing your job security."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"FMLA provides job protection and allows eligible employees to take up to 12 weeks of unpaid leave for qualified medical reasons. While entering rehab may seem daunting, knowing your rights and understanding the process can give you the confidence to seek treatment without the fear of negative consequences at work."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">

@@ -83,7 +83,7 @@ export default function TeamVoices() {
           >
             Three people who <em className="not-italic text-primary">already</em> made the move.
           </h2>
-          <p className="text-foreground/70 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+          <p className="text-foreground/70 text-sm leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
             Initials and tenure only &mdash; every staff quote used with
             permission. Names available on request.
           </p>

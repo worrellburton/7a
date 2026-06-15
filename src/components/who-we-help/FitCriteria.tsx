@@ -125,7 +125,7 @@ export default function FitCriteria() {
             Honest about <em className="not-italic text-primary">fit</em>.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Our admissions team will tell you candidly whether we&rsquo;re the

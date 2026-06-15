@@ -22,13 +22,13 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"In the journey toward addiction recovery, healing takes many forms. While traditional therapies and support groups play vital roles, complementary practices such as yoga are gaining recognition for their profound impact on the healing process. Within this realm, the approach of trauma-informed yoga is a mindful and powerful tool for individuals navigating the complexities of addiction recovery. Seven Arrows Recovery integrated trauma-informed yoga into treatment programs to provide an alternative healing modality that is beneficial, accessible, and considerate of individuals with trauma."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
               {"What is Trauma-Informed Yoga?"}
             </h2>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Trauma-informed yoga is a specialized approach that acknowledges the prevalence and impact of trauma on individuals’ lives, particularly those in addiction recovery. It integrates the principles of trauma therapy with the practice of yoga, creating a safe and supportive environment for healing. Trained practitioners are adept at creating an environment conducive to healing, emphasizing sensitivity and understanding of trauma triggers. This method of yoga is highly mindful of scenarios that may make individuals with past trauma uncomfortable and opens a door to a healthy healing practice that is as safe as it is effective."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>

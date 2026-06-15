@@ -43,7 +43,7 @@ export default function PageContent() {
         <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
           <AuthorByline episode={episode} />
           <p
-            className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+            className="text-sm text-foreground/75 leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Most rehab marketing leads with the diagnosis. The DSM code, the
@@ -55,7 +55,7 @@ export default function PageContent() {
           </p>
 
           <p
-            className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+            className="mt-5 text-sm text-foreground/75 leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             This episode is about the other frame — the one our day-to-day
@@ -80,7 +80,7 @@ export default function PageContent() {
             </h2>
 
             <p
-              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               The Diagnostic and Statistical Manual is, in its own
@@ -94,7 +94,7 @@ export default function PageContent() {
             </p>
 
             <p
-              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-5 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               When a person walks into an intake under the pathology frame,
@@ -134,7 +134,7 @@ export default function PageContent() {
             </div>
 
             <p
-              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-10 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               None of this is anyone&apos;s fault, exactly. The DSM frame
@@ -162,7 +162,7 @@ export default function PageContent() {
             </h2>
 
             <p
-              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Salutogenesis is a word the medical sociologist Aaron Antonovsky
@@ -176,7 +176,7 @@ export default function PageContent() {
             </p>
 
             <p
-              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-5 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Underneath the symptoms a person walks in with — the using,
@@ -214,7 +214,7 @@ export default function PageContent() {
             </div>
 
             <p
-              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-10 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               The work in our program is salutogenic in this specific sense:
@@ -242,7 +242,7 @@ export default function PageContent() {
             </h2>
 
             <p
-              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               The cleanest way to feel the difference is to take a single
@@ -328,7 +328,7 @@ export default function PageContent() {
             </div>
 
             <p
-              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-10 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               These two columns describe two different people leaving
@@ -355,7 +355,7 @@ export default function PageContent() {
             </h2>
 
             <p
-              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Symptom management works. Inside a structured environment, with
@@ -369,7 +369,7 @@ export default function PageContent() {
             </p>
 
             <p
-              className="mt-5 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-5 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Symptom-managed graduates tend to do well right up until
@@ -442,7 +442,7 @@ export default function PageContent() {
             </div>
 
             <p
-              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-10 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               These five capacities are unsexy. They don&apos;t show up on
@@ -470,7 +470,7 @@ export default function PageContent() {
             </h2>
 
             <p
-              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               The clinical literature behind the salutogenic frame is large
@@ -553,7 +553,7 @@ export default function PageContent() {
             </div>
 
             <p
-              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-10 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               None of these are exotic. None of them require buying a new
@@ -658,7 +658,7 @@ export default function PageContent() {
             </h2>
 
             <p
-              className="text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Theory is cheap. The honest test of any clinical philosophy is
@@ -743,7 +743,7 @@ export default function PageContent() {
             </div>
 
             <p
-              className="mt-10 text-base lg:text-lg text-foreground/75 leading-relaxed"
+              className="mt-10 text-sm text-foreground/75 leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               None of these choices show up on the website&apos;s service

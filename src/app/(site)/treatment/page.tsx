@@ -72,7 +72,7 @@ export default function TreatmentPage() {
             A Full Continuum of Recovery Services
           </h2>
           <p
-            className="text-foreground/70 leading-relaxed max-w-3xl text-lg mb-12"
+            className="text-foreground/70 leading-relaxed max-w-3xl text-sm mb-12"
             style={{ fontFamily: "var(--font-body)" }}
           >
             Addiction is complex, and lasting recovery demands more than a single

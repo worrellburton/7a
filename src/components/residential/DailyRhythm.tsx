@@ -74,7 +74,7 @@ export default function DailyRhythm() {
           >
             Structure is foundational to <em className="not-italic text-primary">early recovery</em>.
           </h2>
-          <p className="text-foreground/70 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+          <p className="text-foreground/70 text-sm leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
             Each day at Seven Arrows balances clinical work, wellness activity,
             personal reflection, and community connection. Here&rsquo;s the shape
             of it — paced to the nervous system, never the clock.

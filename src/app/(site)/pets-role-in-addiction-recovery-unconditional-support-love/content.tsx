@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Beginning the journey to recovery from addiction is a monumental step, and you’re not alone in this. Those on the journey know that support is foundational to a successful recovery, and support is not limited to people alone. Pets have emerged as compassionate companions, offering a unique form of support that’s both healing and heartwarming. Their unconditional love and presence can be a powerful catalyst in your healing process."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Whether it’s the wag of a tail or the purr of contentment, pets provide a sense of comfort and routine that’s essential during recovery. They don’t just fill your space with joy; they also bring structure to your days and a reason to push forward. Embrace the therapeutic bond with your furry friend as you navigate the path to sobriety."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>

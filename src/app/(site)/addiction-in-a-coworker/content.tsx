@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Navigating workplace relationships can be challenging under any circumstances, but when you suspect that a coworker might be struggling with drug addiction, it can feel overwhelming and deeply worrisome. Addiction in a coworker can complicate dynamics, and you may be wondering how best to handle these suspicions. Addiction doesn’t just affect the individual struggling with it; it often ripples throughout their lives, including their work environment. You may feel conflicted about whether to intervene, unsure of how to support them, or uncertain about how their struggles might affect the workplace."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"At Seven Arrows Recovery, we understand that addiction can create complicated dynamics, not only for the person experiencing it but for those who care about them as well. If you suspect addiction in a coworker, your concern is valid, and more importantly, your involvement could make a profound difference in their journey toward healing."}
             </p>
             <p className="text-foreground/80 leading-relaxed mb-4">

@@ -22,13 +22,13 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Starting the recovery journey is a brave and life-changing decision, and choosing the right detox center is a crucial first step. At Seven Arrows Recovery, we understand the challenges of addiction and the importance of a safe, supportive detox process. For those unsure of what to look for in local detox centers, this guide will help you choose the best drug rehab in Arizona for you or your loved one."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>
               {"The Importance of Detox in the Recovery Process"}
             </h2>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Detoxification is the first critical stage of recovery, where the body clears itself of harmful substances. While detox is not a complete solution, it is a vital foundation for building long-term sobriety. The right detox center will ensure safety and comfort during this process and provide the necessary support for transitioning into comprehensive treatment. Here’s what to look for in local detox centers."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>

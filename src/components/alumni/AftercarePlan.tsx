@@ -92,7 +92,7 @@ export default function AftercarePlan() {
             <em className="not-italic text-primary">Six components</em>, built for your life.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Every aftercare plan is written, specific, and portable. Not a

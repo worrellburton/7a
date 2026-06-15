@@ -147,7 +147,7 @@ export default function WhatToExpect() {
             From arrival through <em className="not-italic text-primary">discharge</em>.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             A rough arc of a typical stay. Your actual timeline flexes with

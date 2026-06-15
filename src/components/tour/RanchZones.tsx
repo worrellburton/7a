@@ -102,7 +102,7 @@ export default function RanchZones() {
           >
             Six spaces. One place. <em className="not-italic text-primary">Built for healing.</em>
           </h2>
-          <p className="text-foreground/70 text-lg leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+          <p className="text-foreground/70 text-sm leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
             Every building, porch, and paddock was designed for a specific
             kind of work &mdash; clinical, experiential, or the quiet in-between.
           </p>

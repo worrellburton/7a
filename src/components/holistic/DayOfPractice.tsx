@@ -121,7 +121,7 @@ export default function DayOfPractice() {
             Woven through the day, <em className="not-italic text-primary">not bolted on</em>.
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed"
+            className="text-foreground/70 text-sm leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Holistic practice isn&rsquo;t a Friday-afternoon extra. It sits

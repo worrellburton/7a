@@ -22,10 +22,10 @@ export default function PageContent() {
         <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <div style={{ fontFamily: 'var(--font-body)' }}>
 
-            <p className="text-lg text-foreground/80 leading-relaxed mb-6">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-6">
               {"Self-care is an essential practice that promotes overall well-being, helps manage stress, and enhances our physical, emotional, and mental health. In today’s fast-paced and demanding world, taking time for self-care is more important than ever. At Seven Arrows Recovery, self-care is integral to the recovery journey. This article will explore practical tips and strategies to help you incorporate self-care into your daily routine and nurture your mind, body, and spirit."}
             </p>
-            <p className="text-lg text-foreground/80 leading-relaxed mb-10">
+            <p className="text-sm text-foreground/80 leading-relaxed mb-10">
               {"Seven Arrows Recovery is a top-rated drug rehab in Arizona. Contact us today to learn more about addiction treatment services in Arizona."}
             </p>
             <h2 className="text-2xl lg:text-3xl font-bold text-foreground mb-4 mt-12" style={{ fontFamily: 'var(--font-display)' }}>

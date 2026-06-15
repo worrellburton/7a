@@ -96,7 +96,7 @@ export default function OurProgramPage() {
               The Seven Arrows Approach
             </h2>
             <p
-              className="text-foreground/70 text-lg leading-relaxed"
+              className="text-foreground/70 text-sm leading-relaxed"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Recovery is not one-size-fits-all. Our program weaves together
@@ -144,7 +144,7 @@ export default function OurProgramPage() {
             Begin Your Healing Journey
           </h2>
           <p
-            className="text-foreground/70 text-lg leading-relaxed mb-8"
+            className="text-foreground/70 text-sm leading-relaxed mb-8"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Our admissions team is available around the clock to answer your

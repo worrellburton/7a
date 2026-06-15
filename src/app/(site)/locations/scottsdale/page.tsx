@@ -152,7 +152,7 @@ export default function LocationScottsdalePage() {
           </div>
           <div className="max-w-4xl mx-auto space-y-6">
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Scottsdale is a city that values quality, discretion, and results. For professionals,
@@ -163,7 +163,7 @@ export default function LocationScottsdalePage() {
               that larger facilities simply cannot provide.
             </p>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Located approximately 210 miles southeast of Scottsdale in Cochise County, our
@@ -174,7 +174,7 @@ export default function LocationScottsdalePage() {
               improves long-term recovery outcomes.
             </p>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Many Scottsdale residents tell us they chose Seven Arrows specifically because
@@ -196,7 +196,7 @@ export default function LocationScottsdalePage() {
               Boutique Rehab Services for Scottsdale Clients
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Every treatment plan is crafted by our clinical team after a thorough assessment
@@ -234,7 +234,7 @@ export default function LocationScottsdalePage() {
               Insurance Verification for Scottsdale Residents
             </h2>
             <p
-              className="text-foreground/70 leading-relaxed text-lg"
+              className="text-foreground/70 leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-body)' }}
             >
               Quality addiction treatment should not require financial guesswork. Our admissions

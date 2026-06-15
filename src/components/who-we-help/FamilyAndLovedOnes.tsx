@@ -94,7 +94,7 @@ export default function FamilyAndLovedOnes() {
               We treat the client. We <em className="not-italic text-primary">include</em> the family.
             </h2>
             <p
-              className="text-foreground/75 text-lg leading-relaxed mb-8"
+              className="text-foreground/75 text-sm leading-relaxed mb-8"
               style={{
                 fontFamily: 'var(--font-body)',
                 opacity: visible ? 1 : 0,
