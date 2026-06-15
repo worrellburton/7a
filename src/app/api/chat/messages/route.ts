@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
-import { isDmRoom, isDmParticipant } from '@/lib/chat-shared';
+import { getAdminSupabase } from '@/lib/supabase-server';
+import { isDmRoom, isDmParticipant, dmOtherParticipant } from '@/lib/chat-shared';
+import { requireChatAccess, isAlumniUser } from '@/lib/chat-server';
 
 // GET  /api/chat/messages?room=general  — newest 100 messages with
 //                                         author display name + avatar
 // POST /api/chat/messages                — send a new message
 //
-// Rooms: 'general' is the everybody room; 'dm:<uidA>:<uidB>' rooms are
-// private DMs — both verbs refuse anyone who isn't one of the two
-// participants (RLS enforces the same for direct PostgREST/realtime
-// access; this is the API-side mirror since we query as admin here).
+// Chat is alumni-only (see lib/chat-server). Rooms: 'general' is the
+// everybody room (alumni community); 'dm:<uidA>:<uidB>' rooms are private
+// DMs — both verbs refuse anyone who isn't one of the two participants,
+// and DMs are further restricted to alumni-to-alumni so an alum can only
+// message another alum, never an employee.
 
 export const dynamic = 'force-dynamic';
 
@@ -26,13 +28,20 @@ interface MessageRow {
 }
 
 export async function GET(req: NextRequest) {
-  const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireChatAccess(req);
+  if (gate instanceof NextResponse) return gate;
+  const user = gate.user;
 
   const url = new URL(req.url);
   const room = url.searchParams.get('room') || 'general';
-  if (isDmRoom(room) && !isDmParticipant(room, user.id)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (isDmRoom(room)) {
+    if (!isDmParticipant(room, user.id)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    const other = dmOtherParticipant(room, user.id);
+    if (!other || !(await isAlumniUser(other))) {
+      return NextResponse.json({ error: 'DMs are alumni-only' }, { status: 403 });
+    }
   }
   const admin = getAdminSupabase();
   const { data, error } = await admin
@@ -73,15 +82,22 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireChatAccess(req);
+  if (gate instanceof NextResponse) return gate;
+  const user = gate.user;
 
   let body: { room?: string; body?: string } = {};
   try { body = await req.json(); } catch { /* allow empty */ }
   const room = typeof body.room === 'string' && body.room.trim() ? body.room.trim() : 'general';
   const text = typeof body.body === 'string' ? body.body.trim() : '';
-  if (isDmRoom(room) && !isDmParticipant(room, user.id)) {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  if (isDmRoom(room)) {
+    if (!isDmParticipant(room, user.id)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    const other = dmOtherParticipant(room, user.id);
+    if (!other || !(await isAlumniUser(other))) {
+      return NextResponse.json({ error: 'DMs are alumni-only' }, { status: 403 });
+    }
   }
   if (!text) return NextResponse.json({ error: 'body is empty' }, { status: 400 });
   if (text.length > 4000) return NextResponse.json({ error: 'body too long (max 4000)' }, { status: 413 });

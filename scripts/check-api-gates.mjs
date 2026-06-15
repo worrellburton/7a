@@ -30,6 +30,8 @@ const GATE_MODULES = [
   '@/lib/page-access',
   '@/lib/website-requests-auth',
   '@/lib/content-server',
+  // Chat endpoints gate via requireChatAccess (alumni-only access).
+  '@/lib/chat-server',
 ];
 
 // Files intentionally public — webhooks (signed by the provider),

@@ -104,7 +104,7 @@ export default function HomeHardwareChip() {
   const flagItem = useCallback(async (item: AssignedItem) => {
     if (!user?.id || !session?.access_token) return;
     const ok = await modal.confirm(`Flag "${item.model || item.type}"?`, {
-      message: 'This marks the item on the Hardware page and emails Rosa, Pamela, and Bobby that the assignment looks wrong.',
+      message: 'This flags the item on the Hardware page so the assignment can be reviewed.',
       confirmLabel: 'Flag this',
       tone: 'danger',
     });
@@ -319,7 +319,7 @@ function HardwareCheckInModal({
                       </p>
                     ) : decision === 'flagged' ? (
                       <p className="mt-2 inline-flex items-center gap-1.5 px-2 py-1 rounded-full bg-rose-50 text-rose-800 text-[11px] font-semibold border border-rose-200">
-                        ⚑ Flagged — Rosa, Pamela &amp; Bobby were emailed
+                        ⚑ Flagged for review
                       </p>
                     ) : (
                       <div className="mt-2 flex flex-wrap items-center gap-2">

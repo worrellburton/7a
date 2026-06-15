@@ -8,7 +8,6 @@ import { uploadFile, compressImage, generateAvatarThumbDataUrl } from '@/lib/upl
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import FeatureRequestModal from './kingdom-requests/FeatureRequestModal';
-import HomeChatButton from './HomeChatButton';
 import WhatsNewButton from './WhatsNewButton';
 import JdSignatureNagModal from './JdSignatureNagModal';
 // Temporarily not rendered — see HomeContent.tsx note. Keeping the
@@ -939,10 +938,6 @@ export default function HomeContent() {
                   count == 0. */}
               <HomeHardwareChip />
             </HomeChipCluster>
-            {/* Chat — upper-right button with a live unread badge.
-                Replaces the chat-chips strip that used to sit under
-                the welcome header. */}
-            <HomeChatButton />
             <div ref={addMenuRef} className="relative hidden sm:block">
               <button
                 type="button"
