@@ -92,12 +92,14 @@ export default function ChatRail({
     return () => { void supabase.removeChannel(ch); };
   }, [user?.id, loadConversations]);
 
-  // People picker — staff + alumni, loaded on first open.
+  // People picker — alumni only. Chat is an alumni-only space, so an
+  // alum can only start a DM with another alum, never an employee.
   useEffect(() => {
     if (!pickerOpen || people !== null || !user?.id) return;
     void supabase
       .from('users')
       .select('id, full_name, avatar_url, user_kind, status')
+      .eq('user_kind', 'alumni')
       .neq('id', user.id)
       .order('full_name', { ascending: true })
       .then(({ data }) => {
@@ -215,7 +217,7 @@ export default function ChatRail({
           const name = c.kind === 'general' ? 'Everybody' : c.other?.name || 'Someone';
           const preview = c.last_body
             ? `${c.last_by_me ? 'You: ' : ''}${c.last_body}`
-            : c.kind === 'general' ? 'Staff + alumni, all together.' : 'Say hi 👋';
+            : c.kind === 'general' ? 'All alumni, all together.' : 'Say hi 👋';
           return (
             <Link key={c.room} href={href} onClick={onNavigate} className={`${rowBase} ${isActive ? activeRow : idleRow}`}>
               <span className="relative shrink-0">

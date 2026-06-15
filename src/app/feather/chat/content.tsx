@@ -1,7 +1,7 @@
 'use client';
 
-// Chat — realtime chatroom for staff + alumni. One global room for
-// now ('general'); the schema is room-scoped so multi-room is a
+// Chat — realtime chatroom for the alumni community. One global room
+// for now ('general'); the schema is room-scoped so multi-room is a
 // future addition. Realtime is two pipes:
 //   * postgres_changes on chat_messages (INSERT / UPDATE / DELETE)
 //     keeps the message list in sync across tabs.
@@ -349,7 +349,7 @@ export default function ChatContent() {
               <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">Chatroom</p>
               <h1 className="text-lg font-semibold text-foreground tracking-tight">Everybody</h1>
               <p className="text-sm text-foreground/55 mt-0.5">
-                Open to staff + alumni. {userKind === 'alumni' && <span className="text-emerald-700 font-semibold">Welcome back.</span>}
+                Your alumni community. {userKind === 'alumni' && <span className="text-emerald-700 font-semibold">Welcome back.</span>}
               </p>
             </div>
           )}

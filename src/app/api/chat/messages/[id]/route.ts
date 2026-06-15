@@ -1,18 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
+import { getAdminSupabase } from '@/lib/supabase-server';
+import { requireChatAccess } from '@/lib/chat-server';
 
 // PATCH  /api/chat/messages/[id]  — edit own message body
 // DELETE /api/chat/messages/[id]  — soft-delete own message
 //
-// Only the author can edit/delete; RLS already enforces this for the
-// `users-table` Supabase JS path, but we re-check here so the API
-// returns a clean 403 instead of an opaque RLS error.
+// Chat is alumni-only (see lib/chat-server). Beyond that, only the
+// author can edit/delete (super admins can hard-delete any message for
+// moderation); we re-check here so the API returns a clean 403 instead
+// of an opaque RLS error.
 
 export const dynamic = 'force-dynamic';
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireChatAccess(req);
+  if (gate instanceof NextResponse) return gate;
+  const user = gate.user;
   const { id } = await ctx.params;
 
   let body: { body?: string } = {};
@@ -42,17 +45,19 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 }
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const user = await getUserFromRequest(req);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const gate = await requireChatAccess(req);
+  if (gate instanceof NextResponse) return gate;
+  const user = gate.user;
+  const isSuperAdmin = gate.isSuperAdmin;
   const { id } = await ctx.params;
 
   const admin = getAdminSupabase();
-  const [{ data: existing }, { data: meRow }] = await Promise.all([
-    admin.from('chat_messages').select('user_id').eq('id', id).maybeSingle(),
-    admin.from('users').select('is_super_admin').eq('id', user.id).maybeSingle(),
-  ]);
+  const { data: existing } = await admin
+    .from('chat_messages')
+    .select('user_id')
+    .eq('id', id)
+    .maybeSingle();
   if (!existing) return NextResponse.json({ error: 'not found' }, { status: 404 });
-  const isSuperAdmin = (meRow as { is_super_admin?: boolean } | null)?.is_super_admin === true;
   const isAuthor = (existing as { user_id: string }).user_id === user.id;
   if (!isSuperAdmin && !isAuthor) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });

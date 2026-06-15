@@ -684,7 +684,11 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   // room and stores the count under '/feather/chat'. The nav row's
   // existing badge renderer picks it up automatically. Cleared
   // by the chat page on mount via /api/chat/unread POST.
+  // Chat is alumni-only, so only poll for users who can actually see
+  // it (alumni + super admins) — everyone else would just 403.
+  const canSeeChat = isAlumni || isSuperAdmin;
   useEffect(() => {
+    if (!canSeeChat) return;
     let cancelled = false;
     const load = () => {
       fetch('/api/chat/unread?all=1', { cache: 'no-store', credentials: 'include' })
@@ -704,7 +708,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       document.removeEventListener('visibilitychange', onVis);
       window.clearInterval(iv);
     };
-  }, []);
+  }, [canSeeChat]);
 
   // Sidebar/popup links are gated on three layers, in this order:
   //   1. Per-user override (set by a super admin via /app/user-permissions
