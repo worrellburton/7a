@@ -128,6 +128,15 @@ export default function HomeContent() {
   const { user, session, userKind } = useAuth();
   const { pages } = usePagePermissions();
   const router = useRouter();
+  // Alumni belong on the alumni home (/feather/alumni), not the staff
+  // 7A-orbit dashboard. PlatformShell already pins the alumni home in
+  // their sidebar, but a direct hit on /feather (the post-login
+  // default, a bookmark, or the feather logo) would otherwise drop
+  // them on the employee home. Bounce them to their own home.
+  const isAlumni = userKind === 'alumni';
+  useEffect(() => {
+    if (isAlumni) router.replace('/feather/alumni');
+  }, [isAlumni, router]);
   const [recentUsers, setRecentUsers] = useState<RecentUser[]>([]);
   const [recentAlumni, setRecentAlumni] = useState<RecentUser[]>([]);
   const [horses, setHorses] = useState<OrbitHorse[]>([]);
@@ -677,6 +686,9 @@ export default function HomeContent() {
     setNagDismissed(true);
   }
 
+  // Don't paint the staff orbit for an alumnus mid-redirect.
+  if (isAlumni) return null;
+
   return (
     // `isolation: isolate` scopes the negative z-index used by the
     // ambient backdrop + the mobile log-rain layer to this stacking
@@ -840,7 +852,7 @@ export default function HomeContent() {
                 button. The signed-JD titles live inline under the
                 user's name in the left cluster so the right side
                 stays focused on action items. */}
-            <div className={`shrink-0 flex items-center gap-2 ${userKind === 'alumni' ? 'hidden' : ''}`}>
+            <div className="shrink-0 flex items-center gap-2">
             {/* Pending-signature pill — amber, urgent. If multiple
                 pending, only the first title shows; count chip
                 indicates the rest. */}

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 
-// GET  /api/alumni/reunion-rsvp  → guest list + counts + my status
-// POST /api/alumni/reunion-rsvp  { status: 'going'|'maybe'|'not_going' }
+// GET    /api/alumni/reunion-rsvp  → guest list + counts + my status
+// POST   /api/alumni/reunion-rsvp  { status: 'going'|'maybe'|'not_going' }
+// DELETE /api/alumni/reunion-rsvp  → clear the caller's RSVP (un-answer)
 //
 // Partiful-style RSVP for the alumni reunion. Reads/writes through the
 // service-role client so the guest-list join to public.users works
@@ -69,4 +70,18 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   return NextResponse.json({ ok: true, status });
+}
+
+// Clear the caller's RSVP entirely — they're back to "no answer". Used
+// by the "un-RSVP" toggle so an alum can take back an answer rather
+// than being forced to pick one of the three once they've tapped any.
+export async function DELETE(req: NextRequest) {
+  const user = await getUserFromRequest(req);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const admin = getAdminSupabase();
+  const { error } = await admin.from('reunion_rsvps').delete().eq('user_id', user.id);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json({ ok: true, status: null });
 }

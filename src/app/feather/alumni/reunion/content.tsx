@@ -86,6 +86,24 @@ export default function ReunionContent() {
     }
   }, [session?.access_token, load]);
 
+  // Take back an answer entirely — back to "no answer". Lets an alum
+  // un-RSVP rather than being stuck on one of the three once tapped.
+  const clearRsvp = useCallback(async () => {
+    if (!session?.access_token) return;
+    const prev = myStatus;
+    setSaving(prev);
+    setMyStatus(null); // optimistic
+    try {
+      await fetch('/api/alumni/reunion-rsvp', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      await load();
+    } finally {
+      setSaving(null);
+    }
+  }, [session?.access_token, load, myStatus]);
+
   const countdown = useMemo(() => {
     const diff = EVENT.startsAtMs - now;
     if (diff <= 0) return null; // event has started/passed
@@ -145,7 +163,7 @@ export default function ReunionContent() {
       <section className="mt-6 rounded-2xl border border-black/10 bg-white p-5 sm:p-6">
         <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-foreground/50 mb-1">Are you coming?</p>
         <h2 className="text-lg font-bold text-foreground mb-4" style={{ fontFamily: 'var(--font-display)' }}>
-          {myStatus ? "You can change your answer anytime." : 'Let us know.'}
+          {myStatus ? "You can change or clear your answer anytime." : 'Let us know.'}
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           {RSVP_OPTIONS.map((opt) => {
@@ -154,9 +172,12 @@ export default function ReunionContent() {
               <button
                 key={opt.key}
                 type="button"
-                onClick={() => rsvp(opt.key)}
+                // Tapping the option you're already on takes the answer
+                // back (un-RSVP); tapping another switches to it.
+                onClick={() => (active ? clearRsvp() : rsvp(opt.key))}
                 disabled={saving !== null}
                 aria-pressed={active}
+                title={active ? 'Tap again to clear your answer' : undefined}
                 className={`inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 text-[13.5px] font-semibold transition-all disabled:opacity-60 ${
                   active ? opt.activeClass : 'border-black/12 bg-white text-foreground/75 hover:border-black/30'
                 }`}
@@ -167,6 +188,16 @@ export default function ReunionContent() {
             );
           })}
         </div>
+        {myStatus && (
+          <button
+            type="button"
+            onClick={() => clearRsvp()}
+            disabled={saving !== null}
+            className="mt-2.5 text-[12px] text-foreground/50 hover:text-foreground underline underline-offset-2 disabled:opacity-60"
+          >
+            Clear my answer
+          </button>
+        )}
 
         {/* Counts */}
         <div className="mt-4 flex items-center gap-4 text-[12.5px] text-foreground/60 flex-wrap">
