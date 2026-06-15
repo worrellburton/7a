@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { useEffect, useRef } from 'react';
+import { SITE_URL } from '@/lib/seo/schema';
 
 interface MetaItem {
   label: string;
@@ -43,6 +44,11 @@ interface PageHeroProps {
   video?: string;
   /** Breadcrumb links — rendered before the current page title. */
   breadcrumbs?: { label: string; href?: string }[];
+  /** Emit BreadcrumbList JSON-LD derived from `breadcrumbs`, for
+   *  breadcrumb rich results in search. Defaults true. Pages that
+   *  already render their own inline BreadcrumbList pass false so the
+   *  page doesn't carry two competing breadcrumb schemas. */
+  breadcrumbSchema?: boolean;
   /** Small meta row under the description (author / dates / read time). */
   meta?: MetaItem[];
   /** Optional CTA row under the description — phone pill + text link. */
@@ -228,6 +234,7 @@ export default function PageHero({
   image,
   video = DEFAULT_VIDEO,
   breadcrumbs,
+  breadcrumbSchema = true,
   meta,
   ctas,
   width = 'wide',
@@ -239,6 +246,30 @@ export default function PageHero({
   const posterImage = image ?? DEFAULT_IMAGE;
   const useVideo = Boolean(video);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  // BreadcrumbList structured data, derived from the same `breadcrumbs`
+  // we render visually — so Google can show a breadcrumb trail in the
+  // result. The leaf crumb (current page) carries no `item` URL, which
+  // is valid per schema.org and what Google expects for the last node.
+  const breadcrumbJsonLd =
+    breadcrumbSchema && breadcrumbs && breadcrumbs.length > 0
+      ? {
+          '@context': 'https://schema.org',
+          '@type': 'BreadcrumbList',
+          itemListElement: breadcrumbs.map((crumb, i) => ({
+            '@type': 'ListItem',
+            position: i + 1,
+            name: crumb.label,
+            ...(crumb.href
+              ? {
+                  item: crumb.href.startsWith('http')
+                    ? crumb.href
+                    : `${SITE_URL}${crumb.href}`,
+                }
+              : {}),
+          })),
+        }
+      : null;
 
   // The `autoPlay` attribute alone is flaky on some mobile browsers and
   // with Next's streaming hydration — explicitly calling play() after
@@ -335,6 +366,12 @@ export default function PageHero({
         style={{ paddingTop: 'calc(var(--site-header-height, 68px) + 2.5rem)' }}
       >
         <div className="pb-16 lg:pb-24 min-h-[380px] lg:min-h-[440px] flex flex-col justify-end">
+          {breadcrumbJsonLd && (
+            <script
+              type="application/ld+json"
+              dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
+            />
+          )}
           {breadcrumbs && breadcrumbs.length > 0 && (
             <nav
               aria-label="Breadcrumb"

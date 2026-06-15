@@ -112,6 +112,7 @@ export default function FAQsPage() {
       />
       <PageHero
         label="Frequently asked questions"
+        breadcrumbSchema={false}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Who we are', href: '/who-we-are' },

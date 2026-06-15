@@ -69,6 +69,7 @@ export default function CareersPage() {
       />
       <PageHero
         label="Careers at Seven Arrows"
+        breadcrumbSchema={false}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'Who we are', href: '/who-we-are' },

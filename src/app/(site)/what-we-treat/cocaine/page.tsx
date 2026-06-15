@@ -115,6 +115,7 @@ export default function CocaineAddictionPage() {
           { text: 'Cocaine rewires reward. We help you ' },
           { text: 'rebuild it', accent: true },
         ]}
+        breadcrumbSchema={false}
         breadcrumbs={[
           { label: 'Home', href: '/' },
           { label: 'What We Treat', href: '/what-we-treat' },
