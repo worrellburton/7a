@@ -31,6 +31,16 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
+      {/* Skip link — the first focusable element on every public page so
+          keyboard and screen-reader users can jump past the TopBar +
+          Header nav straight to the content (WCAG 2.4.1 Bypass Blocks).
+          Visually hidden until focused, so it changes nothing visually. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus:shadow-lg"
+      >
+        Skip to main content
+      </a>
       <TopBar />
       <Header />
       {/* No bottom padding here anymore. The previous mobile
@@ -44,7 +54,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
           carries its own bottom padding for the floating pill's
           safe-area on mobile (see Footer.tsx); reserving space
           here just stacks white space mid-page. */}
-      <main className="flex-1">{children}</main>
+      <main id="main-content" className="flex-1">{children}</main>
       {/* Pre-footer conversion stack. Brought BeforeFooterCTA back
           above the form — the dog-photo "Change your life with a
           single call" block is the warm hook (anyone, casual), then
