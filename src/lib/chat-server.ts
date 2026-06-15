@@ -4,9 +4,8 @@ import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
 // Server-side access gate for the chat feature.
 //
 // Chat is an ALUMNI-ONLY space: the peer community room + alumni-to-alumni
-// DMs. Employees (staff / admins) cannot read or post. Super admins keep
-// access so they can moderate (hard-delete) — mirrors how every other
-// alumni-only surface treats the super-admin spot-check role.
+// DMs. ONLY user_kind='alumni' may read or post — every employee is
+// excluded, super admins included (no moderator exception).
 //
 // This is the authoritative enforcement; the sidebar (canSeePage) and the
 // route (PageGuard) gates are UX so employees never see the link or land
@@ -29,7 +28,7 @@ export async function requireChatAccess(req: NextRequest): Promise<ChatGate | Ne
     .maybeSingle();
   const userKind = (data as { user_kind?: string | null } | null)?.user_kind ?? null;
   const isSuperAdmin = (data as { is_super_admin?: boolean } | null)?.is_super_admin === true;
-  if (userKind !== 'alumni' && !isSuperAdmin) {
+  if (userKind !== 'alumni') {
     return NextResponse.json({ error: 'Chat is for alumni only' }, { status: 403 });
   }
   return { user, userKind, isSuperAdmin };
