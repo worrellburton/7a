@@ -200,6 +200,15 @@ export function useSidebarFlip(): FlipController {
     // by some unrelated state change) doesn't reuse a stale marker.
     const travelerPath = travelerPathRef.current;
     travelerPathRef.current = null;
+    // Only animate user-initiated reorders. A click sets the traveler via
+    // markTraveler; data-driven reorders — the recency list settling as
+    // sidebar_recent_paths / departments arrive on the first load, most
+    // visible on the home screen where the rail is pinned open — have no
+    // traveler and should SNAP to their final positions rather than
+    // animate. Otherwise the rail "spazzes" while it calibrates. Positions
+    // were already recorded above, so the next real FLIP still measures
+    // from the correct baseline.
+    if (!travelerPath) return;
     const travelerEl = travelerPath
       ? movers.find((m) => m.path === travelerPath)?.el ?? null
       : null;
