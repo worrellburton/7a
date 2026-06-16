@@ -17,7 +17,6 @@ import FlowBackground from './FlowBackground';
 import LoginScreen, { HeroGallery } from './LoginScreen';
 import LeverPullListener from '@/components/LeverPullListener';
 import ContactSubmissionToasts from '@/components/ContactSubmissionToasts';
-import OnboardingFlow from './OnboardingFlow';
 
 interface NavDepartment {
   id: string;
@@ -632,12 +631,8 @@ function SevenArrowsLogo({ size = 'md' }: { size?: 'sm' | 'md' }) {
 }
 
 export default function PlatformShell({ children }: { children: React.ReactNode }) {
-  const { user, loading, isAdmin, isSuperAdmin, isAlumniAdmin, departmentId, status, userKind, sidebarRecentPaths, sidebarClickCount, recordSidebarVisit, signInWithGoogle, signOut, session, avatarUrl, refreshProfile, onboardingCompletedAt } = useAuth();
+  const { user, loading, isAdmin, isSuperAdmin, isAlumniAdmin, departmentId, status, userKind, sidebarRecentPaths, sidebarClickCount, recordSidebarVisit, signInWithGoogle, signOut, session, avatarUrl, refreshProfile } = useAuth();
   const isAlumni = userKind === 'alumni';
-  // Staff welcome flow — shown to team members (not alumni) who haven't
-  // finished it. "Skip for now" only dismisses for this session, so it
-  // reappears next login until completed. Dismissed locally once shown.
-  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const { navPages, popupPages, isPageAllowedForDepartment, isPageAllowedForDepartmentSet, userOverrides, userExtraDepartmentIds } = usePagePermissions();
   const pathname = usePathname();
   const router = useRouter();
@@ -1205,13 +1200,6 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       {/* Global cmd+K / ctrl+K palette. Listens for the shortcut at
           window level so it's available from any /app/* surface. */}
       <CommandPalette />
-      {/* Staff onboarding — team members only, until they finish it. */}
-      {!isAlumni && !onboardingCompletedAt && !onboardingDismissed && (
-        <OnboardingFlow
-          onClose={() => setOnboardingDismissed(true)}
-          onComplete={() => { setOnboardingDismissed(true); void refreshProfile(); }}
-        />
-      )}
       {/* Left Sidebar — collapsed-by-default rail that expands on
           hover. The aside reserves a narrow `w-16` column so the
           main content's layout never reflows; the inner panel is
