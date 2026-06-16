@@ -4874,7 +4874,7 @@ function AddPill({
       {open && (
         <div
           role="menu"
-          className="absolute right-0 mt-2 min-w-[14rem] rounded-2xl border border-black/8 bg-white/95 supports-[backdrop-filter]:bg-white/85 supports-[backdrop-filter]:backdrop-blur-xl shadow-[0_18px_40px_-18px_rgba(40,30,25,0.45)] z-30 overflow-hidden"
+          className="absolute right-0 mt-2 min-w-[14rem] rounded-2xl border border-black/8 bg-white/95 supports-[backdrop-filter]:bg-white/85 supports-[backdrop-filter]:backdrop-blur-xl shadow-[0_18px_40px_-18px_rgba(40,30,25,0.45)] z-50 overflow-hidden"
         >
           <button
             type="button"
@@ -8633,6 +8633,7 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
     duplicates: { row: number; name: string; matchedOn: 'name' | 'email' | 'company_website' }[];
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [dragOver, setDragOver] = useState(false);
 
   function onFileChange(f: File | null) {
     setError(null);
@@ -8749,14 +8750,27 @@ function ImportCsvModal({ onClose, token }: { onClose: () => void; token: string
           {/* Step 1: pick file */}
           <div>
             <p className="text-[9px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">1 · Upload CSV</p>
-            <label className="block rounded-xl border-2 border-dashed border-black/15 bg-warm-bg/30 px-4 py-6 text-center cursor-pointer hover:border-primary/45 hover:bg-primary/5 transition-colors">
+            <label
+              onDragOver={(e) => { e.preventDefault(); if (!dragOver) setDragOver(true); }}
+              onDragLeave={(e) => { e.preventDefault(); setDragOver(false); }}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragOver(false);
+                onFileChange(e.dataTransfer.files?.[0] ?? null);
+              }}
+              className={`block rounded-xl border-2 border-dashed px-4 py-6 text-center cursor-pointer transition-colors ${
+                dragOver
+                  ? 'border-primary bg-primary/10'
+                  : 'border-black/15 bg-warm-bg/30 hover:border-primary/45 hover:bg-primary/5'
+              }`}
+            >
               <input
                 type="file"
                 accept=".csv,text/csv"
                 className="sr-only"
                 onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
               />
-              <p className="text-[13px] font-semibold text-foreground">{file ? file.name : 'Click to choose a .csv'}</p>
+              <p className="text-[13px] font-semibold text-foreground">{file ? file.name : (dragOver ? 'Drop your .csv to upload' : 'Click or drag a .csv here')}</p>
               <p className="mt-1 text-[10.5px] text-foreground/55">
                 Up to 1MB. Headers will be auto-detected — column names like &quot;Phone #&quot; or &quot;City, State&quot; are fine.
               </p>
