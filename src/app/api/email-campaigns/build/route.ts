@@ -14,15 +14,15 @@ import { buildEmailSystemPrompt, PROMPT_VERSION } from '@/lib/prompts/email-buil
 // existing HTML according to the note instead of starting over.
 //
 // Required env: ANTHROPIC_API_KEY
-// Optional env: ANTHROPIC_MODEL (defaults to claude-fable-5)
+// Optional env: ANTHROPIC_MODEL (defaults to claude-opus-4-8)
 
-const DEFAULT_MODEL = 'claude-fable-5';
+const DEFAULT_MODEL = 'claude-opus-4-8';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
 
-// Fable 5 turns run longer than Opus-tier (thinking is always on) —
-// give the function the full window so a rich build doesn't get
-// killed by the platform's default duration.
+// A rich build with adaptive thinking can run for a while —
+// give the function the full window so it doesn't get killed by
+// the platform's default duration.
 export const maxDuration = 300;
 
 // Vertical, no-background / transparent variant so it reads on any
@@ -459,21 +459,21 @@ ${ctxLines.join('\n\n')}`;
       },
       body: JSON.stringify({
         model,
-        // 32000, was 16384. Two reasons: (1) a maxed-out build
-        // (darkmode + gallery + horse + insurance + social) peaked at
-        // 12-14k tokens on Opus, and Fable 5's new tokenizer counts
-        // ~30% more tokens for the same content — 16384 would have
-        // re-introduced the mid-HTML truncation bug ("…JESSICA CO").
-        // (2) We now FAIL LOUDLY on overflow (stop_reason check
-        // below) instead of silently shipping a repaired-but-chopped
-        // draft, so the ceiling needs real headroom.
+        // 32000. A maxed-out build (darkmode + gallery + horse +
+        // insurance + social) peaks around 12-14k tokens of HTML, and
+        // adaptive thinking draws from the same output budget, so the
+        // ceiling needs real headroom — 16384 once re-introduced the
+        // mid-HTML truncation bug ("…JESSICA CO"). We also FAIL LOUDLY
+        // on overflow (stop_reason check below) instead of silently
+        // shipping a repaired-but-chopped draft.
         max_tokens: 32000,
         system: systemPrompt,
-        // Fable 5: thinking is always on (omit the `thinking` param
-        // entirely — explicit configs are rejected). Effort 'medium'
-        // is the interactive sweet spot: it outperforms prior
-        // models' top settings while keeping the build inside the
-        // serverless window.
+        // Opus 4.8 supports adaptive thinking only — let the model
+        // reason before drawing a 10-pillar HTML email (this is the
+        // behaviour the prompt was tuned for). Effort 'medium' is the
+        // interactive sweet spot: strong output while keeping the
+        // build inside the serverless window.
+        thinking: { type: 'adaptive' },
         output_config: { effort: 'medium' },
         messages: [{ role: 'user', content: userContent }],
       }),
@@ -489,9 +489,9 @@ ${ctxLines.join('\n\n')}`;
       content?: Array<{ type: string; text?: string }>;
       stop_reason?: string;
     };
-    // Fable 5 can decline a request via safety classifiers — HTTP 200
-    // with stop_reason "refusal" and empty/partial content. Surface
-    // it as a clear error instead of "unparseable response".
+    // A safety classifier can decline a request — HTTP 200 with
+    // stop_reason "refusal" and empty/partial content. Surface it as
+    // a clear error instead of "unparseable response".
     if (data.stop_reason === 'refusal') {
       return NextResponse.json(
         { error: 'The model declined this request. Rephrase the campaign prompt and try again.' },
