@@ -43,8 +43,8 @@ const ITERATE_STEPS = [
 
 const STORAGE_KEY = 'sa.email-build-durations';
 const MAX_HISTORY = 12;
-// First-time defaults (no history yet). Tuned for Claude Fable 5
-// (always-on thinking) — a fresh build typically runs ~45-75s, an
+// First-time defaults (no history yet). Tuned for Claude Opus 4.8
+// (adaptive thinking) — a fresh build typically runs ~45-75s, an
 // iteration ~25-40s. Real history replaces these after a few builds.
 const DEFAULT_FRESH_MS = 60_000;
 const DEFAULT_ITERATE_MS = 30_000;
