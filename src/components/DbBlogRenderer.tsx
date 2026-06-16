@@ -86,6 +86,19 @@ function ProseMarkdown({ md }: { md: string }) {
   const blocks: ReactElement[] = [];
   let i = 0;
   let key = 0;
+  // GitHub-flavoured table support: a row of `| a | b |` immediately
+  // followed by a separator row `| --- | --- |`. Pasted "own content"
+  // often includes these (e.g. a program-length comparison); without
+  // this the pipes spilled inline as plain text.
+  const isTableSep = (s: string) => /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)+\|?\s*$/.test(s);
+  const isTableStart = (idx: number) =>
+    idx + 1 < lines.length && lines[idx].includes('|') && lines[idx].trim() !== '' && isTableSep(lines[idx + 1]);
+  const splitRow = (s: string) => {
+    let t = s.trim();
+    if (t.startsWith('|')) t = t.slice(1);
+    if (t.endsWith('|')) t = t.slice(0, -1);
+    return t.split('|').map((c) => c.trim());
+  };
   while (i < lines.length) {
     const line = lines[i];
     if (!line.trim()) { i += 1; continue; }
@@ -95,6 +108,38 @@ function ProseMarkdown({ md }: { md: string }) {
     if (h1) { blocks.push(<h1 key={key++} className="font-display text-3xl sm:text-4xl font-bold text-foreground mt-10 mb-4 leading-tight">{inlineMarkdown(h1[1])}</h1>); i += 1; continue; }
     if (h2) { blocks.push(<h2 key={key++} className="font-display text-2xl sm:text-3xl font-bold text-foreground mt-10 mb-3 leading-tight">{inlineMarkdown(h2[1])}</h2>); i += 1; continue; }
     if (h3) { blocks.push(<h3 key={key++} className="text-xl font-bold text-foreground mt-8 mb-2">{inlineMarkdown(h3[1])}</h3>); i += 1; continue; }
+    if (isTableStart(i)) {
+      const headers = splitRow(line);
+      i += 2; // consume the header + separator rows
+      const rows: string[][] = [];
+      while (i < lines.length && lines[i].includes('|') && lines[i].trim() !== '') {
+        rows.push(splitRow(lines[i]));
+        i += 1;
+      }
+      blocks.push(
+        <div key={key++} className="my-6 overflow-x-auto">
+          <table className="w-full border-collapse text-[13.5px] sm:text-[14px] leading-snug">
+            <thead>
+              <tr>
+                {headers.map((h, ci) => (
+                  <th key={ci} className="border-b-2 border-foreground/20 py-2 pr-4 text-left font-semibold text-foreground align-top">{inlineMarkdown(h)}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, ri) => (
+                <tr key={ri}>
+                  {headers.map((_, ci) => (
+                    <td key={ci} className="border-b border-foreground/10 py-2 pr-4 text-foreground/85 align-top">{inlineMarkdown(r[ci] ?? '')}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>,
+      );
+      continue;
+    }
     if (/^[-*]\s+/.test(line)) {
       const items: string[] = [];
       while (i < lines.length && /^[-*]\s+/.test(lines[i])) { items.push(lines[i].replace(/^[-*]\s+/, '')); i += 1; }
@@ -118,7 +163,7 @@ function ProseMarkdown({ md }: { md: string }) {
     // Paragraph — gather lines until blank or block boundary.
     const paragraph: string[] = [line];
     i += 1;
-    while (i < lines.length && lines[i].trim() && !/^(#|[-*]|\d+\.)\s/.test(lines[i])) {
+    while (i < lines.length && lines[i].trim() && !/^(#|[-*]|\d+\.)\s/.test(lines[i]) && !isTableStart(i)) {
       paragraph.push(lines[i]);
       i += 1;
     }
