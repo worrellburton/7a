@@ -74,6 +74,10 @@ interface AuthContextType {
    * Approve click unblocks the user without a manual sign-out.
    */
   refreshProfile: () => Promise<void>;
+  /** `users.onboarding_version` — the welcome-flow version this user last
+   * completed (0 = never). PlatformShell shows the onboarding overlay to
+   * team members while this is below the current ONBOARDING_VERSION. */
+  onboardingVersion: number;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -95,6 +99,7 @@ const AuthContext = createContext<AuthContextType>({
   avatarUrl: null,
   refreshAvatar: () => {},
   refreshProfile: async () => {},
+  onboardingVersion: 0,
   signInWithGoogle: async () => {},
   signOut: async () => {},
 });
@@ -126,6 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [departmentId, setDepartmentId] = useState<string | null>(null);
   const [status, setStatus] = useState<UserStatus>('active');
   const [userKind, setUserKind] = useState<'staff' | 'guest' | 'alumni'>('staff');
+  const [onboardingVersion, setOnboardingVersion] = useState<number>(0);
   const [sidebarRecentPaths, setSidebarRecentPaths] = useState<string[]>([]);
   const [sidebarClickCount, setSidebarClickCount] = useState<number>(0);
   // Custom avatar from the users table — separate from
@@ -184,9 +190,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user_kind?: 'staff' | 'guest' | 'alumni';
       sidebar_recent_paths?: string[] | null;
       sidebar_click_count?: number | null;
+      onboarding_version?: number | null;
     };
     let row: ProfileRow | null = null;
-    const full = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin, is_super_admin, is_alumni_admin, department_id, status, user_kind, sidebar_recent_paths, sidebar_click_count' });
+    const full = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin, is_super_admin, is_alumni_admin, department_id, status, user_kind, sidebar_recent_paths, sidebar_click_count, onboarding_version' });
     if (Array.isArray(full) && full[0]) {
       row = full[0] as ProfileRow;
     } else {
@@ -216,6 +223,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAlumniAdmin(row.is_alumni_admin === true);
     setDepartmentId(row.department_id ?? null);
     setUserKind(row.user_kind ?? 'staff');
+    setOnboardingVersion(typeof row.onboarding_version === 'number' ? row.onboarding_version : 0);
     setSidebarRecentPaths(Array.isArray(row.sidebar_recent_paths) ? row.sidebar_recent_paths : []);
     setSidebarClickCount(typeof row.sidebar_click_count === 'number' ? row.sidebar_click_count : 0);
     // Trust the DB. The status column is set on insert by the
@@ -413,6 +421,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         avatarUrl,
         refreshAvatar,
         refreshProfile,
+        onboardingVersion,
         signInWithGoogle,
         signOut,
       }}
