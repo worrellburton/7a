@@ -18,12 +18,13 @@ import { findSitePage } from '@/lib/site-pages';
 // blank lines). The final build step renders it into a designed
 // HTML email.
 
-const DEFAULT_MODEL = 'claude-fable-5';
+const DEFAULT_MODEL = 'claude-opus-4-8';
 const API_URL = 'https://api.anthropic.com/v1/messages';
 const API_VERSION = '2023-06-01';
 const SITE_URL = 'https://www.sevenarrowsrecoveryarizona.com/';
 
-// Fable 5 thinks before writing — allow for the longer turn.
+// Adaptive thinking lets the model reason before writing — allow
+// for the longer turn.
 export const maxDuration = 300;
 
 interface DraftBody {
@@ -137,12 +138,14 @@ Return ONLY the JSON object. No preamble, no markdown fences.`;
       },
       body: JSON.stringify({
         model,
-        // 4096, was 2048 — Fable 5's tokenizer counts ~30% more
-        // tokens for the same content.
+        // 4096 — headroom for the four-field copy draft plus the
+        // adaptive-thinking tokens that share the output budget.
         max_tokens: 4096,
         system: systemPrompt,
-        // Fable 5: omit `thinking` (always on); 'medium' effort is
-        // plenty for a four-field copy draft and keeps latency sane.
+        // Opus 4.8 supports adaptive thinking only — a little reasoning
+        // sharpens the copy. 'medium' effort is plenty for a four-field
+        // draft and keeps latency sane.
+        thinking: { type: 'adaptive' },
         output_config: { effort: 'medium' },
         messages: [{ role: 'user', content: userContent }],
       }),
