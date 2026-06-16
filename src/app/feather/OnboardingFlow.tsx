@@ -9,9 +9,10 @@
 // profile editor uses — admin-managed fields (job_title, department_id)
 // are intentionally not collected here.
 //
-// Profile photo is optional, and on upload the user crops it (no
-// dependency — a small canvas pan/zoom cropper below). Steps animate in;
-// all glyphs are inline SVG (no emojis).
+// Look: a big GLASS CIRCLE that glows, over a blurred page. Text fades in
+// (eased, --onb-text-dur), and each step change is a 3D orbit. Profile
+// photo is optional and croppable (no dependency — a small canvas
+// pan/zoom cropper below). All glyphs are inline SVG (no emojis).
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth, notifyAvatarChanged } from '@/lib/AuthProvider';
@@ -48,7 +49,7 @@ export default function OnboardingFlow({
 }) {
   const { user, session, avatarUrl: authAvatar, refreshAvatar } = useAuth();
   const [step, setStep] = useState(0);
-  const [dir, setDir] = useState(1); // 1 = forward, -1 = back (drives slide)
+  const [dir, setDir] = useState(1); // 1 = forward, -1 = back (drives the orbit)
   const [a, setA] = useState<Answers>(EMPTY);
   const [avatar, setAvatar] = useState<string | null>(authAvatar);
   const [cropSrc, setCropSrc] = useState<string | null>(null); // object URL while cropping
@@ -155,46 +156,52 @@ export default function OnboardingFlow({
   const firstName = (a.full_name || (user?.user_metadata?.full_name as string) || '').trim().split(' ')[0];
 
   const STEPS = [
-    { icon: <UserGlyph />, title: firstName ? `Welcome, ${firstName}` : 'Welcome', sub: 'Let’s set up your profile. Takes about a minute, and everything is optional.' },
+    { icon: <UserGlyph />, title: firstName ? `Welcome, ${firstName}` : 'Welcome', sub: 'Let’s set up your profile. About a minute, all optional.' },
     { icon: <PencilGlyph />, title: 'A bit about you', sub: 'A short intro for your team profile.' },
     { icon: <LinkGlyph />, title: 'Staying connected', sub: 'One last thing, then you’re in.' },
   ];
   const cur = STEPS[step];
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-foreground/40 backdrop-blur-sm" style={{ fontFamily: 'var(--font-body)' }}>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-foreground/45 backdrop-blur-xl" style={{ fontFamily: 'var(--font-body)' }}>
       <style>{onbCss}</style>
-      <div className="onb-shell w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-black/5 overflow-hidden">
-        {/* Header: progress + skip */}
-        <div className="flex items-center justify-between px-6 pt-5">
-          <div className="flex items-center gap-1.5" aria-label={`Step ${step + 1} of ${TOTAL}`}>
+
+      {/* Glow halo behind the circle. */}
+      <div
+        aria-hidden
+        className="onb-glow pointer-events-none absolute w-[min(96vw,94vh,760px)] aspect-square rounded-full blur-3xl"
+        style={{ background: 'radial-gradient(circle at 32% 30%, rgba(216,137,102,0.55), transparent 60%), radial-gradient(circle at 70% 72%, rgba(96,165,250,0.42), transparent 62%)' }}
+      />
+
+      {/* The glass circle. */}
+      <div className="onb-shell relative w-[min(92vw,86vh,640px)] sm:aspect-square rounded-[2rem] sm:rounded-full border border-white/45 bg-white/30 supports-[backdrop-filter]:bg-white/20 backdrop-blur-2xl shadow-[0_36px_90px_-24px_rgba(40,30,25,0.55),0_0_60px_-10px_rgba(216,137,102,0.45),inset_0_1px_0_rgba(255,255,255,0.6)] overflow-hidden">
+        {/* Specular sheen across the top of the glass. */}
+        <span aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/45 to-transparent opacity-70" />
+
+        <div className="relative h-full w-full flex flex-col items-center justify-between gap-3 px-7 py-7 sm:px-[15%] sm:py-[13%]">
+          {/* Progress */}
+          <div className="flex items-center gap-1.5 shrink-0" aria-label={`Step ${step + 1} of ${TOTAL}`}>
             {Array.from({ length: TOTAL }).map((_, i) => (
-              <span key={i} className="h-1.5 rounded-full bg-foreground/12 overflow-hidden" style={{ width: i === step ? '1.75rem' : '0.5rem', transition: 'width 350ms cubic-bezier(0.22,1,0.36,1)' }}>
+              <span key={i} className="h-1.5 rounded-full bg-foreground/15 overflow-hidden" style={{ width: i === step ? '1.75rem' : '0.5rem', transition: 'width 350ms cubic-bezier(0.22,1,0.36,1)' }}>
                 <span className="block h-full rounded-full bg-primary" style={{ width: i <= step ? '100%' : '0%', transition: 'width 450ms cubic-bezier(0.22,1,0.36,1)' }} />
               </span>
             ))}
           </div>
-          <button type="button" onClick={onClose} className="text-[12px] text-foreground/45 hover:text-foreground transition-colors">Skip for now</button>
-        </div>
 
-        {/* Animated step body — re-mounts on step change to replay the entry */}
-        <div key={step} className="onb-card px-6 pt-4 pb-2" style={{ ['--dir' as string]: String(dir) }}>
-          <div className="flex items-center gap-2.5 text-primary">
-            <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10">{cur.icon}</span>
-            <div>
-              <h2 className="text-lg font-bold text-foreground leading-tight" style={{ fontFamily: 'var(--font-display)' }}>{cur.title}</h2>
-            </div>
-          </div>
-          <p className="mt-2 text-[13px] text-foreground/60 leading-relaxed">{cur.sub}</p>
+          {/* Animated card — re-mounts on step change so the orbit + text
+              fade replay. The inner column scrolls if a page is dense. */}
+          <div key={step} className="onb-orbit flex-1 min-h-0 w-full max-w-[21rem]" style={{ ['--dir' as string]: String(dir) }}>
+            <div className="onb-stagger h-full overflow-y-auto sa-sidebar-scroll flex flex-col">
+              <span className="mx-auto inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-primary/15 text-primary">{cur.icon}</span>
+              <h2 className="mt-2 text-center text-xl font-bold text-foreground leading-tight" style={{ fontFamily: 'var(--font-display)' }}>{cur.title}</h2>
+              <p className="mt-1 text-center text-[12.5px] text-foreground/65 leading-relaxed">{cur.sub}</p>
 
-          <div className="mt-4 space-y-4">
-            {step === 0 && (
-              <>
-                <div className="flex items-center gap-4">
+              {step === 0 && (
+                <div className="mt-4 flex flex-col items-center gap-3">
                   <button
                     type="button"
                     onClick={() => fileRef.current?.click()}
-                    className="onb-avatar relative w-20 h-20 rounded-full overflow-hidden border border-black/10 bg-warm-bg/60 shrink-0 group"
+                    className="onb-avatar relative w-24 h-24 rounded-full overflow-hidden border border-white/60 bg-white/40 shrink-0 group shadow-[0_8px_24px_-8px_rgba(40,30,25,0.35)]"
                     aria-label="Upload a profile photo"
                   >
                     {avatar ? (
@@ -204,57 +211,52 @@ export default function OnboardingFlow({
                       <span className="w-full h-full flex items-center justify-center text-primary"><CameraGlyph /></span>
                     )}
                     <span className="absolute inset-0 bg-foreground/45 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-semibold">
-                      {uploading ? '…' : avatar ? 'Change' : 'Add'}
+                      {uploading ? '…' : avatar ? 'Change' : 'Add photo'}
                     </span>
                   </button>
-                  <div className="text-[12.5px] text-foreground/60">
-                    <p className="font-semibold text-foreground">Profile photo <span className="font-normal text-foreground/45">· optional</span></p>
-                    <p>Shows on the team page, chat, and the home orbit. You’ll crop it after picking.</p>
-                  </div>
+                  <p className="text-center text-[11.5px] text-foreground/55 leading-snug">Optional — you’ll crop it after picking.</p>
                   <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { pickFile(e.target.files?.[0] ?? null); e.target.value = ''; }} />
+                  <div className="w-full"><Field label="Your name"><input value={a.full_name} onChange={(e) => set('full_name', e.target.value)} className={inputCx} placeholder="First Last" /></Field></div>
+                  <div className="w-full"><Field label="Pronouns (optional)"><input value={a.pronouns} onChange={(e) => set('pronouns', e.target.value)} className={inputCx} placeholder="she/her · he/him · they/them" /></Field></div>
                 </div>
-                <Field label="Your name"><input value={a.full_name} onChange={(e) => set('full_name', e.target.value)} className={inputCx} placeholder="First Last" /></Field>
-                <Field label="Pronouns (optional)"><input value={a.pronouns} onChange={(e) => set('pronouns', e.target.value)} className={inputCx} placeholder="she/her · he/him · they/them" /></Field>
-              </>
-            )}
-            {step === 1 && (
-              <>
-                <Field label="Short bio"><textarea value={a.bio} onChange={(e) => set('bio', e.target.value)} rows={4} className={`${inputCx} resize-y`} placeholder="What you do at Seven Arrows, and a bit about you." /></Field>
-                <Field label="Credentials (optional)"><input value={a.credentials} onChange={(e) => set('credentials', e.target.value)} className={inputCx} placeholder="LCSW, LAC, …" /></Field>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              )}
+              {step === 1 && (
+                <div className="mt-4 space-y-2.5 text-left">
+                  <Field label="Short bio"><textarea value={a.bio} onChange={(e) => set('bio', e.target.value)} rows={3} className={`${inputCx} resize-none`} placeholder="What you do at Seven Arrows, and a bit about you." /></Field>
+                  <Field label="Credentials (optional)"><input value={a.credentials} onChange={(e) => set('credentials', e.target.value)} className={inputCx} placeholder="LCSW, LAC, …" /></Field>
                   <Field label="Hometown"><input value={a.hometown} onChange={(e) => set('hometown', e.target.value)} className={inputCx} placeholder="City, State" /></Field>
                   <Field label="A quote you live by"><input value={a.favorite_quote} onChange={(e) => set('favorite_quote', e.target.value)} className={inputCx} placeholder="“…”" /></Field>
                 </div>
-              </>
-            )}
-            {step === 2 && (
-              <>
-                <Field label="Phone (optional)"><input value={a.phone} onChange={(e) => set('phone', e.target.value)} className={inputCx} placeholder="(555) 555-5555" inputMode="tel" /></Field>
-                <label className="flex items-start gap-3 p-3 rounded-xl border border-black/10 bg-warm-bg/40 cursor-pointer hover:border-primary/30 transition-colors">
-                  <input type="checkbox" checked={a.public_team} onChange={(e) => set('public_team', e.target.checked)} className="mt-0.5 w-4 h-4 accent-[var(--color-primary)]" />
-                  <span className="text-[13px] text-foreground/80">
-                    <span className="font-semibold text-foreground">Show me on the public team page</span>
-                    <br />Your name, photo, and bio appear on sevenarrowsrecoveryarizona.com. Change it anytime in My Profile.
-                  </span>
-                </label>
-                <p className="text-[12.5px] text-foreground/55">Everything you entered lives in your profile — update it whenever you like.</p>
-              </>
+              )}
+              {step === 2 && (
+                <div className="mt-4 space-y-3 text-left">
+                  <Field label="Phone (optional)"><input value={a.phone} onChange={(e) => set('phone', e.target.value)} className={inputCx} placeholder="(555) 555-5555" inputMode="tel" /></Field>
+                  <label className="flex items-start gap-3 p-3 rounded-xl border border-white/50 bg-white/40 cursor-pointer hover:border-primary/40 transition-colors">
+                    <input type="checkbox" checked={a.public_team} onChange={(e) => set('public_team', e.target.checked)} className="mt-0.5 w-4 h-4 accent-[var(--color-primary)]" />
+                    <span className="text-[12.5px] text-foreground/80 leading-snug">
+                      <span className="font-semibold text-foreground">Show me on the public team page</span>
+                      <br />Name, photo, and bio on the marketing site. Change it anytime.
+                    </span>
+                  </label>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Nav */}
+          <div className="flex items-center justify-between w-full max-w-[21rem] shrink-0">
+            <button type="button" onClick={() => void go(step - 1)} disabled={step === 0 || saving} className="px-2.5 py-2 rounded-lg text-[12.5px] text-foreground/55 hover:text-foreground disabled:opacity-0 disabled:pointer-events-none transition-colors">Back</button>
+            <button type="button" onClick={onClose} className="text-[11.5px] text-foreground/45 hover:text-foreground transition-colors">Skip for now</button>
+            {step < TOTAL - 1 ? (
+              <button type="button" onClick={() => void go(step + 1)} disabled={saving} className="onb-cta px-5 py-2 rounded-full bg-primary text-white text-[13px] font-semibold disabled:opacity-60 inline-flex items-center gap-1.5">
+                {saving ? 'Saving…' : 'Continue'}<ArrowGlyph />
+              </button>
+            ) : (
+              <button type="button" onClick={() => void finish()} disabled={saving} className="onb-cta px-5 py-2 rounded-full bg-primary text-white text-[13px] font-semibold disabled:opacity-60 inline-flex items-center gap-1.5">
+                {saving ? 'Saving…' : 'Finish'}<CheckGlyph />
+              </button>
             )}
           </div>
-        </div>
-
-        {/* Footer nav */}
-        <div className="flex items-center justify-between gap-2 px-6 py-4 border-t border-black/5 bg-warm-bg/30">
-          <button type="button" onClick={() => void go(step - 1)} disabled={step === 0 || saving} className="px-3 py-2 rounded-lg text-[13px] text-foreground/60 hover:text-foreground disabled:opacity-0 disabled:pointer-events-none transition-colors">Back</button>
-          {step < TOTAL - 1 ? (
-            <button type="button" onClick={() => void go(step + 1)} disabled={saving} className="onb-cta px-5 py-2 rounded-lg bg-primary text-white text-[13px] font-semibold hover:bg-primary/90 disabled:opacity-60 transition-all inline-flex items-center gap-1.5">
-              {saving ? 'Saving…' : 'Continue'}<ArrowGlyph />
-            </button>
-          ) : (
-            <button type="button" onClick={() => void finish()} disabled={saving} className="onb-cta px-5 py-2 rounded-lg bg-primary text-white text-[13px] font-semibold hover:bg-primary/90 disabled:opacity-60 transition-all inline-flex items-center gap-1.5">
-              {saving ? 'Saving…' : 'Finish'}<CheckGlyph />
-            </button>
-          )}
         </div>
       </div>
 
@@ -321,7 +323,7 @@ function AvatarCropper({ src, onCancel, onCropped }: { src: string; onCancel: ()
 
   return (
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-foreground/55 backdrop-blur-sm" style={{ fontFamily: 'var(--font-body)' }}>
-      <div className="onb-shell bg-white rounded-3xl shadow-2xl border border-black/5 p-6 w-full max-w-sm">
+      <div className="onb-shell bg-white/85 backdrop-blur-2xl rounded-3xl shadow-2xl border border-white/60 p-6 w-full max-w-sm">
         <h3 className="text-base font-bold text-foreground mb-1" style={{ fontFamily: 'var(--font-display)' }}>Position your photo</h3>
         <p className="text-[12px] text-foreground/55 mb-4">Drag to reposition, slide to zoom.</p>
         <div
@@ -342,7 +344,7 @@ function AvatarCropper({ src, onCancel, onCropped }: { src: string; onCancel: ()
             className="absolute max-w-none pointer-events-none"
             style={{ left: pos.x, top: pos.y, width: nat ? nat.w * ds : 'auto', height: nat ? nat.h * ds : 'auto' }}
           />
-          <span aria-hidden className="pointer-events-none absolute inset-0 rounded-full ring-2 ring-white/70 shadow-[inset_0_0_0_9999px_rgba(0,0,0,0)]" />
+          <span aria-hidden className="pointer-events-none absolute inset-0 rounded-full ring-2 ring-white/70" />
         </div>
         <div className="mt-4 flex items-center gap-2">
           <span className="text-foreground/40"><CameraGlyph small /></span>
@@ -350,34 +352,55 @@ function AvatarCropper({ src, onCancel, onCropped }: { src: string; onCancel: ()
         </div>
         <div className="mt-5 flex items-center justify-end gap-2">
           <button type="button" onClick={onCancel} className="px-3 py-2 rounded-lg text-[13px] text-foreground/60 hover:text-foreground transition-colors">Cancel</button>
-          <button type="button" onClick={confirm} className="onb-cta px-4 py-2 rounded-lg bg-primary text-white text-[13px] font-semibold hover:bg-primary/90 transition-all">Use photo</button>
+          <button type="button" onClick={confirm} className="onb-cta px-4 py-2 rounded-full bg-primary text-white text-[13px] font-semibold">Use photo</button>
         </div>
       </div>
     </div>
   );
 }
 
-const inputCx = 'w-full px-3 py-2 rounded-lg border border-black/10 bg-white text-[13.5px] focus:outline-none focus:ring-2 focus:ring-primary/30 transition-shadow';
+const inputCx = 'w-full px-3 py-1.5 rounded-lg border border-black/10 bg-white/80 text-[13.5px] focus:outline-none focus:ring-2 focus:ring-primary/30 transition-shadow';
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <label className="block">
-      <span className="block mb-1 text-[11.5px] font-semibold uppercase tracking-wider text-foreground/45">{label}</span>
+      <span className="block mb-1 text-[11px] font-semibold uppercase tracking-wider text-foreground/45">{label}</span>
       {children}
     </label>
   );
 }
 
+// Eased text fade-in tuned to ~1.2s; set --onb-text-dur to taste (even
+// 5000ms). Cubic curve is ease-in-out, so it's never a linear fade.
 const onbCss = `
-  .onb-shell { animation: onb-pop 280ms cubic-bezier(0.22,1,0.36,1) backwards; }
-  @keyframes onb-pop { from { opacity: 0; transform: translateY(10px) scale(0.97); } to { opacity: 1; transform: none; } }
-  .onb-card { animation: onb-slide 320ms cubic-bezier(0.22,1,0.36,1) backwards; }
-  @keyframes onb-slide { from { opacity: 0; transform: translateX(calc(var(--dir, 1) * 26px)); } to { opacity: 1; transform: none; } }
-  .onb-avatar { animation: onb-ring 360ms ease-out backwards; }
-  @keyframes onb-ring { from { transform: scale(0.9); } to { transform: scale(1); } }
-  .onb-cta:hover:not(:disabled) { transform: translateY(-1px); }
+  .onb-shell { animation: onb-pop 440ms cubic-bezier(0.22,1,0.36,1) backwards; }
+  @keyframes onb-pop { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+
+  .onb-glow { animation: onb-glow-pulse 7s ease-in-out infinite; }
+  @keyframes onb-glow-pulse { 0%,100% { opacity: 0.55; transform: scale(1); } 50% { opacity: 0.82; transform: scale(1.06); } }
+
+  .onb-orbit { transform-style: preserve-3d; animation: onb-orbit 760ms cubic-bezier(0.22,1,0.36,1) backwards; }
+  @keyframes onb-orbit {
+    from { opacity: 0; transform: perspective(1500px) translateZ(-190px) rotateY(calc(var(--dir,1) * 46deg)) translateX(calc(var(--dir,1) * 64px)) scale(0.9); }
+    to   { opacity: 1; transform: perspective(1500px) translateZ(0) rotateY(0deg) translateX(0) scale(1); }
+  }
+
+  .onb-stagger > * { animation: onb-fade var(--onb-text-dur, 1200ms) cubic-bezier(0.45,0,0.55,1) backwards; }
+  .onb-stagger > *:nth-child(1){ animation-delay: 120ms; }
+  .onb-stagger > *:nth-child(2){ animation-delay: 250ms; }
+  .onb-stagger > *:nth-child(3){ animation-delay: 380ms; }
+  .onb-stagger > *:nth-child(4){ animation-delay: 510ms; }
+  .onb-stagger > *:nth-child(5){ animation-delay: 640ms; }
+  @keyframes onb-fade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  .onb-avatar { animation: onb-ring 520ms cubic-bezier(0.22,1,0.36,1) backwards; }
+  @keyframes onb-ring { from { transform: scale(0.85); } to { transform: scale(1); } }
+
+  .onb-cta { transition: transform 200ms ease, box-shadow 200ms ease; box-shadow: 0 6px 18px -8px rgba(188,107,74,0.55); }
+  .onb-cta:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 10px 26px -8px rgba(188,107,74,0.7); }
+
   @media (prefers-reduced-motion: reduce) {
-    .onb-shell, .onb-card, .onb-avatar { animation-duration: 0.01ms !important; }
+    .onb-shell, .onb-orbit, .onb-glow, .onb-stagger > *, .onb-avatar { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
     .onb-cta:hover { transform: none; }
   }
 `;
@@ -394,7 +417,7 @@ function LinkGlyph() {
   return <svg className="w-5 h-5" fill={ico} stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12a3 3 0 0 0 4.24 0l3-3a3 3 0 0 0-4.24-4.24l-1.5 1.5" /><path d="M15 12a3 3 0 0 0-4.24 0l-3 3a3 3 0 1 0 4.24 4.24l1.5-1.5" /></svg>;
 }
 function CameraGlyph({ small }: { small?: boolean } = {}) {
-  return <svg className={small ? 'w-3.5 h-3.5' : 'w-6 h-6'} fill={ico} stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L19 6h0a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><circle cx="12" cy="13" r="3.25" /></svg>;
+  return <svg className={small ? 'w-3.5 h-3.5' : 'w-7 h-7'} fill={ico} stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L19 6h0a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><circle cx="12" cy="13" r="3.25" /></svg>;
 }
 function ArrowGlyph() {
   return <svg className="w-3.5 h-3.5" fill={ico} stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>;
