@@ -33,9 +33,15 @@ interface Viewer {
 const HERE_WINDOW_MS = 3 * 60 * 1000;
 
 export default function PageViewers() {
-  const { user, session } = useAuth();
+  const { user, session, userKind } = useAuth();
   const pathname = usePathname();
   const [viewers, setViewers] = useState<Viewer[]>([]);
+  // The pill is fixed to the viewport but should read as centered within
+  // the content area, which sits to the right of the sidebar. The nudge
+  // is half the reserved sidebar width: 2rem for the collapsed w-16 rail
+  // on inner pages, 8rem on the home screen where the rail is pinned open
+  // at w-64 (see PlatformShell's railPinnedOpen).
+  const railPinnedOpen = pathname === (userKind === 'alumni' ? '/feather/alumni' : '/feather');
 
   useEffect(() => {
     if (!user || !session?.access_token || !pathname) return;
@@ -70,7 +76,7 @@ export default function PageViewers() {
   if (viewers.length === 0) return null;
 
   return (
-    <div className="fixed bottom-20 left-1/2 lg:left-[calc(50%+2rem)] -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/90 backdrop-blur border border-gray-100 shadow-sm">
+    <div className={`fixed bottom-20 left-1/2 ${railPinnedOpen ? 'lg:left-[calc(50%+8rem)]' : 'lg:left-[calc(50%+2rem)]'} -translate-x-1/2 z-40 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/90 backdrop-blur border border-gray-100 shadow-sm`}>
       <span
         className="text-[10px] font-semibold text-foreground/70 uppercase tracking-wider"
         style={{ fontFamily: 'var(--font-body)' }}
