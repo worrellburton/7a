@@ -4705,7 +4705,14 @@ function ContactsPillTray({
         }
         .sa-pill-in {
           display: inline-flex;
-          animation: sa-pill-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1) var(--pill-delay, 0ms) both;
+          /* fill-mode "backwards" (not "both"): apply the hidden start
+             keyframe during the stagger delay, but DON'T retain the end
+             keyframe after. "both" left a permanent
+             transform: translateY(0) scale(1) on every pill, and any
+             non-none transform creates a stacking context that trapped
+             the Add-contacts dropdown (its z-50 couldn't rise above the
+             table below, so the bottom Upload CSV option was covered). */
+          animation: sa-pill-enter 0.45s cubic-bezier(0.22, 1, 0.36, 1) var(--pill-delay, 0ms) backwards;
         }
         /* Desktop-only pills (e.g. Add log). Hidden below the sm
            breakpoint where the bottom "New log" FAB takes over.
