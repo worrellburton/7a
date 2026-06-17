@@ -519,6 +519,13 @@ const pageIcons: Record<string, React.ReactNode> = {
       <circle cx="12" cy="10" r="1.5" fill="currentColor" stroke="none" />
     </svg>
   ),
+  // Gratitude board: a heart. Warm, distinct from the speech-bubble
+  // (Voices) and handset (Peer support) glyphs.
+  '/feather/alumni/gratitude': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1.1L12 21l7.8-7.5 1-1.1a5.5 5.5 0 0 0 0-7.8z" />
+    </svg>
+  ),
   // Alumni roster — list with a person silhouette. Reads as
   // "address book of people" without overlapping the team/people
   // glyph used elsewhere in the sidebar.
