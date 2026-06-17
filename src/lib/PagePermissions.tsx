@@ -175,6 +175,7 @@ export const defaultPages: PageConfig[] = [
   // bottom of the alumni's sidebar.
   { path: '/feather/alumni', label: 'Home', adminOnly: false, section: 'nav', sort_order: 100, allowedDepartments: [], departmentId: null, alumniOnly: true },
   { path: '/feather/alumni/reunion', label: 'Reunion', adminOnly: false, section: 'nav', sort_order: 101, allowedDepartments: [], departmentId: null, alumniOnly: true },
+  { path: '/feather/alumni/gratitude', label: 'Gratitude', adminOnly: false, section: 'nav', sort_order: 101.5, allowedDepartments: [], departmentId: null, alumniOnly: true },
   { path: '/feather/alumni/map', label: 'Map', adminOnly: false, section: 'nav', sort_order: 102, allowedDepartments: [], departmentId: null, alumniOnly: true },
   { path: '/feather/alumni/peer-support', label: 'Peer support', adminOnly: false, section: 'nav', sort_order: 103, allowedDepartments: [], departmentId: null, alumniOnly: true },
   { path: '/feather/alumni/meetups', label: 'Meetups', adminOnly: false, section: 'nav', sort_order: 104, allowedDepartments: [], departmentId: null, alumniOnly: true },
