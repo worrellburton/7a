@@ -281,10 +281,19 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
         failed?: number;
         simulated?: boolean;
         error?: string;
+        note?: string;
       };
       if (!res.ok || json.ok === false) {
         setError(json.error ?? `HTTP ${res.status}`);
         return;
+      }
+      // A send can succeed (ok:true) yet deliver to nobody — e.g. the
+      // idempotency guard skipped an already-fired broadcast, or there
+      // was nothing pending. Surface that note instead of silently
+      // "succeeding"; a silent no-op is what made a stranded campaign
+      // look like a dead Send button.
+      if ((json.sent ?? 0) === 0 && json.note) {
+        setError(json.note);
       }
       await refresh();
     } catch (err) {
@@ -744,7 +753,9 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
         const pendingNow = recipients.filter((r) => r.send_status === 'pending').length;
         const sentAlready = recipients.filter((r) => r.send_status === 'sent').length;
         const needsTyping = pendingNow >= SEND_TYPED_THRESHOLD;
-        const typedOk = !needsTyping || sendConfirmTyped.trim() === String(pendingNow);
+        // Compare digits-only so a stray space or thousands-separator
+        // the operator typed or pasted doesn't keep the gate shut.
+        const typedOk = !needsTyping || sendConfirmTyped.replace(/[^0-9]/g, '') === String(pendingNow);
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="send-confirm-title">
             <div className="w-full max-w-md rounded-2xl bg-white shadow-[0_30px_60px_-20px_rgba(0,0,0,0.4)] overflow-hidden" style={{ fontFamily: 'var(--font-body)' }}>
