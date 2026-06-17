@@ -292,6 +292,15 @@ export default function RecipientsContent({ campaignId }: { campaignId: string }
       .update({
         generated_subject: subject.trim(),
         status: 'finalizing',
+        // Clear any broadcast/audience from a prior send. Adding or
+        // re-saving recipients means the NEXT send targets a new
+        // pending set, so the old broadcast id must not linger — the
+        // send route's idempotency guard treats a set broadcast id as
+        // "already fired" and would silently skip the send. Leaving it
+        // set is exactly what stranded a campaign after "Send to more
+        // contacts" (1 test-sent, 537 added, Send did nothing).
+        resend_audience_id: null,
+        resend_broadcast_id: null,
       })
       .eq('id', campaignId);
     if (updErr) {
