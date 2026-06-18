@@ -9,6 +9,7 @@ export const PHOENIX_TZ = 'America/Phoenix';
 export interface AircallCallRow {
   aircall_id: number;
   started_at: string | null;
+  answered_at: string | null;
   ended_at: string | null;
   direction: string | null;
   status: string | null;
@@ -38,7 +39,6 @@ export interface AircallCallRow {
 export interface AircallCallDetail extends AircallCallRow {
   call_uuid: string | null;
   sid: string | null;
-  answered_at: string | null;
   assigned_user_name: string | null;
   assigned_user_email: string | null;
   contact_id: number | null;
@@ -101,6 +101,19 @@ export function formatDuration(seconds: number | null | undefined): string {
   if (!seconds || seconds < 0) return '0:00';
   const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
+  return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
+// Time from the call starting to being answered ("wait to answer"). Only
+// meaningful when the call was actually picked up; returns '—' otherwise
+// (missed / never answered). Short waits read in seconds, longer as m:ss.
+export function formatWait(startedAt: string | null, answeredAt: string | null): string {
+  if (!startedAt || !answeredAt) return '—';
+  const secs = (new Date(answeredAt).getTime() - new Date(startedAt).getTime()) / 1000;
+  if (!Number.isFinite(secs) || secs < 0) return '—';
+  if (secs < 60) return `${Math.round(secs)}s`;
+  const m = Math.floor(secs / 60);
+  const s = Math.round(secs % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 

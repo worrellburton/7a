@@ -14,8 +14,10 @@ import {
   formatDuration,
   formatPhone,
   formatRelativeTime,
+  formatWait,
   initials,
 } from './_shared';
+import { callerLocation } from './area-codes';
 
 const PER_PAGE = 50;
 
@@ -370,8 +372,10 @@ export default function CallsContent() {
                 <tr className="text-[11px] uppercase tracking-wider text-foreground/40 border-b border-foreground/10">
                   <th className="text-left font-semibold px-5 py-3">When</th>
                   <th className="text-left font-semibold px-3 py-3">Caller</th>
+                  <th className="text-left font-semibold px-3 py-3">Location</th>
                   <th className="text-left font-semibold px-3 py-3">Agent</th>
                   <th className="text-left font-semibold px-3 py-3">Line</th>
+                  <th className="text-right font-semibold px-3 py-3">Wait</th>
                   <th className="text-right font-semibold px-3 py-3">Duration</th>
                   <th className="text-left font-semibold px-3 py-3">Status</th>
                   <th className="px-3 py-3" />
@@ -389,8 +393,17 @@ export default function CallsContent() {
                       <div className="font-medium text-foreground">{c.contact_name || formatPhone(c.raw_digits || c.caller_number)}</div>
                       {c.contact_name && <div className="text-[11px] text-foreground/45">{formatPhone(c.raw_digits || c.caller_number)}</div>}
                     </td>
+                    <td className="px-3 py-3">
+                      {(() => {
+                        const loc = callerLocation(c.raw_digits || c.caller_number);
+                        return loc
+                          ? <span className="text-foreground/70" title={loc.name}>{loc.abbr}</span>
+                          : <span className="text-foreground/30">—</span>;
+                      })()}
+                    </td>
                     <td className="px-3 py-3">{renderAgent(c)}</td>
                     <td className="px-3 py-3 text-foreground/60">{c.number_name || <span className="text-foreground/30">—</span>}</td>
+                    <td className="px-3 py-3 text-right tabular-nums text-foreground/60">{formatWait(c.started_at, c.answered_at)}</td>
                     <td className="px-3 py-3 text-right tabular-nums text-foreground/70">{formatDuration(c.duration)}</td>
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-1.5 flex-wrap">
