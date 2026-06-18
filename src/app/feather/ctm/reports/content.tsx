@@ -18,7 +18,7 @@ interface ReportCard {
 
 const REPORTS: ReportCard[] = [
   {
-    href: '/feather/calls/reports/recovery-com',
+    href: '/feather/ctm/reports/recovery-com',
     badge: 'Source · Paid',
     title: 'Recovery.com performance',
     description:
@@ -39,7 +39,7 @@ export default function ReportsLandingContent() {
         <div className="px-4 sm:px-6 py-4 sm:py-5 flex items-center justify-between flex-wrap gap-3">
           <div className="min-w-0">
             <Link
-              href="/feather/calls"
+              href="/feather/ctm"
               className="inline-flex items-center gap-1 text-[11px] font-semibold text-foreground/45 hover:text-primary uppercase tracking-wider mb-1"
               style={{ fontFamily: 'var(--font-body)' }}
             >

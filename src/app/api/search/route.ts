@@ -129,10 +129,10 @@ export async function GET(req: NextRequest) {
   for (const r of (callsRes.data ?? []) as Array<{ id: number; called_at: string; caller_number_formatted: string | null; source_name: string | null }>) {
     results.push({
       id: `call:${r.id}`,
-      surface: 'Calls',
+      surface: 'CTM',
       label: r.caller_number_formatted || `Call ${r.id}`,
       sub: r.source_name ? `${r.source_name} · ${r.called_at?.slice(0, 10)}` : r.called_at?.slice(0, 10),
-      href: `/feather/calls/${r.id}`,
+      href: `/feather/ctm/${r.id}`,
     });
   }
   for (const r of (directoriesRes.data ?? []) as Array<{ id: string; name: string | null; url: string | null }>) {

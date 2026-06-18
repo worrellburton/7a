@@ -1,68 +1,70 @@
-// Shared types, constants, and pure helpers for the Calls feature.
-// Extracted from content.tsx so sub-components can be split into
-// sibling files without circular imports back through the page.
+// Shared types, constants, and pure helpers for the Aircall Calls page.
+// Kept self-contained (no imports from the legacy /feather/ctm feature)
+// so the two call surfaces can evolve independently.
 
-import { getAuthToken } from '@/lib/db';
+export const PHOENIX_TZ = 'America/Phoenix';
 
-export interface Call {
-  id: number;
-  name: string;
-  caller_number: string;
-  caller_number_formatted: string;
-  tracking_number: string;
-  tracking_number_formatted: string;
-  receiving_number: string;
-  receiving_number_formatted: string;
-  duration: number;
-  talk_time: number;
-  ring_time: number;
-  direction: string;
-  source: string;
-  source_name: string;
-  city: string;
-  state: string;
-  country: string;
-  zip: string;
-  called_at: string;
-  tracking_label: string;
-  audio: string;
-  tag_list: string[];
-  status: string;
+// A row as returned by /api/aircall/list (transcript trimmed to a
+// has_transcript boolean to keep the grid payload small).
+export interface AircallCallRow {
+  aircall_id: number;
+  started_at: string | null;
+  ended_at: string | null;
+  direction: string | null;
+  status: string | null;
+  missed: boolean;
+  missed_call_reason: string | null;
   voicemail: boolean;
-  first_call: boolean;
-  business_number: string;
-  // CTM's own lead score (their scoring, not ours). Optional / null
-  // when the account hasn't enabled lead scoring at the CTM side.
-  score: number | null;
-  notes: string;
+  duration: number | null;
+  raw_digits: string | null;
+  caller_number: string | null;
+  number_id: number | null;
+  number_name: string | null;
+  user_name: string | null;
+  user_email: string | null;
+  contact_name: string | null;
+  contact_company: string | null;
+  teams: string[] | null;
+  tags: string[] | null;
+  recording_url: string | null;
+  voicemail_url: string | null;
+  summary: string | null;
+  sentiment: string | null;
+  has_transcript?: boolean;
 }
 
-export interface CTMResponse {
-  calls?: Call[];
-  total_entries?: number;
-  total_pages?: number;
-  page?: number;
-  per_page?: number;
-  error?: string;
+// Full detail row (from /api/aircall/[id]) — superset with the heavy
+// fields the list omits.
+export interface AircallCallDetail extends AircallCallRow {
+  call_uuid: string | null;
+  sid: string | null;
+  answered_at: string | null;
+  assigned_user_name: string | null;
+  assigned_user_email: string | null;
+  contact_id: number | null;
+  number_digits: string | null;
+  asset_url: string | null;
+  transcript: string | null;
+  topics: string[] | null;
+  comments: { content?: string; posted_by?: { name?: string }; posted_at?: number }[] | null;
+  ai: Record<string, unknown> | null;
 }
 
-export type Tab = 'calls' | 'sources' | 'spam';
+export interface PhoneShiftEvent {
+  id: string;
+  event_date: string;        // YYYY-MM-DD
+  start_time: string | null; // HH:MM:SS
+  end_time: string | null;
+  subject_id: string | null; // users.id
+  title: string | null;      // person's display name (denormalised on the event)
+  color: string | null;
+}
 
-export const SPAM_STORAGE_KEY = 'calls_spam_numbers_v1';
-
-export interface Insights {
-  today: number;
-  yesterday: number;
-  thisWeek: number;
-  allTime: number;
-  avgDuration: number;
-  inbound: number;
-  outbound: number;
-  missedThisWeek: number;
-  missedPaidThisWeek: number;
-  returnedMissedThisWeek: number;
-  returnedPickedUpThisWeek: number;
-  dailyCounts: { label: string; short: string; date: string; count: number; missedCount: number; returnedCount: number; sources: { name: string; count: number }[] }[];
+export interface AircallAgent {
+  id?: number;
+  name?: string;
+  email?: string;
+  availability_status?: string;
 }
 
 export const directionStyle: Record<string, string> = {
@@ -70,188 +72,136 @@ export const directionStyle: Record<string, string> = {
   outbound: 'bg-blue-50 text-blue-700',
 };
 
-export function normalizePhone(num: string | null | undefined): string {
-  if (!num) return '';
-  return num.replace(/\D/g, '');
+// Availability badge styling for an Aircall user's live phone status.
+export function availabilityStyle(status: string | undefined | null): { dot: string; label: string; text: string } {
+  switch ((status ?? '').toLowerCase()) {
+    case 'available':
+      return { dot: 'bg-emerald-500', label: 'Available', text: 'text-emerald-700' };
+    case 'busy':
+    case 'in_call':
+      return { dot: 'bg-amber-500', label: 'On a call', text: 'text-amber-700' };
+    case 'after_call_work':
+      return { dot: 'bg-amber-400', label: 'Wrapping up', text: 'text-amber-700' };
+    case 'offline':
+      return { dot: 'bg-gray-300', label: 'Offline', text: 'text-foreground/40' };
+    case 'do_not_disturb':
+      return { dot: 'bg-rose-500', label: 'Do not disturb', text: 'text-rose-700' };
+    default:
+      return { dot: 'bg-gray-300', label: 'Unknown', text: 'text-foreground/40' };
+  }
 }
 
-// Treat anything that isn't obviously organic / direct / unattributed as a
-// "paid" source for the purposes of missed-paid-call reporting.
-export function isPaidSource(raw: string | null | undefined): boolean {
-  if (!raw) return false;
-  const s = raw.toLowerCase();
-  if (!s) return false;
-  if (s.includes('organic') || s.includes('direct') || s === 'unknown' || s === 'none') return false;
-  return true;
-}
-
-export function isMissedCall(c: { direction?: string | null; voicemail?: boolean | null; talk_time?: number | null }): boolean {
-  if (c.direction !== 'inbound') return false;
-  return !!c.voicemail || (c.talk_time ?? 0) < 3;
-}
-
-export async function ctmFetch(endpoint: string, params?: Record<string, string | number>): Promise<CTMResponse> {
-  const token = getAuthToken();
-  const res = await fetch('/api/ctm', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ endpoint, params }),
-  });
-  return res.json();
-}
-
-export function formatDuration(seconds: number): string {
-  if (!seconds) return '0:00';
+export function formatDuration(seconds: number | null | undefined): string {
+  if (!seconds || seconds < 0) return '0:00';
   const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
+  const s = Math.floor(seconds % 60);
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export function parseDate(dateStr: string | number | null | undefined): Date | null {
-  if (dateStr === null || dateStr === undefined || dateStr === '') return null;
-  // Numeric path: unix seconds (10 digits) or millis (13 digits).
-  if (typeof dateStr === 'number') {
-    if (!Number.isFinite(dateStr)) return null;
-    if (dateStr > 1e9 && dateStr < 2e10) return new Date(dateStr * 1000);
-    if (dateStr > 1e12 && dateStr < 2e13) return new Date(dateStr);
-    return null;
+// Format an international/E.164 digit string into a friendly US display
+// where possible, otherwise return a +-prefixed best effort.
+export function formatPhone(raw: string | null | undefined): string {
+  if (!raw) return 'Unknown';
+  const trimmed = raw.trim();
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('1')) {
+    const d = digits.slice(1);
+    return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
   }
-  const s = String(dateStr).trim();
-  if (!s) return null;
-  // Reject explicit zero / placeholder timestamps that CTM occasionally
-  // emits when a call slipped through their queue without a timestamp.
-  if (/^0000[-/]/.test(s) || s === 'null' || s === 'undefined') return null;
-
-  // Try a sequence of normalisations and accept the first one that
-  // produces a valid Date. Order matters — we go from most-permissive
-  // to most-specific. Critically, we don't bail after the first
-  // attempt even if `new Date(s)` succeeds on Chrome — iOS Safari
-  // rejects formats like "2024-01-15 14:23:11" outright, so we always
-  // try the ISO-style normalisation too.
-  const tryParse = (candidate: string): Date | null => {
-    if (!candidate) return null;
-    const d = new Date(candidate);
-    return isNaN(d.getTime()) ? null : d;
-  };
-
-  // Strip microseconds beyond 3 digits — iOS Safari rejects
-  // "2024-01-15T14:23:11.123456Z" but accepts ".123Z".
-  const trimmedMicros = s.replace(/(\.\d{3})\d+/, '$1');
-
-  const candidates: string[] = [
-    s,
-    trimmedMicros,
-    // CTM "YYYY-MM-DD HH:MM:SS +ZZZZ" — collapse whitespace, T-ify,
-    // colon-ize the offset.
-    s
-      .replace(' ', 'T')
-      .replace(/\s+/g, '')
-      .replace(/([+-]\d{2})(\d{2})$/, '$1:$2'),
-    trimmedMicros
-      .replace(' ', 'T')
-      .replace(/\s+/g, '')
-      .replace(/([+-]\d{2})(\d{2})$/, '$1:$2'),
-    // Slash-style "2024/01/15 14:23:11"
-    s
-      .replace(/^(\d{4})\/(\d{2})\/(\d{2})/, '$1-$2-$3')
-      .replace(' ', 'T'),
-    // Same string with a "Z" suffix as a last-ditch UTC assumption,
-    // but only if it looks like a bare datetime with no zone info.
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(trimmedMicros)
-      ? `${trimmedMicros}Z`
-      : '',
-  ];
-
-  for (const c of candidates) {
-    const d = tryParse(c);
-    if (d) return d;
+  if (digits.length === 10) {
+    return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
   }
-
-  // Numeric-as-string: unix seconds or millis.
-  const n = Number(s);
-  if (Number.isFinite(n)) {
-    if (n > 1e9 && n < 2e10) return new Date(n * 1000);
-    if (n > 1e12 && n < 2e13) return new Date(n);
-  }
-  return null;
+  return trimmed.startsWith('+') ? trimmed : digits ? `+${digits}` : trimmed;
 }
 
-export function formatDate(dateStr: string): string {
+export function parseDate(dateStr: string | null | undefined): Date | null {
+  if (!dateStr) return null;
+  const d = new Date(dateStr);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+export function formatDate(dateStr: string | null | undefined): string {
   const d = parseDate(dateStr);
   if (!d) return '—';
   try {
-    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'America/Phoenix' });
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: PHOENIX_TZ });
   } catch { return '—'; }
 }
 
-export function formatTime(dateStr: string): string {
+export function formatTime(dateStr: string | null | undefined): string {
   const d = parseDate(dateStr);
-  if (!d) return '—';
+  if (!d) return '';
   try {
-    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Phoenix' });
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: PHOENIX_TZ });
   } catch { return ''; }
 }
 
-// Relative-time formatter for the mobile call list. Reads as
-// "Just now / 12m / 2h / Yesterday 3:14p / Apr 24 · 9:08a" so a
-// teammate scrolling the list can place the call without doing
-// arithmetic. Falls back to the absolute formatTime when the input
-// can't be parsed (rather than the bare em-dash the old layout
-// rendered, which made the row look broken).
-export function formatRelativeTime(dateStr: string): string {
+// "Just now / 12m ago / 3h ago / Yesterday 3:14p / Apr 24 · 9:08a"
+export function formatRelativeTime(dateStr: string | null | undefined): string {
   const d = parseDate(dateStr);
   if (!d) return '';
   const now = Date.now();
-  const diffMs = now - d.getTime();
-  const diffSec = Math.round(diffMs / 1000);
+  const diffSec = Math.round((now - d.getTime()) / 1000);
   if (diffSec < 0 && diffSec > -60) return 'In a moment';
   if (diffSec < 60) return 'Just now';
   const diffMin = Math.round(diffSec / 60);
   if (diffMin < 60) return `${diffMin}m ago`;
   const diffHr = Math.round(diffMin / 60);
   if (diffHr < 24) return `${diffHr}h ago`;
-  // Phoenix-local "today" comparison so 11pm-yesterday doesn't read
-  // "Today" the next morning.
-  const phoenixToday = new Date(now).toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
-  const phoenixThen = d.toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+  const phoenixToday = new Date(now).toLocaleDateString('en-CA', { timeZone: PHOENIX_TZ });
+  const phoenixThen = d.toLocaleDateString('en-CA', { timeZone: PHOENIX_TZ });
   const diffDays = Math.floor((new Date(phoenixToday).getTime() - new Date(phoenixThen).getTime()) / 86400000);
-  const timePart = (() => {
-    try {
-      return d
-        .toLocaleTimeString('en-US', {
-          hour: 'numeric',
-          minute: '2-digit',
-          timeZone: 'America/Phoenix',
-        })
-        .replace(' AM', 'a')
-        .replace(' PM', 'p');
-    } catch {
-      return '';
-    }
-  })();
+  const timePart = formatTime(dateStr).replace(' AM', 'a').replace(' PM', 'p');
   if (diffDays === 1) return `Yesterday ${timePart}`.trim();
   if (diffDays < 7) {
     try {
-      const day = d.toLocaleDateString('en-US', { weekday: 'short', timeZone: 'America/Phoenix' });
+      const day = d.toLocaleDateString('en-US', { weekday: 'short', timeZone: PHOENIX_TZ });
       return `${day} ${timePart}`.trim();
-    } catch {
-      return timePart;
-    }
+    } catch { return timePart; }
   }
-  try {
-    const md = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Phoenix' });
-    return `${md} · ${timePart}`.trim();
-  } catch {
-    return timePart;
-  }
+  return `${formatDate(dateStr)} · ${timePart}`;
 }
 
-export function fmtAudioTime(s: number): string {
-  if (!Number.isFinite(s) || s < 0) s = 0;
-  const m = Math.floor(s / 60);
-  const sec = Math.floor(s % 60);
-  return `${m}:${sec.toString().padStart(2, '0')}`;
+// Today's date in Phoenix as YYYY-MM-DD.
+export function phoenixToday(): string {
+  return new Date().toLocaleDateString('en-CA', { timeZone: PHOENIX_TZ });
+}
+
+// Current minutes-since-midnight in Phoenix (0–1439).
+export function phoenixMinutesNow(): number {
+  const parts = new Date().toLocaleTimeString('en-GB', { timeZone: PHOENIX_TZ, hour12: false }).split(':');
+  const h = Number(parts[0]);
+  const m = Number(parts[1]);
+  return (Number.isFinite(h) ? h : 0) * 60 + (Number.isFinite(m) ? m : 0);
+}
+
+// 'HH:MM:SS' → minutes since midnight. Treats null/empty as null.
+export function hhmmToMinutes(t: string | null | undefined): number | null {
+  if (!t) return null;
+  const [h, m] = t.split(':').map(Number);
+  if (!Number.isFinite(h)) return null;
+  return h * 60 + (Number.isFinite(m) ? m : 0);
+}
+
+// '08:00:00' → '8:00a'. End '00:00' is treated as midnight (24:00).
+export function formatShiftTime(t: string | null | undefined): string {
+  const mins = hhmmToMinutes(t);
+  if (mins === null) return '';
+  let h = Math.floor(mins / 60);
+  const m = mins % 60;
+  const ampm = h >= 12 ? 'p' : 'a';
+  h = h % 12; if (h === 0) h = 12;
+  return m === 0 ? `${h}${ampm}` : `${h}:${m.toString().padStart(2, '0')}${ampm}`;
+}
+
+// Does a shift [start,end) contain `minute`? Handles end <= start as a
+// midnight wrap (overnight) and end '00:00' as 24:00.
+export function shiftContainsMinute(start: string | null, end: string | null, minute: number): boolean {
+  const a = hhmmToMinutes(start);
+  let b = hhmmToMinutes(end);
+  if (a === null) return false;
+  if (b === null || b === 0) b = 24 * 60; // treat 00:00 end as midnight
+  if (b > a) return minute >= a && minute < b;
+  // overnight wrap
+  return minute >= a || minute < b;
 }
