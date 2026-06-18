@@ -11,6 +11,7 @@ import { db } from '@/lib/db';
 import PageGuard from '@/lib/PageGuard';
 import { ALUMNI_ADMIN_PATHS, ALUMNI_VIEWABLE_PATHS } from '@/lib/alumni-admin-paths';
 import PageViewers from './PageViewers';
+import AircallDock from './AircallDock';
 import { PresenceCursors } from '@/components/PresenceCursors';
 import CommandPalette from '@/components/CommandPalette';
 import FlowBackground from './FlowBackground';
@@ -2018,6 +2019,10 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
 
         {/* Same-page viewers — shown on every /app/* page */}
         <PageViewers />
+
+        {/* Aircall softphone — staff only, so calls ring inside feather
+            wherever the operator is. Opt-in (one-time "Connect phone"). */}
+        {!isAlumni && user && <AircallDock />}
 
       </div>
     </div>
