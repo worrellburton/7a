@@ -11,7 +11,7 @@ const DEFAULT_PER_PAGE = 25;
 const MAX_PER_PAGE = 100;
 
 const SELECT =
-  'aircall_id, started_at, ended_at, direction, status, missed, missed_call_reason, voicemail, duration, raw_digits, caller_number, number_id, number_name, user_name, user_email, contact_name, contact_company, teams, tags, recording_url, voicemail_url, summary, sentiment, transcript';
+  'aircall_id, started_at, answered_at, ended_at, direction, status, missed, missed_call_reason, voicemail, duration, raw_digits, caller_number, number_id, number_name, user_name, user_email, contact_name, contact_company, teams, tags, recording_url, voicemail_url, summary, sentiment, transcript';
 
 export async function GET(req: NextRequest) {
   const gate = await requireUser(req);
