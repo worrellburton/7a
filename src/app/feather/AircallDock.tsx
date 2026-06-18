@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { AIRCALL_DIAL_EVENT } from '@/lib/aircall-dial';
 
 // Embedded Aircall "Everywhere" softphone. Mounted by PlatformShell for
@@ -17,13 +17,11 @@ import { AIRCALL_DIAL_EVENT } from '@/lib/aircall-dial';
 
 const CONNECTED_KEY = 'sa-aircall-connected';
 const WORKSPACE_DOM_ID = 'aircall-workspace';
-const CALLS_PATH = '/feather/calls';
 
 interface IncomingInfo { from?: string; to?: string; call_id?: number | string }
 
 export default function AircallDock() {
   const router = useRouter();
-  const pathname = usePathname();
   const [connected, setConnected] = useState(false);
   const [open, setOpen] = useState(false);
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
@@ -114,10 +112,8 @@ export default function AircallDock() {
     if (typeof window !== 'undefined') window.localStorage.setItem(CONNECTED_KEY, '1');
   };
 
-  // Not connected yet → a small launcher prompt, but only on the Calls
-  // page. Elsewhere we render nothing until the operator has opted in.
+  // Not connected yet → a small launcher prompt.
   if (!connected) {
-    if (pathname !== CALLS_PATH) return null;
     return (
       <button
         onClick={connect}
