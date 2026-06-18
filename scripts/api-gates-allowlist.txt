@@ -62,6 +62,10 @@ src/app/api/contacts/suggest/route.ts
 src/app/api/ctm/route.ts
 src/app/api/ctm/sync-status/route.ts
 src/app/api/ctm/sync/route.ts
+# Aircall backfill is a Vercel Cron that self-authenticates via the
+# `Authorization: Bearer ${CRON_SECRET}` header (falling back to a
+# signed-in Bearer token for manual runs) — same shape as ctm/sync.
+src/app/api/aircall/backfill/route.ts
 src/app/api/email-campaigns/[id]/analytics/route.ts
 src/app/api/email-campaigns/build/route.ts
 src/app/api/email-campaigns/draft-text/route.ts
