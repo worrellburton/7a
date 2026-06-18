@@ -118,7 +118,7 @@ TARGET_KIND + TARGET_PATH + TARGET_LABEL (where the change lands):
                 codebase: "/", "/admissions", "/our-program",
                 "/contact", "/who-we-are", "/who-we-are/team",
                 "/who-we-are/blog", "/feather", "/feather/contacts",
-                "/feather/calls", "/feather/content", "/feather/calendar",
+                "/feather/calls", "/feather/ctm", "/feather/content", "/feather/calendar",
                 "/feather/equine", "/feather/team", "/feather/social-media",
                 "/feather/email-campaigns". Do NOT invent sub-routes
                 ("/feather/admissions/leads" does not exist — admissions

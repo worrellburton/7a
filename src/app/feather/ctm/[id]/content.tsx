@@ -110,8 +110,8 @@ export default function CallDetailContent() {
   if (error || !call) {
     return (
       <div className="px-4 sm:px-6 lg:px-10 py-10">
-        <Link href="/feather/calls" className="text-xs text-primary hover:underline" style={{ fontFamily: 'var(--font-body)' }}>
-          ← Back to Calls
+        <Link href="/feather/ctm" className="text-xs text-primary hover:underline" style={{ fontFamily: 'var(--font-body)' }}>
+          ← Back to CTM
         </Link>
         <div className="mt-6 rounded-2xl border border-dashed border-gray-200 px-6 py-12 text-center">
           <p className="text-sm font-semibold text-foreground">Call not found</p>
@@ -130,8 +130,8 @@ export default function CallDetailContent() {
   return (
     <div className="flex flex-col h-full min-h-0">
       <div className="px-4 sm:px-6 lg:px-10 pt-6 pb-4">
-        <Link href="/feather/calls" className="text-xs text-primary hover:underline inline-flex items-center gap-1" style={{ fontFamily: 'var(--font-body)' }}>
-          ← Back to Calls
+        <Link href="/feather/ctm" className="text-xs text-primary hover:underline inline-flex items-center gap-1" style={{ fontFamily: 'var(--font-body)' }}>
+          ← Back to CTM
         </Link>
         <div className="mt-3 flex items-start justify-between gap-4 flex-wrap">
           <div className="min-w-0">

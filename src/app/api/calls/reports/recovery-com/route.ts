@@ -5,7 +5,7 @@ import { phoenixDayOf } from '@/lib/calls-shared';
 // GET /api/calls/reports/recovery-com?from=<iso>&to=<iso>
 //
 // Server-side rollup of every call attributed to the Recovery.com
-// listing in CTM. Powers /feather/calls/reports/recovery-com — the
+// listing in CTM. Powers /feather/ctm/reports/recovery-com — the
 // page mirrors the "Insurance Verify" branding and exports as PDF.
 //
 // `source` is the human-typed CTM source; the matching string lives
