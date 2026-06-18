@@ -1,7 +1,7 @@
 'use client';
 
 import { useAuth } from '@/lib/AuthProvider';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { OperatorSchedule } from './OperatorSchedule';
@@ -383,8 +383,8 @@ export default function CallsContent() {
               </thead>
               <tbody className="divide-y divide-foreground/5">
                 {calls.map((c) => (
+                  <Fragment key={c.aircall_id}>
                   <tr
-                    key={c.aircall_id}
                     onClick={() => router.push(`/feather/calls/${c.aircall_id}`)}
                     className={`cursor-pointer hover:bg-white/60 transition-colors ${c.missed ? 'bg-rose-50/40' : ''}`}
                   >
@@ -437,6 +437,26 @@ export default function CallsContent() {
                       </div>
                     </td>
                   </tr>
+                  {/* AI summary — attached sub-row under the call. Lands
+                      live once Aircall's summary.created webhook fills it. */}
+                  {c.summary && (
+                    <tr
+                      onClick={() => router.push(`/feather/calls/${c.aircall_id}`)}
+                      className={`cursor-pointer hover:bg-white/60 transition-colors !border-t-0 ${c.missed ? 'bg-rose-50/40' : 'bg-primary/[0.025]'}`}
+                    >
+                      <td className="px-5 pt-0 pb-3" />
+                      <td colSpan={8} className="px-3 pt-0 pb-3">
+                        <p className="flex items-start gap-1.5 text-[12px] text-foreground/60 leading-snug">
+                          <span className="mt-px inline-flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary">
+                            <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4M13 3l2.5 6.5L22 12l-6.5 2.5L13 21l-2.5-6.5L4 12l6.5-2.5L13 3z" /></svg>
+                            AI
+                          </span>
+                          <span className="line-clamp-2">{c.summary}</span>
+                        </p>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>
@@ -453,6 +473,11 @@ export default function CallsContent() {
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-foreground truncate">{c.contact_name || formatPhone(c.raw_digits || c.caller_number)}</p>
                       <p className="text-[11px] text-foreground/45 truncate">{formatRelativeTime(c.started_at)} · {c.user_name || c.number_name || c.direction}</p>
+                      {c.summary && (
+                        <p className="mt-1 text-[11px] text-foreground/55 leading-snug line-clamp-2">
+                          <span className="font-bold uppercase tracking-wider text-primary/80">AI</span> {c.summary}
+                        </p>
+                      )}
                     </div>
                   </button>
                   <span className="text-xs tabular-nums text-foreground/50 shrink-0">{formatDuration(c.duration)}</span>

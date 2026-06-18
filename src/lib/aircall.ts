@@ -187,8 +187,17 @@ export function extractTranscriptText(data: Record<string, unknown>): string | n
   const t = (data?.transcription ?? data?.transcript ?? data) as Record<string, unknown>;
   const content = (t?.content ?? t?.text) as unknown;
   if (typeof content === 'string' && content.trim()) return content.trim();
-  // Utterance array shape: [{ speaker_id|participant_type, text|words }]
-  const utterances = (t?.utterances ?? content) as unknown;
+  // Utterance array shape: [{ speaker_id|participant_type, text|words }].
+  // The REST `/transcription` endpoint nests them under content.utterances;
+  // the webhook payload carried them on the transcription object directly —
+  // accept either, plus a bare array.
+  const utterances = (
+    Array.isArray((t as { utterances?: unknown })?.utterances)
+      ? (t as { utterances?: unknown[] }).utterances
+      : Array.isArray((content as { utterances?: unknown })?.utterances)
+        ? (content as { utterances?: unknown[] }).utterances
+        : content
+  ) as unknown;
   if (Array.isArray(utterances)) {
     const lines = utterances
       .map((u) => {
