@@ -39,6 +39,9 @@ export interface AircallCallRow {
 export interface AircallCallDetail extends AircallCallRow {
   call_uuid: string | null;
   sid: string | null;
+  archived: boolean | null;
+  user_id: number | null;
+  assigned_user_id: number | null;
   assigned_user_name: string | null;
   assigned_user_email: string | null;
   contact_id: number | null;
@@ -48,6 +51,11 @@ export interface AircallCallDetail extends AircallCallRow {
   topics: string[] | null;
   comments: { content?: string; posted_by?: { name?: string }; posted_at?: number }[] | null;
   ai: Record<string, unknown> | null;
+  raw: Record<string, unknown> | null;
+  synced_at: string | null;
+  ai_synced_at: string | null;
+  created_at: string | null;
+  updated_at: string | null;
 }
 
 export interface PhoneShiftEvent {
