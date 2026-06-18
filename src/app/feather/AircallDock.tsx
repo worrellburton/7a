@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { AIRCALL_DIAL_EVENT } from '@/lib/aircall-dial';
 
 // Embedded Aircall "Everywhere" softphone. Mounted once, globally, in
@@ -14,14 +14,20 @@ import { AIRCALL_DIAL_EVENT } from '@/lib/aircall-dial';
 // Loading the iframe is opt-in (a one-time "Connect phone" click, then
 // remembered in localStorage) so non-operators never load it. Once
 // connected it stays mounted and rings even while minimised.
+//
+// The "Connect phone" launcher only surfaces on the Calls page — that's
+// where an operator goes to start taking calls — but once connected the
+// dock stays mounted on every page so calls keep ringing wherever they are.
 
 const CONNECTED_KEY = 'sa-aircall-connected';
 const WORKSPACE_DOM_ID = 'aircall-workspace';
+const CALLS_PATH = '/feather/calls';
 
 interface IncomingInfo { from?: string; to?: string; call_id?: number | string }
 
 export default function AircallDock() {
   const router = useRouter();
+  const pathname = usePathname();
   const [connected, setConnected] = useState(false);
   const [open, setOpen] = useState(false);
   const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
@@ -112,8 +118,10 @@ export default function AircallDock() {
     if (typeof window !== 'undefined') window.localStorage.setItem(CONNECTED_KEY, '1');
   };
 
-  // Not connected yet → a small launcher prompt.
+  // Not connected yet → a small launcher prompt, but only on the Calls
+  // page. Elsewhere we render nothing until the operator has opted in.
   if (!connected) {
+    if (pathname !== CALLS_PATH) return null;
     return (
       <button
         onClick={connect}

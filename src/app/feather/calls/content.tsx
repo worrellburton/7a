@@ -5,6 +5,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { OperatorSchedule } from './OperatorSchedule';
+import { OperatorCheatSheet } from './OperatorCheatSheet';
+import { CallsHeatmap } from './CallsHeatmap';
 import {
   type AircallCallRow,
   PHOENIX_TZ,
@@ -12,12 +14,17 @@ import {
   formatDuration,
   formatPhone,
   formatRelativeTime,
+  formatWait,
+  initials,
 } from './_shared';
+import { callerLocation } from './area-codes';
 
 const PER_PAGE = 50;
 
 type RangePreset = 'today' | '7d' | '30d' | 'all';
 type DirectionFilter = 'all' | 'inbound' | 'outbound';
+
+interface AgentUser { email: string; avatar_url: string | null; full_name: string | null; }
 
 // Phoenix is UTC-7 year-round (no DST), so local midnight is 07:00 UTC.
 function phoenixMidnightUtc(daysAgo = 0): Date {
@@ -51,6 +58,13 @@ export default function CallsContent() {
   const [preset, setPreset] = useState<RangePreset>('7d');
   const [direction, setDirection] = useState<DirectionFilter>('all');
   const [missedOnly, setMissedOnly] = useState(false);
+  const [showHeatmap, setShowHeatmap] = useState(false);
+
+  // Agent → platform-user lookup (avatar + name), matched on email. Keyed
+  // by lowercased email; `requestedAgents` guards against refetching the
+  // same emails as the visible page changes.
+  const [agentUsers, setAgentUsers] = useState<Record<string, AgentUser>>({});
+  const requestedAgents = useRef<Set<string>>(new Set());
 
   const [insights, setInsights] = useState<{ today: number; missedToday: number; week: number; answeredRate: number | null } | null>(null);
 
@@ -111,6 +125,32 @@ export default function CallsContent() {
   }, [token, buildParams]);
 
   useEffect(() => { loadCalls(); }, [loadCalls]);
+
+  // Resolve the agents in the current page to platform users so the Agent
+  // column can show their profile picture. Matched on email against the
+  // users table (same source the operator schedule uses).
+  useEffect(() => {
+    const emails = Array.from(
+      new Set(calls.map((c) => c.user_email).filter((e): e is string => !!e)),
+    );
+    const toFetch = emails.filter((e) => !requestedAgents.current.has(e.toLowerCase()));
+    if (toFetch.length === 0) return;
+    toFetch.forEach((e) => requestedAgents.current.add(e.toLowerCase()));
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('email, avatar_url, full_name')
+        .in('email', toFetch);
+      if (cancelled || error || !data) return;
+      setAgentUsers((prev) => {
+        const next = { ...prev };
+        for (const u of data as AgentUser[]) if (u.email) next[u.email.toLowerCase()] = u;
+        return next;
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [calls]);
 
   // Insights — cheap count-only fetches (perPage=1, read total).
   const loadInsights = useCallback(async () => {
@@ -178,6 +218,27 @@ export default function CallsContent() {
     { label: 'Answered rate (today)', value: insights?.answeredRate != null ? `${insights.answeredRate}%` : '—' },
   ]), [insights]);
 
+  // Agent cell — profile picture (matched on email) + name, with an
+  // initials fallback when the agent isn't a platform user / has no avatar.
+  const renderAgent = (c: AircallCallRow) => {
+    if (!c.user_name && !c.user_email) return <span className="text-foreground/30">—</span>;
+    const u = c.user_email ? agentUsers[c.user_email.toLowerCase()] : undefined;
+    const name = c.user_name || u?.full_name || c.user_email || '—';
+    return (
+      <div className="flex items-center gap-2 min-w-0">
+        {u?.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={u.avatar_url} alt="" className="h-6 w-6 rounded-full object-cover ring-1 ring-white shadow-sm shrink-0" />
+        ) : (
+          <span className="h-6 w-6 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex items-center justify-center ring-1 ring-white shrink-0">
+            {initials(name)}
+          </span>
+        )}
+        <span className="text-foreground/70 truncate">{name}</span>
+      </div>
+    );
+  };
+
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-6xl mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
       {/* Header */}
@@ -210,6 +271,9 @@ export default function CallsContent() {
 
       {/* Operator schedule */}
       <OperatorSchedule token={token} />
+
+      {/* Admissions call-flow cheat sheet — collapsed row, drops down. */}
+      <OperatorCheatSheet />
 
       {/* Insight stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
@@ -256,7 +320,28 @@ export default function CallsContent() {
         >
           Missed only
         </button>
+        <button
+          onClick={() => setShowHeatmap((v) => !v)}
+          aria-pressed={showHeatmap}
+          className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold border transition-colors ${showHeatmap ? 'bg-primary text-white border-primary shadow-sm' : 'bg-white/70 border-white/70 text-foreground/60 hover:text-foreground'}`}
+        >
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18M7 14l4-4 3 3 5-6" />
+          </svg>
+          Heatmap
+        </button>
       </div>
+
+      {/* Optional call-volume heatmap (weekday × hour). */}
+      {showHeatmap && (
+        <CallsHeatmap
+          token={token}
+          from={rangeFrom(preset)}
+          direction={direction}
+          missed={missedOnly}
+          search={debouncedSearch}
+        />
+      )}
 
       {/* Call list */}
       <div className="rounded-3xl border border-white/70 bg-white/55 backdrop-blur-xl shadow-sm overflow-hidden">
@@ -287,8 +372,10 @@ export default function CallsContent() {
                 <tr className="text-[11px] uppercase tracking-wider text-foreground/40 border-b border-foreground/10">
                   <th className="text-left font-semibold px-5 py-3">When</th>
                   <th className="text-left font-semibold px-3 py-3">Caller</th>
+                  <th className="text-left font-semibold px-3 py-3">Location</th>
                   <th className="text-left font-semibold px-3 py-3">Agent</th>
                   <th className="text-left font-semibold px-3 py-3">Line</th>
+                  <th className="text-right font-semibold px-3 py-3">Wait</th>
                   <th className="text-right font-semibold px-3 py-3">Duration</th>
                   <th className="text-left font-semibold px-3 py-3">Status</th>
                   <th className="px-3 py-3" />
@@ -306,8 +393,17 @@ export default function CallsContent() {
                       <div className="font-medium text-foreground">{c.contact_name || formatPhone(c.raw_digits || c.caller_number)}</div>
                       {c.contact_name && <div className="text-[11px] text-foreground/45">{formatPhone(c.raw_digits || c.caller_number)}</div>}
                     </td>
-                    <td className="px-3 py-3 text-foreground/70">{c.user_name || <span className="text-foreground/30">—</span>}</td>
+                    <td className="px-3 py-3">
+                      {(() => {
+                        const loc = callerLocation(c.raw_digits || c.caller_number);
+                        return loc
+                          ? <span className="text-foreground/70" title={loc.name}>{loc.abbr}</span>
+                          : <span className="text-foreground/30">—</span>;
+                      })()}
+                    </td>
+                    <td className="px-3 py-3">{renderAgent(c)}</td>
                     <td className="px-3 py-3 text-foreground/60">{c.number_name || <span className="text-foreground/30">—</span>}</td>
+                    <td className="px-3 py-3 text-right tabular-nums text-foreground/60">{formatWait(c.started_at, c.answered_at)}</td>
                     <td className="px-3 py-3 text-right tabular-nums text-foreground/70">{formatDuration(c.duration)}</td>
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-1.5 flex-wrap">
