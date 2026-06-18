@@ -35,7 +35,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const aircallId = Number(id);
   if (!Number.isFinite(aircallId)) return NextResponse.json({ error: 'invalid id' }, { status: 400 });
 
-  const wantVoicemail = new URL(req.url).searchParams.get('type') === 'voicemail';
+  const sp = new URL(req.url).searchParams;
+  const wantVoicemail = sp.get('type') === 'voicemail';
+  const wantDownload = sp.get('download') === '1';
 
   const { data } = await gate.admin
     .from('aircall_calls')
@@ -81,6 +83,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (cr) headers.set('Content-Range', cr);
   // Recording audio may be PHI — keep it out of shared caches.
   headers.set('Cache-Control', 'private, no-store');
+  if (wantDownload) {
+    headers.set('Content-Disposition', `attachment; filename="aircall-call-${aircallId}${wantVoicemail ? '-voicemail' : ''}.mp3"`);
+  }
 
   return new NextResponse(upstream.body, { status: upstream.status, headers });
 }
