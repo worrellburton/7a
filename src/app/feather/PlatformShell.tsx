@@ -2020,9 +2020,11 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
         {/* Same-page viewers — shown on every /app/* page */}
         <PageViewers />
 
-        {/* Aircall softphone — staff only, so calls ring inside feather
-            wherever the operator is. Opt-in (one-time "Connect phone"). */}
-        {!isAlumni && user && <AircallDock />}
+        {/* Aircall softphone — staff only, and only on the Calls page
+            (the dedicated calling surface). Mounting it solely there
+            keeps the dock/iframe off every other page. Opt-in (one-time
+            "Connect phone"); re-hydrates from localStorage on each visit. */}
+        {!isAlumni && user && pathname === '/feather/calls' && <AircallDock />}
 
       </div>
     </div>

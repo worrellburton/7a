@@ -11,7 +11,9 @@ import {
   directionStyle,
   formatDuration,
   formatPhone,
+  formatWait,
 } from '../_shared';
+import { callerLocation } from '../area-codes';
 
 function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -41,6 +43,7 @@ export default function CallDetailContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showTranscript, setShowTranscript] = useState(false);
+  const [showRaw, setShowRaw] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
   const [transcriptCopied, setTranscriptCopied] = useState(false);
@@ -149,14 +152,30 @@ export default function CallDetailContent() {
         </div>
       </div>
 
-      {/* Facts */}
+      {/* Facts — everything we hold about who/what/where. */}
       <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-4 rounded-2xl border border-white/70 bg-white/55 backdrop-blur px-5 py-4 shadow-sm">
+        <Field label="Direction" value={call.direction ? <span className="capitalize">{call.direction}</span> : null} />
         <Field label="Number" value={formatPhone(call.raw_digits || call.caller_number)} />
+        <Field label="Location" value={(() => { const l = callerLocation(call.raw_digits || call.caller_number); return l ? `${l.name}` : null; })()} />
+        <Field label="Contact" value={call.contact_name} />
+        <Field label="Company" value={call.contact_company} />
         <Field label="Agent" value={call.user_name} />
+        <Field label="Agent email" value={call.user_email ? <span className="break-all">{call.user_email}</span> : null} />
+        <Field label="Assigned to" value={call.assigned_user_name} />
         <Field label="Line" value={call.number_name} />
+        <Field label="Line number" value={call.number_digits ? formatPhone(call.number_digits) : null} />
         <Field label="Duration" value={formatDuration(call.duration)} />
-        <Field label="Status" value={call.status} />
+        <Field label="Wait to answer" value={call.answered_at ? formatWait(call.started_at, call.answered_at) : null} />
+        <Field label="Status" value={call.status ? <span className="capitalize">{call.status}</span> : null} />
+        <Field label="Missed reason" value={call.missed_call_reason} />
         <Field label="Team" value={(call.teams ?? []).join(', ') || null} />
+      </div>
+
+      {/* Timeline — the call's clock. */}
+      <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4 rounded-2xl border border-white/70 bg-white/55 backdrop-blur px-5 py-4 shadow-sm">
+        <Field label="Started" value={formatDateTime(call.started_at)} />
+        <Field label="Answered" value={call.answered_at ? formatDateTime(call.answered_at) : null} />
+        <Field label="Ended" value={formatDateTime(call.ended_at)} />
       </div>
 
       {/* Recording / voicemail */}
@@ -254,6 +273,35 @@ export default function CallDetailContent() {
                 ))}
               </ul>
             </div>
+          )}
+        </div>
+      )}
+
+      {/* Identifiers & sync metadata — the technical record. */}
+      <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-4 rounded-2xl border border-white/70 bg-white/40 backdrop-blur px-5 py-4 shadow-sm">
+        <Field label="Aircall ID" value={<span className="font-mono text-xs break-all">{call.aircall_id}</span>} />
+        <Field label="Call UUID" value={call.call_uuid ? <span className="font-mono text-xs break-all">{call.call_uuid}</span> : null} />
+        <Field label="SID" value={call.sid ? <span className="font-mono text-xs break-all">{call.sid}</span> : null} />
+        <Field label="Number ID" value={call.number_id != null ? <span className="font-mono text-xs">{call.number_id}</span> : null} />
+        <Field label="User ID" value={call.user_id != null ? <span className="font-mono text-xs">{call.user_id}</span> : null} />
+        <Field label="Contact ID" value={call.contact_id != null ? <span className="font-mono text-xs">{call.contact_id}</span> : null} />
+        <Field label="Archived" value={call.archived ? 'Yes' : 'No'} />
+        <Field label="Synced" value={call.synced_at ? formatDateTime(call.synced_at) : null} />
+        <Field label="AI synced" value={call.ai_synced_at ? formatDateTime(call.ai_synced_at) : null} />
+      </div>
+
+      {/* Raw payload — the complete Aircall Call object + AI events, for
+          anything not surfaced above. Staff-only page, so safe to show. */}
+      {(call.raw || call.ai) && (
+        <div className="mt-4 rounded-2xl border border-white/70 bg-white/55 backdrop-blur px-5 py-4 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground/40">Raw Aircall payload</span>
+            <button onClick={() => setShowRaw((v) => !v)} className="text-xs text-primary font-semibold">{showRaw ? 'Hide' : 'Show'}</button>
+          </div>
+          {showRaw && (
+            <pre className="mt-3 max-h-96 overflow-auto rounded-lg bg-foreground/[0.04] p-3 text-[11px] leading-relaxed text-foreground/70 whitespace-pre-wrap break-all">
+              {JSON.stringify({ raw: call.raw, ai: call.ai }, null, 2)}
+            </pre>
           )}
         </div>
       )}
