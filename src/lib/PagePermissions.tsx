@@ -72,7 +72,15 @@ export const defaultPages: PageConfig[] = [
   { path: '/feather/calendar', label: 'Calendar', adminOnly: false, section: 'nav', sort_order: 4, allowedDepartments: [], departmentId: null },
   { path: '/feather/equine', label: 'Horses', adminOnly: false, section: 'nav', sort_order: 5, allowedDepartments: [], departmentId: null },
   { path: '/feather/billing', label: 'Billing', adminOnly: false, section: 'nav', sort_order: 6, allowedDepartments: [], departmentId: null },
+  // Aircall — the live cloud-phone surface (call log, operator
+  // schedule, recordings, AI transcripts). Takes the prime "Calls"
+  // slot. The legacy CallTrackingMetrics page now lives at
+  // /feather/ctm just below it.
   { path: '/feather/calls', label: 'Calls', adminOnly: false, section: 'nav', sort_order: 7, allowedDepartments: [], departmentId: null },
+  // CTM — the original CallTrackingMetrics attribution dashboard,
+  // renamed from /feather/calls. Kept intact for historical call
+  // data + marketing-source attribution Aircall doesn't provide.
+  { path: '/feather/ctm', label: 'CTM', adminOnly: false, section: 'nav', sort_order: 7.5, allowedDepartments: [], departmentId: null },
   { path: '/feather/fleet', label: 'Fleet', adminOnly: false, section: 'nav', sort_order: 8, allowedDepartments: [], departmentId: null },
   { path: '/feather/finance', label: 'Finance', adminOnly: true, section: 'nav', sort_order: 9, allowedDepartments: [], departmentId: null },
   { path: '/feather/job-descriptions', label: 'Job Descriptions', adminOnly: false, section: 'nav', sort_order: 10, allowedDepartments: [], departmentId: null },

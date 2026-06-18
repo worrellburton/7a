@@ -300,7 +300,7 @@ export default function CallsHeatmapContent() {
         <div>
           <div className="flex items-center gap-3 mb-1">
             <Link
-              href="/feather/calls"
+              href="/feather/ctm"
               className="text-xs font-semibold text-foreground/40 hover:text-primary uppercase tracking-wider inline-flex items-center gap-1"
               style={{ fontFamily: 'var(--font-body)' }}
             >

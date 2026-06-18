@@ -130,7 +130,7 @@ export function CallMobileRow(props: CallMobileRowProps) {
   const timeLabel = absTime;
   const duration = call.duration != null ? formatDuration(call.duration) : null;
   const [linkCopied, setLinkCopied] = useState(false);
-  const callPageUrl = `/feather/calls/${encodeURIComponent(String(call.id))}`;
+  const callPageUrl = `/feather/ctm/${encodeURIComponent(String(call.id))}`;
   const copyShareLink = async () => {
     try {
       await navigator.clipboard.writeText(`${window.location.origin}${callPageUrl}`);

@@ -252,7 +252,7 @@ export default function RecoveryComReportContent() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-10 py-3 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3 min-w-0">
             <Link
-              href="/feather/calls/reports"
+              href="/feather/ctm/reports"
               className="inline-flex items-center gap-1 text-[11px] font-semibold text-foreground/55 hover:text-primary uppercase tracking-wider"
               style={{ fontFamily: 'var(--font-body)' }}
             >
