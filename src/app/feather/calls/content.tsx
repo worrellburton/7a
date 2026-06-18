@@ -54,6 +54,20 @@ export default function CallsContent() {
 
   const [insights, setInsights] = useState<{ today: number; missedToday: number; week: number; answeredRate: number | null } | null>(null);
 
+  // Inline recording playback — one shared <audio> driven from the rows
+  // so you can hit play without opening the call. Audio streams through
+  // the authenticated /api/aircall/recording proxy (cookie-auth).
+  const audioElRef = useRef<HTMLAudioElement | null>(null);
+  const [playingId, setPlayingId] = useState<number | null>(null);
+  const togglePlay = (e: React.MouseEvent, id: number) => {
+    e.stopPropagation();
+    const a = audioElRef.current;
+    if (!a) return;
+    if (playingId === id) { a.pause(); setPlayingId(null); return; }
+    a.src = `/api/aircall/recording/${id}`;
+    a.play().then(() => setPlayingId(id)).catch(() => setPlayingId(null));
+  };
+
   // Debounce the search box.
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(search.trim()), 350);
@@ -190,6 +204,10 @@ export default function CallsContent() {
         </div>
       </header>
 
+      {/* Shared hidden player for inline row playback. */}
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+      <audio ref={audioElRef} className="hidden" onEnded={() => setPlayingId(null)} />
+
       {/* Operator schedule */}
       <OperatorSchedule token={token} />
 
@@ -305,7 +323,19 @@ export default function CallsContent() {
                     </td>
                     <td className="px-3 py-3 text-right">
                       <div className="flex items-center justify-end gap-2 text-foreground/30">
-                        {c.recording_url && <svg className="w-4 h-4 text-primary/60" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 10v4m4-7v10m4-13v16m4-11v6m4-3v0" /></svg>}
+                        {c.recording_url && (
+                          <button
+                            onClick={(e) => togglePlay(e, c.aircall_id)}
+                            aria-label={playingId === c.aircall_id ? 'Pause recording' : 'Play recording'}
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                          >
+                            {playingId === c.aircall_id ? (
+                              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+                            ) : (
+                              <svg className="w-3.5 h-3.5 translate-x-[1px]" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                            )}
+                          </button>
+                        )}
                         {c.has_transcript && <svg className="w-4 h-4 text-emerald-500/70" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6M5 3h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2z" /></svg>}
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                       </div>

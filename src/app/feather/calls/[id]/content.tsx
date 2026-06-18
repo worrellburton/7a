@@ -134,8 +134,15 @@ export default function CallDetailContent() {
       {(call.recording_url || call.voicemail_url) && (
         <div className="mt-4 rounded-2xl border border-white/70 bg-white/55 backdrop-blur px-5 py-4 shadow-sm">
           <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/40 mb-2">{call.recording_url ? 'Recording' : 'Voicemail'}</p>
-          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-          <audio controls preload="none" className="w-full" src={call.recording_url || call.voicemail_url || undefined} />
+          {/* Played through our authenticated proxy: refreshes expired
+              Aircall URLs and keeps the (PHI) media URL off the client.
+              eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <audio
+            controls
+            preload="none"
+            className="w-full"
+            src={`/api/aircall/recording/${call.aircall_id}${call.recording_url ? '' : '?type=voicemail'}`}
+          />
         </div>
       )}
 
