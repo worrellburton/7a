@@ -16,6 +16,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/aircall/backfill-ai",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/calls/auto-score",
       "schedule": "*/5 * * * *"
     },
