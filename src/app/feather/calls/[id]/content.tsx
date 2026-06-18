@@ -41,6 +41,26 @@ export default function CallDetailContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showTranscript, setShowTranscript] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const [transcriptCopied, setTranscriptCopied] = useState(false);
+
+  const copyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/feather/calls/${encodeURIComponent(id)}`);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 1500);
+    } catch { /* clipboard blocked — no-op */ }
+  };
+
+  const copyTranscript = async () => {
+    if (!call?.transcript) return;
+    try {
+      await navigator.clipboard.writeText(call.transcript);
+      setTranscriptCopied(true);
+      setTimeout(() => setTranscriptCopied(false), 1500);
+    } catch { /* clipboard blocked — no-op */ }
+  };
 
   useEffect(() => {
     if (!id || !session?.access_token) return;
@@ -114,6 +134,15 @@ export default function CallDetailContent() {
               Call back
             </button>
           )}
+          <button
+            onClick={copyLink}
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/85 border border-white/70 text-[11px] font-semibold uppercase tracking-wide text-foreground/70 hover:bg-white transition-colors shadow-sm"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 010 5.656l-3 3a4 4 0 11-5.656-5.656l1.5-1.5m6.656-1.828a4 4 0 000-5.656l-.001-.001a4 4 0 00-5.656 0l-1.5 1.5" />
+            </svg>
+            {linkCopied ? 'Copied' : 'Copy link'}
+          </button>
           <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wide ${dirClass}`}>{call.direction ?? 'call'}</span>
           {call.missed && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wide bg-rose-100 text-rose-700">Missed{call.missed_call_reason ? ` · ${call.missed_call_reason}` : ''}</span>}
           {call.voicemail && <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wide bg-violet-100 text-violet-700">Voicemail</span>}
@@ -133,7 +162,19 @@ export default function CallDetailContent() {
       {/* Recording / voicemail */}
       {(call.recording_url || call.voicemail_url) && (
         <div className="mt-4 rounded-2xl border border-white/70 bg-white/55 backdrop-blur px-5 py-4 shadow-sm">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/40 mb-2">{call.recording_url ? 'Recording' : 'Voicemail'}</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/40">{call.recording_url ? 'Recording' : 'Voicemail'}</p>
+            <a
+              href={`/api/aircall/recording/${call.aircall_id}?download=1${call.recording_url ? '' : '&type=voicemail'}`}
+              download
+              className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary hover:underline"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+              </svg>
+              Download
+            </a>
+          </div>
           {/* Played through our authenticated proxy: refreshes expired
               Aircall URLs and keeps the (PHI) media URL off the client.
               eslint-disable-next-line jsx-a11y/media-has-caption */}
@@ -165,11 +206,28 @@ export default function CallDetailContent() {
       {/* Transcript */}
       {call.transcript && (
         <div className="mt-4 rounded-2xl border border-white/70 bg-white/55 backdrop-blur px-5 py-4 shadow-sm">
-          <button onClick={() => setShowTranscript((v) => !v)} className="w-full flex items-center justify-between text-left">
+          <div className="flex items-center justify-between">
             <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground/40">Transcript</span>
-            <span className="text-xs text-primary font-semibold">{showTranscript ? 'Hide' : 'Show'}</span>
-          </button>
-          {showTranscript && <p className="mt-3 text-sm text-foreground/75 leading-relaxed whitespace-pre-line">{call.transcript}</p>}
+            <div className="flex items-center gap-3">
+              <button onClick={copyTranscript} className="text-xs text-foreground/50 hover:text-primary font-semibold">{transcriptCopied ? 'Copied' : 'Copy'}</button>
+              <button onClick={() => setShowTranscript((v) => !v)} className="text-xs text-primary font-semibold">{showTranscript ? 'Collapse' : 'Show full'}</button>
+            </div>
+          </div>
+          <div className={`mt-3 space-y-1.5 ${showTranscript ? '' : 'max-h-28 overflow-hidden relative'}`}>
+            {call.transcript.split('\n').filter(Boolean).map((line, i) => {
+              const m = line.match(/^([^:]{1,32}):\s*(.*)$/);
+              return (
+                <p key={i} className="text-sm leading-relaxed">
+                  {m ? (
+                    <><span className="font-semibold text-foreground/80">{m[1]}:</span> <span className="text-foreground/70">{m[2]}</span></>
+                  ) : (
+                    <span className="text-foreground/70">{line}</span>
+                  )}
+                </p>
+              );
+            })}
+            {!showTranscript && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-white/80 to-transparent" />}
+          </div>
         </div>
       )}
 

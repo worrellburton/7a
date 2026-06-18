@@ -348,18 +348,32 @@ export default function CallsContent() {
             {/* Mobile rows */}
             <div className="sm:hidden divide-y divide-foreground/5">
               {calls.map((c) => (
-                <button
-                  key={c.aircall_id}
-                  onClick={() => router.push(`/feather/calls/${c.aircall_id}`)}
-                  className={`w-full text-left px-4 py-3 flex items-center gap-3 ${c.missed ? 'bg-rose-50/40' : ''}`}
-                >
-                  <span className={`h-2 w-2 rounded-full shrink-0 ${c.missed ? 'bg-rose-500' : c.direction === 'inbound' ? 'bg-emerald-500' : 'bg-blue-500'}`} />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium text-foreground truncate">{c.contact_name || formatPhone(c.raw_digits || c.caller_number)}</p>
-                    <p className="text-[11px] text-foreground/45 truncate">{formatRelativeTime(c.started_at)} · {c.user_name || c.number_name || c.direction}</p>
-                  </div>
+                <div key={c.aircall_id} className={`px-4 py-3 flex items-center gap-3 ${c.missed ? 'bg-rose-50/40' : ''}`}>
+                  <button
+                    onClick={() => router.push(`/feather/calls/${c.aircall_id}`)}
+                    className="min-w-0 flex-1 text-left flex items-center gap-3"
+                  >
+                    <span className={`h-2 w-2 rounded-full shrink-0 ${c.missed ? 'bg-rose-500' : c.direction === 'inbound' ? 'bg-emerald-500' : 'bg-blue-500'}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-foreground truncate">{c.contact_name || formatPhone(c.raw_digits || c.caller_number)}</p>
+                      <p className="text-[11px] text-foreground/45 truncate">{formatRelativeTime(c.started_at)} · {c.user_name || c.number_name || c.direction}</p>
+                    </div>
+                  </button>
                   <span className="text-xs tabular-nums text-foreground/50 shrink-0">{formatDuration(c.duration)}</span>
-                </button>
+                  {c.recording_url && (
+                    <button
+                      onClick={(e) => togglePlay(e, c.aircall_id)}
+                      aria-label={playingId === c.aircall_id ? 'Pause recording' : 'Play recording'}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0"
+                    >
+                      {playingId === c.aircall_id ? (
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1" /><rect x="14" y="5" width="4" height="14" rx="1" /></svg>
+                      ) : (
+                        <svg className="w-4 h-4 translate-x-[1px]" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg>
+                      )}
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
           </>
