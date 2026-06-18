@@ -163,6 +163,7 @@ export default function AlumniHubContent() {
             horses={horses}
             pathLabelFor={pathLabel}
             highlightUserId={null}
+            staffNav={false}
           />
         </div>
       </div>

@@ -123,6 +123,12 @@ interface Props {
    *  used by the home "Your move" Connect-4 nudge to draw the
    *  user's eye toward their opponent. */
   highlightUserId?: string | null;
+  /** When false, the staff (middle) ring is presentational only:
+   *  avatars aren't clickable and the "Viewing <page>" label is
+   *  hidden. Set on the alumni home so an alum can SEE who's online
+   *  but can't click through to — or even read the name of — a
+   *  staff-only page. Defaults to true (staff dashboard behaviour). */
+  staffNav?: boolean;
 }
 
 function isOnlineNow(lastSeen: string | null): boolean {
@@ -356,7 +362,7 @@ function writeSeenCheckins(map: Record<string, string>) {
   }
 }
 
-export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathLabelFor, highlightUserId = null }: Props) {
+export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathLabelFor, highlightUserId = null, staffNav = true }: Props) {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
   // Snapshot of which alumni rows had a NEW check-in vs. what we'd
@@ -677,8 +683,12 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
           {users.map((u, i) => {
             const angle = (i / users.length) * 360;
             const online = isOnlineNow(u.last_seen_at);
-            const viewing = online ? pathLabelFor(u.last_path) : null;
-            const navTarget = online && u.last_path && u.last_path.startsWith('/feather') ? u.last_path : null;
+            // When the viewer is an alumnus (staffNav=false) the staff
+            // ring is look-but-don't-touch: no click-through and no page
+            // label, so a staff-only route like /feather/calls is neither
+            // reachable nor named from the alumni home.
+            const viewing = online && staffNav ? pathLabelFor(u.last_path) : null;
+            const navTarget = online && staffNav && u.last_path && u.last_path.startsWith('/feather') ? u.last_path : null;
             const onFire = (u.actions_today ?? 0) > ON_FIRE_THRESHOLD;
             const Wrapper: 'button' | 'div' = navTarget ? 'button' : 'div';
             const slotStyle: CSSProperties = {
