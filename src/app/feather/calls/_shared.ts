@@ -91,6 +91,12 @@ export function availabilityStyle(status: string | undefined | null): { dot: str
   }
 }
 
+// Up-to-two-letter initials for an avatar fallback. "Jane Doe" → "JD".
+export function initials(name: string | null | undefined): string {
+  if (!name) return '?';
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
+}
+
 export function formatDuration(seconds: number | null | undefined): string {
   if (!seconds || seconds < 0) return '0:00';
   const m = Math.floor(seconds / 60);
