@@ -48,6 +48,10 @@ export interface GateContext {
    *  caller is then responsible for narrowing reads/writes to
    *  user_kind='alumni' rows. */
   isAlumniAdmin: boolean;
+  /** Account classification a super admin set on /feather/incoming-users:
+   *  'staff' for org members, 'guest' / 'alumni' for outside sign-ins.
+   *  Defaults to 'staff' for any pre-classification / degraded read. */
+  userKind: 'staff' | 'guest' | 'alumni';
   /** Department UUID the user belongs to, if any. */
   departmentId: string | null;
 }
@@ -75,10 +79,10 @@ async function resolveContext(req?: NextRequest): Promise<{ ctx: GateContext } |
   const admin = getAdminSupabase();
   // is_alumni_admin landed late; degrade gracefully so a pre-migration
   // deploy doesn't blank out admin state for everyone.
-  let row: { is_admin?: boolean; is_super_admin?: boolean; is_alumni_admin?: boolean; department_id?: string | null } | null = null;
+  let row: { is_admin?: boolean; is_super_admin?: boolean; is_alumni_admin?: boolean; user_kind?: 'staff' | 'guest' | 'alumni'; department_id?: string | null } | null = null;
   const full = await admin
     .from('users')
-    .select('is_admin, is_super_admin, is_alumni_admin, department_id')
+    .select('is_admin, is_super_admin, is_alumni_admin, user_kind, department_id')
     .eq('id', user.id)
     .maybeSingle();
   if (full.error && /is_alumni_admin/i.test(full.error.message)) {
@@ -100,6 +104,10 @@ async function resolveContext(req?: NextRequest): Promise<{ ctx: GateContext } |
       isAdmin: row?.is_admin === true,
       isSuperAdmin: row?.is_super_admin === true,
       isAlumniAdmin: row?.is_alumni_admin === true,
+      // Default to 'staff' when the column is absent (degraded read) so a
+      // transient error never locks real staff out; alumni / guests come
+      // back explicitly classified from the DB, so they still gate correctly.
+      userKind: (row?.user_kind as 'staff' | 'guest' | 'alumni' | undefined) ?? 'staff',
       departmentId: (row?.department_id as string | null | undefined) ?? null,
     },
   };
@@ -111,6 +119,25 @@ async function resolveContext(req?: NextRequest): Promise<{ ctx: GateContext } |
 export async function requireUser(req?: NextRequest): Promise<GateContext | NextResponse> {
   const res = await resolveContext(req);
   if ('error' in res) return res.error;
+  return res.ctx;
+}
+
+/** Require a staff member — user_kind='staff', or any admin / super
+ *  admin (belt-and-suspenders in case an admin row isn't classified).
+ *  Blocks alumni and guest accounts. Use on staff-only surfaces and
+ *  their backing data — e.g. the Calls page / Aircall APIs, which carry
+ *  caller PII (numbers, names, recordings, transcripts) that outside
+ *  sign-ins must never reach even by calling the API directly. */
+export async function requireStaff(
+  req?: NextRequest,
+  forbiddenMessage = 'Staff only.',
+): Promise<GateContext | NextResponse> {
+  const res = await resolveContext(req);
+  if ('error' in res) return res.error;
+  const { isAdmin, isSuperAdmin, userKind } = res.ctx;
+  if (!isAdmin && !isSuperAdmin && userKind !== 'staff') {
+    return NextResponse.json({ error: forbiddenMessage }, { status: 403 });
+  }
   return res.ctx;
 }
 

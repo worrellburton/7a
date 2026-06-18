@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getUserFromRequest, getAdminSupabase } from '@/lib/supabase-server';
+import { getAdminSupabase } from '@/lib/supabase-server';
+import { requireStaff } from '@/lib/api-gates';
 import { withCronLogging } from '@/lib/cron-observability';
 import { aircallFetch, mapAircallCall, type AircallCall } from '@/lib/aircall';
 
@@ -29,8 +30,10 @@ async function handleBackfill(req: NextRequest) {
   const expectedSecret = process.env.CRON_SECRET;
   const viaCron = !!(expectedSecret && authHeader === `Bearer ${expectedSecret}`);
   if (!viaCron) {
-    const user = await getUserFromRequest(req);
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Manual runs are staff-only — alumni / guests must not be able to
+    // trigger an Aircall import (or probe config) by hitting this route.
+    const gate = await requireStaff(req);
+    if (gate instanceof NextResponse) return gate;
   }
 
   if (!process.env.AIRCALL_API_ID || !process.env.AIRCALL_API_TOKEN) {
