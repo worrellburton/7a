@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser } from '@/lib/api-gates';
+import { requireStaff } from '@/lib/api-gates';
 
 // GET /api/aircall/list?from&to&direction&missed&user&search&page&perPage
 //
@@ -14,7 +14,7 @@ const SELECT =
   'aircall_id, started_at, answered_at, ended_at, direction, status, missed, missed_call_reason, voicemail, duration, raw_digits, caller_number, number_id, number_name, user_name, user_email, contact_name, contact_company, teams, tags, recording_url, voicemail_url, summary, sentiment, transcript';
 
 export async function GET(req: NextRequest) {
-  const gate = await requireUser(req);
+  const gate = await requireStaff(req);
   if (gate instanceof NextResponse) return gate;
 
   const url = new URL(req.url);

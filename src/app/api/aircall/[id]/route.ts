@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser } from '@/lib/api-gates';
+import { requireStaff } from '@/lib/api-gates';
 
 // GET /api/aircall/[id] — a single Aircall call by its numeric
 // aircall_id, including the full transcript / summary / AI payload.
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const gate = await requireUser(req);
+  const gate = await requireStaff(req);
   if (gate instanceof NextResponse) return gate;
 
   const { id } = await params;
