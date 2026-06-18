@@ -37,14 +37,33 @@ export default function PageGuard({ children }: { children: React.ReactNode }) {
   // out (no moderator access).
   const isChat = pathname === '/feather/chat' || pathname.startsWith('/feather/chat/');
   const deniedChat = isChat && userKind !== 'alumni';
-  const denied = override === false ? true : override === true ? false : (deniedAlumniOnly || deniedChat || deniedAdmin || deniedDept);
+  // Alumni may only reach their own portal plus the explicitly shared
+  // surfaces. PlatformShell.canSeePage already hides every other (staff-
+  // facing) link from them, but without the matching rule HERE a direct
+  // URL still resolved — e.g. /feather/calls, which carries caller PII.
+  // Mirror canSeePage's allowlist so the route gate and sidebar agree.
+  const isAlumni = userKind === 'alumni';
+  const CROSS_PORTAL_PATHS = new Set<string>(['/feather/arcade', '/feather/chat']);
+  const inAlumniPortal =
+    (pathname === '/feather/alumni' || pathname.startsWith('/feather/alumni/')) &&
+    pathname !== '/feather/alumni/moderation'; // staff-only queue nested under /alumni
+  const alumniAllowed =
+    isChat ||
+    isAlumniOnlyPage ||
+    inAlumniPortal ||
+    CROSS_PORTAL_PATHS.has(pathname) ||
+    ALUMNI_VIEWABLE_PATHS.has(pathname);
+  const deniedAlumniStaffPage = isAlumni && !alumniAllowed;
+  const denied = override === false ? true : override === true ? false : (deniedAlumniOnly || deniedChat || deniedAlumniStaffPage || deniedAdmin || deniedDept);
 
   useEffect(() => {
     if (authLoading || permLoading || !user) return;
     if (denied) {
-      router.replace('/feather');
+      // Bounce alumni to their own home, not the staff root (which they
+      // also can't see) — otherwise a denied alumnus would loop.
+      router.replace(isAlumni ? '/feather/alumni' : '/feather');
     }
-  }, [authLoading, permLoading, user, denied, router]);
+  }, [authLoading, permLoading, user, denied, isAlumni, router]);
 
   if (authLoading || permLoading) return null;
   if (!user) return null;

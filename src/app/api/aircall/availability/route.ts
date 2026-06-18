@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser } from '@/lib/api-gates';
+import { requireStaff } from '@/lib/api-gates';
 import { aircallFetch, aircallConfigured, type AircallUser } from '@/lib/aircall';
 
 // GET /api/aircall/availability — current Aircall users + their live
@@ -13,7 +13,7 @@ interface AircallUsersResponse {
 }
 
 export async function GET(req: NextRequest) {
-  const gate = await requireUser(req);
+  const gate = await requireStaff(req);
   if (gate instanceof NextResponse) return gate;
 
   if (!aircallConfigured()) {

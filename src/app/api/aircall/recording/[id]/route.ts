@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser } from '@/lib/api-gates';
+import { requireStaff } from '@/lib/api-gates';
 import { aircallAuthHeader, aircallFetch, type AircallCall } from '@/lib/aircall';
 
 // GET /api/aircall/recording/[id]?type=recording|voicemail
@@ -14,9 +14,10 @@ import { aircallAuthHeader, aircallFetch, type AircallCall } from '@/lib/aircall
 //   - expired / short-lived Aircall media URLs are transparently
 //     refreshed from the Aircall API at play time.
 //
-// Auth is via the cookie session (requireUser() with no request arg)
+// Auth is via the cookie session (requireStaff() with no request arg)
 // because an <audio src> can't carry an Authorization header. Range
-// requests are forwarded so the player can seek.
+// requests are forwarded so the player can seek. Staff-only — the media
+// is PHI, so alumni / guest accounts are rejected here too.
 
 function attachAuthIfAircall(target: string, headers: Record<string, string>) {
   try {
@@ -28,7 +29,7 @@ function attachAuthIfAircall(target: string, headers: Record<string, string>) {
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const gate = await requireUser();
+  const gate = await requireStaff();
   if (gate instanceof NextResponse) return gate;
 
   const { id } = await params;
