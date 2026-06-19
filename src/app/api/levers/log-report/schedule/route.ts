@@ -93,6 +93,12 @@ export async function PUT(req: NextRequest) {
       hour_utc: hourUtc,
       display_timezone: displayTimezone,
       updated_by: user.id,
+      // Claim the current moment so saving the schedule never
+      // retroactively fires for an occurrence that already passed
+      // today. The cron only fires occurrences strictly after this
+      // watermark, so the first real send is the NEXT scheduled
+      // day/hour.
+      last_fired_at: new Date().toISOString(),
     }, { onConflict: 'lever_type' })
     .select('lever_type, enabled, day_of_week, hour_utc, display_timezone, updated_at, updated_by')
     .maybeSingle();

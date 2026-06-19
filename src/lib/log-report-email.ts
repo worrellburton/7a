@@ -47,6 +47,23 @@ export interface LogReportContactRow {
   lastAt: string;
 }
 
+// A self-contained slice of the week's logs — used to render the
+// report in two parts: one for Email logs, one for everything else.
+// Each segment carries its own counts + breakdowns so the two parts
+// read as independent recaps.
+export interface LogReportSegment {
+  counts: {
+    total: number;
+    uniqueContacts: number;
+    uniqueReps: number;
+    totalDurationSec: number;
+  };
+  byMethod: LogReportMethodCount[];
+  leaderboard: LogReportLeaderRow[];
+  topAreas: LogReportAreaRow[];
+  topContacts: LogReportContactRow[];
+}
+
 export interface LogReportData {
   window: {
     startsAt: string;        // ISO
@@ -67,6 +84,11 @@ export interface LogReportData {
   leaderboard: LogReportLeaderRow[];  // sorted desc by outreach then total
   topAreas: LogReportAreaRow[];       // sorted desc by count, top 8
   topContacts: LogReportContactRow[]; // sorted desc by touches, top 10
+  // Two-part split — Email logs vs everything else. The renderer
+  // builds one part per segment so email outreach gets its own
+  // dedicated recap separate from phone / in-person / data work.
+  emails: LogReportSegment;
+  everythingElse: LogReportSegment;
   generatedAt: string;                // ISO timestamp the report was rendered
   appOrigin?: string;                 // for the in-email "Open dashboard" CTA
 }
@@ -162,21 +184,10 @@ function header(data: LogReportData): string {
   `;
 }
 
-function kpiBand(data: LogReportData): string {
-  // 'Outreach' is the first slot now (the headline number the
-  // exec scan wants). Data work shows up as a smaller secondary
-  // line under it so adds/fills are visible without inflating the
-  // touchpoint count. Other three slots stay as they were.
-  const dataLine =
-    data.counts.dataWork > 0
-      ? `${fmtNumber(data.counts.dataWork)} data work`
-      : '';
-  const stats: Array<[string, string, string?]> = [
-    ['Outreach', fmtNumber(data.counts.outreach), dataLine],
-    ['Reps', fmtNumber(data.counts.uniqueReps), ''],
-    ['Contacts', fmtNumber(data.counts.uniqueContacts), ''],
-    ['Time on the phones', fmtDuration(data.counts.totalDurationSec), ''],
-  ];
+function kpiBand(stats: Array<[string, string, string?]>): string {
+  // Generic four-slot KPI band. Each caller passes its own
+  // [label, value, optional-subline] tuples so the Emails part and
+  // the Everything-else part can headline different numbers.
   return `
     <tr>
       <td style="padding:8px 24px 0 24px;background:${BONE};">
@@ -224,13 +235,31 @@ function sectionTitle(label: string, subhead?: string): string {
   `;
 }
 
-function leaderboard(data: LogReportData): string {
-  if (data.leaderboard.length === 0) {
+// A bold part header — bigger than sectionTitle — that announces one
+// of the report's two halves (Emails / Everything else).
+function partLabel(eyebrow: string, title: string, subhead?: string): string {
+  return `
+    <tr>
+      <td style="padding:8px 40px 18px 40px;background:${BONE};">
+        <div style="font-family:${FONT_BODY};font-size:10.5px;font-weight:700;letter-spacing:0.28em;text-transform:uppercase;color:${COPPER};margin-bottom:6px;">
+          ${escapeHtml(eyebrow)}
+        </div>
+        <div style="font-family:${FONT_SERIF};font-size:24px;line-height:1.15;font-weight:500;color:${INK};">
+          ${escapeHtml(title)}
+        </div>
+        ${subhead ? `<div style="font-family:${FONT_BODY};font-size:12.5px;color:${INK_MUTE};margin-top:4px;">${escapeHtml(subhead)}</div>` : ''}
+      </td>
+    </tr>
+  `;
+}
+
+function leaderboard(rows: LogReportLeaderRow[], emptyLabel = 'No teammates logged anything this week — the leaderboard is empty.'): string {
+  if (rows.length === 0) {
     return `
       <tr>
         <td style="padding:0 40px 24px 40px;background:${BONE};">
           <p style="font-family:${FONT_BODY};font-size:13px;color:${INK_MUTE};margin:0;font-style:italic;">
-            No teammates logged anything this week — the leaderboard is empty.
+            ${escapeHtml(emptyLabel)}
           </p>
         </td>
       </tr>
@@ -240,12 +269,12 @@ function leaderboard(data: LogReportData): string {
   // ran touchpoints, not who imported a spreadsheet. Data-log count
   // is annotated as a smaller line under the duration so the work
   // is still acknowledged.
-  const maxOutreach = Math.max(...data.leaderboard.map((r) => r.outreachLogs), 1);
+  const maxOutreach = Math.max(...rows.map((r) => r.outreachLogs), 1);
   return `
     <tr>
       <td style="padding:0 40px 24px 40px;background:${BONE};">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
-          ${data.leaderboard.map((row, idx) => {
+          ${rows.map((row, idx) => {
             const pct = Math.max(4, Math.round((row.outreachLogs / maxOutreach) * 100));
             const initials = initialsFor(row.name);
             const dataLine = row.dataLogs > 0
@@ -291,8 +320,8 @@ function pageBreak(): string {
   `;
 }
 
-function methodsTable(data: LogReportData): string {
-  if (data.byMethod.length === 0) {
+function methodsTable(byMethod: LogReportMethodCount[]): string {
+  if (byMethod.length === 0) {
     return `
       <tr>
         <td style="padding:0 40px 24px 40px;background:${BONE};">
@@ -303,12 +332,12 @@ function methodsTable(data: LogReportData): string {
       </tr>
     `;
   }
-  const total = data.byMethod.reduce((a, b) => a + b.count, 0) || 1;
+  const total = byMethod.reduce((a, b) => a + b.count, 0) || 1;
   return `
     <tr>
       <td style="padding:0 40px 24px 40px;background:${BONE};">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
-          ${data.byMethod.map((m) => {
+          ${byMethod.map((m) => {
             const pct = Math.round((m.count / total) * 100);
             // Visually demote data methods (Data Entry, New Contact)
             // so they read as 'admin work, not outreach' on first
@@ -341,8 +370,8 @@ function methodsTable(data: LogReportData): string {
   `;
 }
 
-function areasTable(data: LogReportData): string {
-  if (data.topAreas.length === 0) {
+function areasTable(topAreas: LogReportAreaRow[]): string {
+  if (topAreas.length === 0) {
     return `
       <tr>
         <td style="padding:0 40px 24px 40px;background:${BONE};">
@@ -357,7 +386,7 @@ function areasTable(data: LogReportData): string {
     <tr>
       <td style="padding:0 40px 24px 40px;background:${BONE};">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
-          ${data.topAreas.map((a) => `
+          ${topAreas.map((a) => `
             <tr>
               <td style="padding:6px 0;font-family:${FONT_BODY};font-size:13px;color:${INK};">${escapeHtml(a.area)}</td>
               <td style="padding:6px 0;text-align:right;font-family:${FONT_BODY};font-size:12.5px;color:${INK_MUTE};">${fmtNumber(a.count)}</td>
@@ -369,13 +398,13 @@ function areasTable(data: LogReportData): string {
   `;
 }
 
-function topContactsTable(data: LogReportData): string {
-  if (data.topContacts.length === 0) {
+function topContactsTable(topContacts: LogReportContactRow[], emptyLabel = 'No contacts touched this week.'): string {
+  if (topContacts.length === 0) {
     return `
       <tr>
         <td style="padding:0 40px 24px 40px;background:${BONE};">
           <p style="font-family:${FONT_BODY};font-size:13px;color:${INK_MUTE};margin:0;font-style:italic;">
-            No contacts touched this week.
+            ${escapeHtml(emptyLabel)}
           </p>
         </td>
       </tr>
@@ -385,7 +414,7 @@ function topContactsTable(data: LogReportData): string {
     <tr>
       <td style="padding:0 40px 24px 40px;background:${BONE};">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;">
-          ${data.topContacts.map((c) => `
+          ${topContacts.map((c) => `
             <tr>
               <td style="padding:8px 0;vertical-align:top;">
                 <div style="font-family:${FONT_BODY};font-size:13px;color:${INK};font-weight:600;">${escapeHtml(c.name)}</div>
@@ -438,6 +467,29 @@ function footer(): string {
 // ─── Top-level renderer ─────────────────────────────────────────
 
 export function renderLogReportEmail(data: LogReportData): string {
+  // Two-part body. Part 1 is everything that happened over email;
+  // Part 2 is every other kind of log (phone, in-person, text, data
+  // work, …). Older callers that predate the split fall back to a
+  // single "everything" segment so the email still renders.
+  const emails: LogReportSegment = data.emails ?? emptySegment();
+  const everythingElse: LogReportSegment = data.everythingElse ?? segmentFromLegacy(data);
+
+  const emailStats: Array<[string, string, string?]> = [
+    ['Emails', fmtNumber(emails.counts.total)],
+    ['Reps', fmtNumber(emails.counts.uniqueReps)],
+    ['Contacts', fmtNumber(emails.counts.uniqueContacts)],
+    ['Time', fmtDuration(emails.counts.totalDurationSec)],
+  ];
+  const elseDataWork = everythingElse.byMethod
+    .filter((m) => m.isDataMethod)
+    .reduce((a, b) => a + b.count, 0);
+  const elseStats: Array<[string, string, string?]> = [
+    ['Logs', fmtNumber(everythingElse.counts.total), elseDataWork > 0 ? `${fmtNumber(elseDataWork)} data work` : ''],
+    ['Reps', fmtNumber(everythingElse.counts.uniqueReps)],
+    ['Contacts', fmtNumber(everythingElse.counts.uniqueContacts)],
+    ['Time on the phones', fmtDuration(everythingElse.counts.totalDurationSec)],
+  ];
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -451,17 +503,28 @@ export function renderLogReportEmail(data: LogReportData): string {
       <td align="center" style="padding:24px 12px;">
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px;background:${BONE};border-collapse:collapse;box-shadow:0 4px 20px rgba(44,24,16,0.06);border-radius:4px;">
           ${header(data)}
-          ${kpiBand(data)}
-          ${sectionTitle('Leaderboard', 'Most logs this week')}
-          ${leaderboard(data)}
+
+          ${partLabel('Part 1', 'Emails', 'Every email your team logged this week')}
+          ${kpiBand(emailStats)}
+          ${sectionTitle('Email leaderboard', 'Who sent the most email')}
+          ${leaderboard(emails.leaderboard, 'No emails were logged this week.')}
+          ${sectionTitle('Most-emailed contacts', 'People who got the most email this week')}
+          ${topContactsTable(emails.topContacts, 'No contacts were emailed this week.')}
+
           ${divider()}
           ${pageBreak()}
+
+          ${partLabel('Part 2', 'Everything else', 'Phone, in-person, text, voicemail, and data work — every non-email log')}
+          ${kpiBand(elseStats)}
           ${sectionTitle('How the team reached out', 'Mix of phone, in-person, text, and the rest')}
-          ${methodsTable(data)}
+          ${methodsTable(everythingElse.byMethod)}
           ${sectionTitle('Where the work landed', 'Top areas by logs')}
-          ${areasTable(data)}
+          ${areasTable(everythingElse.topAreas)}
+          ${sectionTitle('Leaderboard', 'Most non-email logs this week')}
+          ${leaderboard(everythingElse.leaderboard)}
           ${sectionTitle('Top contacts', 'People who saw the most attention')}
-          ${topContactsTable(data)}
+          ${topContactsTable(everythingElse.topContacts)}
+
           ${cta(data)}
           ${footer()}
         </table>
@@ -470,6 +533,33 @@ export function renderLogReportEmail(data: LogReportData): string {
   </table>
 </body>
 </html>`;
+}
+
+// Fallbacks for callers that build a LogReportData without the
+// two-part segments (e.g. an older cached payload). They keep the
+// renderer total-failure-proof rather than throwing on a missing key.
+function emptySegment(): LogReportSegment {
+  return {
+    counts: { total: 0, uniqueContacts: 0, uniqueReps: 0, totalDurationSec: 0 },
+    byMethod: [],
+    leaderboard: [],
+    topAreas: [],
+    topContacts: [],
+  };
+}
+function segmentFromLegacy(data: LogReportData): LogReportSegment {
+  return {
+    counts: {
+      total: data.counts.total,
+      uniqueContacts: data.counts.uniqueContacts,
+      uniqueReps: data.counts.uniqueReps,
+      totalDurationSec: data.counts.totalDurationSec,
+    },
+    byMethod: data.byMethod,
+    leaderboard: data.leaderboard,
+    topAreas: data.topAreas,
+    topContacts: data.topContacts,
+  };
 }
 
 export function subjectFor(data: LogReportData): string {
@@ -530,6 +620,52 @@ export function buildStubLogReportData(): LogReportData {
       { name: 'David Wilson',   company: null,                       touches: 4, lastMethod: 'Text Message', lastAt: now.toISOString() },
       { name: 'Emily Roberts',  company: 'Yavapai Counseling',      touches: 3, lastMethod: 'Phone', lastAt: now.toISOString() },
     ],
+    emails: {
+      counts: { total: 6, uniqueContacts: 5, uniqueReps: 3, totalDurationSec: 0.2 * 3600 },
+      byMethod: [{ method: 'Email', count: 6, durationSec: 0.2 * 3600, isDataMethod: false }],
+      leaderboard: [
+        { userId: '2', name: 'Brendan Kenney',     avatarUrl: null, logs: 3, outreachLogs: 3, dataLogs: 0, durationSec: 0.1 * 3600 },
+        { userId: '1', name: 'Sakina Mayan',       avatarUrl: null, logs: 2, outreachLogs: 2, dataLogs: 0, durationSec: 0.06 * 3600 },
+        { userId: '3', name: 'Lindsay Rothschild', avatarUrl: null, logs: 1, outreachLogs: 1, dataLogs: 0, durationSec: 0.04 * 3600 },
+      ],
+      topAreas: [{ area: 'Tucson, AZ', count: 3 }, { area: 'Phoenix, AZ', count: 2 }],
+      topContacts: [
+        { name: 'Maria Gonzalez', company: 'Tucson Recovery Network', touches: 2, lastMethod: 'Email', lastAt: now.toISOString() },
+        { name: 'Jennifer Park',  company: 'AZ Sober Living',         touches: 1, lastMethod: 'Email', lastAt: now.toISOString() },
+      ],
+    },
+    everythingElse: {
+      counts: { total: 93, uniqueContacts: 39, uniqueReps: 5, totalDurationSec: 4.0 * 3600 },
+      byMethod: [
+        { method: 'Phone',         count: 38, durationSec: 2.5 * 3600, isDataMethod: false },
+        { method: 'In Person',     count: 18, durationSec: 1.0 * 3600, isDataMethod: false },
+        { method: 'Text Message',  count: 14, durationSec: 0,           isDataMethod: false },
+        { method: 'Left Message',  count: 11, durationSec: 0.5 * 3600, isDataMethod: false },
+        { method: 'New Contact',   count:  7, durationSec: 0,           isDataMethod: true  },
+        { method: 'Data Entry',    count:  5, durationSec: 0,           isDataMethod: true  },
+      ],
+      leaderboard: [
+        { userId: '1', name: 'Sakina Mayan',         avatarUrl: null, logs: 22, outreachLogs: 20, dataLogs: 2, durationSec: 1.24 * 3600 },
+        { userId: '2', name: 'Brendan Kenney',       avatarUrl: null, logs: 21, outreachLogs: 18, dataLogs: 3, durationSec: 1.0 * 3600 },
+        { userId: '3', name: 'Lindsay Rothschild',   avatarUrl: null, logs: 17, outreachLogs: 15, dataLogs: 2, durationSec: 0.86 * 3600 },
+        { userId: '4', name: 'Pamela Calvo',         avatarUrl: null, logs: 17, outreachLogs: 14, dataLogs: 3, durationSec: 0.5 * 3600 },
+        { userId: '5', name: 'Donald MacKillop',     avatarUrl: null, logs: 14, outreachLogs: 12, dataLogs: 2, durationSec: 0.4 * 3600 },
+      ],
+      topAreas: [
+        { area: 'Tucson, AZ',     count: 19 },
+        { area: 'Phoenix, AZ',    count: 16 },
+        { area: 'Scottsdale, AZ', count: 12 },
+        { area: 'Mesa, AZ',       count:  9 },
+        { area: 'Sedona, AZ',     count:  5 },
+      ],
+      topContacts: [
+        { name: 'Robert Chen',    company: 'Banner Behavioral',       touches: 5, lastMethod: 'In Person', lastAt: now.toISOString() },
+        { name: 'Maria Gonzalez', company: 'Tucson Recovery Network', touches: 4, lastMethod: 'Phone', lastAt: now.toISOString() },
+        { name: 'David Wilson',   company: null,                       touches: 4, lastMethod: 'Text Message', lastAt: now.toISOString() },
+        { name: 'Jennifer Park',  company: 'AZ Sober Living',         touches: 3, lastMethod: 'Phone', lastAt: now.toISOString() },
+        { name: 'Emily Roberts',  company: 'Yavapai Counseling',      touches: 3, lastMethod: 'Phone', lastAt: now.toISOString() },
+      ],
+    },
     generatedAt: now.toISOString(),
   };
 }
