@@ -127,6 +127,18 @@ export function OperatorSchedule({ token }: { token: string | null }) {
     [events, today],
   );
 
+  // Tomorrow (Phoenix-local). The rota is already fetched for today +
+  // the next several days, so this is a cheap client-side filter.
+  const tomorrow = useMemo(() => {
+    const [y, m, d] = today.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d + 1, 12));
+    return dt.toISOString().slice(0, 10);
+  }, [today]);
+  const tomorrowsEvents = useMemo(
+    () => events.filter((e) => e.event_date === tomorrow),
+    [events, tomorrow],
+  );
+
   const onNow = useMemo(
     () => todaysEvents.filter((e) => shiftContainsMinute(e.start_time, e.end_time, nowMin)),
     [todaysEvents, nowMin],
@@ -157,6 +169,43 @@ export function OperatorSchedule({ token }: { token: string | null }) {
       </div>
     );
   };
+
+  // Small avatar for the rotation rows — operator photo, falling back
+  // to colored initials (keeps the per-shift color the dot used to show).
+  const renderMiniAvatar = (ev: PhoneShiftEvent) => {
+    const u = ev.subject_id ? users[ev.subject_id] : undefined;
+    const color = ev.color ?? '#9ca3af';
+    if (u?.avatar_url) {
+      // eslint-disable-next-line @next/next/no-img-element
+      return <img src={u.avatar_url} alt={ev.title ?? ''} className="h-6 w-6 rounded-full object-cover shrink-0 ring-1 ring-white shadow-sm" />;
+    }
+    return (
+      <div className="h-6 w-6 rounded-full flex items-center justify-center text-white text-[9px] font-bold shrink-0 ring-1 ring-white shadow-sm" style={{ backgroundColor: color }}>
+        {initials(ev.title)}
+      </div>
+    );
+  };
+
+  // One rotation list (today or tomorrow). `highlightNow` drives the
+  // live "Now" badge + dimming of past shifts — only meaningful today.
+  const renderRotation = (list: PhoneShiftEvent[], highlightNow: boolean) => (
+    <ol className="space-y-1.5">
+      {list.map((ev) => {
+        const isNow = highlightNow && shiftContainsMinute(ev.start_time, ev.end_time, nowMin);
+        const isPast = highlightNow && (hhmmToMinutes(ev.end_time) ?? 24 * 60) <= nowMin && !isNow;
+        return (
+          <li key={ev.id} className={`flex items-center gap-2 text-sm ${isPast ? 'opacity-45' : ''}`}>
+            <span className="tabular-nums text-[11px] font-semibold text-foreground/50 w-20 shrink-0">
+              {formatShiftTime(ev.start_time)}–{formatShiftTime(ev.end_time)}
+            </span>
+            {renderMiniAvatar(ev)}
+            <span className={`truncate ${isNow ? 'font-semibold text-foreground' : 'text-foreground/70'}`}>{ev.title}</span>
+            {isNow && <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-emerald-600">Now</span>}
+          </li>
+        );
+      })}
+    </ol>
+  );
 
   const availabilityFor = (ev: PhoneShiftEvent): AircallAgent | undefined => {
     const u = ev.subject_id ? users[ev.subject_id] : undefined;
@@ -231,30 +280,28 @@ export function OperatorSchedule({ token }: { token: string | null }) {
             {/* Up next + today's rota */}
             <div className="lg:border-l lg:border-foreground/10 lg:pl-4">
               <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/40 mb-2">
-                {todaysEvents.length > 1 ? "Today's rotation" : 'Up next'}
+                Today&apos;s rotation
               </p>
               {todaysEvents.length === 0 ? (
                 <p className="text-sm text-foreground/50">Nothing on the phones calendar today.</p>
               ) : (
-                <ol className="space-y-1.5">
-                  {todaysEvents.map((ev) => {
-                    const isNow = shiftContainsMinute(ev.start_time, ev.end_time, nowMin);
-                    const isPast = (hhmmToMinutes(ev.end_time) ?? 24 * 60) <= nowMin && !isNow;
-                    return (
-                      <li key={ev.id} className={`flex items-center gap-2 text-sm ${isPast ? 'opacity-45' : ''}`}>
-                        <span className="tabular-nums text-[11px] font-semibold text-foreground/50 w-20 shrink-0">
-                          {formatShiftTime(ev.start_time)}–{formatShiftTime(ev.end_time)}
-                        </span>
-                        <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: ev.color ?? '#9ca3af' }} />
-                        <span className={`truncate ${isNow ? 'font-semibold text-foreground' : 'text-foreground/70'}`}>{ev.title}</span>
-                        {isNow && <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-emerald-600">Now</span>}
-                      </li>
-                    );
-                  })}
-                </ol>
+                renderRotation(todaysEvents, true)
               )}
-              {upNext && upNext.day !== today && (
-                <p className="mt-2 text-[11px] text-foreground/45">
+
+              {/* Tomorrow's rotation */}
+              <div className="mt-4">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/40 mb-2">
+                  Tomorrow · {dayLabel(tomorrow)}
+                </p>
+                {tomorrowsEvents.length === 0 ? (
+                  <p className="text-sm text-foreground/45">Nobody on the phones calendar yet.</p>
+                ) : (
+                  renderRotation(tomorrowsEvents, false)
+                )}
+              </div>
+
+              {upNext && upNext.day !== today && upNext.day !== tomorrow && (
+                <p className="mt-3 text-[11px] text-foreground/45">
                   Next day on phones: <span className="font-semibold text-foreground/70">{upNext.event.title}</span>, {dayLabel(upNext.day)} at {formatShiftTime(upNext.event.start_time)}.
                 </p>
               )}
