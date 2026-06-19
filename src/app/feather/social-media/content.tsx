@@ -12,6 +12,7 @@ import { MediaPicker, type PickedMedia } from './MediaPicker';
 import { PostStatusToast, type PostStatus, type PerPlatformResult } from './PostStatusToast';
 import { PLATFORM_SPECS, type MediaSpec, type VideoSpec } from './platform-specs';
 import ScheduleSlotsPanel, { ReadyToGoCard, occurrencesFor, type ReadyDraft, type ScheduleSlot } from './ScheduleSlotsPanel';
+import { useSavedDrafts, saveDraft as createDraft, setDraftReady, deleteDraft, type SavedDraft } from './saved-drafts';
 
 // ── Cross-tab Send-to-Compose handoff ────────────────────────────────
 //
@@ -55,40 +56,9 @@ function clearCreativeStaging() {
   try { sessionStorage.removeItem(STAGING_KEY); } catch { /* no-op */ }
 }
 
-// Saved drafts — phase B/C of the wizard. Persisted in localStorage
-// so they survive refresh and tab close. List rendered under
-// Creative > Drafts; each has Edit / Send to Compose / Delete.
-interface SavedDraft {
-  id: string;
-  createdAt: string;
-  caption: string;
-  mediaUrls: string[];
-  // "Mark ready to go" flag. False on save (the default — drafts
-  // start as work-in-progress); true once the admin signs off that
-  // the draft is publishable as-is. The Post tab's publish flow only
-  // shows ready drafts, keeping in-progress text out of the picker.
-  ready?: boolean;
-  // Networks this draft is intended for. Used to drive the
-  // per-post deliverables panel on /app/social-media/drafts/[id].
-  // Optional — older drafts without this field render the full
-  // deliverable matrix for every connected network instead.
-  platforms?: string[];
-}
-const DRAFTS_KEY = 'social_media_saved_drafts_v1';
-function readSavedDrafts(): SavedDraft[] {
-  try {
-    const raw = localStorage.getItem(DRAFTS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as SavedDraft[]) : [];
-  } catch { return []; }
-}
-function writeSavedDrafts(drafts: SavedDraft[]) {
-  try {
-    localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts));
-    window.dispatchEvent(new CustomEvent('social-media-drafts-changed'));
-  } catch { /* no-op */ }
-}
+// Saved drafts now live in the shared DB-backed module (./saved-drafts):
+// SavedDraft, useSavedDrafts(), and the async mutators saveDraft /
+// setDraftReady / deleteDraft. They sync across devices + teammates.
 
 // Marketing → Social Media. v1 wraps Ayrshare's API:
 //   * Connected accounts strip (one button per platform → JWT popup)
@@ -679,33 +649,18 @@ function DraftsPanel({
   accounts: AccountsResponse | null;
   onPosted: () => void;
 }) {
-  const [drafts, setDrafts] = useState<SavedDraft[]>([]);
-
-  useEffect(() => {
-    setDrafts(readSavedDrafts());
-    const onChange = () => setDrafts(readSavedDrafts());
-    window.addEventListener('social-media-drafts-changed', onChange);
-    window.addEventListener('storage', onChange);
-    return () => {
-      window.removeEventListener('social-media-drafts-changed', onChange);
-      window.removeEventListener('storage', onChange);
-    };
-  }, []);
+  const { drafts } = useSavedDrafts();
 
   const removeDraft = (id: string) => {
-    const next = drafts.filter((d) => d.id !== id);
-    setDrafts(next);
-    writeSavedDrafts(next);
+    void deleteDraft(id);
   };
 
-  // Toggle the per-draft "ready to go" flag. Stays in localStorage
-  // alongside the rest of the draft so the marker survives refresh.
-  // Drafts list is sorted ready-first below so the admin can see at
-  // a glance which posts the publish flow will offer.
+  // Toggle the per-draft "ready to go" flag. Drafts list is sorted
+  // ready-first below so the admin sees at a glance which posts the
+  // publish flow will offer.
   const toggleReady = (id: string) => {
-    const next = drafts.map((d) => (d.id === id ? { ...d, ready: !d.ready } : d));
-    setDrafts(next);
-    writeSavedDrafts(next);
+    const cur = drafts.find((d) => d.id === id);
+    void setDraftReady(id, !cur?.ready);
   };
 
   const readyDrafts = drafts.filter((d) => d.ready);
@@ -1288,17 +1243,7 @@ function SchedulePostsBody({
   // slot occurrences. Listens on the same storage / custom-event
   // bus the rest of the page uses so dragging stays in sync with
   // edits made on other tabs.
-  const [drafts, setDrafts] = useState<SavedDraft[]>([]);
-  useEffect(() => {
-    setDrafts(readSavedDrafts());
-    const onChange = () => setDrafts(readSavedDrafts());
-    window.addEventListener('social-media-drafts-changed', onChange);
-    window.addEventListener('storage', onChange);
-    return () => {
-      window.removeEventListener('social-media-drafts-changed', onChange);
-      window.removeEventListener('storage', onChange);
-    };
-  }, []);
+  const { drafts } = useSavedDrafts();
   const readyDrafts = useMemo(
     () => drafts.filter((d) => d.ready).map((d) => ({
       id: d.id,
@@ -1645,32 +1590,16 @@ function CreativeTabBody() {
 function CreativeDraftsPanel() {
   const router = useRouter();
   const pathname = usePathname();
-  const [drafts, setDrafts] = useState<SavedDraft[]>([]);
+  const { drafts } = useSavedDrafts();
   const [showTemplates, setShowTemplates] = useState(false);
 
-  useEffect(() => {
-    setDrafts(readSavedDrafts());
-    const onChange = () => setDrafts(readSavedDrafts());
-    window.addEventListener('social-media-drafts-changed', onChange);
-    window.addEventListener('storage', onChange);
-    return () => {
-      window.removeEventListener('social-media-drafts-changed', onChange);
-      window.removeEventListener('storage', onChange);
-    };
-  }, []);
-
   const remove = (id: string) => {
-    const next = drafts.filter((d) => d.id !== id);
-    setDrafts(next);
-    writeSavedDrafts(next);
-    window.dispatchEvent(new Event('social-media-drafts-changed'));
+    void deleteDraft(id);
   };
 
   const toggleReady = (id: string) => {
-    const next = drafts.map((d) => (d.id === id ? { ...d, ready: !d.ready } : d));
-    setDrafts(next);
-    writeSavedDrafts(next);
-    window.dispatchEvent(new Event('social-media-drafts-changed'));
+    const cur = drafts.find((d) => d.id === id);
+    void setDraftReady(id, !cur?.ready);
   };
 
   const sendToCompose = (d: SavedDraft) => {
@@ -1798,16 +1727,9 @@ function CreativeDraftsPanel() {
 // so the marketer has a dedicated "what's queued?" surface.
 function ReadyToGoPanel() {
   const modal = useModal();
-  const [drafts, setDrafts] = useState<SavedDraft[]>([]);
+  const { drafts } = useSavedDrafts();
   // Selected draft ids — drives the batch-action bar at the bottom.
   const [selected, setSelected] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    setDrafts(readSavedDrafts());
-    const onChange = () => setDrafts(readSavedDrafts());
-    window.addEventListener('storage', onChange);
-    return () => window.removeEventListener('storage', onChange);
-  }, []);
 
   const ready = useMemo(() => drafts.filter((d) => d.ready), [drafts]);
   // Drop selections that point at drafts that no longer exist (e.g.
@@ -1839,28 +1761,24 @@ function ReadyToGoPanel() {
     else setSelected(new Set(ready.map((d) => d.id)));
   };
 
-  // Batch ops. localStorage is the source of truth; we read fresh,
-  // mutate, and write back — same pattern the per-row write uses.
+  // Batch ops — the shared DB-backed mutators keep the cache + Realtime
+  // in sync, so we don't write the whole list back ourselves.
   const batchUnmark = () => {
-    const ids = selected;
-    if (ids.size === 0) return;
-    const next = readSavedDrafts().map((d) => (ids.has(d.id) ? { ...d, ready: false } : d));
-    writeSavedDrafts(next);
-    setDrafts(next);
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    void Promise.all(ids.map((id) => setDraftReady(id, false)));
     setSelected(new Set());
   };
   const batchDelete = async () => {
-    const ids = selected;
-    if (ids.size === 0) return;
-    const ok = await modal.confirm(`Delete ${ids.size} approved post${ids.size === 1 ? '' : 's'}?`, {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    const ok = await modal.confirm(`Delete ${ids.length} approved post${ids.length === 1 ? '' : 's'}?`, {
       message: "This can't be undone.",
       confirmLabel: 'Delete',
       tone: 'danger',
     });
     if (!ok) return;
-    const next = readSavedDrafts().filter((d) => !ids.has(d.id));
-    writeSavedDrafts(next);
-    setDrafts(next);
+    await Promise.all(ids.map((id) => deleteDraft(id)));
     setSelected(new Set());
   };
 
@@ -1898,6 +1816,8 @@ function ReadyToGoPanel() {
                 </th>
                 <th scope="col" className="px-2 py-2 w-12 text-[9.5px] font-bold uppercase tracking-[0.14em]">Media</th>
                 <th scope="col" className="px-2 py-2 text-[9.5px] font-bold uppercase tracking-[0.14em]">Caption</th>
+                <th scope="col" className="px-2 py-2 w-28 text-[9.5px] font-bold uppercase tracking-[0.14em]">Platforms</th>
+                <th scope="col" className="px-2 py-2 w-28 text-[9.5px] font-bold uppercase tracking-[0.14em]">Created by</th>
                 <th scope="col" className="px-2 py-2 w-32 text-[9.5px] font-bold uppercase tracking-[0.14em]">Saved</th>
                 <th scope="col" className="px-2 py-2 w-16 text-[9.5px] font-bold uppercase tracking-[0.14em] text-center">Media</th>
                 <th scope="col" className="px-2 py-2 w-20 text-[9.5px] font-bold uppercase tracking-[0.14em]"></th>
@@ -1939,6 +1859,20 @@ function ReadyToGoPanel() {
                       <p className="text-foreground/85 line-clamp-2 whitespace-pre-line">
                         {d.caption || <span className="text-foreground/40 italic">(no caption)</span>}
                       </p>
+                    </td>
+                    <td className="px-2 py-2 align-middle">
+                      <div className="flex flex-wrap gap-1">
+                        {(d.platforms ?? []).length === 0 ? (
+                          <span className="text-foreground/40 text-[11px]">—</span>
+                        ) : (d.platforms ?? []).map((p) => (
+                          <span key={p} className="inline-flex items-center justify-center w-4 h-4 text-foreground/70" title={p}>
+                            <PlatformIcon platform={p as PlatformId} size={14} />
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-2 py-2 align-middle text-[11px] text-foreground/55 whitespace-nowrap">
+                      {d.createdByName || <span className="text-foreground/40">—</span>}
                     </td>
                     <td className="px-2 py-2 align-middle text-[11px] text-foreground/55 tabular-nums whitespace-nowrap">
                       {savedLabel}
@@ -2499,15 +2433,8 @@ function CreativeTemplatesPanel() {
   const pathname = usePathname();
   const [openId, setOpenId] = useState<string | null>(null);
 
-  const saveTemplateDraft = (t: PostTemplate) => {
-    const draft: SavedDraft = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      createdAt: new Date().toISOString(),
-      caption: t.body,
-      mediaUrls: [],
-    };
-    const existing = readSavedDrafts();
-    writeSavedDrafts([draft, ...existing]);
+  const saveTemplateDraft = async (t: PostTemplate) => {
+    await createDraft({ caption: t.body, mediaUrls: [] });
     const next = new URLSearchParams();
     next.set('tab', 'post');
     next.set('sub', 'drafts');
@@ -2644,15 +2571,8 @@ function CreativeAiPanel() {
     }
   };
 
-  const saveDraft = (caption: string) => {
-    const draft: SavedDraft = {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      createdAt: new Date().toISOString(),
-      caption,
-      mediaUrls: stagedMedia,
-    };
-    const existing = readSavedDrafts();
-    writeSavedDrafts([draft, ...existing]);
+  const saveDraft = async (caption: string) => {
+    await createDraft({ caption, mediaUrls: stagedMedia });
     clearCreativeStaging();
     const next = new URLSearchParams();
     next.set('tab', 'post');
