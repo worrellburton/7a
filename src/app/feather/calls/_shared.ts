@@ -21,6 +21,7 @@ export interface AircallCallRow {
   caller_number: string | null;
   number_id: number | null;
   number_name: string | null;
+  number_digits: string | null;
   user_name: string | null;
   user_email: string | null;
   contact_name: string | null;
@@ -45,7 +46,6 @@ export interface AircallCallDetail extends AircallCallRow {
   assigned_user_name: string | null;
   assigned_user_email: string | null;
   contact_id: number | null;
-  number_digits: string | null;
   asset_url: string | null;
   transcript: string | null;
   topics: string[] | null;
