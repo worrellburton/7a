@@ -8,6 +8,7 @@ import InsuranceVerification from '@/components/InsuranceVerification';
 import BottomTicker from '@/components/BottomTickerServer';
 import FloatingContactCTA from '@/components/FloatingContactCTA';
 import StickyMobileCTA from '@/components/StickyMobileCTA';
+import SmoothScroll from '@/components/SmoothScroll';
 
 const ORIGIN = 'https://sevenarrowsrecoveryarizona.com';
 
@@ -31,6 +32,9 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
+      {/* Site-wide smooth scrolling (Lenis). Client-only; no-ops under
+          prefers-reduced-motion. Scoped to the public site, not feather. */}
+      <SmoothScroll />
       {/* Skip link — the first focusable element on every public page so
           keyboard and screen-reader users can jump past the TopBar +
           Header nav straight to the content (WCAG 2.4.1 Bypass Blocks).
