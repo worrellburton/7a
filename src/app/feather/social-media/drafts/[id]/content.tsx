@@ -9,7 +9,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { findSavedDraft, readSavedDrafts, writeSavedDrafts, type SavedDraft } from '../../saved-drafts';
+import { useSavedDrafts, updateDraft, type SavedDraft } from '../../saved-drafts';
 import { PLATFORM_SPECS, type MediaSpec, type VideoSpec } from '../../platform-specs';
 import { PlatformIcon, type PlatformId } from '../../PlatformIcon';
 
@@ -94,20 +94,9 @@ function deriveDeliverables(platforms: PlatformId[]): Deliverable[] {
 
 export default function DraftDetailContent({ id }: { id: string }) {
   const router = useRouter();
-  const [draft, setDraft] = useState<SavedDraft | null | undefined>(undefined);
-
-  // Hydrate from localStorage. Listen for cross-tab edits so the
-  // page stays in sync if someone tweaks the draft elsewhere.
-  useEffect(() => {
-    setDraft(findSavedDraft(id));
-    const onChange = () => setDraft(findSavedDraft(id));
-    window.addEventListener('social-media-drafts-changed', onChange);
-    window.addEventListener('storage', onChange);
-    return () => {
-      window.removeEventListener('social-media-drafts-changed', onChange);
-      window.removeEventListener('storage', onChange);
-    };
-  }, [id]);
+  // DB-backed + live across devices via the shared drafts hook.
+  const { drafts, loading } = useSavedDrafts();
+  const draft = useMemo<SavedDraft | null>(() => drafts.find((d) => d.id === id) ?? null, [drafts, id]);
 
   const platforms: PlatformId[] = useMemo(() => {
     const p = draft?.platforms;
@@ -121,24 +110,18 @@ export default function DraftDetailContent({ id }: { id: string }) {
     if (!draft) return;
     const cur = new Set(draft.platforms ?? ALL_PLATFORM_IDS);
     if (cur.has(pid)) cur.delete(pid); else cur.add(pid);
-    const next = { ...draft, platforms: Array.from(cur) };
-    const all = readSavedDrafts().map((d) => (d.id === draft.id ? next : d));
-    writeSavedDrafts(all);
-    setDraft(next);
+    void updateDraft(draft.id, { platforms: Array.from(cur) });
   };
 
   const toggleReady = () => {
     if (!draft) return;
-    const next = { ...draft, ready: !draft.ready };
-    const all = readSavedDrafts().map((d) => (d.id === draft.id ? next : d));
-    writeSavedDrafts(all);
-    setDraft(next);
+    void updateDraft(draft.id, { ready: !draft.ready });
   };
 
-  if (draft === undefined) {
+  if (loading && !draft) {
     return <p className="p-6 text-foreground/55">Loading…</p>;
   }
-  if (draft === null) {
+  if (!draft) {
     return (
       <div className="p-6 lg:p-10">
         <p className="text-sm text-foreground/70 mb-3">Draft not found. It may have been deleted on this device.</p>

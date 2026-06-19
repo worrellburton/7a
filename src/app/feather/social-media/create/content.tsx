@@ -23,7 +23,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
 import { PLATFORM_SPECS, type MediaSpec, type VideoSpec } from '../platform-specs';
 import { PlatformIcon, type PlatformId } from '../PlatformIcon';
-import { readSavedDrafts, writeSavedDrafts, type SavedDraft } from '../saved-drafts';
+import { saveDraft } from '../saved-drafts';
 
 const PLATFORM_LABELS: Record<string, string> = {
   facebook: 'Facebook',
@@ -166,7 +166,7 @@ interface LibraryAsset {
 
 export default function CreatePostContent() {
   const router = useRouter();
-  const { session } = useAuth();
+  const { session, user } = useAuth();
   const [stagedMedia, setStagedMedia] = useState<string[]>([]);
   const [caption, setCaption] = useState('');
   const [generatingCaption, setGeneratingCaption] = useState(false);
@@ -181,6 +181,8 @@ export default function CreatePostContent() {
   // the Build (Library) tab renders.
   const [libraryAssets, setLibraryAssets] = useState<LibraryAsset[]>([]);
   const [pickerForKey, setPickerForKey] = useState<string | null>(null);
+  // Active platform tab in the Deliverable Slots section.
+  const [activeTab, setActiveTab] = useState<PlatformId | null>(null);
 
   useEffect(() => {
     const m = readStagedMedia();
@@ -272,6 +274,25 @@ export default function CreatePostContent() {
     });
   }, [allRows, enabledSurfaces]);
 
+  // Platform tabs for the slots grid — one per selected platform that
+  // actually has enabled deliverables. An unselected platform (or one
+  // whose surfaces are all unchecked) gets no tab.
+  const tabPlatforms = useMemo(() => {
+    const seen: PlatformId[] = [];
+    for (const r of rows) if (!seen.includes(r.platform)) seen.push(r.platform);
+    return seen;
+  }, [rows]);
+
+  useEffect(() => {
+    if (tabPlatforms.length === 0) { setActiveTab(null); return; }
+    setActiveTab((cur) => (cur && tabPlatforms.includes(cur) ? cur : tabPlatforms[0]));
+  }, [tabPlatforms]);
+
+  const visibleRows = useMemo(
+    () => (activeTab ? rows.filter((r) => r.platform === activeTab) : rows),
+    [rows, activeTab],
+  );
+
   const togglePlatform = (pid: PlatformId) => {
     setPlatforms((prev) => {
       const next = new Set(prev);
@@ -335,7 +356,7 @@ export default function CreatePostContent() {
     }
   };
 
-  const onSaveReady = () => {
+  const onSaveReady = async () => {
     if (caption.trim().length === 0) {
       setError('Add a caption before saving.');
       return;
@@ -347,9 +368,7 @@ export default function CreatePostContent() {
     setError(null);
     setSaving(true);
     try {
-      const draft: SavedDraft = {
-        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
-        createdAt: new Date().toISOString(),
+      const saved = await saveDraft({
         caption: caption.trim(),
         mediaUrls: stagedMedia,
         platforms: Array.from(platforms),
@@ -357,9 +376,13 @@ export default function CreatePostContent() {
         mediaByDeliverable: Object.entries(urlByKey)
           .filter(([, url]) => url && url.trim().length > 0)
           .map(([key, url]) => ({ key, url })),
-      };
-      const all = readSavedDrafts();
-      writeSavedDrafts([draft, ...all]);
+        createdBy: user?.id ?? null,
+        createdByName: ((user?.user_metadata?.full_name as string | undefined) || user?.email) ?? null,
+      });
+      if (!saved) {
+        setError('Could not save the draft. Try again.');
+        return;
+      }
       clearStagedMedia();
       router.push('/feather/social-media?tab=creative&sub=ai');
     } finally {
@@ -541,13 +564,38 @@ export default function CreatePostContent() {
           )}
         </header>
 
+        {/* Per-platform tabs — only platforms with at least one enabled
+            deliverable get a tab. */}
+        {rows.length > 0 && tabPlatforms.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mb-3">
+            {tabPlatforms.map((pid) => {
+              const count = rows.filter((r) => r.platform === pid).length;
+              const on = activeTab === pid;
+              return (
+                <button
+                  key={pid}
+                  type="button"
+                  onClick={() => setActiveTab(pid)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[11.5px] font-semibold transition-colors ${on ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/60 border-black/10 hover:bg-warm-bg/60'}`}
+                >
+                  <span className="inline-flex items-center justify-center w-3.5 h-3.5">
+                    <PlatformIcon platform={pid} size={12} />
+                  </span>
+                  {PLATFORM_LABELS[pid] ?? pid}
+                  <span className={`text-[10px] ${on ? 'text-white/70' : 'text-foreground/40'}`}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {rows.length === 0 ? (
           <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
             Pick at least one network above to load its deliverable slots.
           </p>
         ) : (
           <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {rows.map((row) => {
+            {visibleRows.map((row) => {
               const url = urlByKey[row.key] ?? '';
               return (
                 <li key={row.key} className="rounded-xl border border-black/10 bg-warm-bg/30 p-3">
