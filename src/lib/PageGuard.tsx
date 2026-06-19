@@ -42,6 +42,10 @@ export default function PageGuard({ children }: { children: React.ReactNode }) {
   // facing) link from them, but without the matching rule HERE a direct
   // URL still resolved — e.g. /feather/calls, which carries caller PII.
   // Mirror canSeePage's allowlist so the route gate and sidebar agree.
+  // Alumni ADMINS are the exception: their admin surfaces (incoming
+  // users, user-permissions, the alumni hub) live under /feather/admin,
+  // so alumniAdminPass keeps those reachable even though the user_kind is
+  // still 'alumni'.
   const isAlumni = userKind === 'alumni';
   const CROSS_PORTAL_PATHS = new Set<string>(['/feather/arcade', '/feather/chat']);
   const inAlumniPortal =
@@ -51,6 +55,7 @@ export default function PageGuard({ children }: { children: React.ReactNode }) {
     isChat ||
     isAlumniOnlyPage ||
     inAlumniPortal ||
+    alumniAdminPass ||
     CROSS_PORTAL_PATHS.has(pathname) ||
     ALUMNI_VIEWABLE_PATHS.has(pathname);
   const deniedAlumniStaffPage = isAlumni && !alumniAllowed;
