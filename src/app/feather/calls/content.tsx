@@ -367,7 +367,7 @@ export default function CallsContent() {
         ) : (
           <>
             {/* Desktop table */}
-            <table className="hidden sm:table w-full text-sm">
+            <table className="hidden sm:table w-full text-sm [&_td]:align-top">
               <thead>
                 <tr className="text-[11px] uppercase tracking-wider text-foreground/40 border-b border-foreground/10">
                   <th className="text-left font-semibold px-5 py-3">When</th>
@@ -405,7 +405,7 @@ export default function CallsContent() {
                     <td className="px-3 py-3">{renderAgent(c)}</td>
                     <td className="px-3 py-3">
                       {c.summary
-                        ? <div className="max-w-[280px] line-clamp-2 text-[12px] leading-snug text-foreground/60">{c.summary}</div>
+                        ? <div className="max-w-[380px] whitespace-pre-line text-[12px] leading-snug text-foreground/60">{c.summary}</div>
                         : <span className="text-foreground/30">—</span>}
                     </td>
                     <td className="px-3 py-3 text-foreground/60">{c.number_name || <span className="text-foreground/30">—</span>}</td>
@@ -460,7 +460,7 @@ export default function CallsContent() {
                       <p className="font-medium text-foreground truncate">{c.contact_name || formatPhone(c.raw_digits || c.caller_number)}</p>
                       <p className="text-[11px] text-foreground/45 truncate">{formatRelativeTime(c.started_at)} · {c.user_name || c.number_name || c.direction}</p>
                       {c.summary && (
-                        <p className="mt-1 text-[11px] text-foreground/55 leading-snug line-clamp-2">
+                        <p className="mt-1 text-[11px] text-foreground/55 leading-snug whitespace-pre-line">
                           <span className="font-bold uppercase tracking-wider text-primary/80">AI</span> {c.summary}
                         </p>
                       )}
