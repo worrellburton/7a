@@ -10,6 +10,7 @@ import type {
   LogReportMethodCount,
   LogReportAreaRow,
   LogReportContactRow,
+  LogReportSegment,
 } from './log-report-email';
 import { isDataMethod } from './log-report-email';
 
@@ -36,6 +37,111 @@ interface UserLite {
 
 function fmtShortDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+// Build every breakdown (leaderboard / methods / areas / top
+// contacts / counts) over an arbitrary slice of the week's logs.
+// Used to split the report into its two parts — Email logs vs
+// everything else — without re-querying the database.
+function buildSegment(
+  logs: LogRow[],
+  userById: Map<string, UserLite>,
+  contactById: Map<string, ContactLite>,
+): LogReportSegment {
+  const repAgg = new Map<string, { name: string; avatarUrl: string | null; logs: number; outreachLogs: number; dataLogs: number; durationSec: number }>();
+  for (const l of logs) {
+    if (!l.contacted_by) continue;
+    const u = userById.get(l.contacted_by);
+    const slot = repAgg.get(l.contacted_by) ?? {
+      name: u?.full_name?.trim() || 'Unknown',
+      avatarUrl: u?.avatar_url ?? null,
+      logs: 0,
+      outreachLogs: 0,
+      dataLogs: 0,
+      durationSec: 0,
+    };
+    slot.logs += 1;
+    if (isDataMethod(l.method)) slot.dataLogs += 1;
+    else slot.outreachLogs += 1;
+    slot.durationSec += l.duration_seconds ?? 0;
+    repAgg.set(l.contacted_by, slot);
+  }
+  const leaderboard: LogReportLeaderRow[] = Array.from(repAgg.entries())
+    .map(([userId, slot]) => ({ userId, ...slot }))
+    .sort((a, b) => {
+      if (a.outreachLogs !== b.outreachLogs) return b.outreachLogs - a.outreachLogs;
+      if (a.logs !== b.logs) return b.logs - a.logs;
+      if (a.durationSec !== b.durationSec) return b.durationSec - a.durationSec;
+      return a.name.localeCompare(b.name);
+    })
+    .slice(0, 20);
+
+  const methodAgg = new Map<string, { count: number; durationSec: number }>();
+  for (const l of logs) {
+    const m = (l.method ?? 'Unknown').trim() || 'Unknown';
+    const slot = methodAgg.get(m) ?? { count: 0, durationSec: 0 };
+    slot.count += 1;
+    slot.durationSec += l.duration_seconds ?? 0;
+    methodAgg.set(m, slot);
+  }
+  const byMethod: LogReportMethodCount[] = Array.from(methodAgg.entries())
+    .map(([method, slot]) => ({ method, count: slot.count, durationSec: slot.durationSec, isDataMethod: isDataMethod(method) }))
+    .sort((a, b) => b.count - a.count);
+
+  const areaAgg = new Map<string, number>();
+  for (const l of logs) {
+    const c = contactById.get(l.contact_id);
+    const area = (c?.formatted_address || c?.location || '').trim() || '(Unknown)';
+    areaAgg.set(area, (areaAgg.get(area) ?? 0) + 1);
+  }
+  const topAreas: LogReportAreaRow[] = Array.from(areaAgg.entries())
+    .map(([area, count]) => ({ area, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+
+  const contactAgg = new Map<string, { touches: number; lastMethod: string | null; lastAt: string }>();
+  for (const l of logs) {
+    const slot = contactAgg.get(l.contact_id) ?? { touches: 0, lastMethod: null, lastAt: l.contacted_at };
+    slot.touches += 1;
+    if (l.contacted_at >= slot.lastAt) {
+      slot.lastAt = l.contacted_at;
+      slot.lastMethod = l.method ?? null;
+    }
+    contactAgg.set(l.contact_id, slot);
+  }
+  const topContacts: LogReportContactRow[] = Array.from(contactAgg.entries())
+    .map(([contactId, slot]) => {
+      const c = contactById.get(contactId);
+      return {
+        name: c?.name?.trim() || 'Unknown contact',
+        company: c?.company?.trim() || null,
+        touches: slot.touches,
+        lastMethod: slot.lastMethod,
+        lastAt: slot.lastAt,
+      };
+    })
+    .sort((a, b) => b.touches - a.touches)
+    .slice(0, 10);
+
+  return {
+    counts: {
+      total: logs.length,
+      uniqueContacts: new Set(logs.map((l) => l.contact_id)).size,
+      uniqueReps: new Set(logs.map((l) => l.contacted_by).filter(Boolean)).size,
+      totalDurationSec: logs.reduce((a, b) => a + (b.duration_seconds ?? 0), 0),
+    },
+    byMethod,
+    leaderboard,
+    topAreas,
+    topContacts,
+  };
+}
+
+// One log counts as "email" when its method is Email. Everything
+// else (phone, in-person, text, voicemail, data work, …) lands in
+// the second part of the report.
+function isEmailMethod(method: string | null | undefined): boolean {
+  return (method ?? '').trim().toLowerCase() === 'email';
 }
 
 export interface BuildLogReportOpts {
@@ -223,6 +329,10 @@ export async function buildLogReportData(
     leaderboard,
     topAreas,
     topContacts,
+    // Two-part split for the email body: one recap for email logs,
+    // one for every other kind of log.
+    emails: buildSegment(logs.filter((l) => isEmailMethod(l.method)), userById, contactById),
+    everythingElse: buildSegment(logs.filter((l) => !isEmailMethod(l.method)), userById, contactById),
     generatedAt: new Date().toISOString(),
     appOrigin: opts.appOrigin ?? 'https://sevenarrowsrecoveryarizona.com',
   };
