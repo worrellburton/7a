@@ -3430,6 +3430,18 @@ function useDirectoryStates() {
     // never saw the change. Errors now log with enough context to
     // diagnose without spamming the UI; the local optimistic state
     // rolls back to the previous row so the visual stays honest.
+    const rollback = () => {
+      if (existing) {
+        setById((prev) => ({ ...prev, [id]: existing }));
+      } else {
+        setById((prev) => {
+          const copy = { ...prev };
+          delete copy[id];
+          return copy;
+        });
+      }
+    };
+
     try {
       const result = await db({
         action: 'upsert',
@@ -3441,17 +3453,40 @@ function useDirectoryStates() {
         throw new Error((result as { error?: string }).error);
       }
     } catch (err) {
-      console.error('[directory_states] upsert failed', { id, patch, err });
-      if (existing) {
-        setById((prev) => ({ ...prev, [id]: existing }));
-      } else {
-        setById((prev) => {
-          const copy = { ...prev };
-          delete copy[id];
-          return copy;
-        });
+      // The write can fail purely on a *_set_by attribution foreign key —
+      // e.g. an acting user whose public.users row id doesn't line up with
+      // auth.uid(). That silently snapped the row back (e.g. "Live but
+      // incorrect NAP" wouldn't move to "Live"). Attribution is optional, so
+      // retry once with the just-changed attribution nulled; persisting the
+      // actual status / link / NAP change is what matters.
+      const fallback: DirectoryStateRow = {
+        ...next,
+        status_set_by: patch.status !== undefined ? null : next.status_set_by,
+        link_set_by: patch.link !== undefined ? null : next.link_set_by,
+        paid_set_by: paidChanged ? null : next.paid_set_by,
+        hidden_set_by: hiddenChanged ? null : next.hidden_set_by,
+        nap_set_by: napChanged ? null : next.nap_set_by,
+        requires_2fa_set_by: twofaChanged ? null : next.requires_2fa_set_by,
+        requires_ein_set_by: einChanged ? null : next.requires_ein_set_by,
+        backlink_url_set_by: backlinkChanged ? null : next.backlink_url_set_by,
+        target_url_set_by: targetChanged ? null : next.target_url_set_by,
+        anchor_text_set_by: anchorChanged ? null : next.anchor_text_set_by,
+      };
+      const retry = await db({
+        action: 'upsert',
+        table: 'directory_states',
+        data: [fallback as unknown as Record<string, unknown>],
+        onConflict: 'directory_id',
+      });
+      if (retry && (retry as { error?: string }).error) {
+        console.error('[directory_states] upsert failed', { id, patch, err, retryError: (retry as { error?: string }).error });
+        rollback();
+        return;
       }
-      return;
+      // Retry landed (without attribution) — keep the change but reflect
+      // that the *_set_by didn't persist so the UI matches the DB.
+      console.warn('[directory_states] saved without attribution after a write error', { id, err });
+      setById((prev) => ({ ...prev, [id]: fallback }));
     }
 
     // Cloud-backed activity feed. Each meaningful change (status flip
