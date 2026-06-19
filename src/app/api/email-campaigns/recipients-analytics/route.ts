@@ -26,30 +26,60 @@ export const dynamic = 'force-dynamic';
 
 const DELIVERED_STATES = ['sent', 'delivered', 'opened', 'clicked'] as const;
 
+// PostgREST caps any single response at db-max-rows (1000 in this
+// project — see analytics-bulk/route.ts), so a `.limit(50000)` request
+// still came back truncated to 1000 rows. With ~8k engagement events
+// and ~3k delivered recipient rows project-wide, that silently dropped
+// most of the data and every lifetime open/click rate read low. Page
+// through with .range() so the full set is aggregated.
+async function fetchAllPaged<T>(
+  build: (offset: number, pageSize: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  pageSize = 1000,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await build(offset, pageSize);
+    if (error) throw new Error(error.message);
+    const chunk = (data ?? []) as T[];
+    out.push(...chunk);
+    if (chunk.length < pageSize) break;
+  }
+  return out;
+}
+
 export async function GET() {
   const gate = await requireAdminOrDepartment(MARKETING_DEPT_ID);
   if (gate instanceof NextResponse) return gate;
   const admin = gate.admin;
 
   // 1) Recipient rows that actually shipped — gives us sent_count
-  //    per contact and the last_sent_at watermark. Cap large so a
-  //    long history is included.
-  const { data: recipients, error: recErr } = await admin
-    .from('email_campaign_recipients')
-    .select('id, contact_id, email, send_status, sent_at, campaign_id, contacts(name, role, company, location, unsubscribed_at)')
-    .in('send_status', DELIVERED_STATES as unknown as string[])
-    .order('sent_at', { ascending: false })
-    .limit(20000);
-  if (recErr) return NextResponse.json({ error: recErr.message }, { status: 500 });
-
-  // 2) Engagement events (open / click / bounce) grouped by
-  //    recipient_id. We'll pivot to contact-level downstream.
-  const { data: events, error: evtErr } = await admin
-    .from('email_campaign_events')
-    .select('recipient_id, campaign_id, event_type, occurred_at')
-    .in('event_type', ['opened', 'clicked', 'bounced', 'failed', 'complained'])
-    .limit(50000);
-  if (evtErr) return NextResponse.json({ error: evtErr.message }, { status: 500 });
+  //    per contact and the last_sent_at watermark. Paged so a long
+  //    history is fully included (a single request caps at 1000).
+  let recipients: unknown[];
+  let events: unknown[];
+  try {
+    [recipients, events] = await Promise.all([
+      fetchAllPaged((offset, pageSize) =>
+        admin
+          .from('email_campaign_recipients')
+          .select('id, contact_id, email, send_status, sent_at, campaign_id, contacts(name, role, company, location, unsubscribed_at)')
+          .in('send_status', DELIVERED_STATES as unknown as string[])
+          .order('sent_at', { ascending: false })
+          .range(offset, offset + pageSize - 1),
+      ),
+      // 2) Engagement events (open / click / bounce) grouped by
+      //    recipient_id. We'll pivot to contact-level downstream.
+      fetchAllPaged((offset, pageSize) =>
+        admin
+          .from('email_campaign_events')
+          .select('recipient_id, campaign_id, event_type, occurred_at')
+          .in('event_type', ['opened', 'clicked', 'bounced', 'failed', 'complained'])
+          .range(offset, offset + pageSize - 1),
+      ),
+    ]);
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
+  }
 
   type ContactLite = {
     name: string | null;

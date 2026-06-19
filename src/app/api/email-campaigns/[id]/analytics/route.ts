@@ -38,6 +38,31 @@ interface RecipientAnalytics {
 
 const TERMINAL_BAD = new Set(['bounced', 'complained', 'failed']);
 
+// PostgREST caps any single response at db-max-rows (1000 in this
+// project — see analytics-bulk/route.ts). A busy campaign easily has
+// >1000 raw events: opens and clicks fire repeatedly per recipient
+// (Apple Mail Privacy Protection refetches the pixel; corporate link
+// scanners re-hit every URL), so one campaign can carry thousands of
+// rows. A single un-paginated select silently truncated to the first
+// 1000 ordered oldest-first, which dropped the later-arriving open and
+// (especially) click events — making the opened/clicked cards read far
+// too low while the row's donut rings (which DO paginate) read right.
+// Page through with .range() so every event is counted.
+async function fetchAllPaged<T>(
+  build: (offset: number, pageSize: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>,
+  pageSize = 1000,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await build(offset, pageSize);
+    if (error) throw new Error(error.message);
+    const chunk = (data ?? []) as T[];
+    out.push(...chunk);
+    if (chunk.length < pageSize) break;
+  }
+  return out;
+}
+
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const user = await getUserFromRequest(req);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -87,11 +112,19 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   // by recipient_id so we don't fan out N round-trips. Ordered
   // ascending so the first matching open/click we see is the
   // earliest one (which is the meaningful timestamp).
-  const { data: eventRows } = await admin
-    .from('email_campaign_events')
-    .select('recipient_id, event_type, occurred_at')
-    .eq('campaign_id', campaignId)
-    .order('occurred_at', { ascending: true });
+  let eventRows: Array<{ recipient_id: string | null; event_type: string; occurred_at: string }> = [];
+  try {
+    eventRows = await fetchAllPaged<{ recipient_id: string | null; event_type: string; occurred_at: string }>((offset, pageSize) =>
+      admin
+        .from('email_campaign_events')
+        .select('recipient_id, event_type, occurred_at')
+        .eq('campaign_id', campaignId)
+        .order('occurred_at', { ascending: true })
+        .range(offset, offset + pageSize - 1),
+    );
+  } catch {
+    eventRows = [];
+  }
 
   type EventBundle = {
     types: Set<string>;
