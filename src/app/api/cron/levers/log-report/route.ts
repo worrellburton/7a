@@ -39,6 +39,20 @@ function stripDisplayName(raw: string): string {
   return trimmed;
 }
 
+// The most recent UTC datetime at (weekday === dayOfWeek, hour ===
+// hourUtc, minute 0) that is at or before `now`. Walks back at most a
+// week from today's candidate until the weekday lines up. Used so the
+// cron can catch up a missed top-of-hour tick instead of requiring an
+// exact-hour match.
+function mostRecentOccurrence(now: Date, dayOfWeek: number, hourUtc: number): Date {
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hourUtc, 0, 0, 0));
+  for (let i = 0; i < 8; i += 1) {
+    if (d.getUTCDay() === dayOfWeek && d.getTime() <= now.getTime()) return d;
+    d.setUTCDate(d.getUTCDate() - 1);
+  }
+  return d;
+}
+
 export async function GET(req: NextRequest) {
   return withCronLogging('/api/cron/levers/log-report', async () => {
   // Vercel passes the cron secret as `Authorization: Bearer <secret>`.
@@ -52,26 +66,56 @@ export async function GET(req: NextRequest) {
 
   const admin = getAdminSupabase();
 
-  // Read the persisted schedule. vercel.json now fires this cron
-  // every hour at minute 0; the endpoint decides whether THIS hour
-  // is the scheduled one. Skip silently when the schedule is
-  // disabled or doesn't match — keeps the cron polite + cheap.
+  // Read the persisted schedule. vercel.json fires this cron every
+  // hour at minute 0; the endpoint decides whether the most recent
+  // scheduled occurrence still needs sending. Skip silently when the
+  // schedule is disabled or missing — keeps the cron polite + cheap.
   const { data: schedule } = await admin
     .from('lever_schedules')
-    .select('enabled, day_of_week, hour_utc, recipient_user_ids')
+    .select('enabled, day_of_week, hour_utc, recipient_user_ids, last_fired_at')
     .eq('lever_type', 'log-report')
     .maybeSingle();
   if (!schedule || schedule.enabled !== true) {
     return NextResponse.json({ ok: true, skipped: 'schedule disabled or missing' });
   }
+
+  // Catch-up scheduling. Rather than demanding the cron tick land on
+  // the EXACT scheduled hour (a single missed/drifted Vercel run
+  // would skip the whole week), compute the most recent occurrence
+  // of (day_of_week @ hour_utc) at or before now, then fire if we're
+  // within a 24h catch-up window and haven't already fired for it.
   const now = new Date();
-  if (now.getUTCDay() !== schedule.day_of_week || now.getUTCHours() !== schedule.hour_utc) {
+  const occurrence = mostRecentOccurrence(now, schedule.day_of_week, schedule.hour_utc);
+  const CATCH_UP_MS = 24 * 60 * 60 * 1000;
+  const sinceOccurrence = now.getTime() - occurrence.getTime();
+  if (sinceOccurrence < 0 || sinceOccurrence > CATCH_UP_MS) {
     return NextResponse.json({
       ok: true,
-      skipped: 'not the scheduled hour',
-      now: { day: now.getUTCDay(), hour: now.getUTCHours() },
-      schedule: { day: schedule.day_of_week, hour: schedule.hour_utc },
+      skipped: 'outside catch-up window',
+      now: now.toISOString(),
+      occurrence: occurrence.toISOString(),
     });
+  }
+  const lastFired = schedule.last_fired_at ? new Date(schedule.last_fired_at as string) : null;
+  if (lastFired && lastFired.getTime() >= occurrence.getTime()) {
+    return NextResponse.json({ ok: true, skipped: 'already fired this occurrence', occurrence: occurrence.toISOString() });
+  }
+
+  // Atomically claim this occurrence so two overlapping cron
+  // invocations can't both send. Optimistic concurrency: only the
+  // update whose pre-image still matches the last_fired_at we just
+  // read wins; a concurrent invocation that already advanced it sees
+  // zero rows updated and bails.
+  const claimBase = admin
+    .from('lever_schedules')
+    .update({ last_fired_at: now.toISOString() })
+    .eq('lever_type', 'log-report');
+  const claimQuery = lastFired
+    ? claimBase.eq('last_fired_at', schedule.last_fired_at as string)
+    : claimBase.is('last_fired_at', null);
+  const { data: claimed } = await claimQuery.select('lever_type');
+  if (!claimed || claimed.length === 0) {
+    return NextResponse.json({ ok: true, skipped: 'occurrence claimed by a concurrent run', occurrence: occurrence.toISOString() });
   }
   // Saved recipient set wins; falls back to every super admin
   // when the list is empty so a freshly-seeded org still gets the
