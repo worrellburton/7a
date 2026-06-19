@@ -408,7 +408,20 @@ export default function CallsContent() {
                         ? <div className="max-w-[380px] whitespace-pre-line text-[12px] leading-snug text-foreground/60">{c.summary}</div>
                         : <span className="text-foreground/30">—</span>}
                     </td>
-                    <td className="px-3 py-3 text-foreground/60">{c.number_name || <span className="text-foreground/30">—</span>}</td>
+                    <td className="px-3 py-3 text-foreground/60 whitespace-nowrap">
+                      {(() => {
+                        // Show just the last 4 digits of the called line
+                        // to keep the column narrow + single-line; the
+                        // full line name + number live in the tooltip.
+                        const digits = (c.number_digits || '').replace(/\D/g, '');
+                        const last4 = digits.length >= 4 ? digits.slice(-4) : digits;
+                        const title = [c.number_name, c.number_digits ? formatPhone(c.number_digits) : null].filter(Boolean).join(' · ');
+                        if (last4) return <span className="tabular-nums" title={title || undefined}>…{last4}</span>;
+                        return c.number_name
+                          ? <span title={c.number_name}>{c.number_name}</span>
+                          : <span className="text-foreground/30">—</span>;
+                      })()}
+                    </td>
                     <td className="px-3 py-3 text-right tabular-nums text-foreground/60">{formatWait(c.started_at, c.answered_at)}</td>
                     <td className="px-3 py-3 text-right tabular-nums text-foreground/70">{formatDuration(c.duration)}</td>
                     <td className="px-3 py-3">
