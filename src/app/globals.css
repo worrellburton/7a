@@ -1323,3 +1323,23 @@ tr:hover .sa-engagement-cell {
     font-size: 16px;
   }
 }
+
+/* ── Lenis smooth scroll (public site) ──────────────────────────────
+ * Minimal rules from lenis/dist/lenis.css, inlined so we don't depend
+ * on the package's CSS path. The iframe pointer-events rule from the
+ * upstream stylesheet is intentionally omitted — it would permanently
+ * disable interaction with the embedded Google Map / Cloudflare Stream
+ * video on the marketing pages. SmoothScroll.tsx drives the rAF loop. */
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}

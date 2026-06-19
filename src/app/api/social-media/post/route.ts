@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { requireSuperAdmin } from '@/lib/social-media-auth';
-import { ayrsharePost, AYRSHARE_PLATFORMS, AyrshareNotConfigured, type AyrsharePlatform } from '@/lib/ayrshare';
+import { ayrsharePost, extractAyrshareError, AYRSHARE_PLATFORMS, AyrshareNotConfigured, type AyrsharePlatform } from '@/lib/ayrshare';
 import { readFlag } from '@/lib/app-flags';
 
 // POST /api/social-media/post
@@ -86,6 +86,18 @@ export async function POST(req: Request) {
 
   try {
     const { status, body: result } = await ayrsharePost('/post', payload);
+
+    // Ayrshare rejected the post (400 etc.). Pass the upstream status
+    // through, but lead with a READABLE reason — extractAyrshareError
+    // digs the message out of Ayrshare's many error shapes (and logs the
+    // raw body to the function logs). Without this the UI only saw a
+    // bare "HTTP 400" because Ayrshare's error fields don't match the
+    // `error`/`message` keys the client checks.
+    if (status < 200 || status >= 300) {
+      const message = extractAyrshareError(result, status, '/post');
+      return NextResponse.json({ ...result, error: message }, { status });
+    }
+
     // On a successful (or partially-successful) post, write a row to
     // activity_log so the post shows up on /feather/activity and counts
     // toward the user's "on fire" daily action total — same treatment
