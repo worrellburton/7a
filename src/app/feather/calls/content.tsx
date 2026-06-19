@@ -425,7 +425,7 @@ export default function CallsContent() {
                     <td className="px-3 py-3 text-right tabular-nums text-foreground/60">{formatWait(c.started_at, c.answered_at)}</td>
                     <td className="px-3 py-3 text-right tabular-nums text-foreground/70">{formatDuration(c.duration)}</td>
                     <td className="px-3 py-3">
-                      <div className="flex items-center gap-1.5 flex-wrap">
+                      <div className="flex flex-col items-start gap-1">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${directionStyle[c.direction ?? ''] ?? 'bg-gray-100 text-gray-600'}`}>
                           {c.direction ?? 'call'}
                         </span>
