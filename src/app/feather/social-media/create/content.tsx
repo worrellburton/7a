@@ -23,7 +23,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
 import { PLATFORM_SPECS, type MediaSpec, type VideoSpec } from '../platform-specs';
 import { PlatformIcon, type PlatformId } from '../PlatformIcon';
-import { readSavedDrafts, writeSavedDrafts, type SavedDraft } from '../saved-drafts';
+import { saveDraft } from '../saved-drafts';
 
 const PLATFORM_LABELS: Record<string, string> = {
   facebook: 'Facebook',
@@ -166,7 +166,7 @@ interface LibraryAsset {
 
 export default function CreatePostContent() {
   const router = useRouter();
-  const { session } = useAuth();
+  const { session, user } = useAuth();
   const [stagedMedia, setStagedMedia] = useState<string[]>([]);
   const [caption, setCaption] = useState('');
   const [generatingCaption, setGeneratingCaption] = useState(false);
@@ -356,7 +356,7 @@ export default function CreatePostContent() {
     }
   };
 
-  const onSaveReady = () => {
+  const onSaveReady = async () => {
     if (caption.trim().length === 0) {
       setError('Add a caption before saving.');
       return;
@@ -368,9 +368,7 @@ export default function CreatePostContent() {
     setError(null);
     setSaving(true);
     try {
-      const draft: SavedDraft = {
-        id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`,
-        createdAt: new Date().toISOString(),
+      const saved = await saveDraft({
         caption: caption.trim(),
         mediaUrls: stagedMedia,
         platforms: Array.from(platforms),
@@ -378,9 +376,13 @@ export default function CreatePostContent() {
         mediaByDeliverable: Object.entries(urlByKey)
           .filter(([, url]) => url && url.trim().length > 0)
           .map(([key, url]) => ({ key, url })),
-      };
-      const all = readSavedDrafts();
-      writeSavedDrafts([draft, ...all]);
+        createdBy: user?.id ?? null,
+        createdByName: ((user?.user_metadata?.full_name as string | undefined) || user?.email) ?? null,
+      });
+      if (!saved) {
+        setError('Could not save the draft. Try again.');
+        return;
+      }
       clearStagedMedia();
       router.push('/feather/social-media?tab=creative&sub=ai');
     } finally {

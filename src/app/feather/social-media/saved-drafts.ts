@@ -1,7 +1,15 @@
-// Shared SavedDraft store. The Compose flow + the Drafts list +
-// the Ready-to-go list + the per-draft detail page all read /
-// write through this module so they stay in sync via the same
-// localStorage key and custom event bus.
+'use client';
+
+// Shared SavedDraft store — now DATABASE-backed (public.social_media_drafts)
+// instead of per-browser localStorage, so drafts sync across devices +
+// teammates and carry a "created by" attribution. The Compose flow, the
+// Drafts list, the Ready-to-go list, and the per-draft detail page all read
+// through the same in-memory cache + `social-media-drafts-changed` event,
+// and write through the async mutators below (which keep the cache and
+// Supabase Realtime in lockstep).
+
+import { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabase';
 
 export interface SavedDraft {
   id: string;
@@ -10,35 +18,190 @@ export interface SavedDraft {
   mediaUrls: string[];
   ready?: boolean;
   platforms?: string[];
+  /** auth.uid() of the creator + a denormalised display name. */
+  createdBy?: string | null;
+  createdByName?: string | null;
   /**
-   * Optional per-deliverable media assignment, populated from the
-   * Create page's upload slots. Keys are stable strings of the form
-   * `${platformId}|${label}` (e.g. "facebook|Feed (1:1)") so the
-   * per-post page can reconcile the slot back to its spec.
+   * Optional per-deliverable media assignment, populated from the Create
+   * page's upload slots. Keys are stable strings of the form
+   * `${platformId}|${label}` (e.g. "facebook|Feed (1:1)").
    */
   mediaByDeliverable?: { key: string; url: string }[];
 }
 
-export const DRAFTS_KEY = 'social_media_saved_drafts_v1';
+const TABLE = 'social_media_drafts';
+const EVENT = 'social-media-drafts-changed';
+const LEGACY_KEY = 'social_media_saved_drafts_v1';
 
-export function readSavedDrafts(): SavedDraft[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = window.localStorage.getItem(DRAFTS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as SavedDraft[]) : [];
-  } catch { return []; }
+// Module-level cache so the existing synchronous readers keep working.
+let cache: SavedDraft[] = [];
+let loadedOnce = false;
+let inflight: Promise<void> | null = null;
+
+function notify() {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(EVENT));
 }
 
-export function writeSavedDrafts(drafts: SavedDraft[]) {
+function rowToDraft(r: Record<string, unknown>): SavedDraft {
+  return {
+    id: String(r.id),
+    createdAt: (r.created_at as string) ?? new Date().toISOString(),
+    caption: (r.caption as string) ?? '',
+    mediaUrls: Array.isArray(r.media_urls) ? (r.media_urls as string[]) : [],
+    platforms: Array.isArray(r.platforms) ? (r.platforms as string[]) : [],
+    ready: Boolean(r.ready),
+    createdBy: (r.created_by as string | null) ?? null,
+    createdByName: (r.created_by_name as string | null) ?? null,
+    mediaByDeliverable: Array.isArray(r.media_by_deliverable)
+      ? (r.media_by_deliverable as { key: string; url: string }[])
+      : [],
+  };
+}
+
+export async function loadSavedDrafts(): Promise<SavedDraft[]> {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (!error && Array.isArray(data)) {
+    cache = data.map((r) => rowToDraft(r as Record<string, unknown>));
+    loadedOnce = true;
+    notify();
+  }
+  return cache;
+}
+
+// One-time lift of any legacy per-browser drafts into the shared table,
+// then clear the localStorage key so it never double-imports.
+async function importLegacyDrafts(): Promise<void> {
   if (typeof window === 'undefined') return;
+  let legacy: SavedDraft[] = [];
   try {
-    window.localStorage.setItem(DRAFTS_KEY, JSON.stringify(drafts));
-    window.dispatchEvent(new Event('social-media-drafts-changed'));
-  } catch { /* localStorage disabled */ }
+    const raw = window.localStorage.getItem(LEGACY_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) legacy = parsed as SavedDraft[];
+    }
+  } catch { return; }
+  if (legacy.length === 0) return;
+  const rows = legacy.map((d) => ({
+    caption: d.caption ?? '',
+    media_urls: d.mediaUrls ?? [],
+    platforms: d.platforms ?? [],
+    ready: d.ready ?? false,
+    media_by_deliverable: d.mediaByDeliverable ?? [],
+    created_at: d.createdAt ?? new Date().toISOString(),
+  }));
+  const { error } = await supabase.from(TABLE).insert(rows);
+  if (!error) {
+    try { window.localStorage.removeItem(LEGACY_KEY); } catch { /* ignore */ }
+  }
+}
+
+/** Synchronous read of the current cache (populated by useSavedDrafts/load). */
+export function readSavedDrafts(): SavedDraft[] {
+  return cache;
 }
 
 export function findSavedDraft(id: string): SavedDraft | null {
-  return readSavedDrafts().find((d) => d.id === id) ?? null;
+  return cache.find((d) => d.id === id) ?? null;
+}
+
+export interface NewDraftInput {
+  caption: string;
+  mediaUrls: string[];
+  platforms?: string[];
+  ready?: boolean;
+  mediaByDeliverable?: { key: string; url: string }[];
+  createdBy?: string | null;
+  createdByName?: string | null;
+}
+
+export async function saveDraft(input: NewDraftInput): Promise<SavedDraft | null> {
+  const { data, error } = await supabase
+    .from(TABLE)
+    .insert({
+      caption: input.caption,
+      media_urls: input.mediaUrls,
+      platforms: input.platforms ?? [],
+      ready: input.ready ?? false,
+      media_by_deliverable: input.mediaByDeliverable ?? [],
+      created_by: input.createdBy ?? null,
+      created_by_name: input.createdByName ?? null,
+    })
+    .select('*')
+    .single();
+  if (error || !data) return null;
+  const draft = rowToDraft(data as Record<string, unknown>);
+  cache = [draft, ...cache.filter((d) => d.id !== draft.id)];
+  notify();
+  return draft;
+}
+
+export type DraftPatch = Partial<Pick<SavedDraft, 'caption' | 'mediaUrls' | 'platforms' | 'ready' | 'mediaByDeliverable'>>;
+
+export async function updateDraft(id: string, patch: DraftPatch): Promise<void> {
+  const dbPatch: Record<string, unknown> = {};
+  if (patch.caption !== undefined) dbPatch.caption = patch.caption;
+  if (patch.mediaUrls !== undefined) dbPatch.media_urls = patch.mediaUrls;
+  if (patch.platforms !== undefined) dbPatch.platforms = patch.platforms;
+  if (patch.ready !== undefined) dbPatch.ready = patch.ready;
+  if (patch.mediaByDeliverable !== undefined) dbPatch.media_by_deliverable = patch.mediaByDeliverable;
+  if (Object.keys(dbPatch).length === 0) return;
+  const { error } = await supabase.from(TABLE).update(dbPatch).eq('id', id);
+  if (error) return;
+  cache = cache.map((d) => (d.id === id ? { ...d, ...patch } : d));
+  notify();
+}
+
+export async function setDraftReady(id: string, ready: boolean): Promise<void> {
+  return updateDraft(id, { ready });
+}
+
+export async function deleteDraft(id: string): Promise<void> {
+  const { error } = await supabase.from(TABLE).delete().eq('id', id);
+  if (error) return;
+  cache = cache.filter((d) => d.id !== id);
+  notify();
+}
+
+/**
+ * React hook — the canonical way components consume drafts. Ensures the
+ * DB load (and the one-time localStorage import) has run, subscribes to
+ * Realtime + the local change event, and returns the live list.
+ */
+export function useSavedDrafts(): { drafts: SavedDraft[]; loading: boolean } {
+  const [drafts, setDrafts] = useState<SavedDraft[]>(cache);
+  const [loading, setLoading] = useState(!loadedOnce);
+
+  useEffect(() => {
+    let cancelled = false;
+    const sync = () => { if (!cancelled) setDrafts([...cache]); };
+
+    if (!loadedOnce && !inflight) {
+      inflight = (async () => {
+        await importLegacyDrafts();
+        await loadSavedDrafts();
+      })().finally(() => { inflight = null; });
+    }
+    (inflight ?? Promise.resolve()).then(() => {
+      if (cancelled) return;
+      setLoading(false);
+      sync();
+    });
+
+    window.addEventListener(EVENT, sync);
+    const channel = supabase
+      .channel(`social_media_drafts_${Math.random().toString(36).slice(2, 8)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: TABLE }, () => { void loadSavedDrafts(); })
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener(EVENT, sync);
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  return { drafts, loading };
 }
