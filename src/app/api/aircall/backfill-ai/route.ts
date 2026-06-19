@@ -10,6 +10,7 @@ import {
   extractTopics,
   extractSentiment,
 } from '@/lib/aircall';
+import { summariseTranscript } from '@/lib/transcript-summary';
 
 // POST|GET /api/aircall/backfill-ai — pull Conversation-Intelligence
 // (transcript / summary / sentiment / topics) from Aircall's REST AI
@@ -24,10 +25,17 @@ import {
 // retry it — otherwise we'd re-ask Aircall's four AI endpoints for those
 // calls on every cron run and burn through the rate limit.
 //
+// This account's Aircall plan returns TRANSCRIPTS but not summaries, so
+// when a call has a transcript and no summary we generate one with Claude
+// (summariseTranscript) and store it like any other summary.
+//
 // Auth: Vercel Cron (Authorization: Bearer CRON_SECRET) or a signed-in
 // staff member (manual run). Idempotent; safe to re-run.
 
-const DEFAULT_CALL_CAP = 15; // calls per run (× up to 4 AI requests each)
+// Allow headroom for the per-call Claude summarisation (sequential).
+export const maxDuration = 120;
+
+const DEFAULT_CALL_CAP = 10; // calls per run (Aircall fetch + a Claude summary each)
 const MAX_CALL_CAP = 50;
 
 const AI_SUBRESOURCES = ['transcription', 'summary', 'sentiments', 'topics'] as const;
@@ -72,62 +80,80 @@ async function handleBackfillAi(req: NextRequest) {
 
   const supabase = getAdminSupabase();
 
-  // Candidates: calls with no AI yet that we haven't already attempted.
-  // Give the webhook a 15-minute head start before we pull (unless the
-  // caller forces a re-scan of the most recent calls).
+  // Candidates needing AI work: no summary yet, old enough that Aircall's
+  // own AI webhooks have had a chance, AND either we've never pulled
+  // Aircall AI for it OR it already has a transcript we can summarise.
+  // (Calls already attempted with no transcript are skipped — nothing left
+  // to do for them.)
   let q = supabase
     .from('aircall_calls')
-    .select('aircall_id, ai')
+    .select('aircall_id, ai, transcript, summary, ai_synced_at')
     .order('started_at', { ascending: false })
     .limit(limit);
   if (!force) {
     const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-    q = q.is('summary', null).is('transcript', null).is('ai_synced_at', null).lt('started_at', cutoff);
+    q = q
+      .is('summary', null)
+      .lt('started_at', cutoff)
+      .or('ai_synced_at.is.null,transcript.not.is.null');
   }
 
   const { data: rows, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   let processed = 0;
-  let withAi = 0;
+  let summarized = 0;
   let rateLimited = false;
 
   for (const row of rows ?? []) {
-    const callId = (row as { aircall_id: number }).aircall_id;
-    const existingAi = ((row as { ai: Record<string, unknown> | null }).ai) ?? {};
-    const mergedAi: Record<string, unknown> = { ...existingAi };
+    const r = row as {
+      aircall_id: number;
+      ai: Record<string, unknown> | null;
+      transcript: string | null;
+      summary: string | null;
+      ai_synced_at: string | null;
+    };
+    const callId = r.aircall_id;
+    const mergedAi: Record<string, unknown> = { ...(r.ai ?? {}) };
     const patch: Record<string, unknown> = { aircall_id: callId };
-    let got = false;
+    let transcript = r.transcript;
+    let summary = r.summary;
 
-    for (const sub of AI_SUBRESOURCES) {
-      const res = await fetchAi(callId, sub);
-      if (res.status === 429) { rateLimited = true; break; }
-      if (!res.ok || !res.data) continue; // 404 → no AI for this sub-resource
-      mergedAi[sub] = res.data;
-      got = true;
-      if (sub === 'transcription') {
-        const t = extractTranscriptText(res.data);
-        if (t) patch.transcript = t;
-      } else if (sub === 'summary') {
-        const s = extractSummaryText(res.data);
-        if (s) patch.summary = s;
-      } else if (sub === 'topics') {
-        const tp = extractTopics(res.data);
-        if (tp) patch.topics = tp;
-      } else if (sub === 'sentiments') {
-        const se = extractSentiment(res.data);
-        if (se) patch.sentiment = se;
+    // 1) Pull Aircall's own AI endpoints once per call (or when forced).
+    if (r.ai_synced_at == null || force) {
+      for (const sub of AI_SUBRESOURCES) {
+        const res = await fetchAi(callId, sub);
+        if (res.status === 429) { rateLimited = true; break; }
+        if (!res.ok || !res.data) continue; // 404 → not available for this call
+        mergedAi[sub] = res.data;
+        if (sub === 'transcription') {
+          const t = extractTranscriptText(res.data);
+          if (t) { patch.transcript = t; transcript = t; }
+        } else if (sub === 'summary') {
+          const s = extractSummaryText(res.data);
+          if (s) { patch.summary = s; summary = s; }
+        } else if (sub === 'topics') {
+          const tp = extractTopics(res.data);
+          if (tp) patch.topics = tp;
+        } else if (sub === 'sentiments') {
+          const se = extractSentiment(res.data);
+          if (se) patch.sentiment = se;
+        }
       }
+      if (rateLimited) break; // stop WITHOUT marking — retried next run
+      patch.ai = mergedAi;
+      patch.ai_synced_at = new Date().toISOString();
     }
 
-    // Hit the rate limit mid-call — stop the whole run WITHOUT marking
-    // this call, so it's retried cleanly on the next pass.
-    if (rateLimited) break;
+    // 2) Aircall gave a transcript but no summary → have Claude write one.
+    if (!summary && transcript && transcript.trim()) {
+      const generated = await summariseTranscript(transcript);
+      if (generated) { patch.summary = generated; summarized += 1; }
+    }
 
-    const now = new Date().toISOString();
-    patch.ai = mergedAi;
-    patch.ai_synced_at = now; // attempted — don't re-ask Aircall for this call
-    patch.synced_at = now;
+    // Nothing new to persist this pass — skip the write.
+    if (Object.keys(patch).length <= 1) continue;
+    patch.synced_at = new Date().toISOString();
 
     const { error: upErr } = await supabase.from('aircall_calls').upsert(patch, { onConflict: 'aircall_id' });
     if (upErr) {
@@ -135,10 +161,9 @@ async function handleBackfillAi(req: NextRequest) {
       continue;
     }
     processed += 1;
-    if (got) withAi += 1;
   }
 
-  return NextResponse.json({ ok: true, scanned: rows?.length ?? 0, processed, withAi, rateLimited });
+  return NextResponse.json({ ok: true, scanned: rows?.length ?? 0, processed, summarized, rateLimited });
 }
 
 export async function POST(req: NextRequest) {

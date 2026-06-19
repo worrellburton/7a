@@ -374,11 +374,11 @@ export default function CallsContent() {
                   <th className="text-left font-semibold px-3 py-3">Caller</th>
                   <th className="text-left font-semibold px-3 py-3">Location</th>
                   <th className="text-left font-semibold px-3 py-3">Agent</th>
+                  <th className="text-left font-semibold px-3 py-3">Summary</th>
                   <th className="text-left font-semibold px-3 py-3">Line</th>
                   <th className="text-right font-semibold px-3 py-3">Wait</th>
                   <th className="text-right font-semibold px-3 py-3">Duration</th>
                   <th className="text-left font-semibold px-3 py-3">Status</th>
-                  <th className="text-left font-semibold px-3 py-3">Summary</th>
                   <th className="px-3 py-3" />
                 </tr>
               </thead>
@@ -403,6 +403,11 @@ export default function CallsContent() {
                       })()}
                     </td>
                     <td className="px-3 py-3">{renderAgent(c)}</td>
+                    <td className="px-3 py-3">
+                      {c.summary
+                        ? <div className="max-w-[280px] line-clamp-2 text-[12px] leading-snug text-foreground/60">{c.summary}</div>
+                        : <span className="text-foreground/30">—</span>}
+                    </td>
                     <td className="px-3 py-3 text-foreground/60">{c.number_name || <span className="text-foreground/30">—</span>}</td>
                     <td className="px-3 py-3 text-right tabular-nums text-foreground/60">{formatWait(c.started_at, c.answered_at)}</td>
                     <td className="px-3 py-3 text-right tabular-nums text-foreground/70">{formatDuration(c.duration)}</td>
@@ -417,11 +422,6 @@ export default function CallsContent() {
                           <span key={t} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-foreground/5 text-foreground/60">{t}</span>
                         ))}
                       </div>
-                    </td>
-                    <td className="px-3 py-3">
-                      {c.summary
-                        ? <div className="max-w-[280px] line-clamp-2 text-[12px] leading-snug text-foreground/60">{c.summary}</div>
-                        : <span className="text-foreground/30">—</span>}
                     </td>
                     <td className="px-3 py-3 text-right">
                       <div className="flex items-center justify-end gap-2 text-foreground/30">
