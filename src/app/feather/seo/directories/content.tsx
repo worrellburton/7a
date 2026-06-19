@@ -4424,7 +4424,7 @@ export default function DirectoriesContent() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-10 max-w-[1600px] mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
+    <div className="p-4 sm:p-6 lg:p-10 w-full" style={{ fontFamily: 'var(--font-body)' }}>
       <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <div className="flex items-center gap-3 mb-1">
@@ -4540,8 +4540,8 @@ export default function DirectoriesContent() {
           the comments panel — there's no dedicated Notes column
           taking horizontal space. */}
       {flatRows.length === 0 ? null : (
-        <div className="hidden md:block mb-8 overflow-hidden border border-black/10 rounded-xl bg-white">
-          <table className="w-full text-sm">
+        <div className="hidden md:block mb-8 overflow-x-auto border border-black/10 rounded-xl bg-white">
+          <table className="w-full min-w-[1900px] text-sm">
             <thead className="bg-warm-bg/50 text-[11px] uppercase tracking-wider text-foreground/55">
               <tr>
                 <th className="px-3 py-2.5 font-semibold border-b border-black/10 w-10 text-left">
