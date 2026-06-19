@@ -1326,8 +1326,6 @@ export default function LoginScreen({
             <EmailAuthPanel />
           </div>
         </div>
-
-        <QuoteRibbon />
       </section>
       <style jsx global>{`
         @keyframes greeting-in {
