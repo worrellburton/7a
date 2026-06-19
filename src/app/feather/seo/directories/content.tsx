@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import SeoSubNav from '../SeoSubNav';
 import LinksSubNav from '../LinksSubNav';
+import FloatingScrollbar from '@/components/FloatingScrollbar';
 import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/lib/AuthProvider';
@@ -4351,6 +4352,11 @@ export default function DirectoriesContent() {
   // (filter / hide-listed toggle) doesn't get a phantom transform.
   const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
   const prevRowTops = useRef<Map<string, number>>(new Map());
+  // The horizontally + vertically scrollable wrapper around the wide
+  // directories table. Bounded height so the sticky header has a
+  // scroll context to pin against, and fed to <FloatingScrollbar> so
+  // the contacts-style floating horizontal bar can drive it.
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
   useLayoutEffect(() => {
     const els = rowRefs.current;
     const prev = prevRowTops.current;
@@ -4540,9 +4546,17 @@ export default function DirectoriesContent() {
           the comments panel — there's no dedicated Notes column
           taking horizontal space. */}
       {flatRows.length === 0 ? null : (
-        <div className="hidden md:block mb-8 overflow-x-auto border border-black/10 rounded-xl bg-white">
+        <div
+          ref={tableScrollRef}
+          data-directories-table
+          className="hidden md:block mb-8 overflow-auto max-h-[calc(100vh-9rem)] border border-black/10 rounded-xl bg-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {/* Contacts-style floating horizontal scrollbar (portals to
+              <body>; nothing renders in place) so the wide table can be
+              scrolled without hunting for the native bar at the bottom. */}
+          <FloatingScrollbar tableRef={tableScrollRef} engagedSelector="[data-directories-table]" />
           <table className="w-full min-w-[1900px] text-sm">
-            <thead className="bg-warm-bg/50 text-[11px] uppercase tracking-wider text-foreground/55">
+            <thead className="bg-warm-bg text-[11px] uppercase tracking-wider text-foreground/55 [&_th]:sticky [&_th]:top-0 [&_th]:z-20 [&_th]:bg-warm-bg">
               <tr>
                 <th className="px-3 py-2.5 font-semibold border-b border-black/10 w-10 text-left">
                   <input
