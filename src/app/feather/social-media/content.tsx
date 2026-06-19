@@ -11,7 +11,7 @@ import { PlatformIcon, type PlatformId } from './PlatformIcon';
 import { MediaPicker, type PickedMedia } from './MediaPicker';
 import { PostStatusToast, type PostStatus, type PerPlatformResult } from './PostStatusToast';
 import { PLATFORM_SPECS, type MediaSpec, type VideoSpec } from './platform-specs';
-import ScheduleSlotsPanel, { ReadyToGoCard, occurrencesFor, type ReadyDraft, type ScheduleSlot } from './ScheduleSlotsPanel';
+import ScheduleDropCard, { ReadyToGoCard, type ReadyDraft } from './ScheduleSlotsPanel';
 import { useSavedDrafts, saveDraft as createDraft, setDraftReady, deleteDraft, type SavedDraft } from './saved-drafts';
 
 // ── Cross-tab Send-to-Compose handoff ────────────────────────────────
@@ -1013,25 +1013,31 @@ function PublishReadyFlow({
   readyDrafts: SavedDraft[];
   onPosted: (draftId: string) => void;
 }) {
-  // Step 1: networks. Seeded once with every connected platform so
-  // the common single-account case is one click. Explicit ticks
-  // afterwards override.
-  const seededRef = useRef(false);
-  const [selectedNetworks, setSelectedNetworks] = useState<Set<Platform>>(() => new Set());
-  useEffect(() => {
-    if (seededRef.current) return;
-    if (connected.length === 0) return;
-    seededRef.current = true;
-    setSelectedNetworks(new Set(connected.filter((p): p is Platform => PLATFORMS.some((x) => x.id === p))));
-  }, [connected]);
-
-  // Step 2: which ready draft. Defaults to the first one so the
-  // admin doesn't have to scroll-select on a single-draft day.
+  // Ready-to-go drafts lead the flow. Default to the first one so a
+  // single-draft day is zero-click.
   const [selectedDraftId, setSelectedDraftId] = useState<string | null>(null);
   useEffect(() => {
     if (selectedDraftId && readyDrafts.some((d) => d.id === selectedDraftId)) return;
     setSelectedDraftId(readyDrafts[0]?.id ?? null);
   }, [readyDrafts, selectedDraftId]);
+
+  // Networks follow the selected draft: seed from the platforms it
+  // was assigned in Creative (intersected with connected accounts),
+  // falling back to every connected account when the draft carries no
+  // assignment. Re-seeds when the draft, its platforms, or the
+  // connected set changes; manual ticks override until then.
+  const [selectedNetworks, setSelectedNetworks] = useState<Set<Platform>>(() => new Set());
+  const selectedDraftPlatformsKey = (readyDrafts.find((d) => d.id === selectedDraftId)?.platforms ?? []).join(',');
+  const connectedKey = connected.join(',');
+  useEffect(() => {
+    const fallback = connected.filter((p): p is Platform => PLATFORMS.some((x) => x.id === p));
+    const assigned = selectedDraftPlatformsKey
+      .split(',')
+      .filter(Boolean)
+      .filter((p): p is Platform => PLATFORMS.some((x) => x.id === p) && connected.includes(p));
+    setSelectedNetworks(new Set(assigned.length > 0 ? assigned : fallback));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDraftId, selectedDraftPlatformsKey, connectedKey]);
 
   // Step 3: scheduling. `mode` toggles the datetime input on; the
   // local string is converted to UTC at submit time.
@@ -1090,46 +1096,13 @@ function PublishReadyFlow({
       <div className="mb-4">
         <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Publish</h2>
         <p className="text-[11px] text-foreground/55 mt-0.5">
-          Pick the networks, choose a ready-to-go draft, then post now or schedule.
+          Pick a ready-to-go draft — it loads the networks you chose for it in Creative — then post now or schedule.
         </p>
       </div>
 
-      {/* Step 1 — networks */}
+      {/* Step 1 — ready drafts (lead the flow) */}
       <div className="mb-4">
-        <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-2">Step 1 · Networks</p>
-        {connected.length === 0 ? (
-          <p className="text-[12px] text-foreground/55 italic">No connected accounts yet. Connect at least one channel under Overview.</p>
-        ) : (
-          <ul className="flex flex-wrap gap-2">
-            {PLATFORMS.filter((p) => connected.includes(p.id)).map((p) => {
-              const on = selectedNetworks.has(p.id);
-              return (
-                <li key={p.id}>
-                  <button
-                    type="button"
-                    onClick={() => toggleNetwork(p.id)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors ${on ? 'bg-primary text-white border-primary' : 'bg-white text-foreground/75 border-black/10 hover:bg-warm-bg/60'}`}
-                  >
-                    <span aria-hidden className={`inline-block w-2 h-2 rounded-full ${on ? 'bg-white' : 'bg-foreground/25'}`} />
-                    {p.label}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-
-      {/* Deliverables — every unique aspect ratio the selected
-          networks accept. Surfaced here (between Networks and Draft)
-          so a marketer picking 5 channels can see at a glance the
-          full matrix of crops they need to produce, not just whatever
-          one ratio the chosen draft happens to ship with. */}
-      <DeliverablesPanel selected={selectedNetworks} />
-
-      {/* Step 2 — ready drafts */}
-      <div className="mb-4">
-        <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-2">Step 2 · Ready-to-go draft</p>
+        <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-2">Step 1 · Ready-to-go draft</p>
         <ul className="space-y-2">
           {readyDrafts.map((d) => {
             const checked = selectedDraftId === d.id;
@@ -1164,6 +1137,39 @@ function PublishReadyFlow({
           })}
         </ul>
       </div>
+
+      {/* Step 2 — networks. Seeded from the chosen draft's Creative
+          assignment so "where it posts" follows the draft; still
+          editable for a one-off override. */}
+      <div className="mb-4">
+        <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-2">Step 2 · Networks</p>
+        {connected.length === 0 ? (
+          <p className="text-[12px] text-foreground/55 italic">No connected accounts yet. Connect at least one channel under Overview.</p>
+        ) : (
+          <ul className="flex flex-wrap gap-2">
+            {PLATFORMS.filter((p) => connected.includes(p.id)).map((p) => {
+              const on = selectedNetworks.has(p.id);
+              return (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    onClick={() => toggleNetwork(p.id)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors ${on ? 'bg-primary text-white border-primary' : 'bg-white text-foreground/75 border-black/10 hover:bg-warm-bg/60'}`}
+                  >
+                    <span aria-hidden className={`inline-block w-2 h-2 rounded-full ${on ? 'bg-white' : 'bg-foreground/25'}`} />
+                    {p.label}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {/* Deliverables — every unique aspect ratio the selected
+          networks accept, so a marketer can see the full matrix of
+          crops they need to produce. */}
+      <DeliverablesPanel selected={selectedNetworks} />
 
       {/* Step 3 — post now or schedule */}
       <div className="mb-4">
@@ -1239,90 +1245,34 @@ function SchedulePostsBody({
   refreshHistory: () => void;
   accounts: AccountsResponse | null;
 }) {
-  // Pull ready drafts off localStorage so they're draggable onto
-  // slot occurrences. Listens on the same storage / custom-event
-  // bus the rest of the page uses so dragging stays in sync with
-  // edits made on other tabs.
+  // Ready drafts come from the shared DB-backed store. They're
+  // draggable onto the Schedule card below, and carry the platforms
+  // chosen in Creative so scheduling doesn't re-ask for networks.
   const { drafts } = useSavedDrafts();
-  const readyDrafts = useMemo(
+  const readyDrafts = useMemo<ReadyDraft[]>(
     () => drafts.filter((d) => d.ready).map((d) => ({
       id: d.id,
       caption: d.caption,
       mediaUrls: d.mediaUrls,
       createdAt: d.createdAt,
+      platforms: d.platforms ?? [],
     })),
     [drafts],
   );
-  const scheduledLite = useMemo(
-    () => history.filter(isScheduledPending).map((p) => ({
-      id: (p.id ?? '') as string,
-      scheduleDate: p.scheduleDate ?? '',
-      post: p.post ?? '',
-      platforms: p.platforms ?? [],
-    })),
-    [history],
-  );
   const connectedPlatforms = accounts?.activeSocialAccounts ?? [];
-
-  // Slots and scheduling closure are owned by ScheduleSlotsPanel,
-  // but the Scheduled Posts card needs both to accept drops too —
-  // panel hands them up via callbacks so we don't duplicate the
-  // fetch or the POST flow.
-  const [slots, setSlots] = useState<ScheduleSlot[]>([]);
-  const scheduleRef = useRef<((draft: ReadyDraft, at: Date) => Promise<void>) | null>(null);
-  const onScheduleReady = useCallback((handler: (draft: ReadyDraft, at: Date) => Promise<void>) => {
-    scheduleRef.current = handler;
-  }, []);
-
-  const scheduleOnNextOpenSlot = useCallback(async (draft: ReadyDraft) => {
-    if (!scheduleRef.current) return { ok: false, error: 'Scheduler not ready yet — try again in a moment.' };
-    if (slots.length === 0) return { ok: false, error: 'Add a schedule slot first, then drop a draft to auto-queue it.' };
-    // Walk every slot, take its very next future occurrence,
-    // pick the earliest across all slots that isn't already
-    // claimed by an existing scheduled post (±5 min window —
-    // same tolerance OccurrenceCell uses to match queued
-    // posts to a slot occurrence).
-    const now = new Date();
-    const claimed = new Set(
-      scheduledLite
-        .map((p) => Date.parse(p.scheduleDate))
-        .filter((t) => Number.isFinite(t)),
-    );
-    let pick: Date | null = null;
-    for (const slot of slots) {
-      const next = occurrencesFor(slot, now, 12);
-      for (const occ of next) {
-        const t = occ.getTime();
-        let isClaimed = false;
-        for (const c of claimed) {
-          if (Math.abs(c - t) < 5 * 60 * 1000) { isClaimed = true; break; }
-        }
-        if (isClaimed) continue;
-        if (!pick || occ < pick) pick = occ;
-        break;
-      }
-    }
-    if (!pick) return { ok: false, error: 'No open occurrences in the next 12 — all slots are filled.' };
-    await scheduleRef.current(draft, pick);
-    return { ok: true, when: pick };
-  }, [slots, scheduledLite]);
 
   return (
     <div className="space-y-4">
-      <ScheduleSlotsPanel
-        connectedPlatforms={connectedPlatforms}
-        scheduledPosts={scheduledLite}
-        onPostScheduled={refreshHistory}
-        onSlotsChange={setSlots}
-        onScheduleHandlerReady={onScheduleReady}
-      />
       <ReadyToGoCard drafts={readyDrafts} />
+      <ScheduleDropCard
+        connectedPlatforms={connectedPlatforms}
+        onScheduled={refreshHistory}
+      />
       <ScheduledPanel
         posts={history}
         loading={historyLoading}
         error={historyErr}
         onChanged={refreshHistory}
-        onDropDraft={scheduleOnNextOpenSlot}
       />
     </div>
   );
@@ -1412,7 +1362,7 @@ function ScheduledPanel({
         <div>
           <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Scheduled posts</h2>
           <p className="text-[11px] text-foreground/45 mt-0.5">
-            Queued but not yet sent. Cancel any row to pull it back. Or drop a Ready-to-Go draft on this card to auto-queue it on the next open slot.
+            Queued but not yet sent. Cancel any row to pull it back.
           </p>
         </div>
         {loading && <span className="text-xs text-foreground/40">Loading…</span>}
@@ -1436,9 +1386,7 @@ function ScheduledPanel({
           dragOver ? 'border-2 border-primary/50' : 'border border-black/10'
         }`}>
           <p className="text-sm text-foreground/55 max-w-md mx-auto">
-            {dragOver
-              ? 'Drop to queue on the next open slot.'
-              : <>Nothing scheduled. Use Compose &rarr; <em>Schedule for later</em> to queue a post — or drop a Ready-to-Go draft here.</>}
+            Nothing scheduled yet. Drag a Ready-to-Go draft onto the <em>Schedule a post</em> card above, pick a time, and it&apos;ll show up here.
           </p>
         </div>
       ) : (
