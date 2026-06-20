@@ -29,6 +29,58 @@ function initials(name: string | null | undefined): string {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
 }
 
+type RepeatRule = NonNullable<PhoneShiftEvent['repeat_rule']>;
+
+function addDays(d: Date, n: number): Date {
+  const x = new Date(d);
+  x.setDate(x.getDate() + n);
+  return x;
+}
+function isoOf(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function stepCursor(c: Date, rule: RepeatRule): Date {
+  switch (rule) {
+    case 'daily': return addDays(c, 1);
+    case 'weekdays': {
+      let n = addDays(c, 1);
+      while (n.getDay() === 0 || n.getDay() === 6) n = addDays(n, 1);
+      return n;
+    }
+    case 'weekly': return addDays(c, 7);
+    case 'biweekly': return addDays(c, 14);
+    case 'monthly': { const x = new Date(c); x.setMonth(x.getMonth() + 1); return x; }
+    case 'yearly': { const x = new Date(c); x.setFullYear(x.getFullYear() + 1); return x; }
+    default: return addDays(c, 1);
+  }
+}
+
+// Project a (possibly recurring) phones shift into concrete per-date
+// occurrences inside [startISO, endISO]. Mirrors the Calendar page's
+// expandRepeat so the widget and the calendar agree on who's on.
+function expandPhoneShift(ev: PhoneShiftEvent, startISO: string, endISO: string): PhoneShiftEvent[] {
+  if (!ev.repeat_rule) {
+    return ev.event_date >= startISO && ev.event_date <= endISO ? [ev] : [];
+  }
+  const rule = ev.repeat_rule;
+  const [ay, am, ad] = ev.event_date.split('-').map(Number);
+  const [ey, em, ed] = endISO.split('-').map(Number);
+  const end = new Date(ey, em - 1, ed);
+  let cursor = new Date(ay, am - 1, ad);
+  // Fast-forward to the first occurrence on/after the window start so a
+  // months-old daily anchor doesn't blow the iteration cap.
+  let safety = 0;
+  while (isoOf(cursor) < startISO && safety++ < 5000) cursor = stepCursor(cursor, rule);
+  const out: PhoneShiftEvent[] = [];
+  safety = 0;
+  while (cursor <= end && safety++ < 800) {
+    const iso = isoOf(cursor);
+    out.push(iso === ev.event_date ? ev : { ...ev, id: `${ev.id}@${iso}`, event_date: iso });
+    cursor = stepCursor(cursor, rule);
+  }
+  return out;
+}
+
 function dayLabel(dateStr: string): string {
   // dateStr is YYYY-MM-DD (Phoenix-local calendar day).
   const [y, m, d] = dateStr.split('-').map(Number);
@@ -57,10 +109,13 @@ export function OperatorSchedule({ token }: { token: string | null }) {
       })();
       const { data, error } = await supabase
         .from('calendar_events')
-        .select('id, event_date, start_time, end_time, subject_id, title, color')
+        .select('id, event_date, start_time, end_time, subject_id, title, color, repeat_rule')
         .eq('category', 'phones')
-        .gte('event_date', today)
-        .lte('event_date', end)
+        // Recurring shifts are anchored on an old date but still project
+        // into the window, so we can't date-window them away. Pull every
+        // recurring row PLUS any concrete row that lands in range, then
+        // expand recurrences client-side (same model the Calendar uses).
+        .or(`repeat_rule.not.is.null,and(event_date.gte.${today},event_date.lte.${end})`)
         .order('event_date', { ascending: true })
         .order('start_time', { ascending: true });
       if (cancelled) return;
@@ -69,7 +124,8 @@ export function OperatorSchedule({ token }: { token: string | null }) {
         console.warn('[OperatorSchedule] calendar_events read failed:', error.message);
         setEvents([]);
       } else {
-        setEvents((data ?? []) as PhoneShiftEvent[]);
+        const expanded = ((data ?? []) as PhoneShiftEvent[]).flatMap((ev) => expandPhoneShift(ev, today, end));
+        setEvents(expanded);
       }
       setLoading(false);
     })();

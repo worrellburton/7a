@@ -60,12 +60,15 @@ export interface AircallCallDetail extends AircallCallRow {
 
 export interface PhoneShiftEvent {
   id: string;
-  event_date: string;        // YYYY-MM-DD
+  event_date: string;        // YYYY-MM-DD (anchor date for recurring rows)
   start_time: string | null; // HH:MM:SS
   end_time: string | null;
   subject_id: string | null; // users.id
   title: string | null;      // person's display name (denormalised on the event)
   color: string | null;
+  // When set, the row is a recurring shift anchored at event_date and
+  // projected forward — the same model the Calendar page uses.
+  repeat_rule?: 'daily' | 'weekdays' | 'weekly' | 'biweekly' | 'monthly' | 'yearly' | null;
 }
 
 export interface AircallAgent {
