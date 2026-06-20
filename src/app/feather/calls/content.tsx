@@ -77,6 +77,15 @@ function formatElapsed(ms: number): string {
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
 }
 
+// Compact status (color dot + label) for a call — shared by the mobile
+// rows and the repeat-caller context popover.
+function callStatusMeta(c: AircallCallRow): { dot: string; label: string } {
+  if (c.voicemail) return { dot: 'bg-violet-500', label: 'Voicemail' };
+  if (c.missed) return { dot: 'bg-rose-500', label: 'Missed' };
+  if (c.direction === 'inbound') return { dot: 'bg-emerald-500', label: 'Inbound' };
+  return { dot: 'bg-blue-500', label: c.direction === 'outbound' ? 'Outbound' : 'Call' };
+}
+
 // Soft color chip per source type so the Source column scans by category.
 function sourceChipClass(value: string): string {
   const v = value.toLowerCase();
@@ -243,6 +252,89 @@ function SourceCell({
   );
 }
 
+// Repeat-caller badge — sits inline next to a number that has called more
+// than once in the current view. Clicking it opens a popover with the
+// context: every loaded call from that number (when, outcome, who took
+// it, length), plus a link to the full per-number history.
+function RepeatBadge({ numberKey, calls, count, missed }: {
+  numberKey: string;
+  calls: AircallCallRow[];
+  count: number;
+  missed: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+
+  const openMenu = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ left: Math.min(r.left, window.innerWidth - 296), top: r.bottom + 4 });
+    setOpen(true);
+  };
+
+  const phone = formatPhone(calls[0]?.raw_digits || numberKey);
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={openMenu}
+        title={`${count} calls from this number in view${missed > 0 ? ` · ${missed} missed` : ''} — tap for details`}
+        className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 hover:bg-amber-100 transition-colors align-middle"
+      >
+        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        {count}×{missed > 0 && <span className="text-rose-600">· {missed} missed</span>}
+      </button>
+      {open && pos && createPortal(
+        <>
+          <div className="fixed inset-0 z-[55]" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
+          <div
+            className="fixed z-[56] w-72 max-h-96 overflow-auto rounded-xl border border-black/10 bg-white shadow-xl"
+            style={{ left: pos.left, top: pos.top }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-3 py-2 border-b border-black/5">
+              <p className="text-[12px] font-bold text-foreground">{phone}</p>
+              <p className="text-[10px] text-foreground/50">
+                {count} {count === 1 ? 'call' : 'calls'} in this view
+                {missed > 0 && <> · <span className="text-rose-600 font-semibold">{missed} missed</span></>}
+              </p>
+            </div>
+            <ul className="py-1">
+              {calls.map((c) => {
+                const meta = callStatusMeta(c);
+                return (
+                  <li key={c.aircall_id}>
+                    <Link href={`/feather/calls/${c.aircall_id}`} className="flex items-center gap-2 px-3 py-1.5 hover:bg-warm-bg/60">
+                      <span className={`h-2 w-2 rounded-full shrink-0 ${meta.dot}`} title={meta.label} />
+                      <span className="text-[11px] text-foreground/70 flex-1 min-w-0 truncate">
+                        {formatRelativeTime(c.started_at)}
+                        <span className="text-foreground/35"> · {meta.label}</span>
+                        {c.user_name && <span className="text-foreground/35"> · {c.user_name}</span>}
+                      </span>
+                      <span className="text-[10px] tabular-nums text-foreground/45 shrink-0">{formatDuration(c.duration)}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="border-t border-black/5 px-3 py-1.5">
+              <Link href={`/feather/calls/number/${encodeURIComponent(numberKey)}`} className="text-[11px] font-semibold text-primary hover:underline">
+                See full history →
+              </Link>
+            </div>
+          </div>
+        </>,
+        document.body,
+      )}
+    </>
+  );
+}
+
 export default function CallsContent() {
   const { session, isAdmin, isSuperAdmin } = useAuth();
   const token = session?.access_token ?? null;
@@ -358,6 +450,16 @@ export default function CallsContent() {
       const e = m[key] || (m[key] = { count: 0, missed: 0 });
       e.count += 1;
       if (c.missed) e.missed += 1;
+    }
+    return m;
+  }, [calls]);
+  // The actual calls behind each number, for the repeat-caller popover.
+  const callsByNumber = useMemo(() => {
+    const m: Record<string, AircallCallRow[]> = {};
+    for (const c of calls) {
+      const key = c.caller_number || (c.raw_digits || '').replace(/\D/g, '');
+      if (!key) continue;
+      (m[key] ||= []).push(c);
     }
     return m;
   }, [calls]);
@@ -576,23 +678,11 @@ export default function CallsContent() {
   };
 
   // Repeat-caller badge — only renders when a number shows up more than
-  // once in the current view. Links to that number's full history.
+  // once in the current view. Click opens the context popover.
   const renderRepeatBadge = (key: string) => {
     const st = key ? numberStats[key] : undefined;
     if (!st || st.count < 2) return null;
-    return (
-      <Link
-        href={`/feather/calls/number/${encodeURIComponent(key)}`}
-        onClick={(e) => e.stopPropagation()}
-        title={`${st.count} calls from this number in view${st.missed > 0 ? ` · ${st.missed} missed` : ''}`}
-        className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
-      >
-        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" aria-hidden>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-        {st.count}×{st.missed > 0 && <span className="text-rose-600">· {st.missed} missed</span>}
-      </Link>
-    );
+    return <RepeatBadge numberKey={key} calls={callsByNumber[key] ?? []} count={st.count} missed={st.missed} />;
   };
 
   return (
@@ -831,19 +921,21 @@ export default function CallsContent() {
                         return (
                           <>
                             {display && <div className="font-medium text-foreground">{display}</div>}
-                            {key ? (
-                              <Link
-                                href={`/feather/calls/number/${encodeURIComponent(key)}`}
-                                onClick={(e) => e.stopPropagation()}
-                                title="See every call from this number"
-                                className={`${display ? 'text-[11px] text-foreground/45' : 'font-medium text-foreground'} hover:text-primary hover:underline`}
-                              >
-                                {phone}
-                              </Link>
-                            ) : (
-                              <div className={display ? 'text-[11px] text-foreground/45' : 'font-medium text-foreground'}>{phone}</div>
-                            )}
-                            <div>{renderRepeatBadge(key)}</div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {key ? (
+                                <Link
+                                  href={`/feather/calls/number/${encodeURIComponent(key)}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  title="See every call from this number"
+                                  className={`${display ? 'text-[11px] text-foreground/45' : 'font-medium text-foreground'} hover:text-primary hover:underline`}
+                                >
+                                  {phone}
+                                </Link>
+                              ) : (
+                                <div className={display ? 'text-[11px] text-foreground/45' : 'font-medium text-foreground'}>{phone}</div>
+                              )}
+                              {renderRepeatBadge(key)}
+                            </div>
                           </>
                         );
                       })()}
@@ -945,13 +1037,16 @@ export default function CallsContent() {
             <div className="sm:hidden divide-y divide-foreground/5">
               {calls.map((c) => (
                 <div key={c.aircall_id} className={`px-4 py-3 flex items-center gap-3 ${c.missed ? 'bg-rose-50/40' : ''}`}>
-                  <button
+                  <div
                     onClick={() => router.push(`/feather/calls/${c.aircall_id}`)}
-                    className="min-w-0 flex-1 text-left flex items-center gap-3"
+                    className="min-w-0 flex-1 text-left flex items-center gap-3 cursor-pointer"
                   >
                     {renderMobileAvatar(c)}
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-foreground truncate">{(c.caller_number && labels[c.caller_number]) || c.contact_name || formatPhone(c.raw_digits || c.caller_number)}</p>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <p className="font-medium text-foreground truncate min-w-0">{(c.caller_number && labels[c.caller_number]) || c.contact_name || formatPhone(c.raw_digits || c.caller_number)}</p>
+                        {renderRepeatBadge(c.caller_number || (c.raw_digits || '').replace(/\D/g, ''))}
+                      </div>
                       {(() => {
                         const loc = callerLocation(c.raw_digits || c.caller_number);
                         return loc ? <p className="text-[11px] text-foreground/45 truncate">{loc.name}</p> : null;
@@ -975,9 +1070,8 @@ export default function CallsContent() {
                           ))}
                         </div>
                       )}
-                      <div>{renderRepeatBadge(c.caller_number || (c.raw_digits || '').replace(/\D/g, ''))}</div>
                     </div>
-                  </button>
+                  </div>
                   <span className="text-xs tabular-nums text-foreground/50 shrink-0">{formatDuration(c.duration)}</span>
                   {c.recording_url && (
                     <button
