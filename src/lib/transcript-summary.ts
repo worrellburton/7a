@@ -28,6 +28,69 @@ const SYSTEM_PROMPT = [
   '- If the transcript is empty or unintelligible, output a single bullet: "- (Transcript was empty or unreadable.)"',
 ].join('\n');
 
+// System prompt for source detection. The model only reports a source
+// when the operator actually asked how the caller heard about the centre
+// AND the caller gave an answer — otherwise it returns the NONE sentinel.
+const SOURCE_SYSTEM_PROMPT = [
+  'You read a phone-call transcript between an admissions operator at a treatment centre and a caller.',
+  'Your only job: detect whether the operator asked HOW / WHERE the caller heard about the centre',
+  '(e.g. "how did you hear about us", "where did you hear about us", "how\'d you find us",',
+  '"who referred you", "what brought you to us"), and if so, capture the caller\'s answer.',
+  '',
+  'Output rules:',
+  '- If the operator asked AND the caller gave a source, output ONLY that source as a short label',
+  '  of 1-4 words, title-cased. Examples: "Google", "Psychology Today", "Insurance directory",',
+  '  "Referral from Dr. Lee", "Friend", "Facebook", "Alumni".',
+  '- If the operator never asked, or the caller did not give a clear answer, output exactly: NONE',
+  '- Output the label or NONE only. No quotes, no punctuation, no explanation, no preamble.',
+].join('\n');
+
+// Returns the caller's "how did you hear about us" source, or null when
+// it was never asked / answered. Used to populate aircall_calls.source.
+export async function extractCallSource(transcript: string): Promise<string | null> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return null;
+
+  const trimmed = transcript.trim().slice(0, 200_000);
+  if (!trimmed) return null;
+
+  try {
+    const res = await fetch(CLAUDE_API_URL, {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': CLAUDE_VERSION,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: CLAUDE_MODEL,
+        max_tokens: 30,
+        system: SOURCE_SYSTEM_PROMPT,
+        messages: [
+          {
+            role: 'user',
+            content: `Transcript:\n\n---\n${trimmed}\n---`,
+          },
+        ],
+      }),
+    });
+    if (!res.ok) return null;
+    const json = (await res.json()) as { content?: Array<{ type?: string; text?: string }> };
+    const out = (json.content ?? [])
+      .filter((p) => p.type === 'text' && typeof p.text === 'string')
+      .map((p) => p.text as string)
+      .join(' ')
+      .trim()
+      .replace(/^["']|["']$/g, '')
+      .trim();
+    if (!out || /^none$/i.test(out)) return null;
+    // Guard against a runaway answer — keep it short.
+    return out.length > 60 ? out.slice(0, 60).trim() : out;
+  } catch {
+    return null;
+  }
+}
+
 export async function summariseTranscript(transcript: string): Promise<string | null> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null;

@@ -31,6 +31,10 @@ export interface AircallCallRow {
   recording_url: string | null;
   voicemail_url: string | null;
   summary: string | null;
+  // "How did you hear about us?" answer, AI-extracted per call ('' or
+  // null when never asked). Admin overrides live per-number in
+  // aircall_number_labels and overlay this at render time.
+  source: string | null;
   sentiment: string | null;
   has_transcript?: boolean;
 }
