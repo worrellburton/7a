@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import FeatureRequestModal from './kingdom-requests/FeatureRequestModal';
 import WhatsNewButton from './WhatsNewButton';
+import { updates } from '@/lib/updates';
 import JdSignatureNagModal from './JdSignatureNagModal';
 // Temporarily not rendered — see HomeContent.tsx note. Keeping the
 // import in source so the re-enable diff is one line.
@@ -148,6 +149,16 @@ export default function HomeContent() {
   // hero-band visual weight.
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const addMenuRef = useRef<HTMLDivElement>(null);
+
+  // "What's new" now lives inside the ⋯ menu (mobile) / + menu
+  // (desktop). Mirror the old floating button's unseen-update pulse so
+  // a fresh update still nudges the menu trigger.
+  const [whatsNewSeenAt, setWhatsNewSeenAt] = useState<string | null>(null);
+  useEffect(() => {
+    try { setWhatsNewSeenAt(window.localStorage.getItem('whats_new_seen_at')); } catch { /* ignore */ }
+  }, []);
+  const latestUpdateAt = updates[0]?.at;
+  const hasNewUpdate = !!latestUpdateAt && (!whatsNewSeenAt || new Date(latestUpdateAt) > new Date(whatsNewSeenAt));
   useEffect(() => {
     if (!addMenuOpen) return;
     function onDocClick(e: MouseEvent) {
@@ -889,11 +900,27 @@ export default function HomeContent() {
                 only render once — the cluster swaps layout via
                 class toggles. */}
             <HomeChipCluster
+              indicator={hasNewUpdate}
               // On mobile the create actions live inside this ⋯ menu
               // (one trigger instead of ⋯ + a separate + button). The
               // sheet's contents are pre-mounted so it opens instantly.
               menuExtras={
                 <>
+                  <button
+                    role="menuitem"
+                    onClick={() => router.push('/feather/whats-new')}
+                    className="w-full flex items-center gap-2.5 px-1 py-2 text-left text-sm font-semibold text-foreground hover:bg-primary/10 rounded-lg transition-colors"
+                  >
+                    <span className="relative inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary shrink-0">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+                      </svg>
+                      {hasNewUpdate && (
+                        <span aria-hidden className="absolute -top-0.5 -right-0.5 block w-2 h-2 rounded-full bg-primary ring-2 ring-white" />
+                      )}
+                    </span>
+                    <span className="uppercase tracking-wider text-[11px]">What&apos;s new</span>
+                  </button>
                   <button
                     role="menuitem"
                     onClick={() => setFeatureRequestOpen(true)}

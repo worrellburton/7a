@@ -119,7 +119,7 @@ export default function NumberCallsContent() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div className="min-w-0">
             <p className="text-[11px] font-bold tracking-[0.22em] uppercase text-foreground/45">Caller history</p>
-            <h1 className="mt-1 text-3xl font-semibold text-foreground tabular-nums" style={{ fontFamily: 'var(--font-display)' }}>
+            <h1 className="mt-1 text-2xl sm:text-3xl font-semibold text-foreground tabular-nums" style={{ fontFamily: 'var(--font-display)' }}>
               {formatPhone(number)}
             </h1>
             <p className="mt-1 text-[13px] text-foreground/55">
@@ -139,35 +139,37 @@ export default function NumberCallsContent() {
         </div>
 
         {/* Name editor */}
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <label className="text-[11px] font-semibold uppercase tracking-wider text-foreground/45">Name this number</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && dirty) void saveName(); }}
-            placeholder="e.g. Jane from Banner Behavioral"
-            maxLength={120}
-            className="px-3 py-1.5 rounded-lg border border-black/10 bg-white text-[13px] w-72 max-w-full focus:outline-none focus:ring-2 focus:ring-primary/40"
-          />
-          <button
-            type="button"
-            onClick={() => void saveName()}
-            disabled={saving || !dirty}
-            className="px-3 py-1.5 rounded-lg bg-foreground text-white text-[12px] font-semibold hover:bg-foreground/85 disabled:opacity-40"
-          >
-            {saving ? 'Saving…' : savedTick ? '✓ Saved' : 'Save'}
-          </button>
-          {savedName && !dirty && (
+        <div className="mt-4">
+          <label className="block text-[11px] font-semibold uppercase tracking-wider text-foreground/45 mb-1.5">Name this number</label>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && dirty) void saveName(); }}
+              placeholder="e.g. Jane from Banner Behavioral"
+              maxLength={120}
+              className="flex-1 min-w-0 sm:flex-none sm:w-72 px-3 py-2 rounded-lg border border-black/10 bg-white text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
             <button
               type="button"
-              onClick={() => { setName(''); }}
-              className="text-[11px] text-foreground/45 hover:text-rose-600 uppercase tracking-wider"
-              title="Clear the name (Save to apply)"
+              onClick={() => void saveName()}
+              disabled={saving || !dirty}
+              className="shrink-0 px-4 py-2 rounded-lg bg-foreground text-white text-[12px] font-semibold hover:bg-foreground/85 disabled:opacity-40"
             >
-              Clear
+              {saving ? 'Saving…' : savedTick ? '✓ Saved' : 'Save'}
             </button>
-          )}
+            {savedName && !dirty && (
+              <button
+                type="button"
+                onClick={() => { setName(''); }}
+                className="shrink-0 text-[11px] text-foreground/45 hover:text-rose-600 uppercase tracking-wider"
+                title="Clear the name (Save to apply)"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Stats */}
@@ -196,7 +198,9 @@ export default function NumberCallsContent() {
           No calls on record for this number.
         </p>
       ) : (
-        <div className="rounded-2xl border border-black/10 bg-white overflow-hidden">
+        <>
+        {/* Desktop table */}
+        <div className="hidden sm:block rounded-2xl border border-black/10 bg-white overflow-hidden">
           <table className="w-full text-sm [&_td]:align-top">
             <thead>
               <tr className="text-[11px] uppercase tracking-wider text-foreground/40 border-b border-foreground/10">
@@ -242,6 +246,40 @@ export default function NumberCallsContent() {
             </tbody>
           </table>
         </div>
+
+        {/* Mobile cards */}
+        <ul className="sm:hidden space-y-2">
+          {calls.map((c) => (
+            <li key={c.aircall_id}>
+              <button
+                type="button"
+                onClick={() => router.push(`/feather/calls/${c.aircall_id}`)}
+                className={`w-full text-left rounded-2xl border border-black/10 px-4 py-3 ${c.missed ? 'bg-rose-50/50' : 'bg-white'}`}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${directionStyle[c.direction ?? ''] ?? 'bg-gray-100 text-gray-600'}`}>
+                      {c.direction ?? 'call'}
+                    </span>
+                    {c.missed && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-rose-100 text-rose-700">Missed</span>}
+                    {c.voicemail && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-violet-100 text-violet-700">Voicemail</span>}
+                  </div>
+                  <span className="tabular-nums text-[12px] font-semibold text-foreground/70 shrink-0">{formatDuration(c.duration)}</span>
+                </div>
+                <div className="mt-1.5 flex items-center gap-1.5 text-[12px] text-foreground/55 flex-wrap">
+                  <span className="font-medium text-foreground/75">{formatRelativeTime(c.started_at)}</span>
+                  {c.user_name && <><span className="text-foreground/25">·</span><span className="truncate">{c.user_name}</span></>}
+                  <span className="text-foreground/25">·</span>
+                  <span className="tabular-nums">wait {formatWait(c.started_at, c.answered_at)}</span>
+                </div>
+                {c.summary && (
+                  <p className="mt-1.5 text-[12px] leading-snug text-foreground/60 whitespace-pre-line">{c.summary}</p>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+        </>
       )}
     </div>
   );
