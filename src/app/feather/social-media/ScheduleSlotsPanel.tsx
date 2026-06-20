@@ -115,6 +115,45 @@ function ReadyDraftTile({ draft }: { draft: ReadyDraft }) {
 // time, and it fires a real Ayrshare-scheduled post (POST
 // /api/social-media/post with scheduleDate). Networks come from the
 // draft's Creative assignment, intersected with the connected set.
+// Quick-pick options for the schedule date. Weekday values are 0=Sun..6=Sat.
+const QUICK_OPTIONS: { label: string; value: string }[] = [
+  { label: 'Tomorrow', value: 'tomorrow' },
+  { label: 'Next Mon', value: '1' },
+  { label: 'Next Tue', value: '2' },
+  { label: 'Next Wed', value: '3' },
+  { label: 'Next Thu', value: '4' },
+  { label: 'Next Fri', value: '5' },
+  { label: 'Next Sat', value: '6' },
+  { label: 'Next Sun', value: '0' },
+];
+
+function toLocalInput(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+// Resolve a quick-pick value to a concrete Date, carrying over the time
+// already in `currentWhen` (else defaulting to 9:00 AM).
+function resolveQuick(value: string, currentWhen: string): Date | null {
+  const now = new Date();
+  let hours = 9;
+  let mins = 0;
+  const t = currentWhen.split('T')[1];
+  if (t) { const [h, m] = t.split(':').map(Number); if (Number.isFinite(h)) hours = h; if (Number.isFinite(m)) mins = m; }
+  const d = new Date(now);
+  d.setHours(hours, mins, 0, 0);
+  if (value === 'tomorrow') {
+    d.setDate(now.getDate() + 1);
+    return d;
+  }
+  const weekday = Number(value);
+  if (!Number.isInteger(weekday) || weekday < 0 || weekday > 6) return null;
+  let add = (weekday - now.getDay() + 7) % 7;
+  if (add === 0) add = 7; // "next" → the upcoming one, never today
+  d.setDate(now.getDate() + add);
+  return d;
+}
+
 export default function ScheduleDropCard({
   connectedPlatforms,
   onScheduled,
@@ -129,14 +168,24 @@ export default function ScheduleDropCard({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
+  // Which networks this scheduled post goes to — seeded from the draft's
+  // Creative assignment (∩ connected) on drop; toggled via the checkmarks.
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
 
-  // Networks to post to: the draft's chosen platforms that are also
-  // connected. If the draft carries no platform assignment at all we
-  // fall back to every connected account so it still goes somewhere.
+  // Platforms offered as checkmarks: the draft's assigned networks that
+  // are connected, else every connected account.
   const assigned = draft?.platforms ?? [];
-  const targets = assigned.length > 0
+  const availablePlatforms = assigned.length > 0
     ? assigned.filter((p) => connectedPlatforms.includes(p))
     : connectedPlatforms;
+
+  const togglePlatform = (p: string) => {
+    setSelectedPlatforms((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p); else next.add(p);
+      return next;
+    });
+  };
 
   const onDragOver = (e: React.DragEvent) => {
     if (e.dataTransfer.types.includes('application/x-ready-draft')) {
@@ -150,7 +199,11 @@ export default function ScheduleDropCard({
     try {
       const raw = e.dataTransfer.getData('application/x-ready-draft');
       if (!raw) return;
-      setDraft(JSON.parse(raw) as ReadyDraft);
+      const parsed = JSON.parse(raw) as ReadyDraft;
+      setDraft(parsed);
+      const a = parsed.platforms ?? [];
+      const avail = a.length > 0 ? a.filter((p) => connectedPlatforms.includes(p)) : connectedPlatforms;
+      setSelectedPlatforms(new Set(avail));
       setError(null);
       setOkMsg(null);
     } catch { /* malformed payload — ignore */ }
@@ -162,12 +215,8 @@ export default function ScheduleDropCard({
     const at = new Date(when);
     if (Number.isNaN(at.getTime())) { setError("That date / time isn't valid."); return; }
     if (at.getTime() <= Date.now()) { setError('Pick a time in the future.'); return; }
-    if (targets.length === 0) {
-      setError(assigned.length > 0
-        ? "None of this draft's platforms are connected yet — connect them under Overview."
-        : 'Connect at least one social account before scheduling.');
-      return;
-    }
+    const targets = Array.from(selectedPlatforms);
+    if (targets.length === 0) { setError('Check at least one platform to post to.'); return; }
     setSubmitting(true);
     setError(null);
     try {
@@ -194,13 +243,14 @@ export default function ScheduleDropCard({
       setOkMsg(`Scheduled for ${at.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`);
       setDraft(null);
       setWhen('');
+      setSelectedPlatforms(new Set());
       onScheduled();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSubmitting(false);
     }
-  }, [draft, when, targets, assigned.length, session?.access_token, onScheduled]);
+  }, [draft, when, selectedPlatforms, session?.access_token, onScheduled]);
 
   const thumb = draft?.mediaUrls[0];
   const isVideo = typeof thumb === 'string' && /\.(mp4|mov|webm|m4v)(\?|$)/i.test(thumb);
@@ -245,8 +295,9 @@ export default function ScheduleDropCard({
           onDrop={onDrop}
           className={`rounded-xl border px-4 py-4 ${dragOver ? 'border-primary ring-2 ring-primary/20' : 'border-black/10'}`}
         >
-          <div className="flex items-start gap-3">
-            <div className="w-16 h-16 shrink-0 rounded-lg overflow-hidden border border-black/10 bg-warm-bg/40">
+          {/* One row: draft · platform checkmarks · date/time · quick pick · schedule */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <div className="w-10 h-10 shrink-0 rounded-md overflow-hidden border border-black/10 bg-warm-bg/40">
               {thumb ? (
                 isVideo ? (
                   <video src={thumb} muted playsInline className="w-full h-full object-cover bg-black" />
@@ -255,52 +306,64 @@ export default function ScheduleDropCard({
                   <img src={thumb} alt="" className="w-full h-full object-cover" />
                 )
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-[9px] text-foreground/45 text-center px-1">No media</div>
+                <div className="w-full h-full flex items-center justify-center text-[8px] text-foreground/45 text-center px-0.5">No media</div>
               )}
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-[13px] text-foreground/85 line-clamp-2 leading-snug" style={{ fontFamily: 'var(--font-body)' }}>
-                {draft.caption || '(no caption)'}
-              </p>
-              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                <span className="text-[10px] font-bold tracking-[0.14em] uppercase text-foreground/45">Posting to</span>
-                {targets.length === 0 ? (
-                  <span className="text-[11px] text-red-700">no connected platforms</span>
-                ) : (
-                  targets.map((p) => (
-                    <span key={p} className="inline-block px-1.5 py-0.5 rounded border border-black/10 bg-warm-bg/50 text-[10.5px] text-foreground/70 capitalize">
-                      {p}
-                    </span>
-                  ))
-                )}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => { setDraft(null); setWhen(''); setError(null); }}
-              className="shrink-0 text-[10.5px] text-foreground/45 hover:text-foreground/80 uppercase tracking-wider"
-            >
-              Clear
-            </button>
-          </div>
 
-          <div className="mt-4 flex flex-wrap items-end gap-3">
-            <label className="block">
-              <span className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55">Date &amp; time</span>
-              <input
-                type="datetime-local"
-                value={when}
-                onChange={(e) => setWhen(e.target.value)}
-                className="mt-1 block rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
-              />
-            </label>
+            <span className="text-[12px] text-foreground/80 truncate max-w-[140px]" title={draft.caption || '(no caption)'}>
+              {draft.caption || '(no caption)'}
+            </span>
+
+            {availablePlatforms.length === 0 ? (
+              <span className="text-[11px] text-red-700">no connected platforms</span>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                {availablePlatforms.map((p) => (
+                  <label key={p} className="inline-flex items-center gap-1 text-[11.5px] text-foreground/70 capitalize cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={selectedPlatforms.has(p)}
+                      onChange={() => togglePlatform(p)}
+                      className="w-3.5 h-3.5 accent-primary"
+                    />
+                    {p}
+                  </label>
+                ))}
+              </div>
+            )}
+
+            <input
+              type="datetime-local"
+              value={when}
+              onChange={(e) => setWhen(e.target.value)}
+              className="rounded-lg border border-black/10 bg-white px-2.5 py-1.5 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+            />
+
+            <select
+              value=""
+              onChange={(e) => { const d = resolveQuick(e.target.value, when); if (d) setWhen(toLocalInput(d)); }}
+              className="rounded-lg border border-black/10 bg-white px-2 py-1.5 text-[12.5px] text-foreground/70 focus:outline-none focus:ring-2 focus:ring-primary/40"
+              aria-label="Quick pick date"
+            >
+              <option value="">Quick pick…</option>
+              {QUICK_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+
             <button
               type="button"
               onClick={() => void submit()}
-              disabled={submitting || !when}
-              className="rounded-lg bg-primary text-white px-4 py-2 text-[13px] font-semibold hover:bg-primary/90 disabled:opacity-40"
+              disabled={submitting || !when || selectedPlatforms.size === 0}
+              className="rounded-lg bg-primary text-white px-3.5 py-1.5 text-[12.5px] font-semibold hover:bg-primary/90 disabled:opacity-40"
             >
-              {submitting ? 'Scheduling…' : 'Schedule post'}
+              {submitting ? 'Scheduling…' : 'Schedule'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setDraft(null); setWhen(''); setError(null); setSelectedPlatforms(new Set()); }}
+              className="text-[10.5px] text-foreground/45 hover:text-foreground/80 uppercase tracking-wider"
+            >
+              Clear
             </button>
           </div>
         </div>
