@@ -241,18 +241,14 @@ export default function CallsContent() {
     if (!c.user_name && !c.user_email) return <span className="text-foreground/30">—</span>;
     const u = c.user_email ? agentUsers[c.user_email.toLowerCase()] : undefined;
     const name = c.user_name || u?.full_name || c.user_email || '—';
-    return (
-      <div className="flex items-center gap-2 min-w-0">
-        {u?.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={u.avatar_url} alt="" className="h-6 w-6 rounded-full object-cover ring-1 ring-white shadow-sm shrink-0" />
-        ) : (
-          <span className="h-6 w-6 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex items-center justify-center ring-1 ring-white shrink-0">
-            {initials(name)}
-          </span>
-        )}
-        <span className="text-foreground/70 truncate">{name}</span>
-      </div>
+    // Avatar only — name shows on hover (native tooltip + aria-label).
+    return u?.avatar_url ? (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={u.avatar_url} alt={name} title={name} aria-label={name} className="h-7 w-7 rounded-full object-cover ring-1 ring-white shadow-sm" />
+    ) : (
+      <span title={name} aria-label={name} className="h-7 w-7 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex items-center justify-center ring-1 ring-white">
+        {initials(name)}
+      </span>
     );
   };
 
