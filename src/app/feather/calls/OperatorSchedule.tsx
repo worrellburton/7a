@@ -292,25 +292,54 @@ export function OperatorSchedule({ token }: { token: string | null }) {
         {loading ? (
           <div className="h-16 rounded-2xl bg-foreground/5 animate-pulse" />
         ) : (
-          <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
-            {/* On the phones now */}
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/40 mb-2">On the phones now</p>
+          <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr] items-stretch">
+            {/* On the phones now — featured operator owns the whole left side */}
+            <div className="flex flex-col">
               {onNow.length === 0 ? (
-                <div className="rounded-2xl border border-dashed border-foreground/15 px-4 py-3 text-sm text-foreground/55">
+                <div className="flex-1 rounded-2xl border border-dashed border-foreground/15 px-5 py-6 text-sm text-foreground/55 flex flex-col justify-center">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-foreground/40 mb-1">On the phones now</p>
                   No operator scheduled right now.
                   {upNext && (
                     <> Next up: <span className="font-semibold text-foreground/80">{upNext.event.title}</span> at {formatShiftTime(upNext.event.start_time)}{upNext.day !== today ? ` (${dayLabel(upNext.day)})` : ''}.</>
                   )}
                 </div>
               ) : (
-                <div className="flex flex-wrap gap-2">
-                  {onNow.map((ev) => {
+                <div className="flex-1 flex flex-col gap-2">
+                  {onNow.map((ev, i) => {
                     const av = availabilityFor(ev);
                     const style = availabilityStyle(av?.availability_status);
+                    if (i === 0) {
+                      // The featured operator: big avatar + big name, filling
+                      // the left column like a "now playing" hero.
+                      return (
+                        <div key={ev.id} className="relative flex-1 flex items-center gap-4 sm:gap-5 rounded-2xl border border-white/70 bg-gradient-to-br from-white/90 to-white/45 px-5 py-5 shadow-sm overflow-hidden">
+                          <span aria-hidden className="pointer-events-none absolute -right-8 -top-8 h-28 w-28 rounded-full bg-emerald-400/10 blur-2xl" />
+                          <div className="relative shrink-0">{renderAvatar(ev, 'h-20 w-20 sm:h-24 sm:w-24')}</div>
+                          <div className="min-w-0 flex-1">
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 mb-1.5">
+                              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Live
+                            </span>
+                            <p className="text-2xl sm:text-[28px] font-bold text-foreground leading-[1.1] truncate" style={{ fontFamily: 'var(--font-display)' }}>{ev.title}</p>
+                            <div className="flex items-center gap-2 text-[12px] text-foreground/55 mt-1.5">
+                              <span className="tabular-nums">{formatShiftTime(ev.start_time)}–{formatShiftTime(ev.end_time)}</span>
+                              {aircallConfigured && (
+                                <>
+                                  <span className="text-foreground/25">·</span>
+                                  <span className={`inline-flex items-center gap-1 font-medium ${style.text}`}>
+                                    <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+                                    {style.label}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    }
+                    // Any additional operators on at the same time, smaller.
                     return (
-                      <div key={ev.id} className="flex items-center gap-3 rounded-2xl border border-white/70 bg-white/70 px-3 py-2 shadow-sm">
-                        {renderAvatar(ev)}
+                      <div key={ev.id} className="flex items-center gap-3 rounded-xl border border-white/70 bg-white/60 px-3 py-2 shadow-sm">
+                        {renderAvatar(ev, 'h-9 w-9')}
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-foreground leading-tight truncate">{ev.title}</p>
                           <div className="flex items-center gap-1.5 text-[11px] text-foreground/55">
