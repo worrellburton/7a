@@ -379,6 +379,7 @@ function SocialTabBody(props: TabBodyProps) {
         loading={accountsLoading}
         error={accountsErr}
         onChanged={refreshAccounts}
+        history={history}
       />
       <AnalyticsPanel connected={accounts?.activeSocialAccounts ?? []} />
     </div>
@@ -2662,14 +2663,17 @@ function accountUrlFor(platform: string, handle: string | null): string {
 }
 
 function ConnectedAccountsStrip({
-  accounts, loading, error, onChanged,
+  accounts, loading, error, onChanged, history,
 }: {
   accounts: AccountsResponse | null;
   loading: boolean;
   error: string | null;
   onChanged: () => void;
+  history: HistoryPost[];
 }) {
   const active = new Set(accounts?.activeSocialAccounts ?? []);
+  // Which connected account's feed is expanded inline below the strip.
+  const [openFeed, setOpenFeed] = useState<PlatformId | null>(null);
 
   // Refresh the connected-accounts list when the user returns to
   // this tab — covers the "linked an account on Ayrshare's
@@ -2679,6 +2683,11 @@ function ConnectedAccountsStrip({
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, [onChanged]);
+
+  const openLabel = PLATFORMS.find((p) => p.id === openFeed)?.label ?? '';
+  const openDisplay = openFeed
+    ? (accounts?.displayNames?.[openFeed]?.displayName ?? accounts?.displayNames?.[openFeed]?.username ?? null)
+    : null;
 
   return (
     <section className="mb-6 rounded-2xl border border-black/10 bg-white p-4">
@@ -2697,9 +2706,12 @@ function ConnectedAccountsStrip({
           const display = accounts?.displayNames?.[p.id]?.displayName
             ?? accounts?.displayNames?.[p.id]?.username
             ?? null;
-          const pillClass = `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${
+          const isOpen = openFeed === p.id;
+          const pillClass = `inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
             isActive
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300'
+              ? isOpen
+                ? 'border-emerald-400 bg-emerald-100 text-emerald-900 ring-2 ring-emerald-200'
+                : 'border-emerald-200 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 hover:border-emerald-300'
               : 'border-dashed border-foreground/25 bg-white text-foreground/60'
           }`;
           const pillBody = (
@@ -2720,27 +2732,27 @@ function ConnectedAccountsStrip({
                 <span className="text-[10px] text-emerald-700/70 font-normal">@{display.replace(/^@/, '')}</span>
               )}
               {isActive && (
-                <svg className="w-3 h-3 text-emerald-700/60" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                <svg className={`w-3 h-3 text-emerald-700/60 transition-transform ${isOpen ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
                 </svg>
               )}
             </>
           );
           if (isActive) {
-            // Connected → open the public profile (or platform
-            // dashboard for GMB) in a new tab. New tab + noopener
-            // so the admin keeps the composer in front of them.
+            // Connected → click toggles an inline feed of the posts
+            // Feather has published to this account (with a link out
+            // to the live profile for the full external feed).
             return (
-              <a
+              <button
                 key={p.id}
-                href={accountUrlFor(p.id, display)}
-                target="_blank"
-                rel="noopener noreferrer"
+                type="button"
+                onClick={() => setOpenFeed((cur) => (cur === p.id ? null : (p.id as PlatformId)))}
                 className={pillClass}
-                title={`Open ${p.label}${display ? ` (${display})` : ''} in a new tab`}
+                aria-expanded={isOpen}
+                title={`Show ${p.label}${display ? ` (${display})` : ''} feed`}
               >
                 {pillBody}
-              </a>
+              </button>
             );
           }
           return (
@@ -2754,7 +2766,141 @@ function ConnectedAccountsStrip({
           );
         })}
       </div>
+
+      {openFeed && (
+        <AccountFeedPanel
+          platform={openFeed}
+          label={openLabel}
+          display={openDisplay}
+          profileUrl={accountUrlFor(openFeed, openDisplay)}
+          history={history}
+          onClose={() => setOpenFeed(null)}
+        />
+      )}
     </section>
+  );
+}
+
+// ── Per-account feed ─────────────────────────────────────────────────
+//
+// Clicking a connected account in the strip expands this inline. It
+// reads the same /history payload the Post tab uses and filters to the
+// posts Feather has published to that one platform — caption, media
+// thumbnail, when it went out, and a link to the live post. It only
+// covers posts sent through Feather (Ayrshare's history is the only
+// reliable read API across all the networks); the "Open profile" link
+// jumps to the full external feed for everything else.
+function AccountFeedPanel({
+  platform, label, display, profileUrl, history, onClose,
+}: {
+  platform: PlatformId;
+  label: string;
+  display: string | null;
+  profileUrl: string;
+  history: HistoryPost[];
+  onClose: () => void;
+}) {
+  const posts = useMemo(() => {
+    return history
+      .filter((p) => (p.platforms ?? []).includes(platform))
+      // Drop still-scheduled future posts — the feed is what's live.
+      .filter((p) => !isScheduledPending(p))
+      .sort((a, b) => {
+        const ta = Date.parse(a.created || a.scheduleDate || '') || 0;
+        const tb = Date.parse(b.created || b.scheduleDate || '') || 0;
+        return tb - ta;
+      });
+  }, [history, platform]);
+
+  const postUrlFor = (p: HistoryPost): string | null => {
+    const match = (p.postIds ?? []).find((x) => x.platform === platform);
+    return match?.postUrl ?? null;
+  };
+
+  return (
+    <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50/30 p-4">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <PlatformIcon platform={platform} size={18} />
+          <div className="min-w-0">
+            <p className="text-[13px] font-bold text-foreground leading-tight">
+              {label} feed
+              {display && <span className="ml-1.5 text-[11px] font-normal text-foreground/50">@{display.replace(/^@/, '')}</span>}
+            </p>
+            <p className="text-[10px] text-foreground/45 leading-tight">Posted through Feather · newest first</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <a
+            href={profileUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 hover:text-emerald-900"
+            title="Open the live profile in a new tab"
+          >
+            Open profile
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+          </a>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex items-center justify-center w-6 h-6 rounded-full text-foreground/40 hover:bg-black/5 hover:text-foreground/70"
+            aria-label="Close feed"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+      </div>
+
+      {posts.length === 0 ? (
+        <p className="text-[12px] text-foreground/55 italic">
+          No posts published to {label} through Feather yet.{' '}
+          <a href={profileUrl} target="_blank" rel="noopener noreferrer" className="not-italic font-semibold text-emerald-800 hover:underline">
+            View the live profile →
+          </a>
+        </p>
+      ) : (
+        <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {posts.slice(0, 12).map((p, i) => {
+            const url = postUrlFor(p);
+            const when = p.created || p.scheduleDate;
+            const whenLabel = when
+              ? new Date(when).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+              : null;
+            const thumb = (p.mediaUrls ?? [])[0] ?? null;
+            const caption = (p.post ?? '').trim();
+            const preview = caption.length > 140 ? `${caption.slice(0, 140)}…` : caption;
+            const Card = (
+              <div className="h-full rounded-lg border border-black/10 bg-white overflow-hidden hover:shadow-sm transition-shadow">
+                {thumb ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={thumb} alt="" className="w-full aspect-square object-cover" />
+                ) : (
+                  <div className="w-full aspect-square bg-warm-bg/40 flex items-center justify-center text-foreground/20">
+                    <PlatformIcon platform={platform} size={28} />
+                  </div>
+                )}
+                <div className="p-2.5">
+                  {whenLabel && <p className="text-[10px] uppercase tracking-wider text-foreground/40 font-semibold mb-0.5">{whenLabel}</p>}
+                  <p className="text-[12px] text-foreground/80 leading-snug line-clamp-3">
+                    {preview || <span className="italic text-foreground/40">(no caption)</span>}
+                  </p>
+                </div>
+              </div>
+            );
+            return (
+              <li key={p.id ?? i}>
+                {url ? (
+                  <a href={url} target="_blank" rel="noopener noreferrer" className="block h-full" title="Open this post">{Card}</a>
+                ) : Card}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
   );
 }
 
