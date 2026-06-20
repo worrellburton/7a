@@ -27,6 +27,12 @@ export interface SavedDraft {
    * `${platformId}|${label}` (e.g. "facebook|Feed (1:1)").
    */
   mediaByDeliverable?: { key: string; url: string }[];
+  /**
+   * Which per-platform deliverables the operator checked for this draft
+   * (same `${platformId}|${label}` keys). Empty = "not customised", which
+   * the UI treats as "every deliverable selected".
+   */
+  selectedDeliverables?: string[];
 }
 
 const TABLE = 'social_media_drafts';
@@ -54,6 +60,9 @@ function rowToDraft(r: Record<string, unknown>): SavedDraft {
     createdByName: (r.created_by_name as string | null) ?? null,
     mediaByDeliverable: Array.isArray(r.media_by_deliverable)
       ? (r.media_by_deliverable as { key: string; url: string }[])
+      : [],
+    selectedDeliverables: Array.isArray(r.selected_deliverables)
+      ? (r.selected_deliverables as string[])
       : [],
   };
 }
@@ -138,7 +147,7 @@ export async function saveDraft(input: NewDraftInput): Promise<SavedDraft | null
   return draft;
 }
 
-export type DraftPatch = Partial<Pick<SavedDraft, 'caption' | 'mediaUrls' | 'platforms' | 'ready' | 'mediaByDeliverable'>>;
+export type DraftPatch = Partial<Pick<SavedDraft, 'caption' | 'mediaUrls' | 'platforms' | 'ready' | 'mediaByDeliverable' | 'selectedDeliverables'>>;
 
 export async function updateDraft(id: string, patch: DraftPatch): Promise<void> {
   const dbPatch: Record<string, unknown> = {};
@@ -147,6 +156,7 @@ export async function updateDraft(id: string, patch: DraftPatch): Promise<void> 
   if (patch.platforms !== undefined) dbPatch.platforms = patch.platforms;
   if (patch.ready !== undefined) dbPatch.ready = patch.ready;
   if (patch.mediaByDeliverable !== undefined) dbPatch.media_by_deliverable = patch.mediaByDeliverable;
+  if (patch.selectedDeliverables !== undefined) dbPatch.selected_deliverables = patch.selectedDeliverables;
   if (Object.keys(dbPatch).length === 0) return;
   const { error } = await supabase.from(TABLE).update(dbPatch).eq('id', id);
   if (error) return;
