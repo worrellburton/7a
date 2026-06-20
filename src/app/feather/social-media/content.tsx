@@ -351,7 +351,6 @@ function SocialTabBody(props: TabBodyProps) {
   if (active === 'post') {
     return (
       <div role="tabpanel" id="tabpanel-post" aria-labelledby="tab-post">
-        <PostSubNav />
         <PostTabBody
           accounts={accounts}
           history={history}
@@ -366,7 +365,6 @@ function SocialTabBody(props: TabBodyProps) {
   if (active === 'creative') {
     return (
       <div role="tabpanel" id="tabpanel-creative" aria-labelledby="tab-creative">
-        <CreativeSubNav />
         <CreativeTabBody />
       </div>
     );
@@ -594,6 +592,12 @@ function PostSubNav() {
   );
 }
 
+// The Post tab is now a single screen, top to bottom:
+//   1. Post now — pick a ready-to-go draft and publish immediately.
+//   2. Scheduled — drag a ready draft onto a slot to queue it, plus
+//      the live Ayrshare scheduled queue.
+//   3. History — recent posts, tucked at the bottom.
+// The old Post Now / Schedule Posts / History sub-nav is gone.
 function PostTabBody({
   accounts, history, historyLoading, historyErr, refreshHistory,
 }: {
@@ -603,34 +607,48 @@ function PostTabBody({
   historyErr: string | null;
   refreshHistory: () => void;
 }) {
-  const searchParams = useSearchParams();
-  const sub = readPostSub(searchParams.get('sub'));
+  const { drafts } = useSavedDrafts();
+  const readyDrafts = useMemo(() => drafts.filter((d) => d.ready), [drafts]);
+  const connected = accounts?.activeSocialAccounts ?? [];
 
-  if (sub === 'scheduled') {
-    // Schedule Posts now leads with the new recurring-slot panel
-    // (list + calendar views, Add Schedule modal, drag-drop ready
-    // drafts onto occurrences). Below it, the existing Ayrshare
-    // scheduled-queue keeps showing the live "post-and-fire-later"
-    // entries so admins can still cancel individual posts.
-    return <SchedulePostsBody history={history} historyLoading={historyLoading} historyErr={historyErr} refreshHistory={refreshHistory} accounts={accounts} />;
-  }
-  if (sub === 'history') {
-    return (
+  return (
+    <div className="space-y-5">
+      {readyDrafts.length > 0 ? (
+        <PublishReadyFlow
+          connected={connected}
+          readyDrafts={readyDrafts}
+          onPosted={(usedId) => {
+            void deleteDraft(usedId);
+            refreshHistory();
+          }}
+        />
+      ) : (
+        <section className="rounded-2xl border border-black/10 bg-white p-5">
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Post now</h2>
+          <p className="text-[12px] text-foreground/55 mt-1 max-w-md">
+            No ready-to-go drafts yet. Approve a post under <strong>Creative</strong> &mdash; mark it{' '}
+            <em>ready to go</em> &mdash; and it&rsquo;ll show up here to publish in one click.
+          </p>
+        </section>
+      )}
+
+      {/* Scheduled part */}
+      <SchedulePostsBody
+        history={history}
+        historyLoading={historyLoading}
+        historyErr={historyErr}
+        refreshHistory={refreshHistory}
+        accounts={accounts}
+      />
+
+      {/* Recent history, at the bottom */}
       <HistoryList
         posts={history}
         loading={historyLoading}
         error={historyErr}
         onChanged={refreshHistory}
       />
-    );
-  }
-  // Default sub = drafts. Compose lives inside DraftsPanel and only
-  // mounts when the user clicks Publish on a specific draft.
-  return (
-    <DraftsPanel
-      accounts={accounts}
-      onPosted={refreshHistory}
-    />
+    </div>
   );
 }
 
@@ -1039,10 +1057,6 @@ function PublishReadyFlow({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDraftId, selectedDraftPlatformsKey, connectedKey]);
 
-  // Step 3: scheduling. `mode` toggles the datetime input on; the
-  // local string is converted to UTC at submit time.
-  const [mode, setMode] = useState<'now' | 'schedule'>('now');
-  const [scheduleAt, setScheduleAt] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1055,15 +1069,11 @@ function PublishReadyFlow({
   };
 
   const selectedDraft = readyDrafts.find((d) => d.id === selectedDraftId) || null;
-  const canSubmit =
-    selectedDraft !== null
-    && selectedNetworks.size > 0
-    && (mode === 'now' || (mode === 'schedule' && scheduleAt.trim().length > 0));
+  const canSubmit = selectedDraft !== null && selectedNetworks.size > 0;
 
   const submit = async () => {
     if (!selectedDraft) { setError('Pick a ready draft to publish.'); return; }
     if (selectedNetworks.size === 0) { setError('Pick at least one network.'); return; }
-    if (mode === 'schedule' && !scheduleAt) { setError('Pick a schedule date or switch to Post now.'); return; }
     setError(null);
     setSubmitting(true);
     try {
@@ -1072,7 +1082,6 @@ function PublishReadyFlow({
         platforms: Array.from(selectedNetworks),
       };
       if (selectedDraft.mediaUrls.length > 0) body.mediaUrls = selectedDraft.mediaUrls;
-      if (mode === 'schedule') body.scheduleDate = new Date(scheduleAt).toISOString();
       const res = await fetch('/api/social-media/post', {
         method: 'POST',
         credentials: 'include',
@@ -1092,17 +1101,17 @@ function PublishReadyFlow({
   };
 
   return (
-    <section className="rounded-2xl border border-primary/30 bg-primary/[0.04] p-5 mb-5">
+    <section className="rounded-2xl border border-primary/30 bg-primary/[0.04] p-5">
       <div className="mb-4">
-        <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Publish</h2>
+        <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Post now</h2>
         <p className="text-[11px] text-foreground/55 mt-0.5">
-          Pick a ready-to-go draft — it loads the networks you chose for it in Creative — then post now or schedule.
+          Pick a ready-to-go draft — it loads the networks you chose for it in Creative — then hit Post. To queue a post for later, use <strong>Schedule</strong> below.
         </p>
       </div>
 
       {/* Step 1 — ready drafts (lead the flow) */}
       <div className="mb-4">
-        <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-2">Step 1 · Ready-to-go draft</p>
+        <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-2">Ready-to-go draft</p>
         <ul className="space-y-2">
           {readyDrafts.map((d) => {
             const checked = selectedDraftId === d.id;
@@ -1142,7 +1151,7 @@ function PublishReadyFlow({
           assignment so "where it posts" follows the draft; still
           editable for a one-off override. */}
       <div className="mb-4">
-        <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-2">Step 2 · Networks</p>
+        <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-2">Networks</p>
         {connected.length === 0 ? (
           <p className="text-[12px] text-foreground/55 italic">No connected accounts yet. Connect at least one channel under Overview.</p>
         ) : (
@@ -1166,40 +1175,6 @@ function PublishReadyFlow({
         )}
       </div>
 
-      {/* Deliverables — every unique aspect ratio the selected
-          networks accept, so a marketer can see the full matrix of
-          crops they need to produce. */}
-      <DeliverablesPanel selected={selectedNetworks} />
-
-      {/* Step 3 — post now or schedule */}
-      <div className="mb-4">
-        <p className="text-[10px] font-bold tracking-[0.18em] uppercase text-foreground/55 mb-2">Step 3 · When</p>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => setMode('now')}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors ${mode === 'now' ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/75 border-black/10 hover:bg-warm-bg/60'}`}
-          >
-            Post now
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('schedule')}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-colors ${mode === 'schedule' ? 'bg-foreground text-white border-foreground' : 'bg-white text-foreground/75 border-black/10 hover:bg-warm-bg/60'}`}
-          >
-            Schedule
-          </button>
-          {mode === 'schedule' && (
-            <input
-              type="datetime-local"
-              value={scheduleAt}
-              onChange={(e) => setScheduleAt(e.target.value)}
-              className="ml-2 rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/40"
-            />
-          )}
-        </div>
-      </div>
-
       {error && (
         <p className="mb-3 text-[12px] text-rose-700 font-semibold">{error}</p>
       )}
@@ -1211,7 +1186,7 @@ function PublishReadyFlow({
           disabled={!canSubmit || submitting}
           className="rounded-lg bg-primary text-white px-4 py-2 text-[13px] font-semibold hover:bg-primary-dark disabled:opacity-40"
         >
-          {submitting ? 'Sending…' : mode === 'schedule' ? `Schedule to ${selectedNetworks.size} ${selectedNetworks.size === 1 ? 'network' : 'networks'}` : `Post now to ${selectedNetworks.size} ${selectedNetworks.size === 1 ? 'network' : 'networks'}`}
+          {submitting ? 'Sending…' : `Post now to ${selectedNetworks.size} ${selectedNetworks.size === 1 ? 'network' : 'networks'}`}
         </button>
       </div>
     </section>
@@ -1509,22 +1484,32 @@ function CreativeSubNav() {
   );
 }
 
+// Creative is now a single screen: a Drafts card on top, a Ready-to-go
+// card below, and an "Add new post" button that jumps to the dedicated
+// create flow. The old Build / Draft / Ready-to-go sub-nav is gone —
+// browsing the media library now happens inside the create flow's
+// "Pick from library" overlay.
 function CreativeTabBody() {
-  const searchParams = useSearchParams();
-  const sub = readCreativeSub(searchParams.get('sub'));
-  // 'templates' route id now backs the "Draft" tab — the working
-  // list of in-progress saved posts. The pre-built Templates panel
-  // (CreativeTemplatesPanel) is still defined below but no longer
-  // owns a top-level tab slot; reachable via the "Start from a
-  // template" affordance inside the Draft panel.
-  if (sub === 'templates') return <CreativeDraftsPanel />;
-  // 'ai' route id now backs the "Ready to go" tab. AI-assist still
-  // lives inside the Draft (templates) pane via the existing
-  // Send-to-Compose hand-off; surfacing it as a top-level Creative
-  // tab made less sense once the third slot became the publish-
-  // ready inbox.
-  if (sub === 'ai') return <ReadyToGoPanel />;
-  return <CreativeLibraryPanel />;
+  return (
+    <div className="space-y-5">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <p className="text-[12px] text-foreground/55 max-w-md">
+          Everything your team is working on — drafts up top, signed-off posts ready to publish below.
+        </p>
+        <Link
+          href="/feather/social-media/create"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-[13px] font-semibold text-white hover:bg-primary-dark shadow-sm"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24" aria-hidden>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" />
+          </svg>
+          Add new post
+        </Link>
+      </div>
+      <CreativeDraftsPanel />
+      <ReadyToGoPanel />
+    </div>
+  );
 }
 
 // ── Creative > Draft ─────────────────────────────────────────────────
@@ -1563,7 +1548,7 @@ function CreativeDraftsPanel() {
       <div className="flex items-baseline justify-between flex-wrap gap-3 mb-3">
         <div>
           <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">
-            Drafts in progress · {inProgress.length}
+            Drafts · {inProgress.length}
           </h2>
           <p className="text-[11px] text-foreground/45 mt-0.5">
             Posts your team is still working on — not yet approved. Tick &ldquo;Mark approved&rdquo; on any one to move it to{' '}
@@ -1588,8 +1573,8 @@ function CreativeDraftsPanel() {
           <p className="text-sm text-foreground/55 max-w-md mx-auto">
             No drafts in progress.{' '}
             {ready.length > 0
-              ? <>The {ready.length} approved post{ready.length === 1 ? '' : 's'} sit{ready.length === 1 ? 's' : ''} under <strong>Ready to go</strong>.</>
-              : <>Build one in <strong>Build</strong>, or start from a template.</>}
+              ? <>The {ready.length} approved post{ready.length === 1 ? '' : 's'} sit{ready.length === 1 ? 's' : ''} under <strong>Ready to go</strong> below.</>
+              : <>Hit <strong>Add new post</strong> above, or start from a template.</>}
           </p>
           <button
             type="button"
