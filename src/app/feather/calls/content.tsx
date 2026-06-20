@@ -12,6 +12,7 @@ import { CallsHeatmap } from './CallsHeatmap';
 import {
   type AircallCallRow,
   PHOENIX_TZ,
+  directionStyle,
   formatDuration,
   formatPhone,
   formatRelativeTime,
@@ -41,15 +42,6 @@ function rangeFrom(preset: RangePreset): string | undefined {
     case '30d': return phoenixMidnightUtc(29).toISOString();
     case 'all': return undefined;
   }
-}
-
-// Left-accent color per row — encodes the call's most significant status
-// so the row reads at a glance without a loud badge cluster.
-function callAccent(c: AircallCallRow): string {
-  if (c.voicemail) return '#8b5cf6'; // violet
-  if (c.missed) return '#f43f5e';    // rose
-  if (c.direction === 'inbound') return '#10b981'; // emerald
-  return '#3b82f6';                  // blue (outbound / other)
 }
 
 // Phoenix-local day key + a friendly label (Today / Yesterday / Mon, Jun 16)
@@ -631,7 +623,7 @@ export default function CallsContent() {
                     onClick={() => router.push(`/feather/calls/${c.aircall_id}`)}
                     className={`cursor-pointer hover:bg-white/60 transition-colors ${c.missed ? 'bg-rose-50/40' : ''}`}
                   >
-                    <td className="px-5 py-3 whitespace-nowrap text-foreground/70" style={{ boxShadow: `inset 3px 0 0 ${callAccent(c)}` }}>{formatRelativeTime(c.started_at)}</td>
+                    <td className="px-5 py-3 whitespace-nowrap text-foreground/70">{formatRelativeTime(c.started_at)}</td>
                     <td className="px-3 py-3">{renderAgent(c)}</td>
                     <td className="px-3 py-3">
                       {(() => {
@@ -697,15 +689,14 @@ export default function CallsContent() {
                     <td className="px-3 py-3 text-right tabular-nums text-foreground/60">{formatWait(c.started_at, c.answered_at)}</td>
                     <td className="px-3 py-3 text-right tabular-nums text-foreground/70">{formatDuration(c.duration)}</td>
                     <td className="px-3 py-3">
-                      {/* Calmer: direction is carried by the row's left
-                          accent bar, so here we keep just a muted label
-                          plus soft tags for the exceptions. */}
                       <div className="flex flex-col items-start gap-1">
-                        <span className="text-[11px] capitalize text-foreground/45">{c.direction ?? 'call'}</span>
-                        {c.missed && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-semibold uppercase tracking-wide bg-rose-50 text-rose-600">Missed</span>}
-                        {c.voicemail && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-semibold uppercase tracking-wide bg-violet-50 text-violet-600">Voicemail</span>}
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${directionStyle[c.direction ?? ''] ?? 'bg-gray-100 text-gray-600'}`}>
+                          {c.direction ?? 'call'}
+                        </span>
+                        {c.missed && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-rose-100 text-rose-700">Missed</span>}
+                        {c.voicemail && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-violet-100 text-violet-700">Voicemail</span>}
                         {(c.tags ?? []).slice(0, 2).map((t) => (
-                          <span key={t} className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-medium bg-foreground/5 text-foreground/55">{t}</span>
+                          <span key={t} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-foreground/5 text-foreground/60">{t}</span>
                         ))}
                       </div>
                     </td>
