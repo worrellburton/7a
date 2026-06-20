@@ -1,9 +1,10 @@
 'use client';
 
 import { useAuth } from '@/lib/AuthProvider';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import FloatingScrollbar from '@/components/FloatingScrollbar';
 import { supabase } from '@/lib/supabase';
 import { OperatorSchedule } from './OperatorSchedule';
 import { OperatorCheatSheet } from './OperatorCheatSheet';
@@ -11,7 +12,6 @@ import { CallsHeatmap } from './CallsHeatmap';
 import {
   type AircallCallRow,
   PHOENIX_TZ,
-  directionStyle,
   formatDuration,
   formatPhone,
   formatRelativeTime,
@@ -41,6 +41,47 @@ function rangeFrom(preset: RangePreset): string | undefined {
     case '30d': return phoenixMidnightUtc(29).toISOString();
     case 'all': return undefined;
   }
+}
+
+// Left-accent color per row — encodes the call's most significant status
+// so the row reads at a glance without a loud badge cluster.
+function callAccent(c: AircallCallRow): string {
+  if (c.voicemail) return '#8b5cf6'; // violet
+  if (c.missed) return '#f43f5e';    // rose
+  if (c.direction === 'inbound') return '#10b981'; // emerald
+  return '#3b82f6';                  // blue (outbound / other)
+}
+
+// Phoenix-local day key + a friendly label (Today / Yesterday / Mon, Jun 16)
+// for the per-day group dividers.
+function callDayKey(iso: string | null): string {
+  if (!iso) return 'unknown';
+  try { return new Date(iso).toLocaleDateString('en-CA', { timeZone: PHOENIX_TZ }); } catch { return 'unknown'; }
+}
+function callDayLabel(iso: string | null): string {
+  if (!iso) return 'Unknown date';
+  const dk = callDayKey(iso);
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: PHOENIX_TZ });
+  const yesterday = new Date(Date.now() - 86_400_000).toLocaleDateString('en-CA', { timeZone: PHOENIX_TZ });
+  if (dk === today) return 'Today';
+  if (dk === yesterday) return 'Yesterday';
+  try { return new Date(iso).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: PHOENIX_TZ }); } catch { return dk; }
+}
+
+// Soft color chip per source type so the Source column scans by category.
+function sourceChipClass(value: string): string {
+  const v = value.toLowerCase();
+  if (v.includes('google') || v.includes('web') || v.includes('search')) return 'bg-blue-50 text-blue-700';
+  if (v.includes('psychology')) return 'bg-indigo-50 text-indigo-700';
+  if (v.includes('insurance')) return 'bg-teal-50 text-teal-700';
+  if (v.includes('referral') || v.includes('doctor') || v.includes('professional')) return 'bg-emerald-50 text-emerald-700';
+  if (v.includes('friend') || v.includes('family')) return 'bg-amber-50 text-amber-700';
+  if (v.includes('alumni') || v.includes('returning')) return 'bg-purple-50 text-purple-700';
+  if (v.includes('facebook')) return 'bg-sky-50 text-sky-700';
+  if (v.includes('instagram')) return 'bg-pink-50 text-pink-700';
+  if (v.includes('samhsa')) return 'bg-cyan-50 text-cyan-700';
+  if (v.includes('billboard') || v.includes(' ad') || v === 'ad') return 'bg-orange-50 text-orange-700';
+  return 'bg-foreground/5 text-foreground/65';
 }
 
 // Curated "how did you hear about us?" options for the Source dropdown.
@@ -109,10 +150,12 @@ function SourceCell({
     return base;
   }, [resolved]);
 
+  const chip = resolved
+    ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${sourceChipClass(resolved)}`}>{resolved}</span>
+    : null;
+
   if (!number || !canEdit) {
-    return resolved
-      ? <span className="text-foreground/70">{resolved}</span>
-      : <span className="text-foreground/30">—</span>;
+    return chip ?? <span className="text-foreground/30">—</span>;
   }
 
   const save = async (next: string) => {
@@ -154,9 +197,7 @@ function SourceCell({
       className="group inline-flex items-center text-left"
       title="Set source — applies to every call from this number"
     >
-      {resolved
-        ? <span className="text-foreground/70 group-hover:text-primary">{resolved}</span>
-        : <span className="text-foreground/30 group-hover:text-primary">+ add</span>}
+      {chip ?? <span className="text-foreground/30 group-hover:text-primary">+ add</span>}
     </button>
   );
 }
@@ -166,6 +207,9 @@ export default function CallsContent() {
   const token = session?.access_token ?? null;
   const canManage = isAdmin || isSuperAdmin;
   const router = useRouter();
+  // Bounded scroll box around the wide desktop table → sticky header +
+  // contacts-style floating horizontal scrollbar.
+  const callsTableRef = useRef<HTMLDivElement | null>(null);
 
   const [calls, setCalls] = useState<AircallCallRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -544,10 +588,16 @@ export default function CallsContent() {
           </div>
         ) : (
           <>
-            {/* Desktop table */}
-            <table className="hidden sm:table w-full text-sm [&_td]:align-top">
-              <thead>
-                <tr className="text-[11px] uppercase tracking-wider text-foreground/40 border-b border-foreground/10">
+            {/* Desktop table — sticky header + floating horizontal scrollbar. */}
+            <FloatingScrollbar tableRef={callsTableRef} engagedSelector="[data-calls-table]" />
+            <div
+              ref={callsTableRef}
+              data-calls-table
+              className="hidden sm:block overflow-auto max-h-[calc(100vh-9rem)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
+            <table className="w-full min-w-[1180px] text-sm [&_td]:align-top">
+              <thead className="[&_th]:sticky [&_th]:top-0 [&_th]:z-20 [&_th]:bg-white/90 [&_th]:backdrop-blur [&_th]:border-b [&_th]:border-foreground/10">
+                <tr className="text-[11px] uppercase tracking-wider text-foreground/40">
                   <th className="text-left font-semibold px-5 py-3">When</th>
                   <th className="text-left font-semibold px-3 py-3">Agent</th>
                   <th className="text-left font-semibold px-3 py-3">Caller</th>
@@ -562,13 +612,26 @@ export default function CallsContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-foreground/5">
-                {calls.map((c) => (
+                {(() => {
+                  let lastDay: string | null = null;
+                  return calls.map((c) => {
+                    const dk = callDayKey(c.started_at);
+                    const showDay = dk !== lastDay;
+                    lastDay = dk;
+                    return (
+                  <Fragment key={c.aircall_id}>
+                    {showDay && (
+                      <tr className="bg-warm-bg/30">
+                        <td colSpan={11} className="px-5 pt-3 pb-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/40 border-b border-foreground/5">
+                          {callDayLabel(c.started_at)}
+                        </td>
+                      </tr>
+                    )}
                   <tr
-                    key={c.aircall_id}
                     onClick={() => router.push(`/feather/calls/${c.aircall_id}`)}
                     className={`cursor-pointer hover:bg-white/60 transition-colors ${c.missed ? 'bg-rose-50/40' : ''}`}
                   >
-                    <td className="px-5 py-3 whitespace-nowrap text-foreground/70">{formatRelativeTime(c.started_at)}</td>
+                    <td className="px-5 py-3 whitespace-nowrap text-foreground/70" style={{ boxShadow: `inset 3px 0 0 ${callAccent(c)}` }}>{formatRelativeTime(c.started_at)}</td>
                     <td className="px-3 py-3">{renderAgent(c)}</td>
                     <td className="px-3 py-3">
                       {(() => {
@@ -634,14 +697,15 @@ export default function CallsContent() {
                     <td className="px-3 py-3 text-right tabular-nums text-foreground/60">{formatWait(c.started_at, c.answered_at)}</td>
                     <td className="px-3 py-3 text-right tabular-nums text-foreground/70">{formatDuration(c.duration)}</td>
                     <td className="px-3 py-3">
+                      {/* Calmer: direction is carried by the row's left
+                          accent bar, so here we keep just a muted label
+                          plus soft tags for the exceptions. */}
                       <div className="flex flex-col items-start gap-1">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide ${directionStyle[c.direction ?? ''] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {c.direction ?? 'call'}
-                        </span>
-                        {c.missed && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-rose-100 text-rose-700">Missed</span>}
-                        {c.voicemail && <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide bg-violet-100 text-violet-700">Voicemail</span>}
+                        <span className="text-[11px] capitalize text-foreground/45">{c.direction ?? 'call'}</span>
+                        {c.missed && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-semibold uppercase tracking-wide bg-rose-50 text-rose-600">Missed</span>}
+                        {c.voicemail && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-semibold uppercase tracking-wide bg-violet-50 text-violet-600">Voicemail</span>}
                         {(c.tags ?? []).slice(0, 2).map((t) => (
-                          <span key={t} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-foreground/5 text-foreground/60">{t}</span>
+                          <span key={t} className="inline-flex items-center px-1.5 py-0.5 rounded text-[9.5px] font-medium bg-foreground/5 text-foreground/55">{t}</span>
                         ))}
                       </div>
                     </td>
@@ -665,9 +729,13 @@ export default function CallsContent() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  </Fragment>
+                    );
+                  });
+                })()}
               </tbody>
             </table>
+            </div>
 
             {/* Mobile rows */}
             <div className="sm:hidden divide-y divide-foreground/5">
