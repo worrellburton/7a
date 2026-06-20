@@ -43,9 +43,50 @@ function rangeFrom(preset: RangePreset): string | undefined {
   }
 }
 
+// Curated "how did you hear about us?" options for the Source dropdown.
+// Any existing AI-detected / custom value that isn't in this list is
+// added as its own option so it stays selectable instead of vanishing.
+const SOURCE_OPTIONS = [
+  'Google',
+  'Web search',
+  'Psychology Today',
+  'Insurance directory',
+  'Referral',
+  'Doctor / Professional',
+  'Friend / Family',
+  'Alumni',
+  'Returning client',
+  'Facebook',
+  'Instagram',
+  'SAMHSA',
+  'Billboard / Ad',
+  'Other',
+];
+
+// Source column header. The pulsing dot signals that source detection is
+// live (Claude reads each transcript); hovering reveals the rules.
+function SourceHeader() {
+  return (
+    <span className="group relative inline-flex items-center gap-1.5 cursor-help">
+      Source
+      <span className="relative inline-flex items-center" aria-hidden>
+        <span className="relative flex h-1.5 w-1.5">
+          <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        </span>
+        <span className="ml-1 text-[9px] font-bold tracking-wider text-emerald-600">AUTO</span>
+      </span>
+      <span className="pointer-events-none absolute left-0 top-full z-30 mt-1.5 hidden w-72 rounded-lg border border-black/10 bg-white px-3 py-2.5 text-[11px] font-normal normal-case tracking-normal leading-snug text-foreground/70 shadow-xl group-hover:block">
+        <span className="block font-semibold text-foreground mb-1">Auto-detected source</span>
+        After each call, Claude reads the transcript and — if the operator asked <em>&ldquo;how did you hear about us?&rdquo;</em> — records the caller&rsquo;s answer here. It&rsquo;s left blank when the question isn&rsquo;t asked. Admins can override it from the dropdown, which applies to every call from that number.
+      </span>
+    </span>
+  );
+}
+
 // Source column cell. Shows the resolved "how did you hear about us?"
 // source — the per-number admin override if set, else the per-call
-// AI-detected value. Admins can click to edit; saving writes the
+// AI-detected value. Admins pick from a dropdown; choosing writes the
 // per-number override (which the parent overlays onto every call from
 // that number).
 function SourceCell({
@@ -60,10 +101,13 @@ function SourceCell({
 }) {
   const resolved = (override ?? (aiSource || '')).trim();
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(resolved);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => { if (!editing) setValue(resolved); }, [resolved, editing]);
+  const options = useMemo(() => {
+    const base = [...SOURCE_OPTIONS];
+    if (resolved && !base.includes(resolved)) base.unshift(resolved);
+    return base;
+  }, [resolved]);
 
   if (!number || !canEdit) {
     return resolved
@@ -71,49 +115,44 @@ function SourceCell({
       : <span className="text-foreground/30">—</span>;
   }
 
-  const save = async () => {
-    if (!token) return;
+  const save = async (next: string) => {
+    if (!token) { setEditing(false); return; }
     setSaving(true);
     try {
       const res = await fetch('/api/aircall/number-label', {
         method: 'POST',
         headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ number, source: value.trim() }),
+        body: JSON.stringify({ number, source: next }),
       });
-      if (res.ok) { onSaved(number, value.trim()); setEditing(false); }
+      if (res.ok) onSaved(number, next);
     } finally {
       setSaving(false);
+      setEditing(false);
     }
   };
 
   if (editing) {
     return (
-      <div className="flex items-center gap-1">
-        <input
-          autoFocus
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') void save();
-            else if (e.key === 'Escape') { setEditing(false); setValue(resolved); }
-          }}
-          placeholder="Source…"
-          maxLength={60}
-          className="w-28 px-2 py-1 rounded border border-black/15 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/40"
-        />
-        <button type="button" onClick={() => void save()} disabled={saving} className="text-[11px] font-semibold text-primary hover:underline disabled:opacity-40">
-          {saving ? '…' : 'Save'}
-        </button>
-      </div>
+      <select
+        autoFocus
+        defaultValue={resolved}
+        disabled={saving}
+        onChange={(e) => void save(e.target.value)}
+        onBlur={() => setEditing(false)}
+        className="w-40 max-w-full px-2 py-1 rounded border border-black/15 bg-white text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+      >
+        <option value="">— None —</option>
+        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
     );
   }
 
   return (
     <button
       type="button"
-      onClick={() => { setValue(resolved); setEditing(true); }}
+      onClick={() => setEditing(true)}
       className="group inline-flex items-center text-left"
-      title="Edit source — applies to every call from this number"
+      title="Set source — applies to every call from this number"
     >
       {resolved
         ? <span className="text-foreground/70 group-hover:text-primary">{resolved}</span>
@@ -479,10 +518,10 @@ export default function CallsContent() {
               <thead>
                 <tr className="text-[11px] uppercase tracking-wider text-foreground/40 border-b border-foreground/10">
                   <th className="text-left font-semibold px-5 py-3">When</th>
+                  <th className="text-left font-semibold px-3 py-3">Agent</th>
                   <th className="text-left font-semibold px-3 py-3">Caller</th>
                   <th className="text-left font-semibold px-3 py-3">Location</th>
-                  <th className="text-left font-semibold px-3 py-3">Source</th>
-                  <th className="text-left font-semibold px-3 py-3">Agent</th>
+                  <th className="text-left font-semibold px-3 py-3 relative"><SourceHeader /></th>
                   <th className="text-left font-semibold px-3 py-3">Summary</th>
                   <th className="text-left font-semibold px-3 py-3">Line</th>
                   <th className="text-right font-semibold px-3 py-3">Wait</th>
@@ -499,6 +538,7 @@ export default function CallsContent() {
                     className={`cursor-pointer hover:bg-white/60 transition-colors ${c.missed ? 'bg-rose-50/40' : ''}`}
                   >
                     <td className="px-5 py-3 whitespace-nowrap text-foreground/70">{formatRelativeTime(c.started_at)}</td>
+                    <td className="px-3 py-3">{renderAgent(c)}</td>
                     <td className="px-3 py-3">
                       {(() => {
                         const key = c.caller_number || (c.raw_digits || '').replace(/\D/g, '');
@@ -541,7 +581,6 @@ export default function CallsContent() {
                         onSaved={handleSourceSaved}
                       />
                     </td>
-                    <td className="px-3 py-3">{renderAgent(c)}</td>
                     <td className="px-3 py-3">
                       {c.summary
                         ? <div className="max-w-[380px] whitespace-pre-line text-[12px] leading-snug text-foreground/60">{c.summary}</div>
