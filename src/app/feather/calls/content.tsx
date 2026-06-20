@@ -386,6 +386,39 @@ export default function CallsContent() {
     );
   };
 
+  // Mobile leading avatar: the operator's photo with a small status color
+  // dot (inbound / outbound / voicemail / missed) badged on the corner.
+  const renderMobileAvatar = (c: AircallCallRow) => {
+    const u = c.user_email ? agentUsers[c.user_email.toLowerCase()] : undefined;
+    const name = c.user_name || u?.full_name || '';
+    const status = c.voicemail
+      ? { dot: 'bg-violet-500', label: 'Voicemail' }
+      : c.missed
+      ? { dot: 'bg-rose-500', label: 'Missed' }
+      : c.direction === 'inbound'
+      ? { dot: 'bg-emerald-500', label: 'Inbound' }
+      : { dot: 'bg-blue-500', label: c.direction === 'outbound' ? 'Outbound' : 'Call' };
+    return (
+      <span className="relative shrink-0" title={`${name ? `${name} · ` : ''}${status.label}`}>
+        {u?.avatar_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={u.avatar_url} alt={name} className="h-9 w-9 rounded-full object-cover ring-1 ring-white shadow-sm" />
+        ) : name ? (
+          <span className="h-9 w-9 rounded-full bg-primary/10 text-primary text-[11px] font-bold flex items-center justify-center ring-1 ring-white">
+            {initials(name)}
+          </span>
+        ) : (
+          <span className="h-9 w-9 rounded-full bg-foreground/10 text-foreground/40 flex items-center justify-center ring-1 ring-white">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
+            </svg>
+          </span>
+        )}
+        <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-white ${status.dot}`} aria-label={status.label} />
+      </span>
+    );
+  };
+
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-[1600px] mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
       {/* Header */}
@@ -646,7 +679,7 @@ export default function CallsContent() {
                     onClick={() => router.push(`/feather/calls/${c.aircall_id}`)}
                     className="min-w-0 flex-1 text-left flex items-center gap-3"
                   >
-                    <span className={`h-2 w-2 rounded-full shrink-0 ${c.missed ? 'bg-rose-500' : c.direction === 'inbound' ? 'bg-emerald-500' : 'bg-blue-500'}`} />
+                    {renderMobileAvatar(c)}
                     <div className="min-w-0 flex-1">
                       <p className="font-medium text-foreground truncate">{(c.caller_number && labels[c.caller_number]) || c.contact_name || formatPhone(c.raw_digits || c.caller_number)}</p>
                       <p className="text-[11px] text-foreground/45 truncate">{formatRelativeTime(c.started_at)} · {c.user_name || c.number_name || c.direction}</p>
