@@ -1095,16 +1095,16 @@ export default function HomeContent() {
             overlapped, so the tagline is hidden below lg. */}
         <section
           aria-label="Mission tagline"
-          className="hidden lg:flex w-full max-w-4xl mx-auto pt-2 pb-28 sm:pb-24 px-4 flex-col items-center text-center"
+          className="flex w-full max-w-4xl mx-auto pt-1 lg:pt-2 pb-16 sm:pb-24 px-4 flex-col items-center text-center"
         >
           <p
-            className="text-[10px] font-semibold tracking-[0.28em] uppercase text-foreground/45 mb-1.5"
+            className="text-[9px] sm:text-[10px] font-semibold tracking-[0.28em] uppercase text-foreground/45 mb-1"
             style={{ fontFamily: 'var(--font-body)' }}
           >
             Seven Arrows
           </p>
           <h2
-            className="text-xl lg:text-2xl font-semibold text-foreground/80 leading-tight"
+            className="text-sm sm:text-lg lg:text-2xl font-semibold text-foreground/80 leading-tight"
             style={{ fontFamily: 'var(--font-display)' }}
             aria-label="Moving the mission forward"
           >
