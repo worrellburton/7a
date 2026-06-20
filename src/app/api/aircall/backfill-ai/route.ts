@@ -10,7 +10,7 @@ import {
   extractTopics,
   extractSentiment,
 } from '@/lib/aircall';
-import { summariseTranscript } from '@/lib/transcript-summary';
+import { summariseTranscript, extractCallSource } from '@/lib/transcript-summary';
 
 // POST|GET /api/aircall/backfill-ai — pull Conversation-Intelligence
 // (transcript / summary / sentiment / topics) from Aircall's REST AI
@@ -87,15 +87,16 @@ async function handleBackfillAi(req: NextRequest) {
   // to do for them.)
   let q = supabase
     .from('aircall_calls')
-    .select('aircall_id, ai, transcript, summary, ai_synced_at')
+    .select('aircall_id, ai, transcript, summary, source, ai_synced_at')
     .order('started_at', { ascending: false })
     .limit(limit);
   if (!force) {
     const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    // Needs work = never pulled Aircall AI, OR has a transcript but no
+    // summary, OR has a transcript but no source-detection pass yet.
     q = q
-      .is('summary', null)
       .lt('started_at', cutoff)
-      .or('ai_synced_at.is.null,transcript.not.is.null');
+      .or('ai_synced_at.is.null,and(transcript.not.is.null,summary.is.null),and(transcript.not.is.null,source.is.null)');
   }
 
   const { data: rows, error } = await q;
@@ -103,6 +104,7 @@ async function handleBackfillAi(req: NextRequest) {
 
   let processed = 0;
   let summarized = 0;
+  let sourced = 0;
   let rateLimited = false;
 
   for (const row of rows ?? []) {
@@ -111,6 +113,7 @@ async function handleBackfillAi(req: NextRequest) {
       ai: Record<string, unknown> | null;
       transcript: string | null;
       summary: string | null;
+      source: string | null;
       ai_synced_at: string | null;
     };
     const callId = r.aircall_id;
@@ -151,6 +154,15 @@ async function handleBackfillAi(req: NextRequest) {
       if (generated) { patch.summary = generated; summarized += 1; }
     }
 
+    // 3) Detect the "how did you hear about us?" source from the
+    // transcript, once per call. Store '' (empty) when it wasn't asked /
+    // answered so we don't re-ask Claude every run; '' renders blank.
+    if (transcript && transcript.trim() && r.source == null) {
+      const src = await extractCallSource(transcript);
+      patch.source = src ?? '';
+      if (src) sourced += 1;
+    }
+
     // Nothing new to persist this pass — skip the write.
     if (Object.keys(patch).length <= 1) continue;
     patch.synced_at = new Date().toISOString();
@@ -163,7 +175,7 @@ async function handleBackfillAi(req: NextRequest) {
     processed += 1;
   }
 
-  return NextResponse.json({ ok: true, scanned: rows?.length ?? 0, processed, summarized, rateLimited });
+  return NextResponse.json({ ok: true, scanned: rows?.length ?? 0, processed, summarized, sourced, rateLimited });
 }
 
 export async function POST(req: NextRequest) {

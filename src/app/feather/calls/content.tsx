@@ -43,9 +43,89 @@ function rangeFrom(preset: RangePreset): string | undefined {
   }
 }
 
+// Source column cell. Shows the resolved "how did you hear about us?"
+// source — the per-number admin override if set, else the per-call
+// AI-detected value. Admins can click to edit; saving writes the
+// per-number override (which the parent overlays onto every call from
+// that number).
+function SourceCell({
+  number, aiSource, override, canEdit, token, onSaved,
+}: {
+  number: string;
+  aiSource: string | null;
+  override: string | undefined;
+  canEdit: boolean;
+  token: string | null;
+  onSaved: (number: string, value: string) => void;
+}) {
+  const resolved = (override ?? (aiSource || '')).trim();
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(resolved);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { if (!editing) setValue(resolved); }, [resolved, editing]);
+
+  if (!number || !canEdit) {
+    return resolved
+      ? <span className="text-foreground/70">{resolved}</span>
+      : <span className="text-foreground/30">—</span>;
+  }
+
+  const save = async () => {
+    if (!token) return;
+    setSaving(true);
+    try {
+      const res = await fetch('/api/aircall/number-label', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ number, source: value.trim() }),
+      });
+      if (res.ok) { onSaved(number, value.trim()); setEditing(false); }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <div className="flex items-center gap-1">
+        <input
+          autoFocus
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') void save();
+            else if (e.key === 'Escape') { setEditing(false); setValue(resolved); }
+          }}
+          placeholder="Source…"
+          maxLength={60}
+          className="w-28 px-2 py-1 rounded border border-black/15 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+        />
+        <button type="button" onClick={() => void save()} disabled={saving} className="text-[11px] font-semibold text-primary hover:underline disabled:opacity-40">
+          {saving ? '…' : 'Save'}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => { setValue(resolved); setEditing(true); }}
+      className="group inline-flex items-center text-left"
+      title="Edit source — applies to every call from this number"
+    >
+      {resolved
+        ? <span className="text-foreground/70 group-hover:text-primary">{resolved}</span>
+        : <span className="text-foreground/30 group-hover:text-primary">+ add</span>}
+    </button>
+  );
+}
+
 export default function CallsContent() {
-  const { session } = useAuth();
+  const { session, isAdmin, isSuperAdmin } = useAuth();
   const token = session?.access_token ?? null;
+  const canManage = isAdmin || isSuperAdmin;
   const router = useRouter();
 
   const [calls, setCalls] = useState<AircallCallRow[]>([]);
@@ -54,9 +134,11 @@ export default function CallsContent() {
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
 
-  // Operator-assigned names per caller number, overlaid on the Caller
-  // column. Small table — fetched once and keyed by digit-only number.
+  // Per-number overrides overlaid on the grid: operator-assigned names
+  // (Caller column) + admin "source" overrides (Source column). Small
+  // table — fetched once, keyed by digit-only number.
   const [labels, setLabels] = useState<Record<string, string>>({});
+  const [sources, setSources] = useState<Record<string, string>>({});
   useEffect(() => {
     if (!token) return;
     let cancelled = false;
@@ -64,11 +146,24 @@ export default function CallsContent() {
       try {
         const res = await fetch('/api/aircall/number-label', { headers: { Authorization: `Bearer ${token}` } });
         const json = await res.json();
-        if (!cancelled && res.ok) setLabels((json.labels ?? {}) as Record<string, string>);
-      } catch { /* non-fatal — names just don't overlay */ }
+        if (!cancelled && res.ok) {
+          setLabels((json.labels ?? {}) as Record<string, string>);
+          setSources((json.sources ?? {}) as Record<string, string>);
+        }
+      } catch { /* non-fatal — overrides just don't overlay */ }
     })();
     return () => { cancelled = true; };
   }, [token]);
+
+  // When an admin edits a source it's saved per-number, so reflect it on
+  // every row from that number at once by updating the shared map.
+  const handleSourceSaved = useCallback((number: string, value: string) => {
+    setSources((prev) => {
+      const next = { ...prev };
+      if (value) next[number] = value; else delete next[number];
+      return next;
+    });
+  }, []);
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -386,6 +481,7 @@ export default function CallsContent() {
                   <th className="text-left font-semibold px-5 py-3">When</th>
                   <th className="text-left font-semibold px-3 py-3">Caller</th>
                   <th className="text-left font-semibold px-3 py-3">Location</th>
+                  <th className="text-left font-semibold px-3 py-3">Source</th>
                   <th className="text-left font-semibold px-3 py-3">Agent</th>
                   <th className="text-left font-semibold px-3 py-3">Summary</th>
                   <th className="text-left font-semibold px-3 py-3">Line</th>
@@ -434,6 +530,16 @@ export default function CallsContent() {
                           ? <span className="text-foreground/70" title={loc.name}>{loc.abbr}</span>
                           : <span className="text-foreground/30">—</span>;
                       })()}
+                    </td>
+                    <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                      <SourceCell
+                        number={c.caller_number || (c.raw_digits || '').replace(/\D/g, '')}
+                        aiSource={c.source}
+                        override={sources[c.caller_number || (c.raw_digits || '').replace(/\D/g, '')]}
+                        canEdit={canManage}
+                        token={token}
+                        onSaved={handleSourceSaved}
+                      />
                     </td>
                     <td className="px-3 py-3">{renderAgent(c)}</td>
                     <td className="px-3 py-3">
