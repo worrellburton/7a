@@ -61,6 +61,22 @@ function callDayLabel(iso: string | null): string {
   try { return new Date(iso).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: PHOENIX_TZ }); } catch { return dk; }
 }
 
+// A call is "live" while it hasn't ended and Aircall still reports it as
+// ringing (initial) or connected (answered). These get pinned to a
+// pulsing "Live now" strip above the table.
+function isLiveCall(c: AircallCallRow): boolean {
+  return !c.ended_at && (c.status === 'initial' || c.status === 'answered');
+}
+
+// Running clock for live calls — m:ss, rolling to h:mm:ss past an hour.
+function formatElapsed(ms: number): string {
+  const s = Math.max(0, Math.floor((Number.isFinite(ms) ? ms : 0) / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = String(s % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${sec}` : `${m}:${sec}`;
+}
+
 // Soft color chip per source type so the Source column scans by category.
 function sourceChipClass(value: string): string {
   const v = value.toLowerCase();
@@ -310,6 +326,8 @@ export default function CallsContent() {
     const groups: { key: string; label: string; calls: AircallCallRow[] }[] = [];
     let cur: { key: string; label: string; calls: AircallCallRow[] } | null = null;
     for (const c of calls) {
+      // Live calls are pinned to their own strip above the table.
+      if (isLiveCall(c)) continue;
       const dk = callDayKey(c.started_at);
       if (!cur || cur.key !== dk) {
         cur = { key: dk, label: callDayLabel(c.started_at), calls: [] };
@@ -318,6 +336,30 @@ export default function CallsContent() {
       cur.calls.push(c);
     }
     return groups;
+  }, [calls]);
+
+  // Calls happening right now (ringing or connected) — pinned, ticking.
+  const liveCalls = useMemo(() => calls.filter(isLiveCall), [calls]);
+  const [nowTs, setNowTs] = useState(() => Date.now());
+  useEffect(() => {
+    if (liveCalls.length === 0) return;
+    const id = setInterval(() => setNowTs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [liveCalls.length]);
+
+  // Repeat-caller intelligence — how many times each number appears in the
+  // loaded view (and how many were missed), so a hot returning lead is
+  // obvious at a glance. Keyed by digit-only number.
+  const numberStats = useMemo(() => {
+    const m: Record<string, { count: number; missed: number }> = {};
+    for (const c of calls) {
+      const key = c.caller_number || (c.raw_digits || '').replace(/\D/g, '');
+      if (!key) continue;
+      const e = m[key] || (m[key] = { count: 0, missed: 0 });
+      e.count += 1;
+      if (c.missed) e.missed += 1;
+    }
+    return m;
   }, [calls]);
 
   const [search, setSearch] = useState('');
@@ -533,6 +575,26 @@ export default function CallsContent() {
     );
   };
 
+  // Repeat-caller badge — only renders when a number shows up more than
+  // once in the current view. Links to that number's full history.
+  const renderRepeatBadge = (key: string) => {
+    const st = key ? numberStats[key] : undefined;
+    if (!st || st.count < 2) return null;
+    return (
+      <Link
+        href={`/feather/calls/number/${encodeURIComponent(key)}`}
+        onClick={(e) => e.stopPropagation()}
+        title={`${st.count} calls from this number in view${st.missed > 0 ? ` · ${st.missed} missed` : ''}`}
+        className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+      >
+        <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5" aria-hidden>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        {st.count}×{st.missed > 0 && <span className="text-rose-600">· {st.missed} missed</span>}
+      </Link>
+    );
+  };
+
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-[1600px] mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
       {/* Header */}
@@ -588,7 +650,7 @@ export default function CallsContent() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search number, contact, agent, line…"
+            placeholder="Search number, contact, agent, line, or transcript…"
             className="w-full pl-9 pr-3 py-2 rounded-full border border-white/70 bg-white/70 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
@@ -635,6 +697,55 @@ export default function CallsContent() {
           missed={missedOnly}
           search={debouncedSearch}
         />
+      )}
+
+      {/* Live now — ringing / connected calls, pinned + ticking. The
+          Realtime subscription keeps this list current the instant the
+          webhook fires a call.* event. */}
+      {liveCalls.length > 0 && (
+        <div className="mb-4 rounded-3xl border border-emerald-200 bg-emerald-50/60 backdrop-blur px-4 py-3 shadow-sm">
+          <div className="flex items-center gap-2 mb-2.5">
+            <span className="relative flex h-2 w-2">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+            </span>
+            <span className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-700">
+              Live now · {liveCalls.length}
+            </span>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {liveCalls.map((c) => {
+              const ringing = !c.answered_at;
+              const since = ringing ? c.started_at : c.answered_at;
+              const elapsed = since ? formatElapsed(nowTs - Date.parse(since)) : '';
+              const loc = callerLocation(c.raw_digits || c.caller_number);
+              const key = c.caller_number || (c.raw_digits || '').replace(/\D/g, '');
+              const display = (key && labels[key]) || c.contact_name || formatPhone(c.raw_digits || c.caller_number);
+              return (
+                <button
+                  key={c.aircall_id}
+                  onClick={() => router.push(`/feather/calls/${c.aircall_id}`)}
+                  className="flex items-center gap-3 rounded-2xl border border-white/70 bg-white/85 px-3 py-2 text-left hover:bg-white transition-colors"
+                >
+                  {renderAgent(c)}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-semibold text-foreground truncate">
+                      {display}
+                      {loc && <span className="ml-1.5 text-[11px] font-normal text-foreground/45">{loc.abbr}</span>}
+                    </p>
+                    <p className="text-[11px] text-foreground/55 truncate">
+                      <span className={`font-semibold ${ringing ? 'text-amber-600' : 'text-emerald-600'}`}>
+                        {ringing ? 'Ringing' : 'On call'}
+                      </span>
+                      {c.number_name && <> · {c.number_name}</>}
+                    </p>
+                  </div>
+                  <span className="tabular-nums text-sm font-bold text-foreground/70 shrink-0">{elapsed}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {/* Call list */}
@@ -732,6 +843,7 @@ export default function CallsContent() {
                             ) : (
                               <div className={display ? 'text-[11px] text-foreground/45' : 'font-medium text-foreground'}>{phone}</div>
                             )}
+                            <div>{renderRepeatBadge(key)}</div>
                           </>
                         );
                       })()}
@@ -757,9 +869,21 @@ export default function CallsContent() {
                       />
                     </td>
                     <td className="px-3 py-3">
-                      {c.summary
-                        ? <div className="max-w-[380px] whitespace-pre-line text-[12px] leading-snug text-foreground/60">{c.summary}</div>
-                        : <span className="text-foreground/30">—</span>}
+                      {c.summary || (c.topics && c.topics.length > 0) ? (
+                        <div className="max-w-[380px]">
+                          {c.summary && <div className="whitespace-pre-line text-[12px] leading-snug text-foreground/60">{c.summary}</div>}
+                          {c.topics && c.topics.length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {c.topics.slice(0, 4).map((t) => (
+                                <span key={t} className="inline-flex items-center rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">{t}</span>
+                              ))}
+                              {c.topics.length > 4 && <span className="text-[10px] text-foreground/40 self-center">+{c.topics.length - 4}</span>}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-foreground/30">—</span>
+                      )}
                     </td>
                     <td className="px-3 py-3 text-foreground/60 whitespace-nowrap">
                       {(() => {
@@ -844,6 +968,14 @@ export default function CallsContent() {
                           <span className="font-bold uppercase tracking-wider text-primary/80">AI</span> {c.summary}
                         </p>
                       )}
+                      {c.topics && c.topics.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {c.topics.slice(0, 3).map((t) => (
+                            <span key={t} className="inline-flex items-center rounded-full bg-indigo-50 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">{t}</span>
+                          ))}
+                        </div>
+                      )}
+                      <div>{renderRepeatBadge(c.caller_number || (c.raw_digits || '').replace(/\D/g, ''))}</div>
                     </div>
                   </button>
                   <span className="text-xs tabular-nums text-foreground/50 shrink-0">{formatDuration(c.duration)}</span>
