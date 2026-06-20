@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { OperatorSchedule } from './OperatorSchedule';
 import { OperatorCheatSheet } from './OperatorCheatSheet';
@@ -52,6 +53,22 @@ export default function CallsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
+
+  // Operator-assigned names per caller number, overlaid on the Caller
+  // column. Small table — fetched once and keyed by digit-only number.
+  const [labels, setLabels] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/aircall/number-label', { headers: { Authorization: `Bearer ${token}` } });
+        const json = await res.json();
+        if (!cancelled && res.ok) setLabels((json.labels ?? {}) as Record<string, string>);
+      } catch { /* non-fatal — names just don't overlay */ }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -391,8 +408,28 @@ export default function CallsContent() {
                   >
                     <td className="px-5 py-3 whitespace-nowrap text-foreground/70">{formatRelativeTime(c.started_at)}</td>
                     <td className="px-3 py-3">
-                      <div className="font-medium text-foreground">{c.contact_name || formatPhone(c.raw_digits || c.caller_number)}</div>
-                      {c.contact_name && <div className="text-[11px] text-foreground/45">{formatPhone(c.raw_digits || c.caller_number)}</div>}
+                      {(() => {
+                        const key = c.caller_number || (c.raw_digits || '').replace(/\D/g, '');
+                        const phone = formatPhone(c.raw_digits || c.caller_number);
+                        const display = (key && labels[key]) || c.contact_name;
+                        return (
+                          <>
+                            {display && <div className="font-medium text-foreground">{display}</div>}
+                            {key ? (
+                              <Link
+                                href={`/feather/calls/number/${encodeURIComponent(key)}`}
+                                onClick={(e) => e.stopPropagation()}
+                                title="See every call from this number"
+                                className={`${display ? 'text-[11px] text-foreground/45' : 'font-medium text-foreground'} hover:text-primary hover:underline`}
+                              >
+                                {phone}
+                              </Link>
+                            ) : (
+                              <div className={display ? 'text-[11px] text-foreground/45' : 'font-medium text-foreground'}>{phone}</div>
+                            )}
+                          </>
+                        );
+                      })()}
                     </td>
                     <td className="px-3 py-3">
                       {(() => {
@@ -470,7 +507,7 @@ export default function CallsContent() {
                   >
                     <span className={`h-2 w-2 rounded-full shrink-0 ${c.missed ? 'bg-rose-500' : c.direction === 'inbound' ? 'bg-emerald-500' : 'bg-blue-500'}`} />
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium text-foreground truncate">{c.contact_name || formatPhone(c.raw_digits || c.caller_number)}</p>
+                      <p className="font-medium text-foreground truncate">{(c.caller_number && labels[c.caller_number]) || c.contact_name || formatPhone(c.raw_digits || c.caller_number)}</p>
                       <p className="text-[11px] text-foreground/45 truncate">{formatRelativeTime(c.started_at)} · {c.user_name || c.number_name || c.direction}</p>
                       {c.summary && (
                         <p className="mt-1 text-[11px] text-foreground/55 leading-snug whitespace-pre-line">

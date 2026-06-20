@@ -23,6 +23,9 @@ export async function GET(req: NextRequest) {
   const direction = url.searchParams.get('direction');
   const missed = url.searchParams.get('missed');
   const userEmail = url.searchParams.get('user')?.trim();
+  // Exact caller-number filter (digits only) for the per-number history
+  // page — caller_number is stored digit-only (E.164 without +).
+  const number = (url.searchParams.get('number') ?? '').replace(/\D/g, '');
   const search = url.searchParams.get('search')?.trim() ?? '';
   const page = Math.max(1, Number(url.searchParams.get('page')) || 1);
   const perPage = Math.max(
@@ -42,6 +45,7 @@ export async function GET(req: NextRequest) {
   if (direction && direction !== 'all') q = q.eq('direction', direction);
   if (missed === '1' || missed === 'true') q = q.eq('missed', true);
   if (userEmail) q = q.ilike('user_email', userEmail);
+  if (number) q = q.eq('caller_number', number);
   if (search) {
     const like = `%${search}%`;
     q = q.or(
