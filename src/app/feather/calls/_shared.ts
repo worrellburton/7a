@@ -36,6 +36,9 @@ export interface AircallCallRow {
   // aircall_number_labels and overlay this at render time.
   source: string | null;
   sentiment: string | null;
+  // AI-extracted discussion topics (Aircall CI / backfill). Surfaced as
+  // chips on the row; null/empty until the AI events land.
+  topics: string[] | null;
   has_transcript?: boolean;
 }
 
@@ -52,7 +55,6 @@ export interface AircallCallDetail extends AircallCallRow {
   contact_id: number | null;
   asset_url: string | null;
   transcript: string | null;
-  topics: string[] | null;
   comments: { content?: string; posted_by?: { name?: string }; posted_at?: number }[] | null;
   ai: Record<string, unknown> | null;
   raw: Record<string, unknown> | null;

@@ -11,7 +11,7 @@ const DEFAULT_PER_PAGE = 25;
 const MAX_PER_PAGE = 100;
 
 const SELECT =
-  'aircall_id, started_at, answered_at, ended_at, direction, status, missed, missed_call_reason, voicemail, duration, raw_digits, caller_number, number_id, number_name, number_digits, user_name, user_email, contact_name, contact_company, teams, tags, recording_url, voicemail_url, summary, source, sentiment, transcript';
+  'aircall_id, started_at, answered_at, ended_at, direction, status, missed, missed_call_reason, voicemail, duration, raw_digits, caller_number, number_id, number_name, number_digits, user_name, user_email, contact_name, contact_company, teams, tags, recording_url, voicemail_url, summary, source, sentiment, topics, transcript';
 
 export async function GET(req: NextRequest) {
   const gate = await requireStaff(req);
@@ -47,9 +47,14 @@ export async function GET(req: NextRequest) {
   if (userEmail) q = q.ilike('user_email', userEmail);
   if (number) q = q.eq('caller_number', number);
   if (search) {
-    const like = `%${search}%`;
+    // Escape PostgREST's `or` reserved chars (comma / parens) so a typed
+    // search term can't break out of the filter expression.
+    const like = `%${search.replace(/[(),]/g, ' ')}%`;
+    // Match the caller/contact/agent/line metadata AND the call content
+    // (summary + full transcript) so "who mentioned detox / insurance /
+    // cost" finds the call even when nothing matches the columns.
     q = q.or(
-      `raw_digits.ilike.${like},caller_number.ilike.${like},contact_name.ilike.${like},user_name.ilike.${like},number_name.ilike.${like}`,
+      `raw_digits.ilike.${like},caller_number.ilike.${like},contact_name.ilike.${like},user_name.ilike.${like},number_name.ilike.${like},summary.ilike.${like},transcript.ilike.${like}`,
     );
   }
 
