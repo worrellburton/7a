@@ -137,6 +137,18 @@ export default function CallDetailContent() {
               Call back
             </button>
           )}
+          {(call.caller_number || call.raw_digits) && (
+            <Link
+              href={`/feather/calls/number/${encodeURIComponent(call.caller_number || (call.raw_digits || '').replace(/\D/g, ''))}`}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/85 border border-white/70 text-[11px] font-semibold uppercase tracking-wide text-foreground/70 hover:bg-white transition-colors shadow-sm"
+              title="See every call from this number"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+              All calls
+            </Link>
+          )}
           <button
             onClick={copyLink}
             className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/85 border border-white/70 text-[11px] font-semibold uppercase tracking-wide text-foreground/70 hover:bg-white transition-colors shadow-sm"
@@ -155,7 +167,13 @@ export default function CallDetailContent() {
       {/* Facts — everything we hold about who/what/where. */}
       <div className="mt-5 grid grid-cols-2 sm:grid-cols-3 gap-4 rounded-2xl border border-white/70 bg-white/55 backdrop-blur px-5 py-4 shadow-sm">
         <Field label="Direction" value={call.direction ? <span className="capitalize">{call.direction}</span> : null} />
-        <Field label="Number" value={formatPhone(call.raw_digits || call.caller_number)} />
+        <Field label="Number" value={(() => {
+          const key = call.caller_number || (call.raw_digits || '').replace(/\D/g, '');
+          const phone = formatPhone(call.raw_digits || call.caller_number);
+          return key
+            ? <Link href={`/feather/calls/number/${encodeURIComponent(key)}`} className="text-primary hover:underline" title="See every call from this number">{phone}</Link>
+            : phone;
+        })()} />
         <Field label="Location" value={(() => { const l = callerLocation(call.raw_digits || call.caller_number); return l ? `${l.name}` : null; })()} />
         <Field label="Contact" value={call.contact_name} />
         <Field label="Company" value={call.contact_company} />
