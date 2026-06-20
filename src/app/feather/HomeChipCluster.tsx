@@ -26,7 +26,7 @@ import { createPortal } from 'react-dom';
 // ONE place at a time, swapping the render slot rather than
 // duplicating. See `desktopSlotRef` / `mobileSlotRef` below.
 
-export default function HomeChipCluster({ children, menuExtras }: { children: ReactNode; menuExtras?: ReactNode }) {
+export default function HomeChipCluster({ children, menuExtras, indicator }: { children: ReactNode; menuExtras?: ReactNode; indicator?: boolean }) {
   const [open, setOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -114,7 +114,7 @@ export default function HomeChipCluster({ children, menuExtras }: { children: Re
           aria-haspopup="menu"
           aria-expanded={open}
           aria-label={open ? 'Hide quick stats' : 'Show quick stats'}
-          className="sm:hidden inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/70 supports-[backdrop-filter]:bg-white/55 backdrop-blur-md border border-white/80 text-foreground hover:bg-white hover:border-primary/45 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+          className="relative sm:hidden inline-flex items-center justify-center w-9 h-9 rounded-full bg-white/70 supports-[backdrop-filter]:bg-white/55 backdrop-blur-md border border-white/80 text-foreground hover:bg-white hover:border-primary/45 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
         >
           <svg
             className={`w-4 h-4 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
@@ -130,6 +130,12 @@ export default function HomeChipCluster({ children, menuExtras }: { children: Re
             <circle cx="12" cy="12" r="1.4" fill="currentColor" />
             <circle cx="18" cy="12" r="1.4" fill="currentColor" />
           </svg>
+          {indicator && !open && (
+            <>
+              <span aria-hidden className="absolute top-1 right-1 block w-2 h-2 rounded-full bg-primary animate-ping" />
+              <span aria-hidden className="absolute top-1 right-1 block w-2 h-2 rounded-full bg-primary" />
+            </>
+          )}
         </button>
 
         {/* Desktop inline slot — mounts the chips for sm+ viewports. */}
