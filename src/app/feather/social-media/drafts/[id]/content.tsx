@@ -92,6 +92,17 @@ function deriveDeliverables(platforms: PlatformId[]): Deliverable[] {
   });
 }
 
+interface SpecLine { key: string; label: string; size: string | undefined; ratio: string; kind: 'image' | 'video'; }
+// Flat list of one platform's deliverables, keyed `${platformId}|${label}`.
+function specLinesFor(pid: PlatformId): SpecLine[] {
+  const spec = PLATFORM_SPECS[pid];
+  if (!spec) return [];
+  const out: SpecLine[] = [];
+  for (const img of spec.images) out.push({ key: `${pid}|${img.label}`, label: img.label, size: img.size, ratio: img.ratio, kind: 'image' });
+  for (const vid of spec.videos) out.push({ key: `${pid}|${vid.label}`, label: vid.label, size: vid.size, ratio: vid.ratio, kind: 'video' });
+  return out;
+}
+
 export default function DraftDetailContent({ id }: { id: string }) {
   const router = useRouter();
   // DB-backed + live across devices via the shared drafts hook.
@@ -105,6 +116,28 @@ export default function DraftDetailContent({ id }: { id: string }) {
   }, [draft]);
 
   const deliverables = useMemo(() => deriveDeliverables(platforms), [platforms]);
+
+  // Deliverables UI: one tab per targeted platform; checking a deliverable
+  // decides which slots are "inputted" (shown in the per-slot preview).
+  const [activeTab, setActiveTab] = useState<PlatformId | null>(null);
+  useEffect(() => {
+    if (platforms.length === 0) { setActiveTab(null); return; }
+    setActiveTab((cur) => (cur && platforms.includes(cur) ? cur : platforms[0]));
+  }, [platforms]);
+
+  const allKeys = useMemo(() => platforms.flatMap((pid) => specLinesFor(pid).map((l) => l.key)), [platforms]);
+  // Empty stored selection means "not customised yet" → treat all checked.
+  const selectedSet = useMemo(() => {
+    const sel = draft?.selectedDeliverables ?? [];
+    return sel.length > 0 ? new Set(sel) : new Set(allKeys);
+  }, [draft?.selectedDeliverables, allKeys]);
+
+  const toggleDeliverable = (key: string) => {
+    if (!draft) return;
+    const next = new Set(selectedSet);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    void updateDraft(draft.id, { selectedDeliverables: Array.from(next) });
+  };
 
   const togglePlatform = (pid: PlatformId) => {
     if (!draft) return;
@@ -226,106 +259,108 @@ export default function DraftDetailContent({ id }: { id: string }) {
           Deliverables required for this post
         </p>
 
-        {/* Crop preview — one tile per (platform, spec) drawn at
-            the actual aspect ratio. If the Create page captured a
-            media URL for that slot via mediaByDeliverable, the
-            tile renders that asset; otherwise it shows a dashed
-            placeholder with the spec size. This is the closest the
-            page can get to "previewing how the post will deploy"
-            without actually invoking the platform APIs. */}
-        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45 mb-2">Per-slot preview</p>
-        {(() => {
-          const mediaMap = new Map((draft.mediaByDeliverable ?? []).map((m) => [m.key, m.url] as const));
-          const tiles: { key: string; platform: PlatformId; label: string; ratio: string; size: string | undefined; kind: 'image' | 'video'; url: string | undefined }[] = [];
-          for (const pid of platforms) {
-            const spec = PLATFORM_SPECS[pid];
-            if (!spec) continue;
-            for (const img of spec.images) {
-              const key = `${pid}|${img.label}`;
-              tiles.push({ key, platform: pid, label: img.label, ratio: img.ratio, size: img.size, kind: 'image', url: mediaMap.get(key) ?? draft.mediaUrls[0] });
-            }
-            for (const vid of spec.videos) {
-              const key = `${pid}|${vid.label}`;
-              tiles.push({ key, platform: pid, label: vid.label, ratio: vid.ratio, size: vid.size, kind: 'video', url: mediaMap.get(key) });
-            }
-          }
-          if (tiles.length === 0) return null;
-          return (
-            <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4">
-              {tiles.map((t) => {
-                const ratioStyle = (() => {
-                  const m = t.ratio.match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/);
-                  if (!m) return { aspectRatio: '1 / 1' as const };
-                  return { aspectRatio: `${m[1]} / ${m[2]}` };
-                })();
+        <p className="text-[11px] text-foreground/45 mb-3" style={{ fontFamily: 'var(--font-body)' }}>
+          Pick the deliverables you need on each platform — what you check decides which slots show in the per-slot preview.
+        </p>
+
+        {platforms.length === 0 ? (
+          <p className="text-[12.5px] text-foreground/45 italic">Select at least one target platform above.</p>
+        ) : activeTab && (
+          <>
+            {/* Platform tabs */}
+            <div className="flex flex-wrap gap-1.5 border-b border-black/5 pb-2 mb-3">
+              {platforms.map((pid) => {
+                const on = pid === activeTab;
+                const lines = specLinesFor(pid);
+                const checked = lines.filter((l) => selectedSet.has(l.key)).length;
                 return (
-                  <li key={t.key} className="rounded-xl border border-black/10 bg-warm-bg/20 p-2.5">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <span className="inline-flex items-center justify-center w-3.5 h-3.5 text-foreground/65">
-                        <PlatformIcon platform={t.platform} size={12} />
+                  <button
+                    key={pid}
+                    type="button"
+                    onClick={() => setActiveTab(pid)}
+                    className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[12px] font-semibold transition-colors ${on ? 'bg-foreground text-white' : 'bg-warm-bg/50 text-foreground/65 hover:bg-warm-bg'}`}
+                  >
+                    <span className={`inline-flex items-center justify-center w-3.5 h-3.5 ${on ? 'text-white' : 'text-foreground/60'}`}>
+                      <PlatformIcon platform={pid} size={12} />
+                    </span>
+                    {PLATFORM_LABELS[pid] ?? pid}
+                    <span className={`ml-0.5 text-[9.5px] font-bold tabular-nums ${on ? 'text-white/70' : 'text-foreground/40'}`}>{checked}/{lines.length}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Active platform — checkable deliverables */}
+            <ul className="space-y-0.5 mb-4">
+              {specLinesFor(activeTab).map((l) => {
+                const isChecked = selectedSet.has(l.key);
+                return (
+                  <li key={l.key}>
+                    <label className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-warm-bg/40 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={isChecked}
+                        onChange={() => toggleDeliverable(l.key)}
+                        className="w-4 h-4 accent-primary shrink-0"
+                      />
+                      <span className="flex-1 text-[12.5px] text-foreground/85 leading-snug">
+                        {l.label}
+                        {l.size && <span className="text-foreground/40 tabular-nums"> · {l.size}</span>}
                       </span>
-                      <span className="text-[11px] font-semibold text-foreground truncate">{PLATFORM_LABELS[t.platform] ?? t.platform}</span>
-                      <span className={`ml-auto text-[8.5px] font-semibold uppercase tracking-wider ${t.kind === 'video' ? 'text-rose-600' : 'text-emerald-700'}`}>{t.kind}</span>
-                    </div>
-                    <div
-                      className={`w-full rounded-md overflow-hidden ${t.url ? '' : 'border-2 border-dashed border-black/15 bg-white'}`}
-                      style={ratioStyle}
-                    >
-                      {t.url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={t.url} alt="" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-[10px] text-foreground/35">
-                          {t.ratio === 'free' ? 'Any ratio' : t.ratio}
-                        </div>
-                      )}
-                    </div>
-                    <p className="mt-1 text-[10px] text-foreground/55 leading-snug truncate" style={{ fontFamily: 'var(--font-body)' }}>
-                      {t.label}{t.size && <span className="text-foreground/35"> · {t.size}</span>}
-                    </p>
+                      <span className={`text-[8.5px] font-semibold uppercase tracking-wider ${l.kind === 'video' ? 'text-rose-600' : 'text-emerald-700'}`}>{l.kind}</span>
+                    </label>
                   </li>
                 );
               })}
             </ul>
-          );
-        })()}
 
-        {/* Per-platform bullet list */}
-        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45 mb-2">By platform</p>
-        <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-4">
-          {platforms.map((pid) => {
-            const spec = PLATFORM_SPECS[pid];
-            if (!spec) return null;
-            const lines: { kind: 'image' | 'video'; label: string; size: string | undefined }[] = [];
-            for (const img of spec.images) lines.push({ kind: 'image', label: img.label, size: img.size });
-            for (const vid of spec.videos) lines.push({ kind: 'video', label: vid.label, size: vid.size });
-            return (
-              <li key={pid} className="rounded-lg border border-black/10 bg-warm-bg/30 px-3 py-2.5">
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <span className="inline-flex items-center justify-center w-4 h-4 text-foreground/65">
-                    <PlatformIcon platform={pid} size={13} />
-                  </span>
-                  <span className="text-[12px] font-semibold text-foreground">{PLATFORM_LABELS[pid] ?? pid}</span>
-                  <span className="ml-auto text-[10px] text-foreground/40 tabular-nums">{lines.length}</span>
-                </div>
-                <ul className="space-y-0.5">
-                  {lines.map((l, i) => (
-                    <li key={i} className="text-[11.5px] text-foreground/70 leading-snug flex items-start gap-1.5">
-                      <span aria-hidden className="text-foreground/30 mt-[1px]">•</span>
-                      <span className="flex-1">
-                        <span className="text-foreground/85">{l.label}</span>
-                        {l.size && <span className="text-foreground/40 tabular-nums"> · {l.size}</span>}
-                      </span>
-                      <span className={`text-[8.5px] font-semibold uppercase tracking-wider ${l.kind === 'video' ? 'text-rose-600' : 'text-emerald-700'}`}>
-                        {l.kind}
-                      </span>
-                    </li>
-                  ))}
+            {/* Per-slot preview — only the CHECKED deliverables for this platform */}
+            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45 mb-2">Per-slot preview</p>
+            {(() => {
+              const mediaMap = new Map((draft.mediaByDeliverable ?? []).map((m) => [m.key, m.url] as const));
+              const lines = specLinesFor(activeTab).filter((l) => selectedSet.has(l.key));
+              if (lines.length === 0) {
+                return <p className="text-[12px] text-foreground/45 italic mb-2">No deliverables checked for {PLATFORM_LABELS[activeTab] ?? activeTab} yet.</p>;
+              }
+              return (
+                <ul className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 mb-4">
+                  {lines.map((t) => {
+                    const ratioStyle = (() => {
+                      const m = t.ratio.match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/);
+                      if (!m) return { aspectRatio: '1 / 1' as const };
+                      return { aspectRatio: `${m[1]} / ${m[2]}` };
+                    })();
+                    const url = mediaMap.get(t.key) ?? (t.kind === 'image' ? draft.mediaUrls[0] : undefined);
+                    return (
+                      <li key={t.key} className="rounded-xl border border-black/10 bg-warm-bg/20 p-2.5">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <span className="inline-flex items-center justify-center w-3.5 h-3.5 text-foreground/65">
+                            <PlatformIcon platform={activeTab} size={12} />
+                          </span>
+                          <span className="text-[11px] font-semibold text-foreground truncate">{PLATFORM_LABELS[activeTab] ?? activeTab}</span>
+                          <span className={`ml-auto text-[8.5px] font-semibold uppercase tracking-wider ${t.kind === 'video' ? 'text-rose-600' : 'text-emerald-700'}`}>{t.kind}</span>
+                        </div>
+                        <div className={`w-full rounded-md overflow-hidden ${url ? '' : 'border-2 border-dashed border-black/15 bg-white'}`} style={ratioStyle}>
+                          {url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={url} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-[10px] text-foreground/35">
+                              {t.ratio === 'free' ? 'Any ratio' : t.ratio}
+                            </div>
+                          )}
+                        </div>
+                        <p className="mt-1 text-[10px] text-foreground/55 leading-snug truncate" style={{ fontFamily: 'var(--font-body)' }}>
+                          {t.label}{t.size && <span className="text-foreground/35"> · {t.size}</span>}
+                        </p>
+                      </li>
+                    );
+                  })}
                 </ul>
-              </li>
-            );
-          })}
-        </ul>
+              );
+            })()}
+          </>
+        )}
 
         {/* De-duplicated unique-crops grid */}
         <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45 mb-2">
@@ -337,6 +372,44 @@ export default function DraftDetailContent({ id }: { id: string }) {
           ))}
         </ul>
       </section>
+
+      {/* Sticky save bar — instructions on the left, gated Save on the
+          right. Saving marks the post Ready to go. */}
+      {(() => {
+        const missing: string[] = [];
+        if (!draft.caption.trim()) missing.push('add a caption');
+        if (draft.mediaUrls.length === 0) missing.push('add media');
+        if (platforms.length === 0) missing.push('pick a target platform');
+        if (allKeys.filter((k) => selectedSet.has(k)).length === 0) missing.push('check a deliverable');
+        const canSave = missing.length === 0;
+        return (
+          <div className="sticky bottom-0 z-10 mt-6 -mx-4 sm:-mx-6 lg:-mx-10 px-4 sm:px-6 lg:px-10 py-3 bg-white/90 backdrop-blur border-t border-black/10 flex items-center justify-between gap-4">
+            <p className="min-w-0 text-[12px] text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>
+              {draft.ready ? (
+                <span className="text-emerald-700 font-semibold">✓ Saved as Ready to go.</span>
+              ) : canSave ? (
+                <span>Everything&apos;s in place — save to mark this post <strong className="text-foreground/80">Ready to go</strong>.</span>
+              ) : (
+                <span>To make it ready: <span className="font-semibold text-foreground/80">{missing.join(' · ')}</span>.</span>
+              )}
+            </p>
+            <button
+              type="button"
+              disabled={!canSave || draft.ready}
+              onClick={() => { if (canSave && !draft.ready) void updateDraft(draft.id, { ready: true }); }}
+              className={`shrink-0 px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors ${
+                draft.ready
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default'
+                  : canSave
+                  ? 'bg-primary text-white hover:bg-primary-dark'
+                  : 'bg-foreground/10 text-foreground/40 cursor-not-allowed'
+              }`}
+            >
+              {draft.ready ? 'Saved ✓' : 'Save ready-to-go post'}
+            </button>
+          </div>
+        );
+      })()}
     </div>
   );
 }
