@@ -3,6 +3,7 @@
 import { useAuth } from '@/lib/AuthProvider';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import FloatingScrollbar from '@/components/FloatingScrollbar';
 import { supabase } from '@/lib/supabase';
@@ -119,11 +120,10 @@ function SourceHeader() {
 
 // Source column cell. Shows the resolved "how did you hear about us?"
 // source — the per-number admin override if set, else the per-call
-// AI-detected value. Admins pick from a dropdown; choosing writes the
-// per-number override (which the parent overlays onto every call from
-// that number).
+// AI-detected value. Admins open a custom dropdown (most-used sources on
+// top, plus an "add new source" field) to set the per-number override.
 function SourceCell({
-  number, aiSource, override, canEdit, token, onSaved,
+  number, aiSource, override, canEdit, token, onSaved, options, counts,
 }: {
   number: string;
   aiSource: string | null;
@@ -131,16 +131,15 @@ function SourceCell({
   canEdit: boolean;
   token: string | null;
   onSaved: (number: string, value: string) => void;
+  /** All known sources, already ordered most-used first. */
+  options: string[];
+  counts: Record<string, number>;
 }) {
   const resolved = (override ?? (aiSource || '')).trim();
-  const [editing, setEditing] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const options = useMemo(() => {
-    const base = [...SOURCE_OPTIONS];
-    if (resolved && !base.includes(resolved)) base.unshift(resolved);
-    return base;
-  }, [resolved]);
+  const [open, setOpen] = useState(false);
+  const [custom, setCustom] = useState('');
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
 
   const chip = resolved
     ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${sourceChipClass(resolved)}`}>{resolved}</span>
@@ -150,47 +149,81 @@ function SourceCell({
     return chip ?? <span className="text-foreground/30">—</span>;
   }
 
+  // Current value always appears (so a custom AI value stays selectable).
+  const list = resolved && !options.includes(resolved) ? [resolved, ...options] : options;
+
+  const openMenu = () => {
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ left: Math.min(r.left, window.innerWidth - 240), top: r.bottom + 4 });
+    setCustom('');
+    setOpen(true);
+  };
+
   const save = async (next: string) => {
-    if (!token) { setEditing(false); return; }
-    setSaving(true);
+    setOpen(false);
     try {
       const res = await fetch('/api/aircall/number-label', {
         method: 'POST',
-        headers: { 'content-type': 'application/json', Authorization: `Bearer ${token}` },
+        headers: { 'content-type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ number, source: next }),
       });
       if (res.ok) onSaved(number, next);
-    } finally {
-      setSaving(false);
-      setEditing(false);
-    }
+    } catch { /* swallow — UI will reflect on next load */ }
   };
 
-  if (editing) {
-    return (
-      <select
-        autoFocus
-        defaultValue={resolved}
-        disabled={saving}
-        onChange={(e) => void save(e.target.value)}
-        onBlur={() => setEditing(false)}
-        className="w-40 max-w-full px-2 py-1 rounded border border-black/15 bg-white text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/40"
-      >
-        <option value="">— None —</option>
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
-      </select>
-    );
-  }
-
   return (
-    <button
-      type="button"
-      onClick={() => setEditing(true)}
-      className="group inline-flex items-center text-left"
-      title="Set source — applies to every call from this number"
-    >
-      {chip ?? <span className="text-foreground/30 group-hover:text-primary">+ add</span>}
-    </button>
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={openMenu}
+        className="group inline-flex items-center text-left"
+        title="Set source — applies to every call from this number"
+      >
+        {chip ?? <span className="text-foreground/30 group-hover:text-primary">+ add</span>}
+      </button>
+      {open && pos && createPortal(
+        <>
+          <div className="fixed inset-0 z-[55]" onClick={() => setOpen(false)} />
+          <div
+            className="fixed z-[56] w-56 max-h-80 overflow-auto rounded-lg border border-black/10 bg-white shadow-xl py-1"
+            style={{ left: pos.left, top: pos.top }}
+          >
+            <button type="button" onClick={() => void save('')} className="w-full text-left px-3 py-1.5 text-[12px] text-foreground/50 hover:bg-warm-bg/60">
+              — None —
+            </button>
+            {list.map((o) => (
+              <button
+                key={o}
+                type="button"
+                onClick={() => void save(o)}
+                className="w-full text-left px-3 py-1.5 hover:bg-warm-bg/60 flex items-center gap-2"
+              >
+                <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-medium ${sourceChipClass(o)}`}>{o}</span>
+                {counts[o] > 0 && <span className="ml-auto text-[10px] tabular-nums text-foreground/35">{counts[o]}</span>}
+                {o === resolved && <span className="text-primary text-[11px]">✓</span>}
+              </button>
+            ))}
+            <div className="border-t border-black/5 mt-1 pt-1.5 px-2 pb-1">
+              <div className="flex items-center gap-1">
+                <input
+                  value={custom}
+                  onChange={(e) => setCustom(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && custom.trim()) void save(custom.trim()); }}
+                  placeholder="Add new source…"
+                  maxLength={60}
+                  className="flex-1 min-w-0 px-2 py-1 rounded border border-black/15 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+                <button type="button" disabled={!custom.trim()} onClick={() => void save(custom.trim())} className="text-[11px] font-semibold text-primary disabled:opacity-40 px-1">
+                  Add
+                </button>
+              </div>
+            </div>
+          </div>
+        </>,
+        document.body,
+      )}
+    </>
   );
 }
 
@@ -230,6 +263,27 @@ export default function CallsContent() {
     return () => { cancelled = true; };
   }, [token]);
 
+  // Source usage frequency across the loaded rows (resolved = override
+  // else AI value) → "most used" sources float to the top of the dropdown.
+  const sourceCounts = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const c of calls) {
+      const key = c.caller_number || (c.raw_digits || '').replace(/\D/g, '');
+      const val = ((key && sources[key]) || c.source || '').trim();
+      if (val) m[val] = (m[val] ?? 0) + 1;
+    }
+    return m;
+  }, [calls, sources]);
+  const orderedSources = useMemo(() => {
+    const set = new Set<string>([...SOURCE_OPTIONS, ...Object.keys(sourceCounts)]);
+    return Array.from(set).sort((a, b) => {
+      const ca = sourceCounts[a] ?? 0, cb = sourceCounts[b] ?? 0;
+      if (cb !== ca) return cb - ca;
+      const ia = SOURCE_OPTIONS.indexOf(a), ib = SOURCE_OPTIONS.indexOf(b);
+      return ((ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib)) || a.localeCompare(b);
+    });
+  }, [sourceCounts]);
+
   // When an admin edits a source it's saved per-number, so reflect it on
   // every row from that number at once by updating the shared map.
   const handleSourceSaved = useCallback((number: string, value: string) => {
@@ -239,6 +293,32 @@ export default function CallsContent() {
       return next;
     });
   }, []);
+
+  // Day grouping — today is expanded by default, every earlier day is
+  // collapsed behind a divider row showing call/operator/missed stats.
+  // `toggledDays` flips a day away from its default state.
+  const todayKey = useMemo(() => new Date().toLocaleDateString('en-CA', { timeZone: PHOENIX_TZ }), []);
+  const [toggledDays, setToggledDays] = useState<Set<string>>(new Set());
+  const toggleDay = useCallback((dk: string) => {
+    setToggledDays((prev) => {
+      const n = new Set(prev);
+      if (n.has(dk)) n.delete(dk); else n.add(dk);
+      return n;
+    });
+  }, []);
+  const dayGroups = useMemo(() => {
+    const groups: { key: string; label: string; calls: AircallCallRow[] }[] = [];
+    let cur: { key: string; label: string; calls: AircallCallRow[] } | null = null;
+    for (const c of calls) {
+      const dk = callDayKey(c.started_at);
+      if (!cur || cur.key !== dk) {
+        cur = { key: dk, label: callDayLabel(c.started_at), calls: [] };
+        groups.push(cur);
+      }
+      cur.calls.push(c);
+    }
+    return groups;
+  }, [calls]);
 
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -604,22 +684,29 @@ export default function CallsContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-foreground/5">
-                {(() => {
-                  let lastDay: string | null = null;
-                  return calls.map((c) => {
-                    const dk = callDayKey(c.started_at);
-                    const showDay = dk !== lastDay;
-                    lastDay = dk;
-                    return (
-                  <Fragment key={c.aircall_id}>
-                    {showDay && (
-                      <tr className="bg-warm-bg/30">
-                        <td colSpan={11} className="px-5 pt-3 pb-1.5 text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/40 border-b border-foreground/5">
-                          {callDayLabel(c.started_at)}
-                        </td>
-                      </tr>
-                    )}
+                {dayGroups.map((g) => {
+                  const expanded = (g.key === todayKey) !== toggledDays.has(g.key);
+                  const ops = new Set(g.calls.map((cc) => cc.user_name || cc.user_email || '').filter(Boolean)).size;
+                  const missed = g.calls.filter((cc) => cc.missed).length;
+                  return (
+                  <Fragment key={g.key}>
+                    <tr className="bg-warm-bg/30 cursor-pointer hover:bg-warm-bg/50 transition-colors" onClick={() => toggleDay(g.key)}>
+                      <td colSpan={11} className="px-5 pt-3 pb-1.5 border-b border-foreground/5">
+                        <div className="flex items-center gap-3">
+                          <svg className={`w-3 h-3 text-foreground/40 transition-transform ${expanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                          <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/50">{g.label}</span>
+                          <span className="text-[11px] font-normal normal-case tracking-normal text-foreground/40">
+                            {g.calls.length} {g.calls.length === 1 ? 'call' : 'calls'}
+                            <span className="mx-1.5 text-foreground/20">·</span>
+                            {ops} {ops === 1 ? 'operator' : 'operators'}
+                            {missed > 0 && (<><span className="mx-1.5 text-foreground/20">·</span><span className="text-rose-500/80">{missed} missed</span></>)}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                    {expanded && g.calls.map((c) => (
                   <tr
+                    key={c.aircall_id}
                     onClick={() => router.push(`/feather/calls/${c.aircall_id}`)}
                     className={`cursor-pointer hover:bg-white/60 transition-colors ${c.missed ? 'bg-rose-50/40' : ''}`}
                   >
@@ -665,6 +752,8 @@ export default function CallsContent() {
                         canEdit={canManage}
                         token={token}
                         onSaved={handleSourceSaved}
+                        options={orderedSources}
+                        counts={sourceCounts}
                       />
                     </td>
                     <td className="px-3 py-3">
@@ -720,10 +809,10 @@ export default function CallsContent() {
                       </div>
                     </td>
                   </tr>
+                    ))}
                   </Fragment>
-                    );
-                  });
-                })()}
+                  );
+                })}
               </tbody>
             </table>
             </div>
