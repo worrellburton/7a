@@ -70,6 +70,11 @@ export default function CreatePostContent() {
   const [stagedMedia, setStagedMedia] = useState<string[]>([]);
   const [caption, setCaption] = useState('');
   const [generatingCaption, setGeneratingCaption] = useState(false);
+  // AI variants — three caption options + hashtag suggestions the user can
+  // drop in.
+  const [variants, setVariants] = useState<string[]>([]);
+  const [hashtags, setHashtags] = useState<string[]>([]);
+  const [loadingVariants, setLoadingVariants] = useState(false);
   const [platforms, setPlatforms] = useState<Set<PlatformId>>(() => new Set(['facebook', 'instagram', 'linkedin']));
   // Per-deliverable media URL. Keyed by "${platform}|${label}".
   const [urlByKey, setUrlByKey] = useState<Record<string, string>>({});
@@ -366,6 +371,37 @@ export default function CreatePostContent() {
     }
   };
 
+  const generateVariants = async () => {
+    if (!session?.access_token || loadingVariants) return;
+    setLoadingVariants(true);
+    setError(null);
+    try {
+      const r = await fetch('/api/claude/social-caption/variants', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ platforms: Array.from(platforms), mediaUrls: stagedMedia, hint: caption.trim() }),
+      });
+      const json = (await r.json().catch(() => ({}))) as { variants?: string[]; hashtags?: string[]; error?: string };
+      if (!r.ok || !json.variants?.length) {
+        setError(json.error ?? `HTTP ${r.status}`);
+        return;
+      }
+      setVariants(json.variants);
+      setHashtags(json.hashtags ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setLoadingVariants(false);
+    }
+  };
+
+  // Append a hashtag to the caption (idempotent — won't double-add).
+  const addHashtag = (tag: string) => {
+    const token = `#${tag}`;
+    if (new RegExp(`(^|\\s)${token}(\\s|$)`, 'i').test(caption)) return;
+    setCaption((prev) => (prev.trimEnd() + (prev.trim() ? ' ' : '') + token));
+  };
+
   const onSave = async (ready: boolean) => {
     if (caption.trim().length === 0) {
       setError('Add a caption before saving.');
@@ -527,20 +563,33 @@ export default function CreatePostContent() {
 
       {/* Caption */}
       <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
-        <div className="flex items-center justify-between mb-1.5">
+        <div className="flex items-center justify-between mb-1.5 gap-2 flex-wrap">
           <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">Caption</span>
-          <button
-            type="button"
-            onClick={generateCaption}
-            disabled={generatingCaption || !session?.access_token}
-            title="Draft a caption with Claude"
-            aria-label="Draft caption with Claude"
-            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-primary/30 bg-primary/5 text-primary text-[11px] font-semibold hover:bg-primary/10 disabled:opacity-50"
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            <ClaudeMark className="w-3.5 h-3.5" />
-            {generatingCaption ? 'Drafting…' : 'Write with Claude'}
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={generateVariants}
+              disabled={loadingVariants || !session?.access_token}
+              title="Get three caption options + hashtag ideas"
+              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-primary/30 bg-white text-primary text-[11px] font-semibold hover:bg-primary/5 disabled:opacity-50"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <ClaudeMark className="w-3.5 h-3.5" />
+              {loadingVariants ? 'Thinking…' : 'Variants'}
+            </button>
+            <button
+              type="button"
+              onClick={generateCaption}
+              disabled={generatingCaption || !session?.access_token}
+              title="Draft a caption with Claude"
+              aria-label="Draft caption with Claude"
+              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-primary/30 bg-primary/5 text-primary text-[11px] font-semibold hover:bg-primary/10 disabled:opacity-50"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <ClaudeMark className="w-3.5 h-3.5" />
+              {generatingCaption ? 'Drafting…' : 'Write with Claude'}
+            </button>
+          </div>
         </div>
         <textarea
           value={caption}
@@ -550,6 +599,50 @@ export default function CreatePostContent() {
           className="w-full px-3 py-2 rounded-md border border-black/10 text-[13.5px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/30"
           style={{ fontFamily: 'var(--font-body)' }}
         />
+
+        {/* AI variants + hashtag suggestions. */}
+        {(variants.length > 0 || hashtags.length > 0) && (
+          <div className="mt-2.5 rounded-xl border border-primary/15 bg-primary/[0.03] p-2.5">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-primary/80">Claude suggestions</span>
+              <button type="button" onClick={() => { setVariants([]); setHashtags([]); }} className="text-[10px] text-foreground/45 hover:text-foreground">Dismiss</button>
+            </div>
+            {variants.length > 0 && (
+              <ul className="space-y-1.5 mb-2">
+                {variants.map((v, i) => (
+                  <li key={i}>
+                    <button
+                      type="button"
+                      onClick={() => setCaption(v)}
+                      className="w-full text-left rounded-lg border border-black/10 bg-white px-2.5 py-2 text-[12px] text-foreground/85 leading-snug hover:border-primary hover:bg-primary/[0.03] transition-colors"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                      title="Use this caption"
+                    >
+                      <span className="line-clamp-3 whitespace-pre-line">{v}</span>
+                      <span className="mt-1 inline-block text-[9.5px] font-semibold uppercase tracking-wider text-primary/70">Use this →</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {hashtags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {hashtags.map((tag) => (
+                  <button
+                    key={tag}
+                    type="button"
+                    onClick={() => addHashtag(tag)}
+                    className="px-2 py-0.5 rounded-full border border-primary/25 bg-white text-[11px] font-semibold text-primary hover:bg-primary/10"
+                    title="Add to caption"
+                  >
+                    #{tag}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Per-network character budget — a network goes red once the
             caption passes its hard cap (e.g. X at 280). */}
         {platforms.size > 0 && caption.length > 0 && (
