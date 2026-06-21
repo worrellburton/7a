@@ -427,8 +427,13 @@ export default function CallsContent() {
       }
       cur.calls.push(c);
     }
+    // Always surface Today — even with zero calls — so the operator sees
+    // "today" at the top instead of the list silently starting yesterday.
+    if (!groups.some((g) => g.key === todayKey)) {
+      groups.unshift({ key: todayKey, label: 'Today', calls: [] });
+    }
     return groups;
-  }, [calls]);
+  }, [calls, todayKey]);
 
   // Calls happening right now (ringing or connected) — pinned, ticking.
   const liveCalls = useMemo(() => calls.filter(isLiveCall), [calls]);
@@ -897,14 +902,27 @@ export default function CallsContent() {
                           <svg className={`w-3 h-3 text-foreground/40 transition-transform ${expanded ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
                           <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-foreground/50">{g.label}</span>
                           <span className="text-[11px] font-normal normal-case tracking-normal text-foreground/40">
-                            {g.calls.length} {g.calls.length === 1 ? 'call' : 'calls'}
-                            <span className="mx-1.5 text-foreground/20">·</span>
-                            {ops} {ops === 1 ? 'operator' : 'operators'}
-                            {missed > 0 && (<><span className="mx-1.5 text-foreground/20">·</span><span className="text-rose-500/80">{missed} missed</span></>)}
+                            {g.calls.length === 0 ? (
+                              g.key === todayKey ? 'No calls have happened yet today' : 'No calls'
+                            ) : (
+                              <>
+                                {g.calls.length} {g.calls.length === 1 ? 'call' : 'calls'}
+                                <span className="mx-1.5 text-foreground/20">·</span>
+                                {ops} {ops === 1 ? 'operator' : 'operators'}
+                                {missed > 0 && (<><span className="mx-1.5 text-foreground/20">·</span><span className="text-rose-500/80">{missed} missed</span></>)}
+                              </>
+                            )}
                           </span>
                         </div>
                       </td>
                     </tr>
+                    {expanded && g.calls.length === 0 && (
+                      <tr>
+                        <td colSpan={11} className="px-5 py-4 text-center text-[12px] text-foreground/40 italic">
+                          No calls have happened yet today.
+                        </td>
+                      </tr>
+                    )}
                     {expanded && g.calls.map((c) => (
                   <tr
                     key={c.aircall_id}
