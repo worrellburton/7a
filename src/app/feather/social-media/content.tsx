@@ -1715,6 +1715,29 @@ function CreativeDraftsPanel() {
   );
 }
 
+// Animated round checkbox — replaces the default square ticks in the
+// Ready table. Controlled (button + role=checkbox) so the tick can
+// spring in/out on toggle.
+function RoundCheck({ checked, indeterminate, onChange, label }: { checked: boolean; indeterminate?: boolean; onChange: () => void; label: string }) {
+  const active = checked || !!indeterminate;
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={indeterminate ? 'mixed' : checked}
+      aria-label={label}
+      onClick={(e) => { e.stopPropagation(); onChange(); }}
+      className={`relative w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all duration-200 ease-out ${active ? 'border-primary bg-primary scale-110 shadow-sm' : 'border-black/25 bg-white hover:border-primary/50 active:scale-90'}`}
+    >
+      {indeterminate ? (
+        <span className="block w-2 h-0.5 rounded-full bg-white" />
+      ) : (
+        <svg className={`w-3 h-3 text-white transition-transform duration-200 ${checked ? 'scale-100' : 'scale-0'}`} fill="none" stroke="currentColor" strokeWidth="3.5" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+      )}
+    </button>
+  );
+}
+
 // ── Creative > Ready to go ────────────────────────────────────────
 //
 // Spreadsheet-style list of every SavedDraft that's been flagged
@@ -1824,13 +1847,11 @@ function ReadyToGoPanel() {
             <thead className="bg-warm-bg/40 text-foreground/55">
               <tr className="border-b border-black/5">
                 <th scope="col" className="px-3 py-2 w-10">
-                  <input
-                    type="checkbox"
+                  <RoundCheck
                     checked={allSelected}
-                    ref={(el) => { if (el) el.indeterminate = someSelected; }}
+                    indeterminate={someSelected}
                     onChange={toggleAll}
-                    aria-label={allSelected ? 'Deselect all' : 'Select all approved posts'}
-                    className="w-4 h-4 rounded border-black/30 accent-primary cursor-pointer"
+                    label={allSelected ? 'Deselect all' : 'Select all approved posts'}
                   />
                 </th>
                 <th scope="col" className="px-2 py-2 w-12 text-[9.5px] font-bold uppercase tracking-[0.14em]">Media</th>
@@ -1856,13 +1877,7 @@ function ReadyToGoPanel() {
                     className={`border-t border-black/5 cursor-grab active:cursor-grabbing ${isSel ? 'bg-primary/5' : 'hover:bg-warm-bg/30'}`}
                   >
                     <td className="px-3 py-2 align-middle">
-                      <input
-                        type="checkbox"
-                        checked={isSel}
-                        onChange={() => toggleOne(d.id)}
-                        aria-label={`Select draft saved ${savedLabel}`}
-                        className="w-4 h-4 rounded border-black/30 accent-primary cursor-pointer"
-                      />
+                      <RoundCheck checked={isSel} onChange={() => toggleOne(d.id)} label={`Select draft saved ${savedLabel}`} />
                     </td>
                     <td className="px-2 py-2 align-middle">
                       {d.mediaUrls[0] ? (
@@ -1901,13 +1916,27 @@ function ReadyToGoPanel() {
                     <td className="px-2 py-2 align-middle text-center text-[11px] text-foreground/55 tabular-nums">
                       {d.mediaUrls.length}
                     </td>
-                    <td className="px-2 py-2 align-middle text-right">
-                      <Link
-                        href={`/feather/social-media/drafts/${d.id}`}
-                        className="inline-flex px-2.5 py-1 rounded-md border border-black/10 bg-white text-[10px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
-                      >
-                        Open →
-                      </Link>
+                    <td className="px-2 py-2 align-middle text-right whitespace-nowrap">
+                      <div className="inline-flex items-center gap-1.5">
+                        <Link
+                          href={`/feather/social-media/drafts/${d.id}`}
+                          className="inline-flex px-2.5 py-1 rounded-md border border-black/10 bg-white text-[10px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+                        >
+                          Edit
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            const ok = await modal.confirm('Delete this approved post?', { message: "This can't be undone.", confirmLabel: 'Delete', tone: 'danger' });
+                            if (ok) void deleteDraft(d.id);
+                          }}
+                          className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-black/10 bg-white text-foreground/45 hover:text-rose-700 hover:border-rose-300"
+                          aria-label="Delete post"
+                          title="Delete"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
