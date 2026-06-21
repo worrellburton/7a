@@ -1301,6 +1301,7 @@ function ScheduledPanel({
   onChanged: () => void;
   onDropDraft?: (draft: ReadyDraft) => Promise<{ ok: boolean; when?: Date; error?: string }>;
 }) {
+  const modal = useModal();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [dropMsg, setDropMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
@@ -1380,10 +1381,17 @@ function ScheduledPanel({
 
   const cancel = async (item: SchedItem) => {
     if (!item.ayrshareId) {
-      alert('We couldn’t find this post’s Ayrshare id to cancel it in-app — cancel it from the Ayrshare dashboard (Posts → Scheduled). New scheduled posts cancel here directly.');
+      await modal.alert('Can’t cancel in-app yet', {
+        message: 'We couldn’t find this post’s Ayrshare id, so cancel it from the Ayrshare dashboard (Posts → Scheduled). Posts scheduled from here cancel directly.',
+      });
       return;
     }
-    if (!confirm('Cancel this scheduled post?')) return;
+    const ok = await modal.confirm('Cancel this scheduled post?', {
+      message: 'It will be pulled from the queue and won’t publish.',
+      confirmLabel: 'Cancel post',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusyId(item.key);
     try {
       const res = await fetch('/api/social-media/delete', {
@@ -1394,13 +1402,13 @@ function ScheduledPanel({
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(json.error || json.message || `HTTP ${res.status}`);
+        await modal.alert('Couldn’t cancel the post', { message: json.error || json.message || `HTTP ${res.status}` });
         return;
       }
       await loadLocal();
       onChanged();
     } catch (err) {
-      alert(err instanceof Error ? err.message : String(err));
+      await modal.alert('Couldn’t cancel the post', { message: err instanceof Error ? err.message : String(err) });
     } finally {
       setBusyId(null);
     }
@@ -3874,6 +3882,7 @@ function HistoryList({
   error: string | null;
   onChanged: () => void;
 }) {
+  const modal = useModal();
   const [busyId, setBusyId] = useState<string | null>(null);
 
   const sorted = useMemo(() => {
@@ -3888,7 +3897,12 @@ function HistoryList({
   }, [posts]);
 
   const remove = async (id: string) => {
-    if (!confirm('Delete this post?')) return;
+    const ok = await modal.confirm('Delete this post?', {
+      message: 'It will be removed from the post history. This can’t be undone.',
+      confirmLabel: 'Delete',
+      tone: 'danger',
+    });
+    if (!ok) return;
     setBusyId(id);
     try {
       const res = await fetch('/api/social-media/delete', {
@@ -3899,12 +3913,12 @@ function HistoryList({
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
-        alert(json.error || json.message || `HTTP ${res.status}`);
+        await modal.alert('Couldn’t delete the post', { message: json.error || json.message || `HTTP ${res.status}` });
         return;
       }
       onChanged();
     } catch (err) {
-      alert(err instanceof Error ? err.message : String(err));
+      await modal.alert('Couldn’t delete the post', { message: err instanceof Error ? err.message : String(err) });
     } finally {
       setBusyId(null);
     }

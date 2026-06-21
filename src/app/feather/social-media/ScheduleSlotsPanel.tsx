@@ -10,6 +10,18 @@
 
 import { useCallback, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
+import { usePostingEnabled, PostingPausedBanner } from './PostingStatus';
+
+// Browser timezone abbreviation (e.g. "MST", "PDT") so the operator knows
+// which clock the datetime-local picker is in — it sends absolute UTC, but
+// the wall-clock they type is their own zone, and that's worth making explicit.
+function browserTzLabel(): string {
+  try {
+    return new Intl.DateTimeFormat('en-US', { timeZoneName: 'short' })
+      .formatToParts(new Date())
+      .find((p) => p.type === 'timeZoneName')?.value ?? '';
+  } catch { return ''; }
+}
 
 /* ── Types ───────────────────────────────────────────────────── */
 
@@ -206,6 +218,7 @@ export default function ScheduleDropCard({
   onScheduled: () => void;
 }) {
   const { session } = useAuth();
+  const postingEnabled = usePostingEnabled();
   const [draft, setDraft] = useState<ReadyDraft | null>(null);
   const [when, setWhen] = useState('');
   const [dragOver, setDragOver] = useState(false);
@@ -262,6 +275,7 @@ export default function ScheduleDropCard({
     if (at.getTime() <= Date.now()) { setError('Pick a time in the future.'); return; }
     const targets = Array.from(selectedPlatforms);
     if (targets.length === 0) { setError('Check at least one platform to post to.'); return; }
+    if (postingEnabled === false) { setError('Posting is paused — switch it on at the top of Social Media before scheduling.'); return; }
     setSubmitting(true);
     setError(null);
     try {
@@ -298,10 +312,16 @@ export default function ScheduleDropCard({
     } finally {
       setSubmitting(false);
     }
-  }, [draft, when, selectedPlatforms, session?.access_token, onScheduled]);
+  }, [draft, when, selectedPlatforms, session?.access_token, onScheduled, postingEnabled]);
 
   const thumb = draft?.mediaUrls[0];
   const isVideo = typeof thumb === 'string' && /\.(mp4|mov|webm|m4v)(\?|$)/i.test(thumb);
+  // Resolved wall-clock + zone for the picked time, so there's no ambiguity
+  // about which timezone the datetime-local input is interpreting.
+  const whenDate = when ? new Date(when) : null;
+  const whenResolved = whenDate && !Number.isNaN(whenDate.getTime())
+    ? `${whenDate.toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} ${browserTzLabel()}`
+    : null;
 
   return (
     <section className="rounded-2xl border border-black/10 bg-white px-4 py-4 lg:px-5 lg:py-5">
@@ -311,6 +331,8 @@ export default function ScheduleDropCard({
           Drag a Ready-to-Go draft here, set the exact time, and it posts itself.
         </p>
       </div>
+
+      <PostingPausedBanner className="mb-3" />
 
       {okMsg && (
         <p className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs text-emerald-800 mb-3" role="status">
@@ -396,8 +418,9 @@ export default function ScheduleDropCard({
             <button
               type="button"
               onClick={() => void submit()}
-              disabled={submitting}
-              className="rounded-lg bg-primary text-white px-3.5 py-1.5 text-[12.5px] font-semibold hover:bg-primary/90 disabled:opacity-40"
+              disabled={submitting || postingEnabled === false}
+              title={postingEnabled === false ? 'Posting is paused' : undefined}
+              className="rounded-lg bg-primary text-white px-3.5 py-1.5 text-[12.5px] font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {submitting ? 'Scheduling…' : 'Schedule'}
             </button>
@@ -410,6 +433,13 @@ export default function ScheduleDropCard({
               Clear
             </button>
           </div>
+
+          {whenResolved && (
+            <p className="mt-2 text-[11.5px] text-foreground/55" style={{ fontFamily: 'var(--font-body)' }}>
+              Posts <span className="font-semibold text-foreground/75">{whenResolved}</span>
+              <span className="text-foreground/40"> · your local time</span>
+            </p>
+          )}
         </div>
       )}
     </section>
@@ -429,6 +459,7 @@ export function PostNowDropCard({
   onPosted: () => void;
 }) {
   const { session } = useAuth();
+  const postingEnabled = usePostingEnabled();
   const [draft, setDraft] = useState<ReadyDraft | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -476,6 +507,7 @@ export function PostNowDropCard({
     if (!draft) return;
     const targets = Array.from(selectedPlatforms);
     if (targets.length === 0) { setError('Check at least one platform to post to.'); return; }
+    if (postingEnabled === false) { setError('Posting is paused — switch it on at the top of Social Media before posting.'); return; }
     setSubmitting(true);
     setError(null);
     try {
@@ -507,7 +539,7 @@ export function PostNowDropCard({
     } finally {
       setSubmitting(false);
     }
-  }, [draft, selectedPlatforms, session?.access_token, onPosted]);
+  }, [draft, selectedPlatforms, session?.access_token, onPosted, postingEnabled]);
 
   const thumb = draft?.mediaUrls[0];
   const isVideo = typeof thumb === 'string' && /\.(mp4|mov|webm|m4v)(\?|$)/i.test(thumb);
@@ -520,6 +552,8 @@ export function PostNowDropCard({
           Drag a Ready-to-Go draft here to publish it right away.
         </p>
       </div>
+
+      <PostingPausedBanner className="mb-3" />
 
       {okMsg && (
         <p className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs text-emerald-800 mb-3" role="status">
@@ -588,8 +622,9 @@ export function PostNowDropCard({
             <button
               type="button"
               onClick={() => void submit()}
-              disabled={submitting}
-              className="rounded-lg bg-primary text-white px-3.5 py-1.5 text-[12.5px] font-semibold hover:bg-primary/90 disabled:opacity-40"
+              disabled={submitting || postingEnabled === false}
+              title={postingEnabled === false ? 'Posting is paused' : undefined}
+              className="rounded-lg bg-primary text-white px-3.5 py-1.5 text-[12.5px] font-semibold hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {submitting ? 'Posting…' : `Post now${selectedPlatforms.size > 0 ? ` to ${selectedPlatforms.size}` : ''}`}
             </button>
