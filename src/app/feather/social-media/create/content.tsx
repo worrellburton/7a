@@ -22,86 +22,19 @@ import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { uploadFile } from '@/lib/upload';
 import { useAuth } from '@/lib/AuthProvider';
-import { PLATFORM_SPECS, type MediaSpec, type VideoSpec } from '../platform-specs';
 import { PlatformIcon, type PlatformId } from '../PlatformIcon';
 import { saveDraft } from '../saved-drafts';
-
-const PLATFORM_LABELS: Record<string, string> = {
-  facebook: 'Facebook',
-  instagram: 'Instagram',
-  linkedin: 'LinkedIn',
-  twitter: 'X (Twitter)',
-  tiktok: 'TikTok',
-  youtube: 'YouTube',
-  pinterest: 'Pinterest',
-  gmb: 'Google Business',
-  reddit: 'Reddit',
-  threads: 'Threads',
-  bluesky: 'Bluesky',
-};
-
-const ALL_PLATFORM_IDS: PlatformId[] = [
-  'facebook', 'instagram', 'linkedin', 'twitter', 'tiktok',
-  'youtube', 'pinterest', 'gmb', 'reddit', 'threads', 'bluesky',
-];
+import {
+  PLATFORM_LABELS,
+  ALL_PLATFORM_IDS,
+  SURFACE_LABEL,
+  buildDeliverableRows,
+  aspectStyle,
+  type DeliverableSurface,
+} from '../deliverables';
 
 // Mirrors the staging contract pushed by CreativeLibraryPanel.continueToAi.
 const STAGING_KEY = 'social_media_creative_staging_v1';
-
-// Surface = the social-network "place" a deliverable goes. Derived
-// off the deliverable label because PLATFORM_SPECS doesn't carry it
-// natively. Stays string-typed so adding a new label / surface
-// doesn't require updating a union. The Deliverables card groups
-// each platform's deliverable slots by surface so the user can
-// checkbox which surfaces they actually want to produce.
-type DeliverableSurface =
-  | 'post'
-  | 'story'
-  | 'reel'
-  | 'short'
-  | 'long-form'
-  | 'link'
-  | 'pin'
-  | 'thumbnail'
-  | 'document';
-
-const SURFACE_LABEL: Record<DeliverableSurface, string> = {
-  post: 'Post',
-  story: 'Story',
-  reel: 'Reel',
-  short: 'Short',
-  'long-form': 'Long-form',
-  link: 'Link preview',
-  pin: 'Pin',
-  thumbnail: 'Thumbnail',
-  document: 'Document',
-};
-
-function inferSurface(label: string): DeliverableSurface {
-  const l = label.toLowerCase();
-  // Order matters — earlier matches win. 'Story / Reel' matches
-  // 'story' first, which is the dominant Instagram use case for
-  // that combined 9:16 slot.
-  if (l.includes('story')) return 'story';
-  if (l.includes('reel')) return 'reel';
-  if (l.includes('short')) return 'short';
-  if (l.includes('long-form')) return 'long-form';
-  if (l.includes('thumbnail')) return 'thumbnail';
-  if (l.includes('link preview')) return 'link';
-  if (l.includes('pin')) return 'pin';
-  if (l.includes('document') || l.includes('pdf')) return 'document';
-  return 'post';
-}
-
-interface DeliverableRow {
-  key: string;            // "${platform}|${label}"
-  platform: PlatformId;
-  label: string;          // "Feed (1:1)"
-  ratio: string;          // "1:1"
-  size: string | undefined;
-  kind: 'image' | 'video';
-  surface: DeliverableSurface;
-}
 
 function readStagedMedia(): string[] {
   if (typeof window === 'undefined') return [];
@@ -118,43 +51,6 @@ function readStagedMedia(): string[] {
 function clearStagedMedia() {
   if (typeof window === 'undefined') return;
   try { window.sessionStorage.removeItem(STAGING_KEY); } catch { /* ignore */ }
-}
-
-function buildDeliverableRows(platforms: PlatformId[]): DeliverableRow[] {
-  const out: DeliverableRow[] = [];
-  for (const pid of platforms) {
-    const spec = PLATFORM_SPECS[pid];
-    if (!spec) continue;
-    spec.images.forEach((img, i) => {
-      out.push({
-        key: `${pid}|image|${i}|${img.label}`,
-        platform: pid,
-        label: img.label,
-        ratio: img.ratio,
-        size: img.size,
-        kind: 'image',
-        surface: inferSurface(img.label),
-      });
-    });
-    spec.videos.forEach((vid, i) => {
-      out.push({
-        key: `${pid}|video|${i}|${vid.label}`,
-        platform: pid,
-        label: vid.label,
-        ratio: vid.ratio,
-        size: vid.size,
-        kind: 'video',
-        surface: inferSurface(vid.label),
-      });
-    });
-  }
-  return out;
-}
-
-function aspectStyle(ratio: string): React.CSSProperties {
-  const m = ratio.match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/);
-  if (!m) return { aspectRatio: '1 / 1' };
-  return { aspectRatio: `${m[1]} / ${m[2]}` };
 }
 
 interface LibraryAsset {
