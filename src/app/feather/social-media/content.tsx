@@ -296,37 +296,43 @@ function SubNav() {
     tabRefs.current[nextIdx]?.focus();
   };
 
+  // One tab segment. `i` is the index into TABS (keeps the arrow-key
+  // nav refs aligned even though the tabs are split across two rows).
+  const renderTab = (t: typeof TABS[number], i: number) => {
+    const selected = active === t.id;
+    return (
+      <Link
+        key={t.id}
+        ref={(el) => { tabRefs.current[i] = el; }}
+        href={hrefFor(t.id)}
+        scroll={false}
+        role="tab"
+        id={`tab-${t.id}`}
+        aria-selected={selected}
+        aria-controls={`tabpanel-${t.id}`}
+        tabIndex={selected ? 0 : -1}
+        title={t.description}
+        className={`flex-1 min-w-0 px-4 py-2.5 rounded-xl text-sm font-semibold text-center transition-colors ${
+          selected
+            ? 'bg-foreground text-white shadow-sm'
+            : 'text-foreground/65 hover:bg-warm-bg/40'
+        }`}
+      >
+        {t.label}
+      </Link>
+    );
+  };
+
+  // Overview gets its own full-width row on top; Compose + Post share
+  // the row below. Still a single tablist — only one is ever selected.
   return (
-    <div
-      role="tablist"
-      aria-label="Social media sections"
-      onKeyDown={onKeyDown}
-      className="mb-6 flex flex-wrap gap-1.5 rounded-2xl border border-black/10 bg-white p-1.5"
-    >
-      {TABS.map((t, i) => {
-        const selected = active === t.id;
-        return (
-          <Link
-            key={t.id}
-            ref={(el) => { tabRefs.current[i] = el; }}
-            href={hrefFor(t.id)}
-            scroll={false}
-            role="tab"
-            id={`tab-${t.id}`}
-            aria-selected={selected}
-            aria-controls={`tabpanel-${t.id}`}
-            tabIndex={selected ? 0 : -1}
-            title={t.description}
-            className={`flex-1 min-w-0 px-4 py-2.5 rounded-xl text-sm font-semibold text-center transition-colors ${
-              selected
-                ? 'bg-foreground text-white shadow-sm'
-                : 'text-foreground/65 hover:bg-warm-bg/40'
-            }`}
-          >
-            {t.label}
-          </Link>
-        );
-      })}
+    <div role="tablist" aria-label="Social media sections" onKeyDown={onKeyDown} className="mb-6 space-y-1.5">
+      <div className="flex rounded-2xl border border-black/10 bg-white p-1.5">
+        {renderTab(TABS[0], 0)}
+      </div>
+      <div className="flex gap-1.5 rounded-2xl border border-black/10 bg-white p-1.5">
+        {TABS.slice(1).map((t) => renderTab(t, TABS.indexOf(t)))}
+      </div>
     </div>
   );
 }
