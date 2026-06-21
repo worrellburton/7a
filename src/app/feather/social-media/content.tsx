@@ -15,6 +15,7 @@ import ScheduleDropCard, { ReadyToGoCard, PostNowDropCard, type ReadyDraft } fro
 import { useSavedDrafts, saveDraft as createDraft, setDraftReady, deleteDraft, submitForReview, updateDraft, type SavedDraft } from './saved-drafts';
 import { usePendingDeletes, UndoToast } from './UndoToast';
 import { ScheduledCalendar } from './ScheduledCalendar';
+import { QueueCard } from './QueueCard';
 
 // ── Cross-tab Send-to-Compose handoff ────────────────────────────────
 //
@@ -1239,22 +1240,40 @@ function SchedulePostsBody({
     }, 150);
   }, [refreshHistory]);
 
+  // Already-scheduled times (future) so the queue can skip taken slots.
+  const scheduledMs = useMemo(
+    () => history
+      .filter((p) => p.scheduleDate && Date.parse(p.scheduleDate as string) > Date.now())
+      .map((p) => Date.parse(p.scheduleDate as string))
+      .filter((n) => Number.isFinite(n)),
+    [history],
+  );
+
   // Click-path: load a Ready tile into the matching card without dragging
   // (the only way that works on touch). `n` makes each click a fresh
   // injection even for the same draft.
   const postNowRef = useRef<HTMLDivElement>(null);
   const scheduleRef = useRef<HTMLDivElement>(null);
-  const [inject, setInject] = useState<{ draft: ReadyDraft; action: 'schedule' | 'postnow'; n: number } | null>(null);
-  const quickAction = useCallback((draft: ReadyDraft, action: 'schedule' | 'postnow') => {
+  const queueRef = useRef<HTMLDivElement>(null);
+  const [inject, setInject] = useState<{ draft: ReadyDraft; action: 'schedule' | 'postnow' | 'queue'; n: number } | null>(null);
+  const quickAction = useCallback((draft: ReadyDraft, action: 'schedule' | 'postnow' | 'queue') => {
     setInject({ draft, action, n: Date.now() });
     window.setTimeout(() => {
-      (action === 'schedule' ? scheduleRef : postNowRef).current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      (action === 'schedule' ? scheduleRef : action === 'queue' ? queueRef : postNowRef).current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 60);
   }, []);
 
   return (
     <div className="space-y-4">
       <ReadyToGoCard drafts={readyDrafts} onQuickAction={quickAction} />
+      <div ref={queueRef} className="scroll-mt-4">
+        <QueueCard
+          connectedPlatforms={connectedPlatforms}
+          scheduledMs={scheduledMs}
+          onScheduled={handleScheduled}
+          injected={inject?.action === 'queue' ? inject : null}
+        />
+      </div>
       <div ref={postNowRef} className="scroll-mt-4">
         <PostNowDropCard
           connectedPlatforms={connectedPlatforms}
