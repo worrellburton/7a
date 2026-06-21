@@ -22,8 +22,10 @@ const MAX_RECENT = 30;
 
 // Reject paths that don't look like a real /feather route. Keeps a
 // misbehaving / malicious client from filling the array with junk
-// URLs or external links.
-const PATH_RE = /^\/app(?:\/[a-zA-Z0-9_\-/.]*)?$/;
+// URLs or external links. (Was /app before the route prefix migrated
+// to /feather — the stale regex silently 400'd every visit, which is
+// why the recency order stopped persisting.)
+const PATH_RE = /^\/feather(?:\/[a-zA-Z0-9_\-/.]*)?$/;
 
 export async function POST(req: NextRequest) {
   const user = await getUserFromRequest(req);
