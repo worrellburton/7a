@@ -4006,6 +4006,29 @@ function HistoryList({
 }) {
   const modal = useModal();
   const [busyId, setBusyId] = useState<string | null>(null);
+  // Per-post engagement, lazily fetched when a row's Stats is expanded.
+  interface PostStat { loading: boolean; error?: string; platforms?: { platform: string; metrics: { label: string; value: number }[] }[] }
+  const [statsById, setStatsById] = useState<Record<string, PostStat>>({});
+  const loadStats = async (postId: string, platforms?: string[]) => {
+    setStatsById((prev) => {
+      // Toggle closed if already open.
+      if (prev[postId] && !prev[postId].loading) { const n = { ...prev }; delete n[postId]; return n; }
+      return { ...prev, [postId]: { loading: true } };
+    });
+    if (statsById[postId] && !statsById[postId].loading) return; // was a close
+    try {
+      const r = await fetch('/api/social-media/analytics/post', {
+        method: 'POST', credentials: 'include',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: postId, platforms }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setStatsById((prev) => ({ ...prev, [postId]: { loading: false, error: j.error || `HTTP ${r.status}` } })); return; }
+      setStatsById((prev) => ({ ...prev, [postId]: { loading: false, platforms: Array.isArray(j.platforms) ? j.platforms : [] } }));
+    } catch (err) {
+      setStatsById((prev) => ({ ...prev, [postId]: { loading: false, error: err instanceof Error ? err.message : String(err) } }));
+    }
+  };
 
   const sorted = useMemo(() => {
     // Newest first. Ayrshare returns mostly chronological but mixed
@@ -4062,9 +4085,11 @@ function HistoryList({
       )}
       <ul className="divide-y divide-black/5">
         {sorted.map((p, i) => {
-          const id = (typeof p.id === 'string' ? p.id : null) ?? `idx-${i}`;
+          const pid = typeof p.id === 'string' ? p.id : null;
+          const id = pid ?? `idx-${i}`;
           const when = p.scheduleDate || p.created || '';
           const isScheduled = !!p.scheduleDate && Date.parse(p.scheduleDate as string) > Date.now();
+          const stat = pid ? statsById[pid] : undefined;
           return (
             <li key={id} className="py-3 flex gap-3 items-start">
               <div className="flex-1 min-w-0">
@@ -4107,16 +4132,49 @@ function HistoryList({
                     ))}
                   </ul>
                 )}
+                {stat && !stat.loading && (
+                  <div className="mt-2">
+                    {stat.error ? (
+                      <p className="text-[11px] text-foreground/45">Engagement unavailable: {stat.error}</p>
+                    ) : (stat.platforms?.length ?? 0) === 0 ? (
+                      <p className="text-[11px] text-foreground/45">No engagement data yet.</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {stat.platforms!.map((pl) => (
+                          <div key={pl.platform} className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/45 capitalize">{pl.platform}</span>
+                            {pl.metrics.map((m) => (
+                              <span key={m.label} className="px-1.5 py-0.5 rounded bg-warm-bg/50 border border-black/5 text-[10.5px] text-foreground/70">
+                                <strong className="text-foreground tabular-nums">{m.value.toLocaleString()}</strong> {m.label}
+                              </span>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-              {typeof p.id === 'string' && (
-                <button
-                  type="button"
-                  onClick={() => remove(p.id as string)}
-                  disabled={busyId === p.id}
-                  className="text-[11px] text-foreground/45 hover:text-red-700 underline decoration-dotted disabled:opacity-40"
-                >
-                  {busyId === p.id ? '…' : 'delete'}
-                </button>
+              {pid && (
+                <div className="shrink-0 flex flex-col items-end gap-1.5">
+                  {!isScheduled && (
+                    <button
+                      type="button"
+                      onClick={() => void loadStats(pid, Array.isArray(p.platforms) ? p.platforms : undefined)}
+                      className="text-[11px] text-primary hover:text-primary/80 underline decoration-dotted"
+                    >
+                      {stat?.loading ? '…' : stat ? 'hide stats' : 'stats'}
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => remove(pid)}
+                    disabled={busyId === pid}
+                    className="text-[11px] text-foreground/45 hover:text-red-700 underline decoration-dotted disabled:opacity-40"
+                  >
+                    {busyId === pid ? '…' : 'delete'}
+                  </button>
+                </div>
               )}
             </li>
           );
