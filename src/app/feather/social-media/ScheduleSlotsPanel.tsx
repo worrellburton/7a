@@ -93,7 +93,7 @@ export function ReadyToGoCard({
   // Click-path alternative to dragging — load a draft straight into the
   // Schedule or Post-now card. Essential on touch, where HTML5 drag-drop
   // doesn't fire at all.
-  onQuickAction?: (draft: ReadyDraft, action: 'schedule' | 'postnow') => void;
+  onQuickAction?: (draft: ReadyDraft, action: 'schedule' | 'postnow' | 'queue') => void;
 }) {
   return (
     <section className="rounded-2xl border border-black/10 bg-white px-4 py-4 lg:px-5 lg:py-5">
@@ -132,7 +132,7 @@ function ReadyDraftTile({
   onQuickAction,
 }: {
   draft: ReadyDraft;
-  onQuickAction?: (draft: ReadyDraft, action: 'schedule' | 'postnow') => void;
+  onQuickAction?: (draft: ReadyDraft, action: 'schedule' | 'postnow' | 'queue') => void;
 }) {
   const thumb = draft.mediaUrls[0];
   const isVideo = typeof thumb === 'string' && /\.(mp4|mov|webm|m4v)(\?|$)/i.test(thumb);
@@ -182,6 +182,15 @@ function ReadyDraftTile({
           fade-in on hover for desktop where dragging is the primary gesture. */}
       {onQuickAction && (
         <div className="absolute inset-x-0 bottom-0 flex divide-x divide-white/20 bg-black/55 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+          <button
+            type="button"
+            onClick={() => onQuickAction(draft, 'queue')}
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-white hover:bg-white/10"
+            title="Add to the next open queue slot"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h10" /></svg>
+            <span className="hidden sm:inline">Queue</span>
+          </button>
           <button
             type="button"
             onClick={() => onQuickAction(draft, 'schedule')}
