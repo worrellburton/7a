@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import FeatureRequestModal from './kingdom-requests/FeatureRequestModal';
 import WhatsNewButton from './WhatsNewButton';
+import PhoneCoverageWarning from './PhoneCoverageWarning';
 import { updates } from '@/lib/updates';
 import JdSignatureNagModal from './JdSignatureNagModal';
 // Temporarily not rendered — see HomeContent.tsx note. Keeping the
@@ -125,7 +126,7 @@ function timeAgo(dateStr: string | null): string {
 }
 
 export default function HomeContent() {
-  const { user, session, userKind } = useAuth();
+  const { user, session, userKind, isSuperAdmin } = useAuth();
   const { pages } = usePagePermissions();
   const router = useRouter();
   // Alumni belong on the alumni home (/feather/alumni), not the staff
@@ -1027,6 +1028,9 @@ export default function HomeContent() {
 
           </div>
         </header>
+
+        {/* Super-admin nudge when the phones calendar has a coverage gap. */}
+        {isSuperAdmin && <PhoneCoverageWarning />}
 
         {/* Centerpiece — flex-1 so it eats the leftover vertical space
             between the absolutely-positioned hero (top) and the WIP
