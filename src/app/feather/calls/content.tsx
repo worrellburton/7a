@@ -871,7 +871,7 @@ export default function CallsContent() {
             <div
               ref={callsTableRef}
               data-calls-table
-              className="hidden sm:block overflow-auto max-h-[calc(100vh-9rem)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              className="hidden sm:block overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
             <table className="w-full min-w-[1180px] text-sm [&_td]:align-top">
               <thead className="[&_th]:sticky [&_th]:top-0 [&_th]:z-20 [&_th]:bg-white/90 [&_th]:backdrop-blur [&_th]:border-b [&_th]:border-foreground/10">
