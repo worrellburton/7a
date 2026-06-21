@@ -25,6 +25,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { PlatformIcon, type PlatformId } from '../PlatformIcon';
 import { saveDraft } from '../saved-drafts';
 import { PostingPausedBanner } from '../PostingStatus';
+import { PostPreview } from '../PostPreview';
 import { PLATFORM_SPECS } from '../platform-specs';
 import {
   PLATFORM_LABELS,
@@ -824,6 +825,18 @@ export default function CreatePostContent() {
           </ul>
         )}
       </section>
+
+      <PostPreview
+        caption={caption}
+        platforms={Array.from(platforms).sort()}
+        mediaFor={(pid) => {
+          // Prefer a filled deliverable slot for this network; fall back to
+          // the first staged image so the preview isn't empty pre-crop.
+          const slot = rows.find((r) => r.platform === pid && (urlByKey[r.key] ?? '').trim());
+          const url = slot ? urlByKey[slot.key] : stagedMedia.find((u) => !isVideoUrl(u)) ?? stagedMedia[0];
+          return url ? { url, isVideo: isVideoUrl(url) } : undefined;
+        }}
+      />
 
       {error && <p className="mb-3 text-[12px] text-red-700" role="alert">{error}</p>}
 
