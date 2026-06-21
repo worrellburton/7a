@@ -134,6 +134,9 @@ export async function POST(req: Request) {
             platforms,
             scheduled: isScheduled,
             scheduleDate: payload.scheduleDate ?? null,
+            // Stash the media so the Scheduled-posts list can show a
+            // thumbnail without a second lookup.
+            mediaUrls,
             postIds,
             ayrshareId,
             raw: result,

@@ -55,15 +55,16 @@ export async function GET() {
   }
 
   const now = Date.now();
-  interface Item { logId: string; ayrshareId: string | null; scheduleDate: string; platforms: string[]; caption: string; userId: string | null; createdByName: string | null }
+  interface Item { logId: string; ayrshareId: string | null; scheduleDate: string; platforms: string[]; mediaUrls: string[]; caption: string; userId: string | null; createdByName: string | null }
   const items: Item[] = ((scheduledRows ?? []) as Row[])
     .map((r) => {
-      const m = (r.metadata ?? {}) as { scheduleDate?: string | null; platforms?: unknown };
+      const m = (r.metadata ?? {}) as { scheduleDate?: string | null; platforms?: unknown; mediaUrls?: unknown };
       return {
         logId: r.id,
         ayrshareId: ayrshareIdFromMetadata(r.metadata),
         scheduleDate: m.scheduleDate ?? '',
         platforms: Array.isArray(m.platforms) ? (m.platforms as string[]) : [],
+        mediaUrls: Array.isArray(m.mediaUrls) ? (m.mediaUrls as unknown[]).filter((u): u is string => typeof u === 'string') : [],
         caption: r.target_label ?? '',
         userId: r.user_id,
         createdByName: null as string | null,
@@ -124,8 +125,8 @@ export async function GET() {
     } catch { /* leave dashboard-only */ }
   }
 
-  const posts = items.map(({ logId, ayrshareId, scheduleDate, platforms, caption, createdByName }) => ({
-    logId, ayrshareId, scheduleDate, platforms, caption, createdByName,
+  const posts = items.map(({ logId, ayrshareId, scheduleDate, platforms, mediaUrls, caption, createdByName }) => ({
+    logId, ayrshareId, scheduleDate, platforms, mediaUrls, caption, createdByName,
   }));
 
   const recentlyCanceled = ((canceledRows ?? []) as Row[]).slice(0, 8).map((r) => {

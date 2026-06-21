@@ -1226,6 +1226,17 @@ function SchedulePostsBody({
   );
   const connectedPlatforms = accounts?.activeSocialAccounts ?? [];
 
+  // After a successful schedule, refresh the history (which the
+  // ScheduledPanel watches to reload its authoritative list) and bring
+  // the Scheduled posts card into view so the new row is right there.
+  const scheduledRef = useRef<HTMLDivElement>(null);
+  const handleScheduled = useCallback(() => {
+    refreshHistory();
+    window.setTimeout(() => {
+      scheduledRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 150);
+  }, [refreshHistory]);
+
   return (
     <div className="space-y-4">
       <ReadyToGoCard drafts={readyDrafts} />
@@ -1235,15 +1246,49 @@ function SchedulePostsBody({
       />
       <ScheduleDropCard
         connectedPlatforms={connectedPlatforms}
-        onScheduled={refreshHistory}
+        onScheduled={handleScheduled}
       />
-      <ScheduledPanel
-        posts={history}
-        loading={historyLoading}
-        error={historyErr}
-        onChanged={refreshHistory}
-      />
+      <div ref={scheduledRef} className="scroll-mt-4">
+        <ScheduledPanel
+          posts={history}
+          loading={historyLoading}
+          error={historyErr}
+          onChanged={refreshHistory}
+        />
+      </div>
     </div>
+  );
+}
+
+// Live "posts in 2d 4h 13m" countdown for a scheduled row. Ticks once a
+// second so the seconds visibly move when the post is close, then coarsens
+// to d/h/m further out. Self-contained interval so the parent list doesn't
+// re-render every tick.
+function ScheduleCountdown({ target }: { target: string }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  const t = Date.parse(target);
+  if (!Number.isFinite(t)) return null;
+  const ms = t - now;
+  if (ms <= 0) {
+    return <span className="text-[11px] font-semibold text-emerald-700">Posting now…</span>;
+  }
+  const totalSec = Math.floor(ms / 1000);
+  const d = Math.floor(totalSec / 86400);
+  const h = Math.floor((totalSec % 86400) / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  // Under an hour we surface seconds; otherwise the largest two units read cleaner.
+  const text = d > 0 ? `${d}d ${h}h ${m}m` : h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`;
+  const soon = ms < 60 * 60 * 1000; // < 1h
+  return (
+    <span className={`inline-flex items-center gap-1 text-[11px] font-semibold tabular-nums ${soon ? 'text-amber-700' : 'text-foreground/60'}`}>
+      <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 2" /></svg>
+      posts in {text}
+    </span>
   );
 }
 
@@ -1263,7 +1308,7 @@ function ScheduledPanel({
   // Authoritative scheduled posts from OUR records (activity_log), so a
   // post that's queued in Ayrshare can never be silently hidden by a
   // /history quirk. Merged with the Ayrshare /history scheduled rows.
-  interface LocalScheduled { logId: string; ayrshareId: string | null; scheduleDate: string | null; platforms: string[]; caption: string; createdByName: string | null }
+  interface LocalScheduled { logId: string; ayrshareId: string | null; scheduleDate: string | null; platforms: string[]; mediaUrls?: string[]; caption: string; createdByName: string | null }
   interface CanceledRec { at: string; caption: string; scheduleDate: string | null; canceledByName: string | null }
   const [local, setLocal] = useState<LocalScheduled[]>([]);
   const [canceledRecs, setCanceledRecs] = useState<CanceledRec[]>([]);
@@ -1278,8 +1323,12 @@ function ScheduledPanel({
     } catch { /* keep previous */ } finally { setLocalLoading(false); }
   }, []);
   useEffect(() => { void loadLocal(); }, [loadLocal]);
+  // Reload our authoritative list whenever the Ayrshare history refreshes
+  // (which the parent triggers right after a schedule / post / cancel), so
+  // a freshly-scheduled post shows up here without a manual refresh.
+  useEffect(() => { void loadLocal(); }, [posts, loadLocal]);
 
-  interface SchedItem { key: string; ayrshareId: string | null; scheduleDate: string; platforms: string[]; caption: string; createdByName: string | null }
+  interface SchedItem { key: string; ayrshareId: string | null; scheduleDate: string; platforms: string[]; mediaUrls: string[]; caption: string; createdByName: string | null }
   const queue = useMemo<SchedItem[]>(() => {
     const items: SchedItem[] = [];
     const seen = new Set<string>();
@@ -1291,10 +1340,10 @@ function ScheduledPanel({
     };
     for (const p of local) {
       if (!p.scheduleDate) continue;
-      add({ key: `local:${p.logId}`, ayrshareId: p.ayrshareId, scheduleDate: p.scheduleDate, platforms: p.platforms ?? [], caption: p.caption ?? '', createdByName: p.createdByName ?? null });
+      add({ key: `local:${p.logId}`, ayrshareId: p.ayrshareId, scheduleDate: p.scheduleDate, platforms: p.platforms ?? [], mediaUrls: p.mediaUrls ?? [], caption: p.caption ?? '', createdByName: p.createdByName ?? null });
     }
     for (const p of posts.filter(isScheduledPending)) {
-      add({ key: `ay:${(p.id as string) ?? p.scheduleDate}`, ayrshareId: (p.id as string) ?? null, scheduleDate: p.scheduleDate as string, platforms: p.platforms ?? [], caption: p.post ?? '', createdByName: null });
+      add({ key: `ay:${(p.id as string) ?? p.scheduleDate}`, ayrshareId: (p.id as string) ?? null, scheduleDate: p.scheduleDate as string, platforms: p.platforms ?? [], mediaUrls: p.mediaUrls ?? [], caption: p.post ?? '', createdByName: null });
     }
     return items.sort((a, b) => Date.parse(a.scheduleDate) - Date.parse(b.scheduleDate));
   }, [local, posts]);
@@ -1406,14 +1455,31 @@ function ScheduledPanel({
             const platforms = p.platforms.join(', ');
             const caption = p.caption.slice(0, 140);
             const busy = busyId === p.key;
+            const thumb = p.mediaUrls[0];
+            const isVideo = typeof thumb === 'string' && /\.(mp4|mov|webm|m4v)(\?|$)/i.test(thumb);
             return (
               <li key={p.key} className="flex items-start gap-3 py-3">
+                {/* Media thumbnail — mirrors the Compose row so a queued
+                    post reads the same here as it did when it was Ready. */}
+                <div className="w-10 h-10 shrink-0 rounded-md overflow-hidden border border-black/10 bg-warm-bg/40">
+                  {thumb ? (
+                    isVideo ? (
+                      <video src={thumb} muted playsInline className="w-full h-full object-cover bg-black" />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={thumb} alt="" className="w-full h-full object-cover" />
+                    )
+                  ) : (
+                    <span className="w-full h-full flex items-center justify-center text-foreground/35 text-[10px]" aria-hidden>—</span>
+                  )}
+                </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
                     <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
                       <span className="w-1.5 h-1.5 rounded-full bg-amber-500" aria-hidden="true" />
                       {when}
                     </span>
+                    <ScheduleCountdown target={p.scheduleDate} />
                     {platforms && (
                       <span className="text-[11px] text-foreground/55 capitalize">{platforms}</span>
                     )}
