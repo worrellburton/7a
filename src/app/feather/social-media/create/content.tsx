@@ -190,6 +190,12 @@ export default function CreatePostContent() {
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
   // Crop editor — set to the slot being cropped (with its target ratio).
   const [cropForKey, setCropForKey] = useState<{ key: string; url: string; ratio: string } | null>(null);
+  // Gallery — extra images attached to a deliverable beyond its primary,
+  // so an image slot can carry a carousel. Keyed by deliverable key.
+  const [galleryByKey, setGalleryByKey] = useState<Record<string, string[]>>({});
+  // The slot whose gallery is being added to (opens the media picker in
+  // append mode — stays open so several can be added in a row).
+  const [galleryForKey, setGalleryForKey] = useState<string | null>(null);
   // Active platform tab in the Deliverable Slots section.
   const [activeTab, setActiveTab] = useState<PlatformId | null>(null);
 
@@ -365,6 +371,18 @@ export default function CreatePostContent() {
   const applyToSlot = (key: string, url: string) => {
     setUrlByKey((prev) => ({ ...prev, [key]: url }));
   };
+  // Gallery — append/remove extra images on a deliverable. The primary
+  // (urlByKey) is never duplicated into the gallery.
+  const addGalleryImage = (key: string, url: string) => {
+    setGalleryByKey((prev) => {
+      const cur = prev[key] ?? [];
+      if (!url || url === (urlByKey[key] ?? '') || cur.includes(url)) return prev;
+      return { ...prev, [key]: [...cur, url] };
+    });
+  };
+  const removeGalleryImage = (key: string, url: string) => {
+    setGalleryByKey((prev) => ({ ...prev, [key]: (prev[key] ?? []).filter((u) => u !== url) }));
+  };
   // Apply one media item to every slot of the SAME kind (image vs video).
   const applyToAll = (url: string) => {
     const vid = isVideoUrl(url);
@@ -429,9 +447,14 @@ export default function CreatePostContent() {
         mediaUrls: stagedMedia,
         platforms: Array.from(platforms),
         ready,
-        mediaByDeliverable: Object.entries(urlByKey)
-          .filter(([, url]) => url && url.trim().length > 0)
-          .map(([key, url]) => ({ key, url })),
+        mediaByDeliverable: [
+          ...Object.entries(urlByKey)
+            .filter(([, url]) => url && url.trim().length > 0)
+            .map(([key, url]) => ({ key, url })),
+          // Gallery extras ride along as additional rows under the same key.
+          ...Object.entries(galleryByKey).flatMap(([key, urls]) =>
+            urls.filter((u) => u && u.trim().length > 0).map((url) => ({ key, url }))),
+        ],
         createdBy: user?.id ?? null,
         createdByName: ((user?.user_metadata?.full_name as string | undefined) || user?.email) ?? null,
       });
@@ -782,6 +805,38 @@ export default function CreatePostContent() {
                       Use staged media
                     </button>
                   )}
+
+                  {/* Gallery — extra images for a carousel-style deliverable.
+                      Only images carousel, so videos don't get the affordance. */}
+                  {row.kind === 'image' && (
+                    <div className="mt-2">
+                      {(galleryByKey[row.key]?.length ?? 0) > 0 && (
+                        <ul className="flex flex-wrap gap-1.5 mb-1.5">
+                          {(galleryByKey[row.key] ?? []).map((g) => (
+                            <li key={g} className="group/g relative w-10 h-10 rounded overflow-hidden border border-black/10">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={g} alt="" className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => removeGalleryImage(row.key, g)}
+                                className="absolute top-0 right-0 w-4 h-4 bg-black/55 text-white text-[9px] leading-none flex items-center justify-center opacity-0 group-hover/g:opacity-100 transition-opacity"
+                                aria-label="Remove gallery image"
+                              >
+                                ✕
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setGalleryForKey(row.key)}
+                        className="w-full px-2 py-1 rounded-md border border-dashed border-black/20 text-[10px] font-semibold uppercase tracking-wider text-foreground/55 hover:bg-warm-bg/60"
+                      >
+                        + Add gallery image{(galleryByKey[row.key]?.length ?? 0) > 0 ? ` · ${galleryByKey[row.key]!.length}` : ''}
+                      </button>
+                    </div>
+                  )}
                 </li>
               );
             })}
@@ -827,15 +882,18 @@ export default function CreatePostContent() {
       {/* Library picker — two modes. Slot mode (pickerForKey) assigns one
           asset to one slot. Media mode (mediaPickerOpen) multi-selects to
           add to the post's media set. */}
-      {(pickerForKey !== null || mediaPickerOpen) && (() => {
-        const closeModal = () => { setPickerForKey(null); setMediaPickerOpen(false); setMediaPickSelection(new Set()); };
+      {(pickerForKey !== null || galleryForKey !== null || mediaPickerOpen) && (() => {
+        const closeModal = () => { setPickerForKey(null); setGalleryForKey(null); setMediaPickerOpen(false); setMediaPickSelection(new Set()); };
         const mediaMode = mediaPickerOpen;
-        const openMediaPicker = () => { setPickerForKey(null); setMediaPickSelection(new Set()); setMediaPickerOpen(true); };
-        // Slot mode pulls ONLY from media already added to the post —
-        // and only the kind (image vs video) the slot expects.
-        const slotRow = pickerForKey ? rows.find((r) => r.key === pickerForKey) ?? null : null;
-        const slotKind = slotRow?.kind ?? null;
-        const slotMedia = pickerForKey
+        const galleryMode = galleryForKey !== null;
+        const openMediaPicker = () => { setPickerForKey(null); setGalleryForKey(null); setMediaPickSelection(new Set()); setMediaPickerOpen(true); };
+        // Slot / gallery mode pull ONLY from media already added to the
+        // post — and only the kind (image vs video) the slot expects.
+        // Galleries are images only.
+        const activeKey = pickerForKey ?? galleryForKey;
+        const slotRow = activeKey ? rows.find((r) => r.key === activeKey) ?? null : null;
+        const slotKind = galleryMode ? 'image' : (slotRow?.kind ?? null);
+        const slotMedia = activeKey
           ? stagedMedia.filter((u) => (slotKind === 'video' ? isVideoUrl(u) : !isVideoUrl(u)))
           : [];
         return (
@@ -851,11 +909,13 @@ export default function CreatePostContent() {
             >
               <header className="px-5 py-3 border-b border-black/5 flex items-baseline justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-foreground">{mediaMode ? 'Add media to this post' : `Pick a ${slotKind ?? 'media'} for this slot`}</h3>
+                  <h3 className="text-sm font-bold text-foreground">{mediaMode ? 'Add media to this post' : galleryMode ? 'Add gallery images' : `Pick a ${slotKind ?? 'media'} for this slot`}</h3>
                   <p className="text-[11.5px] text-foreground/55 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
                     {mediaMode
                       ? `Tap to select, then Add. ${libraryAssets.length} asset${libraryAssets.length === 1 ? '' : 's'} from Build.`
-                      : 'Only media added to this post shows here.'}
+                      : galleryMode
+                        ? 'Tap images to add them to this deliverable’s gallery. Only media added to this post shows here.'
+                        : 'Only media added to this post shows here.'}
                   </p>
                 </div>
                 <button type="button" onClick={closeModal} className="text-[11px] text-foreground/55 hover:text-foreground">✕</button>
@@ -906,25 +966,32 @@ export default function CreatePostContent() {
                   </div>
                 ) : (
                   <ul className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
-                    {slotMedia.map((u) => (
-                      <li key={u}>
-                        <button
-                          type="button"
-                          onClick={() => { if (pickerForKey) { applyToSlot(pickerForKey, u); setPickerForKey(null); } }}
-                          className="relative w-full aspect-square rounded-md overflow-hidden border border-black/10 hover:border-primary hover:ring-2 hover:ring-primary/30 transition-all"
-                        >
-                          {isVideoUrl(u) ? (
-                            <video src={u} muted playsInline className="w-full h-full object-cover bg-black" />
-                          ) : (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img src={u} alt="" className="w-full h-full object-cover" />
-                          )}
-                          {isVideoUrl(u) && (
-                            <span className="absolute top-1 left-1 px-1 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-rose-500 text-white">VID</span>
-                          )}
-                        </button>
-                      </li>
-                    ))}
+                    {slotMedia.map((u) => {
+                      const inGallery = galleryMode && activeKey ? (galleryByKey[activeKey] ?? []).includes(u) : false;
+                      return (
+                        <li key={u}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (galleryMode && activeKey) { addGalleryImage(activeKey, u); /* stay open for more */ }
+                              else if (pickerForKey) { applyToSlot(pickerForKey, u); setPickerForKey(null); }
+                            }}
+                            className={`relative w-full aspect-square rounded-md overflow-hidden border transition-all ${inGallery ? 'border-primary ring-2 ring-primary' : 'border-black/10 hover:border-primary hover:ring-2 hover:ring-primary/30'}`}
+                          >
+                            {isVideoUrl(u) ? (
+                              <video src={u} muted playsInline className="w-full h-full object-cover bg-black" />
+                            ) : (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={u} alt="" className="w-full h-full object-cover" />
+                            )}
+                            {isVideoUrl(u) && (
+                              <span className="absolute top-1 left-1 px-1 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-rose-500 text-white">VID</span>
+                            )}
+                            {inGallery && <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary text-white text-[10px] flex items-center justify-center">✓</span>}
+                          </button>
+                        </li>
+                      );
+                    })}
                   </ul>
                 )}
               </div>
@@ -939,6 +1006,14 @@ export default function CreatePostContent() {
                   >
                     Add {mediaPickSelection.size || ''}
                   </button>
+                </div>
+              )}
+              {galleryMode && (
+                <div className="px-5 py-3 border-t border-black/5 flex items-center justify-between gap-2">
+                  <span className="text-[11.5px] text-foreground/55" style={{ fontFamily: 'var(--font-body)' }}>
+                    {activeKey ? (galleryByKey[activeKey]?.length ?? 0) : 0} in this gallery
+                  </span>
+                  <button type="button" onClick={closeModal} className="px-4 py-1.5 rounded-md bg-primary text-white text-[12px] font-semibold hover:bg-primary/90">Done</button>
                 </div>
               )}
             </div>
