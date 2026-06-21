@@ -1733,8 +1733,8 @@ function CreativeDraftsPanel() {
                 <th scope="col" className="px-2 py-2 w-12 text-[9.5px] font-bold uppercase tracking-[0.14em]">Media</th>
                 <th scope="col" className="px-2 py-2 text-[9.5px] font-bold uppercase tracking-[0.14em]">Caption</th>
                 <th scope="col" className="px-2 py-2 w-28 text-[9.5px] font-bold uppercase tracking-[0.14em]">Platforms</th>
-                <th scope="col" className="px-2 py-2 w-28 text-[9.5px] font-bold uppercase tracking-[0.14em]">Created by</th>
-                <th scope="col" className="px-2 py-2 w-32 text-[9.5px] font-bold uppercase tracking-[0.14em]">Saved</th>
+                <th scope="col" className="px-2 py-2 w-28 text-[9.5px] font-bold uppercase tracking-[0.14em] hidden md:table-cell">Created by</th>
+                <th scope="col" className="px-2 py-2 w-32 text-[9.5px] font-bold uppercase tracking-[0.14em] hidden md:table-cell">Saved</th>
                 <th scope="col" className="px-2 py-2 text-[9.5px] font-bold uppercase tracking-[0.14em] text-right">Actions</th>
               </tr>
             </thead>
@@ -1773,10 +1773,10 @@ function CreativeDraftsPanel() {
                         ))}
                       </div>
                     </td>
-                    <td className="px-2 py-2 align-middle text-[11px] text-foreground/55 whitespace-nowrap">
+                    <td className="px-2 py-2 align-middle text-[11px] text-foreground/55 whitespace-nowrap hidden md:table-cell">
                       {d.createdByName || <span className="text-foreground/40">—</span>}
                     </td>
-                    <td className="px-2 py-2 align-middle text-[11px] text-foreground/55 tabular-nums whitespace-nowrap">
+                    <td className="px-2 py-2 align-middle text-[11px] text-foreground/55 tabular-nums whitespace-nowrap hidden md:table-cell">
                       {savedLabel}
                     </td>
                     <td className="px-2 py-2 align-middle text-right whitespace-nowrap">
@@ -1976,9 +1976,9 @@ function ReadyToGoPanel() {
                 <th scope="col" className="px-2 py-2 w-12 text-[9.5px] font-bold uppercase tracking-[0.14em]">Media</th>
                 <th scope="col" className="px-2 py-2 text-[9.5px] font-bold uppercase tracking-[0.14em]">Caption</th>
                 <th scope="col" className="px-2 py-2 w-28 text-[9.5px] font-bold uppercase tracking-[0.14em]">Platforms</th>
-                <th scope="col" className="px-2 py-2 w-28 text-[9.5px] font-bold uppercase tracking-[0.14em]">Created by</th>
-                <th scope="col" className="px-2 py-2 w-32 text-[9.5px] font-bold uppercase tracking-[0.14em]">Saved</th>
-                <th scope="col" className="px-2 py-2 w-16 text-[9.5px] font-bold uppercase tracking-[0.14em] text-center">Media</th>
+                <th scope="col" className="px-2 py-2 w-28 text-[9.5px] font-bold uppercase tracking-[0.14em] hidden md:table-cell">Created by</th>
+                <th scope="col" className="px-2 py-2 w-32 text-[9.5px] font-bold uppercase tracking-[0.14em] hidden md:table-cell">Saved</th>
+                <th scope="col" className="px-2 py-2 w-16 text-[9.5px] font-bold uppercase tracking-[0.14em] text-center hidden md:table-cell">Media</th>
                 <th scope="col" className="px-2 py-2 w-20 text-[9.5px] font-bold uppercase tracking-[0.14em]"></th>
               </tr>
             </thead>
@@ -2026,13 +2026,13 @@ function ReadyToGoPanel() {
                         ))}
                       </div>
                     </td>
-                    <td className="px-2 py-2 align-middle text-[11px] text-foreground/55 whitespace-nowrap">
+                    <td className="px-2 py-2 align-middle text-[11px] text-foreground/55 whitespace-nowrap hidden md:table-cell">
                       {d.createdByName || <span className="text-foreground/40">—</span>}
                     </td>
-                    <td className="px-2 py-2 align-middle text-[11px] text-foreground/55 tabular-nums whitespace-nowrap">
+                    <td className="px-2 py-2 align-middle text-[11px] text-foreground/55 tabular-nums whitespace-nowrap hidden md:table-cell">
                       {savedLabel}
                     </td>
-                    <td className="px-2 py-2 align-middle text-center text-[11px] text-foreground/55 tabular-nums">
+                    <td className="px-2 py-2 align-middle text-center text-[11px] text-foreground/55 tabular-nums hidden md:table-cell">
                       {d.mediaUrls.length}
                     </td>
                     <td className="px-2 py-2 align-middle text-right whitespace-nowrap">
