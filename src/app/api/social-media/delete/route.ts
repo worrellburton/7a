@@ -28,6 +28,22 @@ export async function POST(req: Request) {
 
   try {
     const { status, body: result } = await ayrshareDelete('/delete', { id });
+    // Record the cancellation so the scheduled-posts list (sourced from
+    // activity_log) drops this post immediately, even before Ayrshare's
+    // own state catches up.
+    if (status >= 200 && status < 300 && auth.user?.id) {
+      try {
+        await supabase.from('activity_log').insert({
+          user_id: auth.user.id,
+          type: 'social.schedule_canceled',
+          target_kind: 'social_post',
+          target_id: null,
+          target_label: null,
+          target_path: '/feather/social-media',
+          metadata: { ayrshareId: id },
+        });
+      } catch { /* best-effort — never block the cancel response */ }
+    }
     return NextResponse.json(result, { status });
   } catch (err) {
     if (err instanceof AyrshareNotConfigured) {
