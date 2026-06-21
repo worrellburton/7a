@@ -109,6 +109,10 @@ export async function POST(req: Request) {
       const postIds = Array.isArray((result as { postIds?: unknown[] }).postIds)
         ? ((result as { postIds: unknown[] }).postIds)
         : [];
+      // Ayrshare's scheduled-post identifier — needed to cancel it later.
+      // It comes back as `id` (some firmware) or `refId`.
+      const r = result as { id?: string; refId?: string };
+      const ayrshareId = (typeof r.id === 'string' && r.id) || (typeof r.refId === 'string' && r.refId) || null;
       const label = post.trim().slice(0, 80);
       try {
         await supabase.from('activity_log').insert({
@@ -123,6 +127,7 @@ export async function POST(req: Request) {
             scheduled: isScheduled,
             scheduleDate: payload.scheduleDate ?? null,
             postIds,
+            ayrshareId,
           },
         });
       } catch {

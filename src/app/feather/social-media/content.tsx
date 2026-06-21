@@ -1191,10 +1191,14 @@ function PublishReadyFlow({
 
 function isScheduledPending(p: HistoryPost): boolean {
   if (!p.scheduleDate) return false;
-  const status = (p.status || '').toLowerCase();
-  if (status && status !== 'scheduled' && status !== 'pending') return false;
   const t = Date.parse(p.scheduleDate);
-  return Number.isFinite(t) && t > Date.now();
+  if (!Number.isFinite(t) || t <= Date.now()) return false;
+  // Anything still dated in the future that hasn't errored / been pulled
+  // is queued. (Earlier we required status to be exactly scheduled/pending,
+  // which silently hid posts Ayrshare returned with other status strings.)
+  const status = (p.status || '').toLowerCase();
+  if (status === 'error' || status === 'deleted' || status === 'canceled' || status === 'cancelled') return false;
+  return true;
 }
 
 function SchedulePostsBody({
@@ -1255,11 +1259,42 @@ function ScheduledPanel({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [dropMsg, setDropMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
-  const queue = useMemo(() => {
-    return posts
-      .filter(isScheduledPending)
-      .sort((a, b) => Date.parse(a.scheduleDate || '') - Date.parse(b.scheduleDate || ''));
-  }, [posts]);
+
+  // Authoritative scheduled posts from OUR records (activity_log), so a
+  // post that's queued in Ayrshare can never be silently hidden by a
+  // /history quirk. Merged with the Ayrshare /history scheduled rows.
+  interface LocalScheduled { logId: string; ayrshareId: string | null; scheduleDate: string | null; platforms: string[]; caption: string }
+  const [local, setLocal] = useState<LocalScheduled[]>([]);
+  const [localLoading, setLocalLoading] = useState(true);
+  const loadLocal = useCallback(async () => {
+    setLocalLoading(true);
+    try {
+      const res = await fetch('/api/social-media/scheduled', { credentials: 'include', cache: 'no-store' });
+      const j = await res.json().catch(() => ({}));
+      setLocal(Array.isArray(j.posts) ? (j.posts as LocalScheduled[]) : []);
+    } catch { /* keep previous */ } finally { setLocalLoading(false); }
+  }, []);
+  useEffect(() => { void loadLocal(); }, [loadLocal]);
+
+  interface SchedItem { key: string; ayrshareId: string | null; scheduleDate: string; platforms: string[]; caption: string }
+  const queue = useMemo<SchedItem[]>(() => {
+    const items: SchedItem[] = [];
+    const seen = new Set<string>();
+    const add = (it: SchedItem) => {
+      const dedupe = it.ayrshareId ? `id:${it.ayrshareId}` : `dc:${it.scheduleDate}|${it.caption.slice(0, 24)}`;
+      if (seen.has(dedupe)) return;
+      seen.add(dedupe);
+      items.push(it);
+    };
+    for (const p of local) {
+      if (!p.scheduleDate) continue;
+      add({ key: `local:${p.logId}`, ayrshareId: p.ayrshareId, scheduleDate: p.scheduleDate, platforms: p.platforms ?? [], caption: p.caption ?? '' });
+    }
+    for (const p of posts.filter(isScheduledPending)) {
+      add({ key: `ay:${(p.id as string) ?? p.scheduleDate}`, ayrshareId: (p.id as string) ?? null, scheduleDate: p.scheduleDate as string, platforms: p.platforms ?? [], caption: p.post ?? '' });
+    }
+    return items.sort((a, b) => Date.parse(a.scheduleDate) - Date.parse(b.scheduleDate));
+  }, [local, posts]);
 
   const onZoneDragOver = (e: React.DragEvent) => {
     if (!onDropDraft) return;
@@ -1291,21 +1326,26 @@ function ScheduledPanel({
     }
   };
 
-  const cancel = async (id: string) => {
+  const cancel = async (ayrshareId: string | null) => {
+    if (!ayrshareId) {
+      alert('This post was scheduled before we started recording its Ayrshare id, so it can only be canceled from the Ayrshare dashboard. New scheduled posts can be canceled here.');
+      return;
+    }
     if (!confirm('Cancel this scheduled post?')) return;
-    setBusyId(id);
+    setBusyId(ayrshareId);
     try {
       const res = await fetch('/api/social-media/delete', {
         method: 'POST',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ id: ayrshareId }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
         alert(json.error || json.message || `HTTP ${res.status}`);
         return;
       }
+      await loadLocal();
       onChanged();
     } catch (err) {
       alert(err instanceof Error ? err.message : String(err));
@@ -1330,7 +1370,7 @@ function ScheduledPanel({
             Queued but not yet sent. Cancel any row to pull it back.
           </p>
         </div>
-        {loading && <span className="text-xs text-foreground/40">Loading…</span>}
+        {(loading || localLoading) && <span className="text-xs text-foreground/40">Loading…</span>}
       </div>
       {dropMsg && (
         <p className={`rounded-lg px-3 py-2 text-xs mb-3 ${
@@ -1346,7 +1386,7 @@ function ScheduledPanel({
           {error}
         </p>
       )}
-      {queue.length === 0 && !loading ? (
+      {queue.length === 0 && !loading && !localLoading ? (
         <div className={`rounded-xl border-dashed bg-warm-bg/30 px-5 py-10 text-center ${
           dragOver ? 'border-2 border-primary/50' : 'border border-black/10'
         }`}>
@@ -1357,17 +1397,14 @@ function ScheduledPanel({
       ) : (
         <ul className="divide-y divide-black/5">
           {queue.map((p) => {
-            const id = (p.id ?? '') as string;
-            const when = p.scheduleDate
-              ? new Date(p.scheduleDate).toLocaleString('en-US', {
-                  weekday: 'short', month: 'short', day: 'numeric',
-                  hour: 'numeric', minute: '2-digit',
-                })
-              : '—';
-            const platforms = (p.platforms ?? []).join(', ');
-            const caption = (p.post ?? '').slice(0, 140);
+            const when = new Date(p.scheduleDate).toLocaleString('en-US', {
+              weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+            });
+            const platforms = p.platforms.join(', ');
+            const caption = p.caption.slice(0, 140);
+            const busy = busyId === p.ayrshareId;
             return (
-              <li key={id || `${p.scheduleDate}-${p.post?.slice(0, 12)}`} className="flex items-start gap-3 py-3">
+              <li key={p.key} className="flex items-start gap-3 py-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2 mb-1">
                     <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
@@ -1375,23 +1412,26 @@ function ScheduledPanel({
                       {when}
                     </span>
                     {platforms && (
-                      <span className="text-[11px] text-foreground/55">{platforms}</span>
+                      <span className="text-[11px] text-foreground/55 capitalize">{platforms}</span>
+                    )}
+                    {!p.ayrshareId && (
+                      <span className="text-[10px] text-foreground/40" title="Scheduled before we recorded its Ayrshare id — cancel from the Ayrshare dashboard.">dashboard-only</span>
                     )}
                   </div>
                   {caption && (
                     <p className="text-[13px] text-foreground/80 line-clamp-2 leading-snug">
                       {caption}
-                      {(p.post ?? '').length > 140 ? '…' : ''}
+                      {p.caption.length > 140 ? '…' : ''}
                     </p>
                   )}
                 </div>
                 <button
                   type="button"
-                  onClick={() => id && cancel(id)}
-                  disabled={!id || busyId === id}
+                  onClick={() => cancel(p.ayrshareId)}
+                  disabled={busy}
                   className="shrink-0 rounded-lg border border-black/10 px-2.5 py-1 text-[11px] font-semibold text-foreground/65 hover:text-red-700 hover:border-red-300 disabled:opacity-40"
                 >
-                  {busyId === id ? 'Canceling…' : 'Cancel'}
+                  {busy ? 'Canceling…' : 'Cancel'}
                 </button>
               </li>
             );
