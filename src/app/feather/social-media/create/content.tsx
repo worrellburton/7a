@@ -302,6 +302,13 @@ export default function CreatePostContent() {
     [rows, activeTab],
   );
 
+  // "Ready" gate: every deliverable slot must carry media. A draft can
+  // always be saved; "Save as ready" stays disabled until this is true.
+  const allSlotsFilled = useMemo(
+    () => rows.length > 0 && rows.every((r) => (urlByKey[r.key] ?? '').trim().length > 0),
+    [rows, urlByKey],
+  );
+
   const togglePlatform = (pid: PlatformId) => {
     setPlatforms((prev) => {
       const next = new Set(prev);
@@ -322,14 +329,24 @@ export default function CreatePostContent() {
   };
 
   const usePrimaryForKey = (key: string) => {
-    if (stagedMedia.length === 0) return;
-    setUrlByKey((prev) => ({ ...prev, [key]: stagedMedia[0] }));
+    const row = rows.find((r) => r.key === key);
+    const want = row?.kind === 'video';
+    const match = stagedMedia.find((u) => isVideoUrl(u) === want);
+    if (!match) return;
+    setUrlByKey((prev) => ({ ...prev, [key]: match }));
   };
 
   const usePrimaryForAll = () => {
-    if (stagedMedia.length === 0) return;
-    const first = stagedMedia[0];
-    setUrlByKey(Object.fromEntries(rows.map((r) => [r.key, first])));
+    // Fill each slot with the first staged item of its own kind so a
+    // video slot never gets an image (and vice versa).
+    setUrlByKey((prev) => {
+      const next = { ...prev };
+      for (const r of rows) {
+        const match = stagedMedia.find((u) => isVideoUrl(u) === (r.kind === 'video'));
+        if (match) next[r.key] = match;
+      }
+      return next;
+    });
   };
 
   // ── Media set (the post's photos/videos) ──────────────────────────
@@ -391,13 +408,17 @@ export default function CreatePostContent() {
     }
   };
 
-  const onSaveReady = async () => {
+  const onSave = async (ready: boolean) => {
     if (caption.trim().length === 0) {
       setError('Add a caption before saving.');
       return;
     }
     if (platforms.size === 0) {
       setError('Pick at least one network.');
+      return;
+    }
+    if (ready && !allSlotsFilled) {
+      setError('Fill every deliverable slot before saving as ready.');
       return;
     }
     setError(null);
@@ -407,7 +428,7 @@ export default function CreatePostContent() {
         caption: caption.trim(),
         mediaUrls: stagedMedia,
         platforms: Array.from(platforms),
-        ready: true,
+        ready,
         mediaByDeliverable: Object.entries(urlByKey)
           .filter(([, url]) => url && url.trim().length > 0)
           .map(([key, url]) => ({ key, url })),
@@ -419,7 +440,7 @@ export default function CreatePostContent() {
         return;
       }
       clearStagedMedia();
-      router.push('/feather/social-media?tab=creative&sub=ai');
+      router.push(`/feather/social-media?tab=creative&sub=${ready ? 'ai' : 'drafts'}`);
     } finally {
       setSaving(false);
     }
@@ -730,7 +751,7 @@ export default function CreatePostContent() {
                         className="text-white text-[11px] font-semibold uppercase tracking-wider"
                         style={{ fontFamily: 'var(--font-body)' }}
                       >
-                        Pick from library
+                        Pick media
                       </button>
                       {url && !isVideoUrl(url) && (
                         <button
@@ -770,7 +791,12 @@ export default function CreatePostContent() {
 
       {error && <p className="mb-3 text-[12px] text-red-700" role="alert">{error}</p>}
 
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-end gap-2 flex-wrap">
+        {!allSlotsFilled && (
+          <span className="mr-auto text-[11.5px] text-foreground/45" style={{ fontFamily: 'var(--font-body)' }}>
+            Fill every deliverable slot to enable <strong className="text-foreground/60">Save as ready</strong>.
+          </span>
+        )}
         <Link
           href="/feather/social-media?tab=creative"
           className="px-4 py-2 rounded-md border border-black/10 bg-white text-[12px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
@@ -779,12 +805,22 @@ export default function CreatePostContent() {
         </Link>
         <button
           type="button"
-          onClick={onSaveReady}
+          onClick={() => onSave(false)}
           disabled={saving}
-          className="px-4 py-2 rounded-md bg-primary text-white text-[12px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-50"
+          className="px-4 py-2 rounded-md border border-black/15 bg-white text-[12px] font-semibold text-foreground/80 hover:bg-warm-bg/60 disabled:opacity-50"
           style={{ fontFamily: 'var(--font-body)' }}
         >
-          {saving ? 'Saving…' : 'Save and ready to go'}
+          {saving ? 'Saving…' : 'Save as draft'}
+        </button>
+        <button
+          type="button"
+          onClick={() => onSave(true)}
+          disabled={saving || !allSlotsFilled}
+          title={allSlotsFilled ? undefined : 'Fill every deliverable slot first'}
+          className="px-4 py-2 rounded-md bg-primary text-white text-[12px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          {saving ? 'Saving…' : 'Save as ready'}
         </button>
       </div>
 
@@ -794,6 +830,14 @@ export default function CreatePostContent() {
       {(pickerForKey !== null || mediaPickerOpen) && (() => {
         const closeModal = () => { setPickerForKey(null); setMediaPickerOpen(false); setMediaPickSelection(new Set()); };
         const mediaMode = mediaPickerOpen;
+        const openMediaPicker = () => { setPickerForKey(null); setMediaPickSelection(new Set()); setMediaPickerOpen(true); };
+        // Slot mode pulls ONLY from media already added to the post —
+        // and only the kind (image vs video) the slot expects.
+        const slotRow = pickerForKey ? rows.find((r) => r.key === pickerForKey) ?? null : null;
+        const slotKind = slotRow?.kind ?? null;
+        const slotMedia = pickerForKey
+          ? stagedMedia.filter((u) => (slotKind === 'video' ? isVideoUrl(u) : !isVideoUrl(u)))
+          : [];
         return (
           <div
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
@@ -807,46 +851,80 @@ export default function CreatePostContent() {
             >
               <header className="px-5 py-3 border-b border-black/5 flex items-baseline justify-between">
                 <div>
-                  <h3 className="text-sm font-bold text-foreground">{mediaMode ? 'Add media to this post' : 'Pick media for this slot'}</h3>
+                  <h3 className="text-sm font-bold text-foreground">{mediaMode ? 'Add media to this post' : `Pick a ${slotKind ?? 'media'} for this slot`}</h3>
                   <p className="text-[11.5px] text-foreground/55 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-                    {mediaMode ? 'Tap to select, then Add.' : `${libraryAssets.length} asset${libraryAssets.length === 1 ? '' : 's'} from Build.`}
+                    {mediaMode
+                      ? `Tap to select, then Add. ${libraryAssets.length} asset${libraryAssets.length === 1 ? '' : 's'} from Build.`
+                      : 'Only media added to this post shows here.'}
                   </p>
                 </div>
                 <button type="button" onClick={closeModal} className="text-[11px] text-foreground/55 hover:text-foreground">✕</button>
               </header>
               <div className="flex-1 overflow-y-auto p-4">
-                {libraryAssets.length === 0 ? (
-                  <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
-                    Library is empty. Upload media via Build first.
-                  </p>
+                {mediaMode ? (
+                  libraryAssets.length === 0 ? (
+                    <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
+                      Library is empty. Upload media via Build first.
+                    </p>
+                  ) : (
+                    <ul className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
+                      {libraryAssets.map((a) => {
+                        const picked = mediaPickSelection.has(a.url);
+                        return (
+                          <li key={a.id}>
+                            <button
+                              type="button"
+                              onClick={() => setMediaPickSelection((prev) => { const n = new Set(prev); if (n.has(a.url)) n.delete(a.url); else n.add(a.url); return n; })}
+                              className={`relative w-full aspect-square rounded-md overflow-hidden border transition-all ${picked ? 'border-primary ring-2 ring-primary' : 'border-black/10 hover:border-primary hover:ring-2 hover:ring-primary/30'}`}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={a.thumbUrl} alt={a.filename ?? ''} className="w-full h-full object-cover" />
+                              {a.kind === 'video' && (
+                                <span className="absolute top-1 left-1 px-1 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-rose-500 text-white">VID</span>
+                              )}
+                              {picked && <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary text-white text-[10px] flex items-center justify-center">✓</span>}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )
+                ) : slotMedia.length === 0 ? (
+                  <div className="text-center py-12 px-4">
+                    <p className="text-[13px] font-semibold text-foreground/70" style={{ fontFamily: 'var(--font-body)' }}>
+                      {stagedMedia.length === 0
+                        ? 'Please add media to the post to start.'
+                        : `No ${slotKind === 'video' ? 'videos' : 'images'} on this post yet.`}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={openMediaPicker}
+                      className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-primary text-white text-[12px] font-semibold hover:bg-primary/90"
+                    >
+                      + Add media to post
+                    </button>
+                  </div>
                 ) : (
                   <ul className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
-                    {libraryAssets.map((a) => {
-                      const picked = mediaMode && mediaPickSelection.has(a.url);
-                      return (
-                        <li key={a.id}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (mediaMode) {
-                                setMediaPickSelection((prev) => { const n = new Set(prev); if (n.has(a.url)) n.delete(a.url); else n.add(a.url); return n; });
-                              } else if (pickerForKey) {
-                                setUrlByKey((prev) => ({ ...prev, [pickerForKey]: a.url }));
-                                setPickerForKey(null);
-                              }
-                            }}
-                            className={`relative w-full aspect-square rounded-md overflow-hidden border transition-all ${picked ? 'border-primary ring-2 ring-primary' : 'border-black/10 hover:border-primary hover:ring-2 hover:ring-primary/30'}`}
-                          >
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={a.thumbUrl} alt={a.filename ?? ''} className="w-full h-full object-cover" />
-                            {a.kind === 'video' && (
-                              <span className="absolute top-1 left-1 px-1 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-rose-500 text-white">VID</span>
-                            )}
-                            {picked && <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary text-white text-[10px] flex items-center justify-center">✓</span>}
-                          </button>
-                        </li>
-                      );
-                    })}
+                    {slotMedia.map((u) => (
+                      <li key={u}>
+                        <button
+                          type="button"
+                          onClick={() => { if (pickerForKey) { applyToSlot(pickerForKey, u); setPickerForKey(null); } }}
+                          className="relative w-full aspect-square rounded-md overflow-hidden border border-black/10 hover:border-primary hover:ring-2 hover:ring-primary/30 transition-all"
+                        >
+                          {isVideoUrl(u) ? (
+                            <video src={u} muted playsInline className="w-full h-full object-cover bg-black" />
+                          ) : (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={u} alt="" className="w-full h-full object-cover" />
+                          )}
+                          {isVideoUrl(u) && (
+                            <span className="absolute top-1 left-1 px-1 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-rose-500 text-white">VID</span>
+                          )}
+                        </button>
+                      </li>
+                    ))}
                   </ul>
                 )}
               </div>
