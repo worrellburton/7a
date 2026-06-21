@@ -110,9 +110,17 @@ export async function POST(req: Request) {
         ? ((result as { postIds: unknown[] }).postIds)
         : [];
       // Ayrshare's scheduled-post identifier — needed to cancel it later.
-      // It comes back as `id` (some firmware) or `refId`.
-      const r = result as { id?: string; refId?: string };
-      const ayrshareId = (typeof r.id === 'string' && r.id) || (typeof r.refId === 'string' && r.refId) || null;
+      // It can come back as `id` / `refId` (top level) or inside the
+      // postIds array. We also stash the raw response so a later cancel
+      // can dig the id out even if the shape changes.
+      const r = result as { id?: unknown; refId?: unknown; postIds?: Array<{ id?: unknown; postId?: unknown }> };
+      const fromPostIds = Array.isArray(r.postIds)
+        ? r.postIds.map((p) => (typeof p?.id === 'string' && p.id) || (typeof p?.postId === 'string' && p.postId) || '').find(Boolean)
+        : undefined;
+      const ayrshareId = (typeof r.id === 'string' && r.id)
+        || (typeof r.refId === 'string' && r.refId)
+        || fromPostIds
+        || null;
       const label = post.trim().slice(0, 80);
       try {
         await supabase.from('activity_log').insert({
@@ -128,6 +136,7 @@ export async function POST(req: Request) {
             scheduleDate: payload.scheduleDate ?? null,
             postIds,
             ayrshareId,
+            raw: result,
           },
         });
       } catch {
