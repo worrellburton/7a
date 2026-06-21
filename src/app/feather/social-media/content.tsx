@@ -14,6 +14,7 @@ import { PLATFORM_SPECS, type MediaSpec, type VideoSpec } from './platform-specs
 import ScheduleDropCard, { ReadyToGoCard, PostNowDropCard, type ReadyDraft } from './ScheduleSlotsPanel';
 import { useSavedDrafts, saveDraft as createDraft, setDraftReady, deleteDraft, type SavedDraft } from './saved-drafts';
 import { usePendingDeletes, UndoToast } from './UndoToast';
+import { ScheduledCalendar } from './ScheduledCalendar';
 
 // ── Cross-tab Send-to-Compose handoff ────────────────────────────────
 //
@@ -1325,6 +1326,7 @@ function ScheduledPanel({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [dropMsg, setDropMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [view, setView] = useState<'list' | 'calendar'>('list');
 
   // Authoritative scheduled posts from OUR records (activity_log), so a
   // post that's queued in Ayrshare can never be silently hidden by a
@@ -1450,7 +1452,23 @@ function ScheduledPanel({
             Queued but not yet sent. Cancel any row to pull it back.
           </p>
         </div>
-        {(loading || localLoading) && <span className="text-xs text-foreground/40">Loading…</span>}
+        <div className="flex items-center gap-2">
+          {(loading || localLoading) && <span className="text-xs text-foreground/40">Loading…</span>}
+          <div className="inline-flex rounded-lg border border-black/10 bg-white p-0.5" role="tablist" aria-label="Scheduled posts view">
+            {(['list', 'calendar'] as const).map((v) => (
+              <button
+                key={v}
+                type="button"
+                role="tab"
+                aria-selected={view === v}
+                onClick={() => setView(v)}
+                className={`px-2.5 py-1 rounded-md text-[11px] font-semibold capitalize transition-colors ${view === v ? 'bg-foreground text-white' : 'text-foreground/55 hover:bg-warm-bg/50'}`}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
       {dropMsg && (
         <p className={`rounded-lg px-3 py-2 text-xs mb-3 ${
@@ -1474,6 +1492,11 @@ function ScheduledPanel({
             Nothing scheduled yet. Drag a Ready-to-Go draft onto the <em>Schedule a post</em> card above, pick a time, and it&apos;ll show up here.
           </p>
         </div>
+      ) : view === 'calendar' ? (
+        <ScheduledCalendar
+          items={queue.map((p) => ({ key: p.key, scheduleDate: p.scheduleDate, caption: p.caption, platforms: p.platforms, mediaUrls: p.mediaUrls, createdByName: p.createdByName }))}
+          onCancel={(key) => { const it = queue.find((q) => q.key === key); if (it) void cancel(it); }}
+        />
       ) : (
         <ul className="divide-y divide-black/5">
           {queue.map((p) => {
