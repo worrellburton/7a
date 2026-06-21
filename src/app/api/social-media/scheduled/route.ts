@@ -17,6 +17,25 @@ export const dynamic = 'force-dynamic';
 
 interface Row { id: string; created_at: string; target_label: string | null; metadata: Record<string, unknown> | null; user_id: string | null }
 
+// Dig the Ayrshare post id out of an activity_log metadata blob. Prefer
+// the top-level `ayrshareId` we now capture at schedule time, but fall
+// back to the stashed raw Ayrshare response (id / refId / postIds[]) so
+// rows written before the capture fix are still cancelable in-app.
+function ayrshareIdFromMetadata(metadata: Record<string, unknown> | null): string | null {
+  const m = (metadata ?? {}) as { ayrshareId?: unknown; raw?: unknown };
+  if (typeof m.ayrshareId === 'string' && m.ayrshareId) return m.ayrshareId;
+  const raw = (m.raw ?? {}) as { id?: unknown; refId?: unknown; postIds?: unknown };
+  if (typeof raw.id === 'string' && raw.id) return raw.id;
+  if (typeof raw.refId === 'string' && raw.refId) return raw.refId;
+  if (Array.isArray(raw.postIds)) {
+    for (const p of raw.postIds as Array<{ id?: unknown; postId?: unknown }>) {
+      if (p && typeof p.id === 'string' && p.id) return p.id;
+      if (p && typeof p.postId === 'string' && p.postId) return p.postId;
+    }
+  }
+  return null;
+}
+
 export async function GET() {
   const supabase = await getServerSupabase();
   const auth = await requireSuperAdmin(supabase);
@@ -31,7 +50,7 @@ export async function GET() {
 
   const canceledIds = new Set<string>();
   for (const r of (canceledRows ?? []) as Row[]) {
-    const id = (r.metadata as { ayrshareId?: string } | null)?.ayrshareId;
+    const id = ayrshareIdFromMetadata(r.metadata);
     if (id) canceledIds.add(id);
   }
 
@@ -39,10 +58,10 @@ export async function GET() {
   interface Item { logId: string; ayrshareId: string | null; scheduleDate: string; platforms: string[]; caption: string; userId: string | null; createdByName: string | null }
   const items: Item[] = ((scheduledRows ?? []) as Row[])
     .map((r) => {
-      const m = (r.metadata ?? {}) as { scheduleDate?: string | null; platforms?: unknown; ayrshareId?: string | null };
+      const m = (r.metadata ?? {}) as { scheduleDate?: string | null; platforms?: unknown };
       return {
         logId: r.id,
-        ayrshareId: m.ayrshareId ?? null,
+        ayrshareId: ayrshareIdFromMetadata(r.metadata),
         scheduleDate: m.scheduleDate ?? '',
         platforms: Array.isArray(m.platforms) ? (m.platforms as string[]) : [],
         caption: r.target_label ?? '',
