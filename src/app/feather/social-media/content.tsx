@@ -11,7 +11,7 @@ import { PlatformIcon, type PlatformId } from './PlatformIcon';
 import { MediaPicker, type PickedMedia } from './MediaPicker';
 import { PostStatusToast, type PostStatus, type PerPlatformResult } from './PostStatusToast';
 import { PLATFORM_SPECS, type MediaSpec, type VideoSpec } from './platform-specs';
-import ScheduleDropCard, { ReadyToGoCard, type ReadyDraft } from './ScheduleSlotsPanel';
+import ScheduleDropCard, { ReadyToGoCard, PostNowDropCard, type ReadyDraft } from './ScheduleSlotsPanel';
 import { useSavedDrafts, saveDraft as createDraft, setDraftReady, deleteDraft, type SavedDraft } from './saved-drafts';
 
 // ── Cross-tab Send-to-Compose handoff ────────────────────────────────
@@ -217,9 +217,11 @@ export default function SocialMediaContent() {
 type Tab = 'overview' | 'post' | 'creative';
 
 const TABS: { id: Tab; label: string; description: string }[] = [
+  // Note: the `creative` id is kept as the route key (?tab=creative) for
+  // deep-link + handoff stability; only the visible label is "Compose".
   { id: 'overview', label: 'Overview', description: 'Connected accounts + analytics snapshot.' },
-  { id: 'creative', label: 'Creative', description: 'Library, templates, and AI-assisted drafts.' },
-  { id: 'post', label: 'Post', description: 'Compose and schedule across every channel.' },
+  { id: 'creative', label: 'Compose', description: 'Drafts and ready-to-go posts your team is building.' },
+  { id: 'post', label: 'Post', description: 'Publish now or schedule across every channel.' },
 ];
 
 function readTab(raw: string | null): Tab {
@@ -594,11 +596,11 @@ function PostSubNav() {
 }
 
 // The Post tab is now a single screen, top to bottom:
-//   1. Post now — pick a ready-to-go draft and publish immediately.
-//   2. Scheduled — drag a ready draft onto a slot to queue it, plus
-//      the live Ayrshare scheduled queue.
-//   3. History — recent posts, tucked at the bottom.
-// The old Post Now / Schedule Posts / History sub-nav is gone.
+//   1. Ready to go — the draggable source tiles.
+//   2. Post now — drag a ready draft here to publish immediately.
+//   3. Schedule a post — drag a ready draft here to queue it, plus the
+//      live Ayrshare scheduled queue.
+//   4. History — recent posts, tucked at the bottom.
 function PostTabBody({
   accounts, history, historyLoading, historyErr, refreshHistory,
 }: {
@@ -608,32 +610,9 @@ function PostTabBody({
   historyErr: string | null;
   refreshHistory: () => void;
 }) {
-  const { drafts } = useSavedDrafts();
-  const readyDrafts = useMemo(() => drafts.filter((d) => d.ready), [drafts]);
-  const connected = accounts?.activeSocialAccounts ?? [];
-
   return (
     <div className="space-y-5">
-      {readyDrafts.length > 0 ? (
-        <PublishReadyFlow
-          connected={connected}
-          readyDrafts={readyDrafts}
-          onPosted={(usedId) => {
-            void deleteDraft(usedId);
-            refreshHistory();
-          }}
-        />
-      ) : (
-        <section className="rounded-2xl border border-black/10 bg-white p-5">
-          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Post now</h2>
-          <p className="text-[12px] text-foreground/55 mt-1 max-w-md">
-            No ready-to-go drafts yet. Approve a post under <strong>Creative</strong> &mdash; mark it{' '}
-            <em>ready to go</em> &mdash; and it&rsquo;ll show up here to publish in one click.
-          </p>
-        </section>
-      )}
-
-      {/* Scheduled part */}
+      {/* Ready to go → Post now → Schedule → queue */}
       <SchedulePostsBody
         history={history}
         historyLoading={historyLoading}
@@ -1240,6 +1219,10 @@ function SchedulePostsBody({
   return (
     <div className="space-y-4">
       <ReadyToGoCard drafts={readyDrafts} />
+      <PostNowDropCard
+        connectedPlatforms={connectedPlatforms}
+        onPosted={refreshHistory}
+      />
       <ScheduleDropCard
         connectedPlatforms={connectedPlatforms}
         onScheduled={refreshHistory}
@@ -1522,8 +1505,6 @@ function CreativeTabBody() {
 // inline state to surface the original Templates panel without
 // taking up a top-level tab slot.
 function CreativeDraftsPanel() {
-  const router = useRouter();
-  const pathname = usePathname();
   const { drafts } = useSavedDrafts();
   const [showTemplates, setShowTemplates] = useState(false);
 
@@ -1536,23 +1517,18 @@ function CreativeDraftsPanel() {
     void setDraftReady(id, !cur?.ready);
   };
 
-  const sendToCompose = (d: SavedDraft) => {
-    pushComposeDraft({ caption: d.caption, mediaUrls: d.mediaUrls, source: 'drafts' });
-    router.push(`${pathname}?tab=post`);
-  };
-
   const inProgress = drafts.filter((d) => !d.ready);
   const ready = drafts.filter((d) => d.ready);
 
   return (
-    <section className="rounded-2xl border border-black/10 bg-white p-5">
+    <section className="rounded-2xl border border-black/10 bg-white px-4 py-4 lg:px-6 lg:py-5">
       <div className="flex items-baseline justify-between flex-wrap gap-3 mb-3">
         <div>
-          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">
+          <h2 className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
             Drafts · {inProgress.length}
           </h2>
-          <p className="text-[11px] text-foreground/45 mt-0.5">
-            Posts your team is still working on — not yet approved. Tick &ldquo;Mark approved&rdquo; on any one to move it to{' '}
+          <p className="text-[11px] text-foreground/45 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+            Posts your team is still working on — not yet approved. Hit <strong>Mark ready</strong> to move one to{' '}
             <strong>Ready to go</strong>.
             {ready.length > 0 && <> {ready.length} already approved.</>}
           </p>
@@ -1586,66 +1562,86 @@ function CreativeDraftsPanel() {
           </button>
         </div>
       ) : (
-        <ul className="space-y-3">
-          {inProgress.map((d) => {
-            const created = new Date(d.createdAt).toLocaleString('en-US', {
-              month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
-            });
-            const preview = d.caption.length > 240 ? `${d.caption.slice(0, 240)}…` : d.caption;
-            return (
-              <li key={d.id} className="rounded-xl border border-black/10 bg-warm-bg/20 p-4">
-                <div className="flex items-baseline justify-between gap-3 flex-wrap mb-2">
-                  <p className="text-[10px] uppercase tracking-wider text-foreground/45 font-semibold">
-                    Saved {created}
-                  </p>
-                  {d.mediaUrls.length > 0 && (
-                    <p className="text-[10px] text-foreground/45">{d.mediaUrls.length} media attached</p>
-                  )}
-                </div>
-                <p className="text-sm text-foreground/85 whitespace-pre-wrap leading-relaxed">{preview || <span className="text-foreground/40 italic">(no caption)</span>}</p>
-                {d.mediaUrls.length > 0 && (
-                  <ul className="mt-3 flex flex-wrap gap-2">
-                    {d.mediaUrls.slice(0, 6).map((url) => (
-                      <li key={url} className="w-12 h-12 rounded-lg overflow-hidden border border-black/10">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={url} alt="Draft media" className="w-full h-full object-cover" />
-                      </li>
-                    ))}
-                  </ul>
-                )}
-                <div className="mt-4 flex items-center justify-end gap-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => remove(d.id)}
-                    className="text-[12px] text-foreground/55 hover:text-red-700"
-                  >
-                    Delete
-                  </button>
-                  <Link
-                    href={`/feather/social-media/drafts/${d.id}`}
-                    className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
-                  >
-                    Open page
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => sendToCompose(d)}
-                    className="rounded-lg border border-black/10 bg-white px-3 py-1.5 text-[12px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
-                  >
-                    Edit in Compose
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => toggleReady(d.id)}
-                    className="rounded-lg bg-primary px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-primary-dark"
-                  >
-                    Mark ready to go
-                  </button>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        <div className="overflow-x-auto rounded-lg border border-black/5">
+          <table className="w-full text-left text-[12.5px]" style={{ fontFamily: 'var(--font-body)' }}>
+            <thead className="bg-warm-bg/40 text-foreground/55">
+              <tr className="border-b border-black/5">
+                <th scope="col" className="px-2 py-2 w-12 text-[9.5px] font-bold uppercase tracking-[0.14em]">Media</th>
+                <th scope="col" className="px-2 py-2 text-[9.5px] font-bold uppercase tracking-[0.14em]">Caption</th>
+                <th scope="col" className="px-2 py-2 w-28 text-[9.5px] font-bold uppercase tracking-[0.14em]">Platforms</th>
+                <th scope="col" className="px-2 py-2 w-28 text-[9.5px] font-bold uppercase tracking-[0.14em]">Created by</th>
+                <th scope="col" className="px-2 py-2 w-32 text-[9.5px] font-bold uppercase tracking-[0.14em]">Saved</th>
+                <th scope="col" className="px-2 py-2 text-[9.5px] font-bold uppercase tracking-[0.14em] text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {inProgress.map((d) => {
+                const savedLabel = new Date(d.createdAt).toLocaleString(undefined, {
+                  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                });
+                return (
+                  <tr key={d.id} className="border-t border-black/5 hover:bg-warm-bg/30">
+                    <td className="px-2 py-2 align-middle">
+                      {d.mediaUrls[0] ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={d.mediaUrls[0]} alt="" className="w-9 h-9 rounded object-cover border border-black/10" />
+                      ) : (
+                        <span className="inline-flex w-9 h-9 rounded items-center justify-center bg-warm-bg/60 text-foreground/40 text-[10px]" aria-hidden>—</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-2 align-middle min-w-0">
+                      <p className="text-foreground/85 line-clamp-2 whitespace-pre-line">
+                        {d.caption || <span className="text-foreground/40 italic">(no caption)</span>}
+                      </p>
+                    </td>
+                    <td className="px-2 py-2 align-middle">
+                      <div className="flex flex-wrap gap-1">
+                        {(d.platforms ?? []).length === 0 ? (
+                          <span className="text-foreground/40 text-[11px]">—</span>
+                        ) : (d.platforms ?? []).map((p) => (
+                          <span key={p} className="inline-flex items-center justify-center w-4 h-4 text-foreground/70" title={p}>
+                            <PlatformIcon platform={p as PlatformId} size={14} />
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="px-2 py-2 align-middle text-[11px] text-foreground/55 whitespace-nowrap">
+                      {d.createdByName || <span className="text-foreground/40">—</span>}
+                    </td>
+                    <td className="px-2 py-2 align-middle text-[11px] text-foreground/55 tabular-nums whitespace-nowrap">
+                      {savedLabel}
+                    </td>
+                    <td className="px-2 py-2 align-middle text-right whitespace-nowrap">
+                      <div className="inline-flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => toggleReady(d.id)}
+                          className="px-2.5 py-1 rounded-md bg-primary text-white text-[10px] font-semibold hover:bg-primary/90"
+                        >
+                          Mark ready
+                        </button>
+                        <Link
+                          href={`/feather/social-media/drafts/${d.id}`}
+                          className="px-2.5 py-1 rounded-md border border-black/10 bg-white text-[10px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+                        >
+                          Open →
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => remove(d.id)}
+                          className="px-2 py-1 rounded-md text-[10px] font-semibold text-foreground/45 hover:text-rose-700"
+                          title="Delete draft"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );

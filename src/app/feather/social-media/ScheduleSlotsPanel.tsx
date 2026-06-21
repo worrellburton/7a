@@ -352,7 +352,7 @@ export default function ScheduleDropCard({
             <button
               type="button"
               onClick={() => void submit()}
-              disabled={submitting || !when || selectedPlatforms.size === 0}
+              disabled={submitting}
               className="rounded-lg bg-primary text-white px-3.5 py-1.5 text-[12.5px] font-semibold hover:bg-primary/90 disabled:opacity-40"
             >
               {submitting ? 'Scheduling…' : 'Schedule'}
@@ -364,6 +364,198 @@ export default function ScheduleDropCard({
               className="text-[10.5px] text-foreground/45 hover:text-foreground/80 uppercase tracking-wider"
             >
               Clear
+            </button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* ── Post-now drop card ──────────────────────────────────────── */
+
+// Sits directly under Ready-to-Go. Drag a Ready-to-Go draft onto it and
+// it prompts to publish immediately (no schedule date) — networks come
+// from the draft's Creative assignment, intersected with connected.
+export function PostNowDropCard({
+  connectedPlatforms,
+  onPosted,
+}: {
+  connectedPlatforms: string[];
+  onPosted: () => void;
+}) {
+  const { session } = useAuth();
+  const [draft, setDraft] = useState<ReadyDraft | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [okMsg, setOkMsg] = useState<string | null>(null);
+  const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
+
+  const assigned = draft?.platforms ?? [];
+  const availablePlatforms = assigned.length > 0
+    ? assigned.filter((p) => connectedPlatforms.includes(p))
+    : connectedPlatforms;
+
+  const togglePlatform = (p: string) => {
+    setSelectedPlatforms((prev) => {
+      const next = new Set(prev);
+      if (next.has(p)) next.delete(p); else next.add(p);
+      return next;
+    });
+  };
+
+  const onDragOver = (e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes('application/x-ready-draft')) {
+      e.preventDefault();
+      setDragOver(true);
+    }
+  };
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    try {
+      const raw = e.dataTransfer.getData('application/x-ready-draft');
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as ReadyDraft;
+      setDraft(parsed);
+      const a = parsed.platforms ?? [];
+      const avail = a.length > 0 ? a.filter((p) => connectedPlatforms.includes(p)) : connectedPlatforms;
+      setSelectedPlatforms(new Set(avail));
+      setError(null);
+      setOkMsg(null);
+    } catch { /* malformed payload — ignore */ }
+  };
+
+  const submit = useCallback(async () => {
+    if (!draft) return;
+    const targets = Array.from(selectedPlatforms);
+    if (targets.length === 0) { setError('Check at least one platform to post to.'); return; }
+    setSubmitting(true);
+    setError(null);
+    try {
+      const body: Record<string, unknown> = { post: draft.caption, platforms: targets };
+      if (draft.mediaUrls.length > 0) body.mediaUrls = draft.mediaUrls;
+      const r = await fetch('/api/social-media/post', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'content-type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setError((j as { error?: string; message?: string }).error ?? (j as { message?: string }).message ?? `HTTP ${r.status}`);
+        return;
+      }
+      setOkMsg(`Posted to ${targets.length} ${targets.length === 1 ? 'network' : 'networks'}.`);
+      setDraft(null);
+      setSelectedPlatforms(new Set());
+      onPosted();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  }, [draft, selectedPlatforms, session?.access_token, onPosted]);
+
+  const thumb = draft?.mediaUrls[0];
+  const isVideo = typeof thumb === 'string' && /\.(mp4|mov|webm|m4v)(\?|$)/i.test(thumb);
+
+  return (
+    <section className="rounded-2xl border border-black/10 bg-white px-4 py-4 lg:px-5 lg:py-5">
+      <div className="mb-3">
+        <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Post now</h2>
+        <p className="text-[11px] text-foreground/45 mt-0.5">
+          Drag a Ready-to-Go draft here to publish it right away.
+        </p>
+      </div>
+
+      {okMsg && (
+        <p className="rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs text-emerald-800 mb-3" role="status">
+          {okMsg}
+        </p>
+      )}
+      {error && (
+        <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-800 mb-3" role="alert">
+          {error}
+        </p>
+      )}
+
+      {!draft ? (
+        <div
+          onDragOver={onDragOver}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={onDrop}
+          className={`rounded-xl border-2 border-dashed px-5 py-12 text-center transition-colors ${
+            dragOver ? 'border-primary bg-primary/[0.04] text-primary' : 'border-black/15 bg-warm-bg/30 text-foreground/55'
+          }`}
+        >
+          <p className="text-[13px] max-w-md mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
+            {dragOver ? 'Drop to load this draft, then confirm Post now.' : 'Drag a Ready-to-Go draft onto this card to post it now.'}
+          </p>
+        </div>
+      ) : (
+        <div
+          onDragOver={onDragOver}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={onDrop}
+          className={`rounded-xl border px-4 py-4 ${dragOver ? 'border-primary ring-2 ring-primary/20' : 'border-primary/40 bg-primary/[0.03]'}`}
+        >
+          <p className="text-[12px] font-semibold text-foreground/80 mb-2">Post this now?</p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <div className="w-10 h-10 shrink-0 rounded-md overflow-hidden border border-black/10 bg-warm-bg/40">
+              {thumb ? (
+                isVideo ? (
+                  <video src={thumb} muted playsInline className="w-full h-full object-cover bg-black" />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={thumb} alt="" className="w-full h-full object-cover" />
+                )
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-[8px] text-foreground/45 text-center px-0.5">No media</div>
+              )}
+            </div>
+
+            <span className="text-[12px] text-foreground/80 truncate max-w-[160px]" title={draft.caption || '(no caption)'}>
+              {draft.caption || '(no caption)'}
+            </span>
+
+            {availablePlatforms.length === 0 ? (
+              <span className="text-[11px] text-red-700">no connected platforms</span>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                {availablePlatforms.map((p) => (
+                  <label key={p} className="inline-flex items-center gap-1 text-[11.5px] text-foreground/70 capitalize cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={selectedPlatforms.has(p)}
+                      onChange={() => togglePlatform(p)}
+                      className="w-3.5 h-3.5 accent-primary"
+                    />
+                    {p}
+                  </label>
+                ))}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => void submit()}
+              disabled={submitting}
+              className="rounded-lg bg-primary text-white px-3.5 py-1.5 text-[12.5px] font-semibold hover:bg-primary/90 disabled:opacity-40"
+            >
+              {submitting ? 'Posting…' : `Post now${selectedPlatforms.size > 0 ? ` to ${selectedPlatforms.size}` : ''}`}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setDraft(null); setError(null); setSelectedPlatforms(new Set()); }}
+              className="text-[10.5px] text-foreground/45 hover:text-foreground/80 uppercase tracking-wider"
+            >
+              Cancel
             </button>
           </div>
         </div>

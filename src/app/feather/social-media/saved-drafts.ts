@@ -127,6 +127,23 @@ export interface NewDraftInput {
 }
 
 export async function saveDraft(input: NewDraftInput): Promise<SavedDraft | null> {
+  // Always stamp the author. Callers may pass createdBy/createdByName
+  // explicitly, but if they don't we fall back to the signed-in user so
+  // EVERY save path (create flow, templates, AI) records who made the
+  // post — that's what drives the "Created by" column.
+  let createdBy = input.createdBy ?? null;
+  let createdByName = input.createdByName ?? null;
+  if (!createdBy || !createdByName) {
+    try {
+      const { data: auth } = await supabase.auth.getUser();
+      const u = auth.user;
+      if (u) {
+        createdBy = createdBy ?? u.id;
+        createdByName = createdByName
+          ?? ((u.user_metadata?.full_name as string | undefined) || u.email) ?? null;
+      }
+    } catch { /* best-effort — leave null */ }
+  }
   const { data, error } = await supabase
     .from(TABLE)
     .insert({
@@ -135,8 +152,8 @@ export async function saveDraft(input: NewDraftInput): Promise<SavedDraft | null
       platforms: input.platforms ?? [],
       ready: input.ready ?? false,
       media_by_deliverable: input.mediaByDeliverable ?? [],
-      created_by: input.createdBy ?? null,
-      created_by_name: input.createdByName ?? null,
+      created_by: createdBy,
+      created_by_name: createdByName,
     })
     .select('*')
     .single();
