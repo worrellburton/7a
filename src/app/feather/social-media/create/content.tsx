@@ -16,10 +16,11 @@
 //      with ready: true + the captured per-deliverable URLs and
 //      routes back to Creative > Ready to go.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { uploadFile } from '@/lib/upload';
 import { useAuth } from '@/lib/AuthProvider';
 import { PLATFORM_SPECS, type MediaSpec, type VideoSpec } from '../platform-specs';
 import { PlatformIcon, type PlatformId } from '../PlatformIcon';
@@ -181,6 +182,14 @@ export default function CreatePostContent() {
   // the Build (Library) tab renders.
   const [libraryAssets, setLibraryAssets] = useState<LibraryAsset[]>([]);
   const [pickerForKey, setPickerForKey] = useState<string | null>(null);
+  // Library picker opened from the Media card (multi-select add to the
+  // post's media set) rather than to fill one slot.
+  const [mediaPickerOpen, setMediaPickerOpen] = useState(false);
+  const [mediaPickSelection, setMediaPickSelection] = useState<Set<string>>(new Set());
+  // The slot currently under a media drag (for the drop-target ring).
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+  // Crop editor — set to the slot being cropped (with its target ratio).
+  const [cropForKey, setCropForKey] = useState<{ key: string; url: string; ratio: string } | null>(null);
   // Active platform tab in the Deliverable Slots section.
   const [activeTab, setActiveTab] = useState<PlatformId | null>(null);
 
@@ -323,6 +332,32 @@ export default function CreatePostContent() {
     setUrlByKey(Object.fromEntries(rows.map((r) => [r.key, first])));
   };
 
+  // ── Media set (the post's photos/videos) ──────────────────────────
+  const isVideoUrl = (u: string) => /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u);
+  const addMediaUrls = (urls: string[]) => {
+    setStagedMedia((prev) => {
+      const next = [...prev];
+      for (const u of urls) if (u && !next.includes(u)) next.push(u);
+      return next;
+    });
+  };
+  const removeMedia = (url: string) => {
+    setStagedMedia((prev) => prev.filter((u) => u !== url));
+  };
+  // Fill a single slot (drag-drop / picker target).
+  const applyToSlot = (key: string, url: string) => {
+    setUrlByKey((prev) => ({ ...prev, [key]: url }));
+  };
+  // Apply one media item to every slot of the SAME kind (image vs video).
+  const applyToAll = (url: string) => {
+    const vid = isVideoUrl(url);
+    setUrlByKey((prev) => {
+      const next = { ...prev };
+      for (const r of rows) if ((r.kind === 'video') === vid) next[r.key] = url;
+      return next;
+    });
+  };
+
   const generateCaption = async () => {
     if (!session?.access_token || generatingCaption) return;
     setGeneratingCaption(true);
@@ -412,50 +447,6 @@ export default function CreatePostContent() {
         </Link>
       </header>
 
-      {/* Staged media preview */}
-      {stagedMedia.length > 0 && (
-        <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
-          <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">
-            Media from Build
-          </p>
-          <ul className="flex flex-wrap gap-2">
-            {stagedMedia.map((url, i) => (
-              <li key={i} className="w-20 h-20 rounded-lg overflow-hidden border border-black/10">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={url} alt="" className="w-full h-full object-cover" />
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {/* Caption */}
-      <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
-        <div className="flex items-center justify-between mb-1.5">
-          <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">Caption</span>
-          <button
-            type="button"
-            onClick={generateCaption}
-            disabled={generatingCaption || !session?.access_token}
-            title="Draft a caption with Claude"
-            aria-label="Draft caption with Claude"
-            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-primary/30 bg-primary/5 text-primary text-[11px] font-semibold hover:bg-primary/10 disabled:opacity-50"
-            style={{ fontFamily: 'var(--font-body)' }}
-          >
-            <ClaudeMark className="w-3.5 h-3.5" />
-            {generatingCaption ? 'Drafting…' : 'Write with Claude'}
-          </button>
-        </div>
-        <textarea
-          value={caption}
-          onChange={(e) => setCaption(e.target.value)}
-          rows={5}
-          placeholder="Write the post copy…"
-          className="w-full px-3 py-2 rounded-md border border-black/10 text-[13.5px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/30"
-          style={{ fontFamily: 'var(--font-body)' }}
-        />
-      </section>
-
       {/* Platform picker */}
       <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
         <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">
@@ -542,6 +533,99 @@ export default function CreatePostContent() {
         </section>
       )}
 
+      {/* ── Content page break ── */}
+      <div className="flex items-center gap-3 mt-8 mb-4">
+        <span className="text-[11px] font-bold tracking-[0.28em] uppercase text-foreground/45">Content</span>
+        <span className="flex-1 h-px bg-black/10" />
+      </div>
+
+      {/* Caption */}
+      <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">Caption</span>
+          <button
+            type="button"
+            onClick={generateCaption}
+            disabled={generatingCaption || !session?.access_token}
+            title="Draft a caption with Claude"
+            aria-label="Draft caption with Claude"
+            className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-primary/30 bg-primary/5 text-primary text-[11px] font-semibold hover:bg-primary/10 disabled:opacity-50"
+            style={{ fontFamily: 'var(--font-body)' }}
+          >
+            <ClaudeMark className="w-3.5 h-3.5" />
+            {generatingCaption ? 'Drafting…' : 'Write with Claude'}
+          </button>
+        </div>
+        <textarea
+          value={caption}
+          onChange={(e) => setCaption(e.target.value)}
+          rows={5}
+          placeholder="Write the post copy…"
+          className="w-full px-3 py-2 rounded-md border border-black/10 text-[13.5px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/30"
+          style={{ fontFamily: 'var(--font-body)' }}
+        />
+      </section>
+
+      {/* Media — the post's photos/videos. Drag a thumbnail onto a
+          deliverable slot below, or click "Apply to all". */}
+      <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">Media · {stagedMedia.length}</span>
+          <button
+            type="button"
+            onClick={() => { setMediaPickSelection(new Set()); setMediaPickerOpen(true); }}
+            className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+          >
+            + Add from library
+          </button>
+        </div>
+        <p className="text-[11.5px] text-foreground/50 mb-2.5" style={{ fontFamily: 'var(--font-body)' }}>
+          Add the photos and videos for this post, then drag one onto a deliverable slot below — or apply it to every slot.
+        </p>
+        {stagedMedia.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-black/15 bg-warm-bg/30 px-5 py-7 text-center">
+            <p className="text-[12.5px] text-foreground/55" style={{ fontFamily: 'var(--font-body)' }}>
+              No media yet. Click <strong>Add from library</strong>.
+            </p>
+          </div>
+        ) : (
+          <ul className="flex flex-wrap gap-2">
+            {stagedMedia.map((url) => (
+              <li
+                key={url}
+                draggable
+                onDragStart={(e) => { e.dataTransfer.setData('application/x-media-url', url); e.dataTransfer.setData('text/plain', url); e.dataTransfer.effectAllowed = 'copy'; }}
+                className="group relative w-24 h-24 rounded-lg overflow-hidden border border-black/10 cursor-grab active:cursor-grabbing"
+                title="Drag onto a slot below"
+              >
+                {isVideoUrl(url) ? (
+                  <video src={url} muted playsInline draggable={false} className="w-full h-full object-cover bg-black pointer-events-none" />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={url} alt="" draggable={false} className="w-full h-full object-cover pointer-events-none" />
+                )}
+                <button
+                  type="button"
+                  onClick={() => removeMedia(url)}
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/55 text-white text-[11px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  aria-label="Remove"
+                >
+                  ✕
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyToAll(url)}
+                  className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[9px] font-semibold py-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                  title="Fill every matching slot with this"
+                >
+                  Apply to all
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       {/* Deliverable upload slots */}
       <section className="rounded-2xl border border-black/10 bg-white p-4 mb-5">
         <header className="flex items-baseline justify-between gap-2 flex-wrap mb-3">
@@ -550,7 +634,7 @@ export default function CreatePostContent() {
               Deliverable slots · {rows.length}
             </p>
             <p className="text-[11.5px] text-foreground/50 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-              One slot per crop the targeted networks need. Paste a media URL or click <em>Use staged media</em>.
+              One slot per crop the targeted networks need. Drag media from the card above onto a slot, then hover a filled slot to <em>Crop</em> it to that exact ratio.
             </p>
           </div>
           {stagedMedia.length > 0 && rows.length > 0 && (
@@ -616,26 +700,48 @@ export default function CreatePostContent() {
                       a "Pick from library" overlay so the picker can
                       be reached without leaving the row. */}
                   <div
-                    className={`group relative w-full rounded-md overflow-hidden mb-2 ${url ? '' : 'border-2 border-dashed border-black/15 bg-white'}`}
+                    onDragOver={(e) => { if (e.dataTransfer.types.includes('application/x-media-url')) { e.preventDefault(); setDragOverKey(row.key); } }}
+                    onDragLeave={() => setDragOverKey((k) => (k === row.key ? null : k))}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const u = e.dataTransfer.getData('application/x-media-url') || e.dataTransfer.getData('text/plain');
+                      if (u) applyToSlot(row.key, u);
+                      setDragOverKey(null);
+                    }}
+                    className={`group relative w-full rounded-md overflow-hidden mb-2 transition-shadow ${url ? '' : 'border-2 border-dashed border-black/15 bg-white'} ${dragOverKey === row.key ? 'ring-2 ring-primary' : ''}`}
                     style={aspectStyle(row.ratio)}
                   >
                     {url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={url} alt="" className="w-full h-full object-cover" />
+                      isVideoUrl(url) ? (
+                        <video src={url} muted playsInline className="w-full h-full object-cover bg-black" />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={url} alt="" className="w-full h-full object-cover" />
+                      )
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-[10px] text-foreground/35">
-                        {row.ratio === 'free' ? 'Any ratio' : row.ratio}
-                        {row.size && <span className="ml-1 text-foreground/30">· {row.size}</span>}
+                      <div className="w-full h-full flex items-center justify-center text-[10px] text-foreground/35 text-center px-1">
+                        {dragOverKey === row.key ? 'Drop to fill' : (<>{row.ratio === 'free' ? 'Any ratio' : row.ratio}{row.size && <span className="ml-1 text-foreground/30">· {row.size}</span>}</>)}
                       </div>
                     )}
-                    <button
-                      type="button"
-                      onClick={() => setPickerForKey(row.key)}
-                      className="absolute inset-0 flex items-center justify-center bg-black/50 text-white text-[11px] font-semibold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition-opacity"
-                      style={{ fontFamily: 'var(--font-body)' }}
-                    >
-                      Pick from library
-                    </button>
+                    <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        type="button"
+                        onClick={() => setPickerForKey(row.key)}
+                        className="text-white text-[11px] font-semibold uppercase tracking-wider"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      >
+                        Pick from library
+                      </button>
+                      {url && !isVideoUrl(url) && (
+                        <button
+                          type="button"
+                          onClick={() => setCropForKey({ key: row.key, url, ratio: row.ratio })}
+                          className="rounded bg-white/90 text-foreground px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider hover:bg-white"
+                        >
+                          Crop
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <input
@@ -682,66 +788,233 @@ export default function CreatePostContent() {
         </button>
       </div>
 
-      {/* Library picker — triggered from any slot's "Pick from
-          library" hover overlay. Click an asset to assign its URL
-          to that slot. */}
-      {pickerForKey !== null && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setPickerForKey(null)}
-        >
+      {/* Library picker — two modes. Slot mode (pickerForKey) assigns one
+          asset to one slot. Media mode (mediaPickerOpen) multi-selects to
+          add to the post's media set. */}
+      {(pickerForKey !== null || mediaPickerOpen) && (() => {
+        const closeModal = () => { setPickerForKey(null); setMediaPickerOpen(false); setMediaPickSelection(new Set()); };
+        const mediaMode = mediaPickerOpen;
+        return (
           <div
-            className="w-full max-w-3xl max-h-[80vh] rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+            role="dialog"
+            aria-modal="true"
+            onClick={closeModal}
           >
-            <header className="px-5 py-3 border-b border-black/5 flex items-baseline justify-between">
-              <div>
-                <h3 className="text-sm font-bold text-foreground">Pick media from library</h3>
-                <p className="text-[11.5px] text-foreground/55 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-                  {libraryAssets.length} asset{libraryAssets.length === 1 ? '' : 's'} from Build.
-                </p>
+            <div
+              className="w-full max-w-3xl max-h-[80vh] rounded-2xl bg-white shadow-xl overflow-hidden flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <header className="px-5 py-3 border-b border-black/5 flex items-baseline justify-between">
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">{mediaMode ? 'Add media to this post' : 'Pick media for this slot'}</h3>
+                  <p className="text-[11.5px] text-foreground/55 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+                    {mediaMode ? 'Tap to select, then Add.' : `${libraryAssets.length} asset${libraryAssets.length === 1 ? '' : 's'} from Build.`}
+                  </p>
+                </div>
+                <button type="button" onClick={closeModal} className="text-[11px] text-foreground/55 hover:text-foreground">✕</button>
+              </header>
+              <div className="flex-1 overflow-y-auto p-4">
+                {libraryAssets.length === 0 ? (
+                  <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
+                    Library is empty. Upload media via Build first.
+                  </p>
+                ) : (
+                  <ul className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
+                    {libraryAssets.map((a) => {
+                      const picked = mediaMode && mediaPickSelection.has(a.url);
+                      return (
+                        <li key={a.id}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (mediaMode) {
+                                setMediaPickSelection((prev) => { const n = new Set(prev); if (n.has(a.url)) n.delete(a.url); else n.add(a.url); return n; });
+                              } else if (pickerForKey) {
+                                setUrlByKey((prev) => ({ ...prev, [pickerForKey]: a.url }));
+                                setPickerForKey(null);
+                              }
+                            }}
+                            className={`relative w-full aspect-square rounded-md overflow-hidden border transition-all ${picked ? 'border-primary ring-2 ring-primary' : 'border-black/10 hover:border-primary hover:ring-2 hover:ring-primary/30'}`}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={a.thumbUrl} alt={a.filename ?? ''} className="w-full h-full object-cover" />
+                            {a.kind === 'video' && (
+                              <span className="absolute top-1 left-1 px-1 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-rose-500 text-white">VID</span>
+                            )}
+                            {picked && <span className="absolute top-1 right-1 w-4 h-4 rounded-full bg-primary text-white text-[10px] flex items-center justify-center">✓</span>}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
               </div>
-              <button
-                type="button"
-                onClick={() => setPickerForKey(null)}
-                className="text-[11px] text-foreground/55 hover:text-foreground"
-              >
-                ✕
-              </button>
-            </header>
-            <div className="flex-1 overflow-y-auto p-4">
-              {libraryAssets.length === 0 ? (
-                <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
-                  Library is empty. Upload media via Build first.
-                </p>
-              ) : (
-                <ul className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-5 gap-2">
-                  {libraryAssets.map((a) => (
-                    <li key={a.id}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setUrlByKey((prev) => ({ ...prev, [pickerForKey]: a.url }));
-                          setPickerForKey(null);
-                        }}
-                        className="relative w-full aspect-square rounded-md overflow-hidden border border-black/10 hover:border-primary hover:ring-2 hover:ring-primary/30 transition-all"
-                      >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={a.thumbUrl} alt={a.filename ?? ''} className="w-full h-full object-cover" />
-                        {a.kind === 'video' && (
-                          <span className="absolute top-1 right-1 px-1 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-rose-500 text-white">VID</span>
-                        )}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+              {mediaMode && (
+                <div className="px-5 py-3 border-t border-black/5 flex items-center justify-end gap-2">
+                  <button type="button" onClick={closeModal} className="px-3 py-1.5 rounded-md border border-black/10 bg-white text-[12px] font-semibold text-foreground/70 hover:bg-warm-bg/60">Cancel</button>
+                  <button
+                    type="button"
+                    disabled={mediaPickSelection.size === 0}
+                    onClick={() => { addMediaUrls([...mediaPickSelection]); closeModal(); }}
+                    className="px-4 py-1.5 rounded-md bg-primary text-white text-[12px] font-semibold hover:bg-primary/90 disabled:opacity-40"
+                  >
+                    Add {mediaPickSelection.size || ''}
+                  </button>
+                </div>
               )}
             </div>
           </div>
-        </div>
+        );
+      })()}
+
+      {cropForKey && (
+        <CropModal
+          url={cropForKey.url}
+          ratio={cropForKey.ratio}
+          onCancel={() => setCropForKey(null)}
+          onCropped={(newUrl) => { applyToSlot(cropForKey.key, newUrl); setCropForKey(null); }}
+        />
       )}
+    </div>
+  );
+}
+
+// Crop editor — a ratio-locked crop box you drag over the image (with a
+// zoom slider). On apply it draws the cropped region to a canvas at full
+// resolution, uploads the result to the public-images bucket, and hands
+// the new URL back so the deliverable slot points at the cropped asset.
+function CropModal({ url, ratio, onCancel, onCropped }: {
+  url: string;
+  ratio: string;
+  onCancel: () => void;
+  onCropped: (url: string) => void;
+}) {
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
+  const [display, setDisplay] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
+  const [box, setBox] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const dragRef = useRef<{ sx: number; sy: number; bx: number; by: number; bw: number; bh: number } | null>(null);
+
+  const ratioVal = (() => {
+    const m = ratio.match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/);
+    return m ? Number(m[1]) / Number(m[2]) : null;
+  })();
+
+  const MAXW = 520, MAXH = 440;
+
+  const onImgLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const im = e.currentTarget;
+    const nw = im.naturalWidth, nh = im.naturalHeight;
+    if (!nw || !nh) return;
+    setNatural({ w: nw, h: nh });
+    const scale = Math.min(MAXW / nw, MAXH / nh, 1);
+    const dw = nw * scale, dh = nh * scale;
+    setDisplay({ w: dw, h: dh });
+    const r = ratioVal ?? (dw / dh);
+    let bw = dw, bh = bw / r;
+    if (bh > dh) { bh = dh; bw = bh * r; }
+    setBox({ x: (dw - bw) / 2, y: (dh - bh) / 2, w: bw, h: bh });
+    setZoom(1);
+  };
+
+  const applyZoom = (z: number) => {
+    if (!box) return;
+    const r = ratioVal ?? (display.w / display.h);
+    let maxBw = display.w, maxBh = maxBw / r;
+    if (maxBh > display.h) { maxBh = display.h; maxBw = maxBh * r; }
+    const bw = maxBw * z, bh = maxBh * z;
+    const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
+    const nx = Math.max(0, Math.min(display.w - bw, cx - bw / 2));
+    const ny = Math.max(0, Math.min(display.h - bh, cy - bh / 2));
+    setBox({ x: nx, y: ny, w: bw, h: bh });
+    setZoom(z);
+  };
+
+  const onBoxMouseDown = (e: React.MouseEvent) => {
+    if (!box) return;
+    e.preventDefault();
+    dragRef.current = { sx: e.clientX, sy: e.clientY, bx: box.x, by: box.y, bw: box.w, bh: box.h };
+    const onMove = (ev: MouseEvent) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const nx = Math.max(0, Math.min(display.w - d.bw, d.bx + (ev.clientX - d.sx)));
+      const ny = Math.max(0, Math.min(display.h - d.bh, d.by + (ev.clientY - d.sy)));
+      setBox({ x: nx, y: ny, w: d.bw, h: d.bh });
+    };
+    const onUp = () => { dragRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
+  const apply = async () => {
+    if (!natural || !box || !imgRef.current) return;
+    setBusy(true); setErr(null);
+    try {
+      const scale = natural.w / display.w;
+      const sw = Math.max(1, Math.round(box.w * scale));
+      const sh = Math.max(1, Math.round(box.h * scale));
+      const canvas = document.createElement('canvas');
+      canvas.width = sw; canvas.height = sh;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('Canvas not available');
+      ctx.drawImage(imgRef.current, Math.round(box.x * scale), Math.round(box.y * scale), sw, sh, 0, 0, sw, sh);
+      const blob: Blob = await new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error('Could not render the crop'))), 'image/jpeg', 0.92));
+      const file = new File([blob], `crop-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      const { url: newUrl, error } = await uploadFile(file, 'public-images');
+      if (error || !newUrl) throw new Error(error || 'Upload failed');
+      onCropped(newUrl);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" onClick={onCancel}>
+      <div className="bg-white rounded-2xl shadow-xl overflow-hidden w-full max-w-[600px]" onClick={(e) => e.stopPropagation()}>
+        <header className="px-5 py-3 border-b border-black/5 flex items-center justify-between">
+          <h3 className="text-sm font-bold text-foreground">Crop to {ratioVal ? ratio : 'fit'}</h3>
+          <button type="button" onClick={onCancel} className="text-[11px] text-foreground/55 hover:text-foreground">✕</button>
+        </header>
+        <div className="p-4 flex flex-col items-center gap-3">
+          <div className="relative select-none leading-none" style={{ width: display.w || undefined, height: display.h || undefined }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              ref={imgRef}
+              src={url}
+              crossOrigin="anonymous"
+              onLoad={onImgLoad}
+              alt=""
+              draggable={false}
+              className="block max-w-none"
+              style={{ width: display.w || 'auto', height: display.h || 'auto' }}
+            />
+            {box && (
+              <div
+                onMouseDown={onBoxMouseDown}
+                className="absolute border-2 border-white cursor-move"
+                style={{ left: box.x, top: box.y, width: box.w, height: box.h, boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)' }}
+              />
+            )}
+          </div>
+          <div className="w-full flex items-center gap-2">
+            <span className="text-[11px] text-foreground/55">Zoom</span>
+            <input type="range" min={0.2} max={1} step={0.01} value={zoom} onChange={(e) => applyZoom(Number(e.target.value))} className="flex-1 accent-primary" />
+          </div>
+          {err && <p className="text-[12px] text-red-700" role="alert">{err}</p>}
+        </div>
+        <footer className="px-5 py-3 border-t border-black/5 flex items-center justify-end gap-2">
+          <button type="button" onClick={onCancel} className="px-3 py-1.5 rounded-md border border-black/10 bg-white text-[12px] font-semibold text-foreground/70 hover:bg-warm-bg/60">Cancel</button>
+          <button type="button" onClick={() => void apply()} disabled={busy || !box} className="px-4 py-1.5 rounded-md bg-primary text-white text-[12px] font-semibold hover:bg-primary/90 disabled:opacity-40">
+            {busy ? 'Saving…' : 'Apply crop'}
+          </button>
+        </footer>
+      </div>
     </div>
   );
 }
