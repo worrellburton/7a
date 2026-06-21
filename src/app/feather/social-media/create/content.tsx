@@ -24,6 +24,7 @@ import { uploadFile } from '@/lib/upload';
 import { useAuth } from '@/lib/AuthProvider';
 import { PlatformIcon, type PlatformId } from '../PlatformIcon';
 import { saveDraft } from '../saved-drafts';
+import { PostingPausedBanner } from '../PostingStatus';
 import {
   PLATFORM_LABELS,
   ALL_PLATFORM_IDS,
@@ -386,6 +387,8 @@ export default function CreatePostContent() {
           ← Cancel
         </Link>
       </header>
+
+      <PostingPausedBanner className="mb-4" />
 
       {/* Platform picker */}
       <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
