@@ -712,7 +712,7 @@ export default function CreatePostContent() {
                 <button
                   type="button"
                   onClick={() => removeMedia(url)}
-                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/55 text-white text-[11px] leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/55 text-white text-[12px] leading-none flex items-center justify-center opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                   aria-label="Remove"
                 >
                   ✕
@@ -720,7 +720,7 @@ export default function CreatePostContent() {
                 <button
                   type="button"
                   onClick={() => applyToAll(url)}
-                  className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[9px] font-semibold py-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="absolute inset-x-0 bottom-0 bg-black/60 text-white text-[9px] font-semibold py-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"
                   title="Fill every matching slot with this"
                 >
                   Apply to all
@@ -842,11 +842,14 @@ export default function CreatePostContent() {
                         {dragOverKey === row.key ? 'Drop to fill' : (<>{row.ratio === 'free' ? 'Any ratio' : row.ratio}{row.size && <span className="ml-1 text-foreground/30">· {row.size}</span>}</>)}
                       </div>
                     )}
-                    <div className="absolute inset-0 flex items-center justify-center gap-2 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {/* Action bar — bottom strip so it never hides the
+                        image. Always visible on touch (no hover); fade-in
+                        on hover for desktop. */}
+                    <div className="absolute inset-x-0 bottom-0 flex divide-x divide-white/20 bg-black/55 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                       <button
                         type="button"
                         onClick={() => setPickerForKey(row.key)}
-                        className="text-white text-[11px] font-semibold uppercase tracking-wider"
+                        className="flex-1 py-1.5 text-white text-[10.5px] font-semibold uppercase tracking-wider hover:bg-white/10"
                         style={{ fontFamily: 'var(--font-body)' }}
                       >
                         Pick media
@@ -855,7 +858,7 @@ export default function CreatePostContent() {
                         <button
                           type="button"
                           onClick={() => setCropForKey({ key: row.key, url, ratio: row.ratio })}
-                          className="rounded bg-white/90 text-foreground px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider hover:bg-white"
+                          className="flex-1 py-1.5 text-white text-[10.5px] font-bold uppercase tracking-wider hover:bg-white/10"
                         >
                           Crop
                         </button>
@@ -894,7 +897,7 @@ export default function CreatePostContent() {
                               <button
                                 type="button"
                                 onClick={() => removeGalleryImage(row.key, g)}
-                                className="absolute top-0 right-0 w-4 h-4 bg-black/55 text-white text-[9px] leading-none flex items-center justify-center opacity-0 group-hover/g:opacity-100 transition-opacity"
+                                className="absolute top-0 right-0 w-5 h-5 bg-black/60 text-white text-[10px] leading-none flex items-center justify-center opacity-100 md:opacity-0 md:group-hover/g:opacity-100 transition-opacity"
                                 aria-label="Remove gallery image"
                               >
                                 ✕
@@ -1025,7 +1028,7 @@ export default function CreatePostContent() {
                               className={`relative w-full aspect-square rounded-md overflow-hidden border transition-all ${picked ? 'border-primary ring-2 ring-primary' : 'border-black/10 hover:border-primary hover:ring-2 hover:ring-primary/30'}`}
                             >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={a.thumbUrl} alt={a.filename ?? ''} className="w-full h-full object-cover" />
+                              <img src={a.thumbUrl} alt={a.filename ?? ''} loading="lazy" decoding="async" className="w-full h-full object-cover" />
                               {a.kind === 'video' && (
                                 <span className="absolute top-1 left-1 px-1 py-0.5 rounded text-[8.5px] font-bold uppercase tracking-wider bg-rose-500 text-white">VID</span>
                               )}
@@ -1144,22 +1147,40 @@ function CropModal({ url, ratio, onCancel, onCropped }: {
     return m ? Number(m[1]) / Number(m[2]) : null;
   })();
 
-  const MAXW = 520, MAXH = 440;
+  // Display budget is clamped to the viewport so the editor fits on a
+  // phone (and re-flows on rotate) instead of overflowing off-screen.
+  const [maxW, setMaxW] = useState(520);
+  const [maxH, setMaxH] = useState(440);
+  useEffect(() => {
+    const calc = () => {
+      setMaxW(Math.min(520, window.innerWidth - 48));
+      setMaxH(Math.min(440, window.innerHeight - 248));
+    };
+    calc();
+    window.addEventListener('resize', calc);
+    return () => window.removeEventListener('resize', calc);
+  }, []);
 
   const onImgLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
     const im = e.currentTarget;
-    const nw = im.naturalWidth, nh = im.naturalHeight;
-    if (!nw || !nh) return;
-    setNatural({ w: nw, h: nh });
-    const scale = Math.min(MAXW / nw, MAXH / nh, 1);
-    const dw = nw * scale, dh = nh * scale;
+    if (!im.naturalWidth || !im.naturalHeight) return;
+    setNatural({ w: im.naturalWidth, h: im.naturalHeight });
+  };
+
+  // (Re)compute the display size + reset the crop box whenever the image
+  // or the viewport budget changes (covers small screens + rotation).
+  useEffect(() => {
+    if (!natural) return;
+    const scale = Math.min(maxW / natural.w, maxH / natural.h, 1);
+    const dw = natural.w * scale, dh = natural.h * scale;
     setDisplay({ w: dw, h: dh });
     const r = ratioVal ?? (dw / dh);
     let bw = dw, bh = bw / r;
     if (bh > dh) { bh = dh; bw = bh * r; }
     setBox({ x: (dw - bw) / 2, y: (dh - bh) / 2, w: bw, h: bh });
     setZoom(1);
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [natural, maxW, maxH]);
 
   const applyZoom = (z: number) => {
     if (!box) return;
@@ -1174,20 +1195,22 @@ function CropModal({ url, ratio, onCancel, onCropped }: {
     setZoom(z);
   };
 
-  const onBoxMouseDown = (e: React.MouseEvent) => {
+  // Pointer events cover mouse, touch, and pen with one path — the old
+  // mouse-only handler meant the crop box couldn't be moved on a phone.
+  const onBoxPointerDown = (e: React.PointerEvent) => {
     if (!box) return;
     e.preventDefault();
     dragRef.current = { sx: e.clientX, sy: e.clientY, bx: box.x, by: box.y, bw: box.w, bh: box.h };
-    const onMove = (ev: MouseEvent) => {
+    const onMove = (ev: PointerEvent) => {
       const d = dragRef.current;
       if (!d) return;
       const nx = Math.max(0, Math.min(display.w - d.bw, d.bx + (ev.clientX - d.sx)));
       const ny = Math.max(0, Math.min(display.h - d.bh, d.by + (ev.clientY - d.sy)));
       setBox({ x: nx, y: ny, w: d.bw, h: d.bh });
     };
-    const onUp = () => { dragRef.current = null; window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
+    const onUp = () => { dragRef.current = null; window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   };
 
   const apply = async () => {
@@ -1236,9 +1259,9 @@ function CropModal({ url, ratio, onCancel, onCropped }: {
             />
             {box && (
               <div
-                onMouseDown={onBoxMouseDown}
+                onPointerDown={onBoxPointerDown}
                 className="absolute border-2 border-white cursor-move"
-                style={{ left: box.x, top: box.y, width: box.w, height: box.h, boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)' }}
+                style={{ left: box.x, top: box.y, width: box.w, height: box.h, boxShadow: '0 0 0 9999px rgba(0,0,0,0.5)', touchAction: 'none' }}
               />
             )}
           </div>
