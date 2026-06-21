@@ -248,7 +248,7 @@ export default function DraftDetailContent({ id }: { id: string }) {
             title={!draft.ready && !canMarkReady ? `To mark ready: ${readyBlockers.join(' · ')}` : undefined}
             className={`px-3 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wider ${draft.ready ? 'border border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-50' : canMarkReady ? 'bg-primary text-white hover:bg-primary-dark' : 'bg-foreground/10 text-foreground/40 cursor-not-allowed'}`}
           >
-            {draft.ready ? 'Move back to drafts' : 'Mark ready to go'}
+            {draft.ready ? 'Move back to drafts' : 'Mark ready'}
           </button>
         </div>
       </header>
@@ -435,9 +435,9 @@ export default function DraftDetailContent({ id }: { id: string }) {
       <div className="sticky bottom-0 z-10 mt-6 -mx-4 sm:-mx-6 lg:-mx-10 px-4 sm:px-6 lg:px-10 py-3 bg-white/90 backdrop-blur border-t border-black/10 flex items-center justify-between gap-4">
         <p className="min-w-0 text-[12px] text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>
           {draft.ready ? (
-            <span className="text-emerald-700 font-semibold">✓ Saved as Ready to go.</span>
+            <span className="text-emerald-700 font-semibold">✓ Saved as Ready.</span>
           ) : canMarkReady ? (
-            <span>Everything&apos;s in place — save to mark this post <strong className="text-foreground/80">Ready to go</strong>.</span>
+            <span>Everything&apos;s in place — save to mark this post <strong className="text-foreground/80">Ready</strong>.</span>
           ) : (
             <span>Saves automatically as a draft. To make it ready: <span className="font-semibold text-foreground/80">{readyBlockers.join(' · ')}</span>.</span>
           )}
@@ -463,7 +463,7 @@ export default function DraftDetailContent({ id }: { id: string }) {
                 : 'bg-foreground/10 text-foreground/40 cursor-not-allowed'
             }`}
           >
-            {draft.ready ? 'Saved ✓' : 'Save ready-to-go post'}
+            {draft.ready ? 'Saved ✓' : 'Save as ready'}
           </button>
         </div>
       </div>
