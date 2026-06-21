@@ -1263,8 +1263,10 @@ function ScheduledPanel({
   // Authoritative scheduled posts from OUR records (activity_log), so a
   // post that's queued in Ayrshare can never be silently hidden by a
   // /history quirk. Merged with the Ayrshare /history scheduled rows.
-  interface LocalScheduled { logId: string; ayrshareId: string | null; scheduleDate: string | null; platforms: string[]; caption: string }
+  interface LocalScheduled { logId: string; ayrshareId: string | null; scheduleDate: string | null; platforms: string[]; caption: string; createdByName: string | null }
+  interface CanceledRec { at: string; caption: string; scheduleDate: string | null; canceledByName: string | null }
   const [local, setLocal] = useState<LocalScheduled[]>([]);
+  const [canceledRecs, setCanceledRecs] = useState<CanceledRec[]>([]);
   const [localLoading, setLocalLoading] = useState(true);
   const loadLocal = useCallback(async () => {
     setLocalLoading(true);
@@ -1272,11 +1274,12 @@ function ScheduledPanel({
       const res = await fetch('/api/social-media/scheduled', { credentials: 'include', cache: 'no-store' });
       const j = await res.json().catch(() => ({}));
       setLocal(Array.isArray(j.posts) ? (j.posts as LocalScheduled[]) : []);
+      setCanceledRecs(Array.isArray(j.recentlyCanceled) ? (j.recentlyCanceled as CanceledRec[]) : []);
     } catch { /* keep previous */ } finally { setLocalLoading(false); }
   }, []);
   useEffect(() => { void loadLocal(); }, [loadLocal]);
 
-  interface SchedItem { key: string; ayrshareId: string | null; scheduleDate: string; platforms: string[]; caption: string }
+  interface SchedItem { key: string; ayrshareId: string | null; scheduleDate: string; platforms: string[]; caption: string; createdByName: string | null }
   const queue = useMemo<SchedItem[]>(() => {
     const items: SchedItem[] = [];
     const seen = new Set<string>();
@@ -1288,10 +1291,10 @@ function ScheduledPanel({
     };
     for (const p of local) {
       if (!p.scheduleDate) continue;
-      add({ key: `local:${p.logId}`, ayrshareId: p.ayrshareId, scheduleDate: p.scheduleDate, platforms: p.platforms ?? [], caption: p.caption ?? '' });
+      add({ key: `local:${p.logId}`, ayrshareId: p.ayrshareId, scheduleDate: p.scheduleDate, platforms: p.platforms ?? [], caption: p.caption ?? '', createdByName: p.createdByName ?? null });
     }
     for (const p of posts.filter(isScheduledPending)) {
-      add({ key: `ay:${(p.id as string) ?? p.scheduleDate}`, ayrshareId: (p.id as string) ?? null, scheduleDate: p.scheduleDate as string, platforms: p.platforms ?? [], caption: p.post ?? '' });
+      add({ key: `ay:${(p.id as string) ?? p.scheduleDate}`, ayrshareId: (p.id as string) ?? null, scheduleDate: p.scheduleDate as string, platforms: p.platforms ?? [], caption: p.post ?? '', createdByName: null });
     }
     return items.sort((a, b) => Date.parse(a.scheduleDate) - Date.parse(b.scheduleDate));
   }, [local, posts]);
@@ -1326,19 +1329,19 @@ function ScheduledPanel({
     }
   };
 
-  const cancel = async (ayrshareId: string | null) => {
-    if (!ayrshareId) {
-      alert('This post was scheduled before we started recording its Ayrshare id, so it can only be canceled from the Ayrshare dashboard. New scheduled posts can be canceled here.');
+  const cancel = async (item: SchedItem) => {
+    if (!item.ayrshareId) {
+      alert('We couldn’t find this post’s Ayrshare id to cancel it in-app — cancel it from the Ayrshare dashboard (Posts → Scheduled). New scheduled posts cancel here directly.');
       return;
     }
     if (!confirm('Cancel this scheduled post?')) return;
-    setBusyId(ayrshareId);
+    setBusyId(item.key);
     try {
       const res = await fetch('/api/social-media/delete', {
         method: 'POST',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ id: ayrshareId }),
+        body: JSON.stringify({ id: item.ayrshareId, caption: item.caption, scheduleDate: item.scheduleDate }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -1402,7 +1405,7 @@ function ScheduledPanel({
             });
             const platforms = p.platforms.join(', ');
             const caption = p.caption.slice(0, 140);
-            const busy = busyId === p.ayrshareId;
+            const busy = busyId === p.key;
             return (
               <li key={p.key} className="flex items-start gap-3 py-3">
                 <div className="min-w-0 flex-1">
@@ -1414,8 +1417,8 @@ function ScheduledPanel({
                     {platforms && (
                       <span className="text-[11px] text-foreground/55 capitalize">{platforms}</span>
                     )}
-                    {!p.ayrshareId && (
-                      <span className="text-[10px] text-foreground/40" title="Scheduled before we recorded its Ayrshare id — cancel from the Ayrshare dashboard.">dashboard-only</span>
+                    {p.createdByName && (
+                      <span className="text-[11px] text-foreground/45">by {p.createdByName}</span>
                     )}
                   </div>
                   {caption && (
@@ -1427,7 +1430,7 @@ function ScheduledPanel({
                 </div>
                 <button
                   type="button"
-                  onClick={() => cancel(p.ayrshareId)}
+                  onClick={() => cancel(p)}
                   disabled={busy}
                   className="shrink-0 rounded-lg border border-black/10 px-2.5 py-1 text-[11px] font-semibold text-foreground/65 hover:text-red-700 hover:border-red-300 disabled:opacity-40"
                 >
@@ -1437,6 +1440,21 @@ function ScheduledPanel({
             );
           })}
         </ul>
+      )}
+
+      {canceledRecs.length > 0 && (
+        <div className="mt-4 pt-3 border-t border-black/5">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-foreground/40 mb-1.5">Recently canceled</p>
+          <ul className="space-y-1">
+            {canceledRecs.map((c, i) => (
+              <li key={i} className="text-[11px] text-foreground/50 flex items-baseline gap-1.5 flex-wrap">
+                <span className="line-through text-foreground/45 truncate max-w-[280px]">{c.caption || '(no caption)'}</span>
+                {c.canceledByName && <span>· canceled by <span className="text-foreground/70">{c.canceledByName}</span></span>}
+                <span className="text-foreground/30">· {new Date(c.at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </section>
   );

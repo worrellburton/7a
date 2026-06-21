@@ -14,7 +14,7 @@ import { ayrshareDelete, AyrshareNotConfigured } from '@/lib/ayrshare';
 
 export const dynamic = 'force-dynamic';
 
-type Body = { id?: string };
+type Body = { id?: string; caption?: string; scheduleDate?: string };
 
 export async function POST(req: Request) {
   const supabase = await getServerSupabase();
@@ -40,7 +40,7 @@ export async function POST(req: Request) {
           target_id: null,
           target_label: null,
           target_path: '/feather/social-media',
-          metadata: { ayrshareId: id },
+          metadata: { ayrshareId: id, caption: body.caption ?? null, scheduleDate: body.scheduleDate ?? null },
         });
       } catch { /* best-effort — never block the cancel response */ }
     }
