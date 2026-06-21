@@ -78,16 +78,16 @@ export function ReadyToGoCard({ drafts }: { drafts: ReadyDraft[] }) {
     <section className="rounded-2xl border border-black/10 bg-white px-4 py-4 lg:px-5 lg:py-5">
       <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
         <div>
-          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Ready to go · {drafts.length}</h2>
+          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Ready · {drafts.length}</h2>
           <p className="text-[11px] text-foreground/45 mt-0.5">
-            Drag a draft down onto the Schedule card, then pick the exact date and time you want it to post.
+            Drag a draft down onto the Post now or Schedule card to publish it.
           </p>
         </div>
       </div>
       {drafts.length === 0 ? (
         <div className="rounded-xl border border-dashed border-black/15 bg-warm-bg/30 px-5 py-8 text-center">
           <p className="text-[12.5px] text-foreground/55 max-w-md mx-auto" style={{ fontFamily: 'var(--font-body)' }}>
-            Mark drafts as <em>Ready to go</em> in Creative → Draft to land them here.
+            Mark drafts as <em>Ready</em> in Compose to land them here.
           </p>
         </div>
       ) : (
