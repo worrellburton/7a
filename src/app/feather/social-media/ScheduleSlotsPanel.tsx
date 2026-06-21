@@ -24,6 +24,50 @@ export interface ReadyDraft {
   platforms?: string[];
 }
 
+/* ── Error banner with copy-to-clipboard ─────────────────────── */
+
+// Any posting error renders here with a "Copy details" button. The
+// copied blob carries the full context (HTTP status, the raw Ayrshare
+// response, and the request we sent) so it can be pasted back verbatim
+// for diagnosis instead of just the one-line summary.
+function PostErrorBanner({ message, context }: { message: string; context: unknown }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    const text = typeof context === 'string' ? context : JSON.stringify(context, null, 2);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Clipboard API blocked — fall back to a temporary textarea select.
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1800);
+      } catch { /* give up silently */ }
+    }
+  };
+  return (
+    <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 mb-3" role="alert">
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-xs text-red-800 min-w-0 break-words">{message}</p>
+        <button
+          type="button"
+          onClick={() => void copy()}
+          className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-red-700 hover:text-red-900 underline decoration-dotted"
+        >
+          {copied ? 'Copied ✓' : 'Copy details'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ── Ready drafts card (draggable source) ────────────────────── */
 
 // Exported so the Post tab + Schedule tab can render Ready-to-Go as
@@ -167,6 +211,7 @@ export default function ScheduleDropCard({
   const [dragOver, setDragOver] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errCtx, setErrCtx] = useState<unknown>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
   // Which networks this scheduled post goes to — seeded from the draft's
   // Creative assignment (∩ connected) on drop; toggled via the checkmarks.
@@ -238,8 +283,10 @@ export default function ScheduleDropCard({
       const j = await r.json().catch(() => ({}));
       if (!r.ok) {
         setError((j as { error?: string; message?: string }).error ?? (j as { message?: string }).message ?? `HTTP ${r.status}`);
+        setErrCtx({ at: new Date().toISOString(), action: 'schedule', endpoint: '/api/social-media/post', httpStatus: r.status, response: j, request: { ...body, captionLength: draft.caption.length } });
         return;
       }
+      setErrCtx(null);
       setOkMsg(`Scheduled for ${at.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`);
       setDraft(null);
       setWhen('');
@@ -247,6 +294,7 @@ export default function ScheduleDropCard({
       onScheduled();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      setErrCtx({ at: new Date().toISOString(), action: 'schedule', endpoint: '/api/social-media/post', threw: true, error: e instanceof Error ? e.message : String(e) });
     } finally {
       setSubmitting(false);
     }
@@ -269,11 +317,7 @@ export default function ScheduleDropCard({
           {okMsg}
         </p>
       )}
-      {error && (
-        <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-800 mb-3" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <PostErrorBanner message={error} context={errCtx} />}
 
       {!draft ? (
         <div
@@ -389,6 +433,7 @@ export function PostNowDropCard({
   const [dragOver, setDragOver] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errCtx, setErrCtx] = useState<unknown>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
 
@@ -448,14 +493,17 @@ export function PostNowDropCard({
       const j = await r.json().catch(() => ({}));
       if (!r.ok) {
         setError((j as { error?: string; message?: string }).error ?? (j as { message?: string }).message ?? `HTTP ${r.status}`);
+        setErrCtx({ at: new Date().toISOString(), action: 'post-now', endpoint: '/api/social-media/post', httpStatus: r.status, response: j, request: { ...body, captionLength: draft.caption.length } });
         return;
       }
+      setErrCtx(null);
       setOkMsg(`Posted to ${targets.length} ${targets.length === 1 ? 'network' : 'networks'}.`);
       setDraft(null);
       setSelectedPlatforms(new Set());
       onPosted();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      setErrCtx({ at: new Date().toISOString(), action: 'post-now', endpoint: '/api/social-media/post', threw: true, error: e instanceof Error ? e.message : String(e) });
     } finally {
       setSubmitting(false);
     }
@@ -478,11 +526,7 @@ export function PostNowDropCard({
           {okMsg}
         </p>
       )}
-      {error && (
-        <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-800 mb-3" role="alert">
-          {error}
-        </p>
-      )}
+      {error && <PostErrorBanner message={error} context={errCtx} />}
 
       {!draft ? (
         <div

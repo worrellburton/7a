@@ -6,7 +6,7 @@
 // targeted platform needs (per-platform bullet list + a
 // de-duplicated "unique crops" grid).
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSavedDrafts, updateDraft, type SavedDraft } from '../../saved-drafts';
@@ -130,6 +130,21 @@ export default function DraftDetailContent({ id }: { id: string }) {
     setActiveTab((cur) => (cur && platforms.includes(cur) ? cur : platforms[0]));
   }, [platforms]);
 
+  // Editable caption — local state, synced from the store, saved on blur.
+  const [caption, setCaption] = useState(draft?.caption ?? '');
+  const captionRef = useRef<HTMLTextAreaElement | null>(null);
+  const [captionSaved, setCaptionSaved] = useState(false);
+  useEffect(() => {
+    // Pull in external updates unless the user is actively editing.
+    if (document.activeElement !== captionRef.current) setCaption(draft?.caption ?? '');
+  }, [draft?.caption]);
+  const saveCaption = () => {
+    if (!draft || caption === draft.caption) return;
+    void updateDraft(draft.id, { caption });
+    setCaptionSaved(true);
+    window.setTimeout(() => setCaptionSaved(false), 1500);
+  };
+
   const allKeys = useMemo(() => platforms.flatMap((pid) => specLinesFor(pid).map((l) => l.key)), [platforms]);
   // Empty stored selection means "not customised yet" → treat all checked.
   const selectedSet = useMemo(() => {
@@ -178,12 +193,36 @@ export default function DraftDetailContent({ id }: { id: string }) {
     weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
   });
 
+  // Ready-to-go gate. A post can only be marked Ready to go once every
+  // CHECKED deliverable slot has media (matching what the per-slot
+  // preview shows). Until then it can still be saved as a draft. Shared
+  // by the header button + the bottom save bar so neither can bypass it.
+  const mediaMap = new Map((draft.mediaByDeliverable ?? []).map((m) => [m.key, m.url] as const));
+  const slotFilled = (l: SpecLine): boolean => {
+    const url = mediaMap.get(l.key) ?? (l.kind === 'image' ? draft.mediaUrls[0] : undefined);
+    return !!(url && url.trim());
+  };
+  const checkedLines = platforms.flatMap((pid) => specLinesFor(pid)).filter((l) => selectedSet.has(l.key));
+  const unfilledSlots = checkedLines.filter((l) => !slotFilled(l));
+  const readyBlockers: string[] = [];
+  if (!draft.caption.trim()) readyBlockers.push('add a caption');
+  if (draft.mediaUrls.length === 0) readyBlockers.push('add media');
+  if (platforms.length === 0) readyBlockers.push('pick a target platform');
+  if (checkedLines.length === 0) readyBlockers.push('check a deliverable');
+  else if (unfilledSlots.length > 0) readyBlockers.push(`fill all ${unfilledSlots.length} selected slot${unfilledSlots.length === 1 ? '' : 's'} with media`);
+  const canMarkReady = readyBlockers.length === 0;
+
+  const saveAsDraft = () => {
+    if (draft.ready) void updateDraft(draft.id, { ready: false });
+    router.push('/feather/social-media?tab=creative');
+  };
+
   return (
     <div className="p-4 sm:p-6 lg:p-10 max-w-5xl mx-auto">
       <header className="mb-5 flex items-baseline justify-between flex-wrap gap-3">
         <div>
           <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">
-            Social Media · Draft
+            Social Media · Compose
           </p>
           <h1 className="mt-1 text-2xl font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
             {(draft.caption || 'Untitled draft').slice(0, 80)}
@@ -204,8 +243,10 @@ export default function DraftDetailContent({ id }: { id: string }) {
           </Link>
           <button
             type="button"
-            onClick={toggleReady}
-            className={`px-3 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wider ${draft.ready ? 'border border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-50' : 'bg-primary text-white hover:bg-primary-dark'}`}
+            onClick={() => { if (draft.ready || canMarkReady) toggleReady(); }}
+            disabled={!draft.ready && !canMarkReady}
+            title={!draft.ready && !canMarkReady ? `To mark ready: ${readyBlockers.join(' · ')}` : undefined}
+            className={`px-3 py-1.5 rounded-md text-[11px] font-semibold uppercase tracking-wider ${draft.ready ? 'border border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-50' : canMarkReady ? 'bg-primary text-white hover:bg-primary-dark' : 'bg-foreground/10 text-foreground/40 cursor-not-allowed'}`}
           >
             {draft.ready ? 'Move back to drafts' : 'Mark ready to go'}
           </button>
@@ -213,10 +254,20 @@ export default function DraftDetailContent({ id }: { id: string }) {
       </header>
 
       <section className="rounded-2xl border border-black/10 bg-white p-5 mb-4">
-        <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">Caption</p>
-        <p className="text-[14px] text-foreground/85 whitespace-pre-wrap leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
-          {draft.caption || <span className="text-foreground/40 italic">(no caption)</span>}
-        </p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">Caption</p>
+          {captionSaved && <span className="text-[10px] font-semibold text-emerald-600">Saved ✓</span>}
+        </div>
+        <textarea
+          ref={captionRef}
+          value={caption}
+          onChange={(e) => setCaption(e.target.value)}
+          onBlur={saveCaption}
+          rows={Math.min(12, Math.max(4, caption.split('\n').length + 1))}
+          placeholder="Write the caption for this post…"
+          className="w-full resize-y rounded-lg border border-black/10 bg-white px-3 py-2.5 text-[14px] text-foreground/85 leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/40"
+          style={{ fontFamily: 'var(--font-body)' }}
+        />
         {draft.mediaUrls.length > 0 && (
           <div className="mt-4">
             <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">Media · {draft.mediaUrls.length}</p>
@@ -378,43 +429,44 @@ export default function DraftDetailContent({ id }: { id: string }) {
         </ul>
       </section>
 
-      {/* Sticky save bar — instructions on the left, gated Save on the
-          right. Saving marks the post Ready to go. */}
-      {(() => {
-        const missing: string[] = [];
-        if (!draft.caption.trim()) missing.push('add a caption');
-        if (draft.mediaUrls.length === 0) missing.push('add media');
-        if (platforms.length === 0) missing.push('pick a target platform');
-        if (allKeys.filter((k) => selectedSet.has(k)).length === 0) missing.push('check a deliverable');
-        const canSave = missing.length === 0;
-        return (
-          <div className="sticky bottom-0 z-10 mt-6 -mx-4 sm:-mx-6 lg:-mx-10 px-4 sm:px-6 lg:px-10 py-3 bg-white/90 backdrop-blur border-t border-black/10 flex items-center justify-between gap-4">
-            <p className="min-w-0 text-[12px] text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>
-              {draft.ready ? (
-                <span className="text-emerald-700 font-semibold">✓ Saved as Ready to go.</span>
-              ) : canSave ? (
-                <span>Everything&apos;s in place — save to mark this post <strong className="text-foreground/80">Ready to go</strong>.</span>
-              ) : (
-                <span>To make it ready: <span className="font-semibold text-foreground/80">{missing.join(' · ')}</span>.</span>
-              )}
-            </p>
-            <button
-              type="button"
-              disabled={!canSave || draft.ready}
-              onClick={() => { if (canSave && !draft.ready) void updateDraft(draft.id, { ready: true }); }}
-              className={`shrink-0 px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors ${
-                draft.ready
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default'
-                  : canSave
-                  ? 'bg-primary text-white hover:bg-primary-dark'
-                  : 'bg-foreground/10 text-foreground/40 cursor-not-allowed'
-              }`}
-            >
-              {draft.ready ? 'Saved ✓' : 'Save ready-to-go post'}
-            </button>
-          </div>
-        );
-      })()}
+      {/* Sticky save bar. Changes auto-save as a draft already; this bar
+          adds an explicit "Save as draft" (always allowed) and a gated
+          "Save ready-to-go" that needs every selected slot filled. */}
+      <div className="sticky bottom-0 z-10 mt-6 -mx-4 sm:-mx-6 lg:-mx-10 px-4 sm:px-6 lg:px-10 py-3 bg-white/90 backdrop-blur border-t border-black/10 flex items-center justify-between gap-4">
+        <p className="min-w-0 text-[12px] text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>
+          {draft.ready ? (
+            <span className="text-emerald-700 font-semibold">✓ Saved as Ready to go.</span>
+          ) : canMarkReady ? (
+            <span>Everything&apos;s in place — save to mark this post <strong className="text-foreground/80">Ready to go</strong>.</span>
+          ) : (
+            <span>Saves automatically as a draft. To make it ready: <span className="font-semibold text-foreground/80">{readyBlockers.join(' · ')}</span>.</span>
+          )}
+        </p>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={saveAsDraft}
+            className="px-4 py-2 rounded-lg text-[13px] font-semibold border border-black/10 bg-white text-foreground/70 hover:bg-warm-bg/60"
+          >
+            Save as draft
+          </button>
+          <button
+            type="button"
+            disabled={!canMarkReady || draft.ready}
+            title={!canMarkReady && !draft.ready ? `To mark ready: ${readyBlockers.join(' · ')}` : undefined}
+            onClick={() => { if (canMarkReady && !draft.ready) void updateDraft(draft.id, { ready: true }); }}
+            className={`px-4 py-2 rounded-lg text-[13px] font-semibold transition-colors ${
+              draft.ready
+                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default'
+                : canMarkReady
+                ? 'bg-primary text-white hover:bg-primary-dark'
+                : 'bg-foreground/10 text-foreground/40 cursor-not-allowed'
+            }`}
+          >
+            {draft.ready ? 'Saved ✓' : 'Save ready-to-go post'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
