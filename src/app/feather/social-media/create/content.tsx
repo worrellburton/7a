@@ -25,6 +25,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { PlatformIcon, type PlatformId } from '../PlatformIcon';
 import { saveDraft } from '../saved-drafts';
 import { PostingPausedBanner } from '../PostingStatus';
+import { PLATFORM_SPECS } from '../platform-specs';
 import {
   PLATFORM_LABELS,
   ALL_PLATFORM_IDS,
@@ -212,6 +213,47 @@ export default function CreatePostContent() {
     [rows, urlByKey],
   );
 
+  // Per-network caption character budget — platforms hard-reject past the
+  // cap (X at 280 is the easy one to blow), so flag any selected network
+  // whose limit the caption exceeds.
+  const overLimitPlatforms = useMemo(
+    () => Array.from(platforms).filter((pid) => {
+      const max = PLATFORM_SPECS[pid]?.textMax;
+      return typeof max === 'number' && caption.length > max;
+    }),
+    [platforms, caption],
+  );
+
+  // Specific, human reasons "Save as ready" is blocked — surfaced under the
+  // save bar so the disabled button is never a mystery.
+  const readyBlockers = useMemo(() => {
+    const out: string[] = [];
+    if (!caption.trim()) out.push('add a caption');
+    if (platforms.size === 0) out.push('pick a network');
+    if (rows.length > 0) {
+      const unfilled = rows.filter((r) => !(urlByKey[r.key] ?? '').trim()).length;
+      if (unfilled > 0) out.push(`fill ${unfilled} deliverable slot${unfilled === 1 ? '' : 's'}`);
+    }
+    if (overLimitPlatforms.length > 0) {
+      out.push(`shorten the caption for ${overLimitPlatforms.map((p) => PLATFORM_LABELS[p] ?? p).join(', ')}`);
+    }
+    return out;
+  }, [caption, platforms, rows, urlByKey, overLimitPlatforms]);
+  const canSaveReady = allSlotsFilled && readyBlockers.length === 0;
+
+  // Fill just the active platform's slots from staged media (kind-matched).
+  const usePrimaryForActivePlatform = () => {
+    if (!activeTab) return;
+    setUrlByKey((prev) => {
+      const next = { ...prev };
+      for (const r of rows.filter((row) => row.platform === activeTab)) {
+        const match = stagedMedia.find((u) => isVideoUrl(u) === (r.kind === 'video'));
+        if (match) next[r.key] = match;
+      }
+      return next;
+    });
+  };
+
   const togglePlatform = (pid: PlatformId) => {
     setPlatforms((prev) => {
       const next = new Set(prev);
@@ -332,8 +374,8 @@ export default function CreatePostContent() {
       setError('Pick at least one network.');
       return;
     }
-    if (ready && !allSlotsFilled) {
-      setError('Fill every deliverable slot before saving as ready.');
+    if (ready && !canSaveReady) {
+      setError(`Before saving as ready: ${readyBlockers.join('; ')}.`);
       return;
     }
     setError(null);
@@ -507,6 +549,32 @@ export default function CreatePostContent() {
           className="w-full px-3 py-2 rounded-md border border-black/10 text-[13.5px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/30"
           style={{ fontFamily: 'var(--font-body)' }}
         />
+        {/* Per-network character budget — a network goes red once the
+            caption passes its hard cap (e.g. X at 280). */}
+        {platforms.size > 0 && caption.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {ALL_PLATFORM_IDS.filter((pid) => platforms.has(pid)).map((pid) => {
+              const max = PLATFORM_SPECS[pid]?.textMax;
+              if (typeof max !== 'number') return null;
+              const over = caption.length > max;
+              const near = !over && caption.length > max * 0.9;
+              return (
+                <span
+                  key={pid}
+                  className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10.5px] font-semibold tabular-nums ${
+                    over ? 'border-red-300 bg-red-50 text-red-700'
+                      : near ? 'border-amber-300 bg-amber-50 text-amber-700'
+                      : 'border-black/10 bg-white text-foreground/55'
+                  }`}
+                  title={`${PLATFORM_LABELS[pid] ?? pid} caption limit ${max.toLocaleString()}`}
+                >
+                  <span className="inline-flex items-center justify-center w-3 h-3"><PlatformIcon platform={pid} size={11} /></span>
+                  {caption.length.toLocaleString()}/{max.toLocaleString()}
+                </span>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       {/* Media — the post's photos/videos. Drag a thumbnail onto a
@@ -594,9 +662,11 @@ export default function CreatePostContent() {
         {/* Per-platform tabs — only platforms with at least one enabled
             deliverable get a tab. */}
         {rows.length > 0 && tabPlatforms.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-3">
+          <div className="flex flex-wrap items-center gap-1.5 mb-3">
             {tabPlatforms.map((pid) => {
               const count = rows.filter((r) => r.platform === pid).length;
+              const filled = rows.filter((r) => r.platform === pid && (urlByKey[r.key] ?? '').trim()).length;
+              const complete = filled === count && count > 0;
               const on = activeTab === pid;
               return (
                 <button
@@ -609,10 +679,22 @@ export default function CreatePostContent() {
                     <PlatformIcon platform={pid} size={12} />
                   </span>
                   {PLATFORM_LABELS[pid] ?? pid}
-                  <span className={`text-[10px] ${on ? 'text-white/70' : 'text-foreground/40'}`}>{count}</span>
+                  <span className={`text-[10px] ${complete ? (on ? 'text-emerald-200' : 'text-emerald-600') : on ? 'text-white/70' : 'text-foreground/40'}`}>
+                    {complete ? '✓' : `${filled}/${count}`}
+                  </span>
                 </button>
               );
             })}
+            {activeTab && stagedMedia.length > 0 && (
+              <button
+                type="button"
+                onClick={usePrimaryForActivePlatform}
+                className="ml-auto px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+                title={`Fill every ${PLATFORM_LABELS[activeTab] ?? activeTab} slot from your media`}
+              >
+                Fill {PLATFORM_LABELS[activeTab] ?? activeTab} slots
+              </button>
+            )}
           </div>
         )}
 
@@ -746,9 +828,9 @@ export default function CreatePostContent() {
       {error && <p className="mb-3 text-[12px] text-red-700" role="alert">{error}</p>}
 
       <div className="flex items-center justify-end gap-2 flex-wrap">
-        {!allSlotsFilled && (
+        {!canSaveReady && readyBlockers.length > 0 && (
           <span className="mr-auto text-[11.5px] text-foreground/45" style={{ fontFamily: 'var(--font-body)' }}>
-            Fill every deliverable slot to enable <strong className="text-foreground/60">Save as ready</strong>.
+            To <strong className="text-foreground/60">Save as ready</strong>: {readyBlockers.join(' · ')}.
           </span>
         )}
         <Link
@@ -769,8 +851,8 @@ export default function CreatePostContent() {
         <button
           type="button"
           onClick={() => onSave(true)}
-          disabled={saving || !allSlotsFilled}
-          title={allSlotsFilled ? undefined : 'Fill every deliverable slot first'}
+          disabled={saving || !canSaveReady}
+          title={canSaveReady ? undefined : `To save as ready: ${readyBlockers.join('; ')}`}
           className="px-4 py-2 rounded-md bg-primary text-white text-[12px] font-semibold uppercase tracking-wider hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed"
           style={{ fontFamily: 'var(--font-body)' }}
         >
