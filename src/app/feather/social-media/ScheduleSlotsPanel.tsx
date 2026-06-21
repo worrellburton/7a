@@ -8,7 +8,7 @@
 // the exact date + time, and it's queued via Ayrshare. The networks it
 // posts to come from where the draft was assigned in Creative.
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { usePostingEnabled, PostingPausedBanner } from './PostingStatus';
 
@@ -85,14 +85,23 @@ function PostErrorBanner({ message, context }: { message: string; context: unkno
 // Exported so the Post tab + Schedule tab can render Ready-to-Go as
 // its own card. Each tile is draggable and carries the full draft on
 // the dataTransfer so a drop target can schedule it directly.
-export function ReadyToGoCard({ drafts }: { drafts: ReadyDraft[] }) {
+export function ReadyToGoCard({
+  drafts,
+  onQuickAction,
+}: {
+  drafts: ReadyDraft[];
+  // Click-path alternative to dragging — load a draft straight into the
+  // Schedule or Post-now card. Essential on touch, where HTML5 drag-drop
+  // doesn't fire at all.
+  onQuickAction?: (draft: ReadyDraft, action: 'schedule' | 'postnow') => void;
+}) {
   return (
     <section className="rounded-2xl border border-black/10 bg-white px-4 py-4 lg:px-5 lg:py-5">
       <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
         <div>
           <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Ready · {drafts.length}</h2>
           <p className="text-[11px] text-foreground/45 mt-0.5">
-            Drag a draft down onto the Post now or Schedule card to publish it.
+            Drag a draft onto the Post now or Schedule card — or use the buttons on each tile.
           </p>
         </div>
       </div>
@@ -103,9 +112,9 @@ export function ReadyToGoCard({ drafts }: { drafts: ReadyDraft[] }) {
           </p>
         </div>
       ) : (
-        <ul className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
+        <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-2">
           {drafts.map((d) => (
-            <ReadyDraftTile key={d.id} draft={d} />
+            <ReadyDraftTile key={d.id} draft={d} onQuickAction={onQuickAction} />
           ))}
         </ul>
       )}
@@ -118,7 +127,13 @@ export function ReadyToGoCard({ drafts }: { drafts: ReadyDraft[] }) {
 // stays `draggable={false}` — without that, the browser's native
 // image-drag intercepts the gesture and our 'application/x-ready-draft'
 // MIME type never gets set, so every drop target rejected the drop.
-function ReadyDraftTile({ draft }: { draft: ReadyDraft }) {
+function ReadyDraftTile({
+  draft,
+  onQuickAction,
+}: {
+  draft: ReadyDraft;
+  onQuickAction?: (draft: ReadyDraft, action: 'schedule' | 'postnow') => void;
+}) {
   const thumb = draft.mediaUrls[0];
   const isVideo = typeof thumb === 'string' && /\.(mp4|mov|webm|m4v)(\?|$)/i.test(thumb);
   return (
@@ -156,11 +171,37 @@ function ReadyDraftTile({ draft }: { draft: ReadyDraft }) {
         </div>
       )}
       <span className="absolute top-1 left-1 inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white" aria-hidden />
-      <div className="absolute inset-x-0 bottom-0 px-1.5 py-1 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-        <p className="text-[10px] text-white leading-tight line-clamp-2" style={{ fontFamily: 'var(--font-body)' }}>
-          {draft.caption || '(no caption)'}
-        </p>
-      </div>
+      {!onQuickAction && (
+        <div className="absolute inset-x-0 bottom-0 px-1.5 py-1 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+          <p className="text-[10px] text-white leading-tight line-clamp-2" style={{ fontFamily: 'var(--font-body)' }}>
+            {draft.caption || '(no caption)'}
+          </p>
+        </div>
+      )}
+      {/* Click-path actions — always visible on touch (no hover, no drag),
+          fade-in on hover for desktop where dragging is the primary gesture. */}
+      {onQuickAction && (
+        <div className="absolute inset-x-0 bottom-0 flex divide-x divide-white/20 bg-black/55 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
+          <button
+            type="button"
+            onClick={() => onQuickAction(draft, 'schedule')}
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-white hover:bg-white/10"
+            title="Schedule this post"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2" /><path strokeLinecap="round" d="M3 9h18M8 2v4M16 2v4" /></svg>
+            <span className="hidden sm:inline">Schedule</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => onQuickAction(draft, 'postnow')}
+            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-white hover:bg-white/10"
+            title="Post this now"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" /></svg>
+            <span className="hidden sm:inline">Now</span>
+          </button>
+        </div>
+      )}
     </li>
   );
 }
@@ -213,9 +254,12 @@ function resolveQuick(value: string, currentWhen: string): Date | null {
 export default function ScheduleDropCard({
   connectedPlatforms,
   onScheduled,
+  injected,
 }: {
   connectedPlatforms: string[];
   onScheduled: () => void;
+  // Click-path injection: load this draft as if it had been dropped.
+  injected?: { draft: ReadyDraft; n: number } | null;
 }) {
   const { session } = useAuth();
   const postingEnabled = usePostingEnabled();
@@ -229,6 +273,18 @@ export default function ScheduleDropCard({
   // Which networks this scheduled post goes to — seeded from the draft's
   // Creative assignment (∩ connected) on drop; toggled via the checkmarks.
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
+
+  // Load a draft pushed in via the Ready tile's Schedule button.
+  useEffect(() => {
+    if (!injected) return;
+    setDraft(injected.draft);
+    const a = injected.draft.platforms ?? [];
+    const avail = a.length > 0 ? a.filter((p) => connectedPlatforms.includes(p)) : connectedPlatforms;
+    setSelectedPlatforms(new Set(avail));
+    setError(null);
+    setOkMsg(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [injected?.n]);
 
   // Platforms offered as checkmarks: the draft's assigned networks that
   // are connected, else every connected account.
@@ -454,9 +510,12 @@ export default function ScheduleDropCard({
 export function PostNowDropCard({
   connectedPlatforms,
   onPosted,
+  injected,
 }: {
   connectedPlatforms: string[];
   onPosted: () => void;
+  // Click-path injection: load this draft as if it had been dropped.
+  injected?: { draft: ReadyDraft; n: number } | null;
 }) {
   const { session } = useAuth();
   const postingEnabled = usePostingEnabled();
@@ -467,6 +526,18 @@ export function PostNowDropCard({
   const [errCtx, setErrCtx] = useState<unknown>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
   const [selectedPlatforms, setSelectedPlatforms] = useState<Set<string>>(new Set());
+
+  // Load a draft pushed in via the Ready tile's "Now" button.
+  useEffect(() => {
+    if (!injected) return;
+    setDraft(injected.draft);
+    const a = injected.draft.platforms ?? [];
+    const avail = a.length > 0 ? a.filter((p) => connectedPlatforms.includes(p)) : connectedPlatforms;
+    setSelectedPlatforms(new Set(avail));
+    setError(null);
+    setOkMsg(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [injected?.n]);
 
   const assigned = draft?.platforms ?? [];
   const availablePlatforms = assigned.length > 0
