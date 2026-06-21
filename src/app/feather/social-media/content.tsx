@@ -12,7 +12,7 @@ import { MediaPicker, type PickedMedia } from './MediaPicker';
 import { PostStatusToast, type PostStatus, type PerPlatformResult } from './PostStatusToast';
 import { PLATFORM_SPECS, type MediaSpec, type VideoSpec } from './platform-specs';
 import ScheduleDropCard, { ReadyToGoCard, PostNowDropCard, type ReadyDraft } from './ScheduleSlotsPanel';
-import { useSavedDrafts, saveDraft as createDraft, setDraftReady, deleteDraft, type SavedDraft } from './saved-drafts';
+import { useSavedDrafts, saveDraft as createDraft, setDraftReady, deleteDraft, submitForReview, updateDraft, type SavedDraft } from './saved-drafts';
 import { usePendingDeletes, UndoToast } from './UndoToast';
 import { ScheduledCalendar } from './ScheduledCalendar';
 
@@ -1687,6 +1687,7 @@ function CreativeTabBody() {
 // taking up a top-level tab slot.
 function CreativeDraftsPanel() {
   const { drafts, loading } = useSavedDrafts();
+  const { isSuperAdmin } = useAuth();
   const [dragOver, setDragOver] = useState(false);
   const { hiddenIds, request: requestDelete, pending, undo } = usePendingDeletes(
     (ids) => ids.forEach((id) => void deleteDraft(id)),
@@ -1700,9 +1701,14 @@ function CreativeDraftsPanel() {
     const cur = drafts.find((d) => d.id === id);
     void setDraftReady(id, !cur?.ready);
   };
+  // Approval workflow actions.
+  const submit = (id: string) => { void submitForReview(id); };
+  const approve = (id: string) => { void setDraftReady(id, true); };
+  const requestChanges = (id: string) => { void updateDraft(id, { reviewStatus: 'draft' }); };
 
   const inProgress = drafts.filter((d) => !d.ready && !hiddenIds.has(d.id));
   const ready = drafts.filter((d) => d.ready);
+  const inReviewCount = inProgress.filter((d) => (d.reviewStatus ?? 'draft') === 'in_review').length;
   const showSkeleton = loading && drafts.length === 0;
 
   // Drop a Ready row here → move it back to drafts (unmark ready).
@@ -1728,11 +1734,18 @@ function CreativeDraftsPanel() {
       className={`rounded-2xl border bg-white px-4 py-4 lg:px-6 lg:py-5 transition-colors ${dragOver ? 'border-primary ring-2 ring-primary/20' : 'border-black/10'}`}
     >
       <div className="mb-3">
-        <h2 className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
-          Drafts · {inProgress.length}
-        </h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h2 className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
+            Drafts · {inProgress.length}
+          </h2>
+          {inReviewCount > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[9.5px] font-bold uppercase tracking-wider text-amber-700">
+              {inReviewCount} awaiting review
+            </span>
+          )}
+        </div>
         <p className="text-[11px] text-foreground/45 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-          Posts your team is still working on — not yet approved. Hit <strong>Mark ready</strong> (or drag a row down to <strong>Ready</strong>) to approve one.
+          Posts your team is still working on. <strong>Submit for review</strong> to send one for sign-off{isSuperAdmin ? ' — or Approve / Mark ready directly.' : '.'}
           {ready.length > 0 && <> {ready.length} already approved.</>}
         </p>
       </div>
@@ -1803,14 +1816,38 @@ function CreativeDraftsPanel() {
                       {savedLabel}
                     </td>
                     <td className="px-2 py-2 align-middle text-right whitespace-nowrap">
-                      <div className="inline-flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => toggleReady(d.id)}
-                          className="px-2.5 py-1 rounded-md bg-primary text-white text-[10px] font-semibold hover:bg-primary/90"
-                        >
-                          Mark ready
-                        </button>
+                      <div className="inline-flex items-center gap-1.5 flex-wrap justify-end">
+                        {(d.reviewStatus ?? 'draft') === 'in_review' ? (
+                          <>
+                            <span className="px-2 py-0.5 rounded-full bg-amber-50 border border-amber-200 text-[9.5px] font-bold uppercase tracking-wider text-amber-700">In review</span>
+                            {isSuperAdmin && (
+                              <>
+                                <button type="button" onClick={() => approve(d.id)} className="px-2.5 py-1 rounded-md bg-emerald-600 text-white text-[10px] font-semibold hover:bg-emerald-700">Approve</button>
+                                <button type="button" onClick={() => requestChanges(d.id)} className="px-2 py-1 rounded-md border border-black/10 bg-white text-[10px] font-semibold text-foreground/65 hover:bg-warm-bg/60">Changes</button>
+                              </>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => submit(d.id)}
+                              className="px-2.5 py-1 rounded-md border border-primary/40 bg-primary/5 text-primary text-[10px] font-semibold hover:bg-primary/10"
+                            >
+                              Submit for review
+                            </button>
+                            {isSuperAdmin && (
+                              <button
+                                type="button"
+                                onClick={() => toggleReady(d.id)}
+                                className="px-2.5 py-1 rounded-md bg-primary text-white text-[10px] font-semibold hover:bg-primary/90"
+                                title="Approve directly without review"
+                              >
+                                Mark ready
+                              </button>
+                            )}
+                          </>
+                        )}
                         <Link
                           href={`/feather/social-media/drafts/${d.id}`}
                           className="px-2.5 py-1 rounded-md border border-black/10 bg-white text-[10px] font-semibold text-foreground/70 hover:bg-warm-bg/60"

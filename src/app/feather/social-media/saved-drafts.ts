@@ -33,6 +33,12 @@ export interface SavedDraft {
    * the UI treats as "every deliverable selected".
    */
   selectedDeliverables?: string[];
+  /**
+   * Approval workflow state. `approved` always lines up with `ready: true`
+   * (approved posts are the publishable bucket); `in_review` is a draft
+   * submitted and awaiting a super-admin's sign-off.
+   */
+  reviewStatus?: 'draft' | 'in_review' | 'approved';
 }
 
 const TABLE = 'social_media_drafts';
@@ -64,6 +70,9 @@ function rowToDraft(r: Record<string, unknown>): SavedDraft {
     selectedDeliverables: Array.isArray(r.selected_deliverables)
       ? (r.selected_deliverables as string[])
       : [],
+    reviewStatus: (r.review_status === 'in_review' || r.review_status === 'approved')
+      ? r.review_status
+      : 'draft',
   };
 }
 
@@ -164,7 +173,7 @@ export async function saveDraft(input: NewDraftInput): Promise<SavedDraft | null
   return draft;
 }
 
-export type DraftPatch = Partial<Pick<SavedDraft, 'caption' | 'mediaUrls' | 'platforms' | 'ready' | 'mediaByDeliverable' | 'selectedDeliverables'>>;
+export type DraftPatch = Partial<Pick<SavedDraft, 'caption' | 'mediaUrls' | 'platforms' | 'ready' | 'mediaByDeliverable' | 'selectedDeliverables' | 'reviewStatus'>>;
 
 export async function updateDraft(id: string, patch: DraftPatch): Promise<void> {
   const dbPatch: Record<string, unknown> = {};
@@ -174,6 +183,7 @@ export async function updateDraft(id: string, patch: DraftPatch): Promise<void> 
   if (patch.ready !== undefined) dbPatch.ready = patch.ready;
   if (patch.mediaByDeliverable !== undefined) dbPatch.media_by_deliverable = patch.mediaByDeliverable;
   if (patch.selectedDeliverables !== undefined) dbPatch.selected_deliverables = patch.selectedDeliverables;
+  if (patch.reviewStatus !== undefined) dbPatch.review_status = patch.reviewStatus;
   if (Object.keys(dbPatch).length === 0) return;
   const { error } = await supabase.from(TABLE).update(dbPatch).eq('id', id);
   if (error) return;
@@ -182,7 +192,15 @@ export async function updateDraft(id: string, patch: DraftPatch): Promise<void> 
 }
 
 export async function setDraftReady(id: string, ready: boolean): Promise<void> {
-  return updateDraft(id, { ready });
+  // Keep the review state in lockstep with ready everywhere ready is
+  // toggled (drag moves, bulk unmark, the Mark-ready button): ready ⇒
+  // approved, not-ready ⇒ back to draft.
+  return updateDraft(id, { ready, reviewStatus: ready ? 'approved' : 'draft' });
+}
+
+/** Submit a not-ready draft for a super-admin's review. */
+export async function submitForReview(id: string): Promise<void> {
+  return updateDraft(id, { reviewStatus: 'in_review' });
 }
 
 export async function deleteDraft(id: string): Promise<void> {
