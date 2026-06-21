@@ -93,13 +93,18 @@ function deriveDeliverables(platforms: PlatformId[]): Deliverable[] {
 }
 
 interface SpecLine { key: string; label: string; size: string | undefined; ratio: string; kind: 'image' | 'video'; }
-// Flat list of one platform's deliverables, keyed `${platformId}|${label}`.
+// Flat list of one platform's deliverables. Keyed
+// `${platformId}|${kind}|${index}|${label}` — the kind+index make it
+// UNIQUE even when two specs share a label (e.g. Facebook has a
+// "Story (9:16)" in both images and videos). A bare `${pid}|${label}`
+// key collided, which broke React's list reconciliation (phantom rows
+// you couldn't uncheck).
 function specLinesFor(pid: PlatformId): SpecLine[] {
   const spec = PLATFORM_SPECS[pid];
   if (!spec) return [];
   const out: SpecLine[] = [];
-  for (const img of spec.images) out.push({ key: `${pid}|${img.label}`, label: img.label, size: img.size, ratio: img.ratio, kind: 'image' });
-  for (const vid of spec.videos) out.push({ key: `${pid}|${vid.label}`, label: vid.label, size: vid.size, ratio: vid.ratio, kind: 'video' });
+  spec.images.forEach((img, i) => out.push({ key: `${pid}|image|${i}|${img.label}`, label: img.label, size: img.size, ratio: img.ratio, kind: 'image' }));
+  spec.videos.forEach((vid, i) => out.push({ key: `${pid}|video|${i}|${vid.label}`, label: vid.label, size: vid.size, ratio: vid.ratio, kind: 'video' }));
   return out;
 }
 

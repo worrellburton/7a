@@ -124,9 +124,9 @@ function buildDeliverableRows(platforms: PlatformId[]): DeliverableRow[] {
   for (const pid of platforms) {
     const spec = PLATFORM_SPECS[pid];
     if (!spec) continue;
-    for (const img of spec.images) {
+    spec.images.forEach((img, i) => {
       out.push({
-        key: `${pid}|${img.label}`,
+        key: `${pid}|image|${i}|${img.label}`,
         platform: pid,
         label: img.label,
         ratio: img.ratio,
@@ -134,10 +134,10 @@ function buildDeliverableRows(platforms: PlatformId[]): DeliverableRow[] {
         kind: 'image',
         surface: inferSurface(img.label),
       });
-    }
-    for (const vid of spec.videos) {
+    });
+    spec.videos.forEach((vid, i) => {
       out.push({
-        key: `${pid}|${vid.label}`,
+        key: `${pid}|video|${i}|${vid.label}`,
         platform: pid,
         label: vid.label,
         ratio: vid.ratio,
@@ -145,7 +145,7 @@ function buildDeliverableRows(platforms: PlatformId[]): DeliverableRow[] {
         kind: 'video',
         surface: inferSurface(vid.label),
       });
-    }
+    });
   }
   return out;
 }
