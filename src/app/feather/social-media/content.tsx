@@ -13,6 +13,7 @@ import { PostStatusToast, type PostStatus, type PerPlatformResult } from './Post
 import { PLATFORM_SPECS, type MediaSpec, type VideoSpec } from './platform-specs';
 import ScheduleDropCard, { ReadyToGoCard, PostNowDropCard, type ReadyDraft } from './ScheduleSlotsPanel';
 import { useSavedDrafts, saveDraft as createDraft, setDraftReady, deleteDraft, type SavedDraft } from './saved-drafts';
+import { usePendingDeletes, UndoToast } from './UndoToast';
 
 // ── Cross-tab Send-to-Compose handoff ────────────────────────────────
 //
@@ -1662,11 +1663,14 @@ function CreativeTabBody() {
 // inline state to surface the original Templates panel without
 // taking up a top-level tab slot.
 function CreativeDraftsPanel() {
-  const { drafts } = useSavedDrafts();
+  const { drafts, loading } = useSavedDrafts();
   const [dragOver, setDragOver] = useState(false);
+  const { hiddenIds, request: requestDelete, pending, undo } = usePendingDeletes(
+    (ids) => ids.forEach((id) => void deleteDraft(id)),
+  );
 
   const remove = (id: string) => {
-    void deleteDraft(id);
+    requestDelete([id], 'Draft deleted');
   };
 
   const toggleReady = (id: string) => {
@@ -1674,8 +1678,9 @@ function CreativeDraftsPanel() {
     void setDraftReady(id, !cur?.ready);
   };
 
-  const inProgress = drafts.filter((d) => !d.ready);
+  const inProgress = drafts.filter((d) => !d.ready && !hiddenIds.has(d.id));
   const ready = drafts.filter((d) => d.ready);
+  const showSkeleton = loading && drafts.length === 0;
 
   // Drop a Ready row here → move it back to drafts (unmark ready).
   const onDragOver = (e: React.DragEvent) => {
@@ -1709,7 +1714,9 @@ function CreativeDraftsPanel() {
         </p>
       </div>
 
-      {inProgress.length === 0 ? (
+      {showSkeleton ? (
+        <DraftRowsSkeleton />
+      ) : inProgress.length === 0 ? (
         <div className="rounded-xl border border-dashed border-black/10 bg-warm-bg/30 px-5 py-10 text-center">
           <p className="text-sm text-foreground/55 max-w-md mx-auto">
             No drafts in progress.{' '}
@@ -1804,7 +1811,27 @@ function CreativeDraftsPanel() {
           </table>
         </div>
       )}
+      {pending && <UndoToast message={pending.label} onUndo={undo} />}
     </section>
+  );
+}
+
+// Lightweight skeleton rows for the draft tables while the first DB load
+// is in flight — keeps the layout stable instead of flashing empty.
+function DraftRowsSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <div className="rounded-lg border border-black/5 divide-y divide-black/5 overflow-hidden">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="flex items-center gap-3 px-3 py-2.5 animate-pulse">
+          <div className="w-9 h-9 rounded bg-foreground/10 shrink-0" />
+          <div className="flex-1 min-w-0 space-y-1.5">
+            <div className="h-2.5 rounded bg-foreground/10 w-3/4" />
+            <div className="h-2.5 rounded bg-foreground/[0.07] w-1/2" />
+          </div>
+          <div className="h-5 w-16 rounded bg-foreground/10 shrink-0" />
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -1840,12 +1867,15 @@ function RoundCheck({ checked, indeterminate, onChange, label }: { checked: bool
 // Mirrors the publish-flow picker on the Post tab but lives here
 // so the marketer has a dedicated "what's queued?" surface.
 function ReadyToGoPanel() {
-  const modal = useModal();
-  const { drafts } = useSavedDrafts();
+  const { drafts, loading } = useSavedDrafts();
   // Selected draft ids — drives the batch-action bar at the bottom.
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const { hiddenIds, request: requestDelete, pending, undo } = usePendingDeletes(
+    (ids) => ids.forEach((id) => void deleteDraft(id)),
+  );
 
-  const ready = useMemo(() => drafts.filter((d) => d.ready), [drafts]);
+  const ready = useMemo(() => drafts.filter((d) => d.ready && !hiddenIds.has(d.id)), [drafts, hiddenIds]);
+  const showSkeleton = loading && drafts.length === 0;
   // Drop selections that point at drafts that no longer exist (e.g.
   // after a parallel tab unmarks a draft).
   useEffect(() => {
@@ -1883,16 +1913,10 @@ function ReadyToGoPanel() {
     void Promise.all(ids.map((id) => setDraftReady(id, false)));
     setSelected(new Set());
   };
-  const batchDelete = async () => {
+  const batchDelete = () => {
     const ids = [...selected];
     if (ids.length === 0) return;
-    const ok = await modal.confirm(`Delete ${ids.length} approved post${ids.length === 1 ? '' : 's'}?`, {
-      message: "This can't be undone.",
-      confirmLabel: 'Delete',
-      tone: 'danger',
-    });
-    if (!ok) return;
-    await Promise.all(ids.map((id) => deleteDraft(id)));
+    requestDelete(ids, `${ids.length} post${ids.length === 1 ? '' : 's'} deleted`);
     setSelected(new Set());
   };
 
@@ -1930,7 +1954,9 @@ function ReadyToGoPanel() {
         </div>
       </header>
 
-      {ready.length === 0 ? (
+      {showSkeleton ? (
+        <DraftRowsSkeleton />
+      ) : ready.length === 0 ? (
         <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
           Nothing approved yet. Hit <strong>Mark ready</strong> on a draft above (or drag it down here) once it&rsquo;s final.
         </p>
@@ -2019,13 +2045,10 @@ function ReadyToGoPanel() {
                         </Link>
                         <button
                           type="button"
-                          onClick={async () => {
-                            const ok = await modal.confirm('Delete this approved post?', { message: "This can't be undone.", confirmLabel: 'Delete', tone: 'danger' });
-                            if (ok) void deleteDraft(d.id);
-                          }}
+                          onClick={() => requestDelete([d.id], 'Post deleted')}
                           className="inline-flex items-center justify-center w-7 h-7 rounded-md border border-black/10 bg-white text-foreground/45 hover:text-rose-700 hover:border-rose-300"
                           aria-label="Delete post"
-                          title="Delete"
+                          title="Delete (with undo)"
                         >
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                         </button>
@@ -2092,6 +2115,7 @@ function ReadyToGoPanel() {
           </div>
         </div>
       )}
+      {pending && <UndoToast message={pending.label} onUndo={undo} />}
     </section>
   );
 }
