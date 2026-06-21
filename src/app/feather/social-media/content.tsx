@@ -1237,17 +1237,36 @@ function SchedulePostsBody({
     }, 150);
   }, [refreshHistory]);
 
+  // Click-path: load a Ready tile into the matching card without dragging
+  // (the only way that works on touch). `n` makes each click a fresh
+  // injection even for the same draft.
+  const postNowRef = useRef<HTMLDivElement>(null);
+  const scheduleRef = useRef<HTMLDivElement>(null);
+  const [inject, setInject] = useState<{ draft: ReadyDraft; action: 'schedule' | 'postnow'; n: number } | null>(null);
+  const quickAction = useCallback((draft: ReadyDraft, action: 'schedule' | 'postnow') => {
+    setInject({ draft, action, n: Date.now() });
+    window.setTimeout(() => {
+      (action === 'schedule' ? scheduleRef : postNowRef).current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 60);
+  }, []);
+
   return (
     <div className="space-y-4">
-      <ReadyToGoCard drafts={readyDrafts} />
-      <PostNowDropCard
-        connectedPlatforms={connectedPlatforms}
-        onPosted={refreshHistory}
-      />
-      <ScheduleDropCard
-        connectedPlatforms={connectedPlatforms}
-        onScheduled={handleScheduled}
-      />
+      <ReadyToGoCard drafts={readyDrafts} onQuickAction={quickAction} />
+      <div ref={postNowRef} className="scroll-mt-4">
+        <PostNowDropCard
+          connectedPlatforms={connectedPlatforms}
+          onPosted={refreshHistory}
+          injected={inject?.action === 'postnow' ? inject : null}
+        />
+      </div>
+      <div ref={scheduleRef} className="scroll-mt-4">
+        <ScheduleDropCard
+          connectedPlatforms={connectedPlatforms}
+          onScheduled={handleScheduled}
+          injected={inject?.action === 'schedule' ? inject : null}
+        />
+      </div>
       <div ref={scheduledRef} className="scroll-mt-4">
         <ScheduledPanel
           posts={history}
