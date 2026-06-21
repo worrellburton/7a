@@ -1552,7 +1552,7 @@ function CreativeTabBody() {
 // taking up a top-level tab slot.
 function CreativeDraftsPanel() {
   const { drafts } = useSavedDrafts();
-  const [showTemplates, setShowTemplates] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
 
   const remove = (id: string) => {
     void deleteDraft(id);
@@ -1566,46 +1566,46 @@ function CreativeDraftsPanel() {
   const inProgress = drafts.filter((d) => !d.ready);
   const ready = drafts.filter((d) => d.ready);
 
+  // Drop a Ready row here → move it back to drafts (unmark ready).
+  const onDragOver = (e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes('application/x-draft-move')) { e.preventDefault(); setDragOver(true); }
+  };
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    try {
+      const raw = e.dataTransfer.getData('application/x-draft-move');
+      if (!raw) return;
+      const { id, from } = JSON.parse(raw) as { id: string; from: string };
+      if (id && from === 'ready') void setDraftReady(id, false);
+    } catch { /* malformed payload */ }
+  };
+
   return (
-    <section className="rounded-2xl border border-black/10 bg-white px-4 py-4 lg:px-6 lg:py-5">
-      <div className="flex items-baseline justify-between flex-wrap gap-3 mb-3">
-        <div>
-          <h2 className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
-            Drafts · {inProgress.length}
-          </h2>
-          <p className="text-[11px] text-foreground/45 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-            Posts your team is still working on — not yet approved. Hit <strong>Mark ready</strong> to move one to{' '}
-            <strong>Ready to go</strong>.
-            {ready.length > 0 && <> {ready.length} already approved.</>}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowTemplates((s) => !s)}
-          className="text-[11px] font-semibold text-primary hover:text-primary-dark"
-          style={{ fontFamily: 'var(--font-body)' }}
-        >
-          {showTemplates ? '← Back to drafts' : 'Start from a template →'}
-        </button>
+    <section
+      onDragOver={onDragOver}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={onDrop}
+      className={`rounded-2xl border bg-white px-4 py-4 lg:px-6 lg:py-5 transition-colors ${dragOver ? 'border-primary ring-2 ring-primary/20' : 'border-black/10'}`}
+    >
+      <div className="mb-3">
+        <h2 className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
+          Drafts · {inProgress.length}
+        </h2>
+        <p className="text-[11px] text-foreground/45 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+          Posts your team is still working on — not yet approved. Hit <strong>Mark ready</strong> (or drag a row down to <strong>Ready</strong>) to approve one.
+          {ready.length > 0 && <> {ready.length} already approved.</>}
+        </p>
       </div>
 
-      {showTemplates ? (
-        <CreativeTemplatesPanel />
-      ) : inProgress.length === 0 ? (
+      {inProgress.length === 0 ? (
         <div className="rounded-xl border border-dashed border-black/10 bg-warm-bg/30 px-5 py-10 text-center">
           <p className="text-sm text-foreground/55 max-w-md mx-auto">
             No drafts in progress.{' '}
             {ready.length > 0
-              ? <>The {ready.length} approved post{ready.length === 1 ? '' : 's'} sit{ready.length === 1 ? 's' : ''} under <strong>Ready to go</strong> below.</>
-              : <>Hit <strong>Add new post</strong> above, or start from a template.</>}
+              ? <>The {ready.length} approved post{ready.length === 1 ? '' : 's'} sit{ready.length === 1 ? 's' : ''} under <strong>Ready</strong> below — drag one up here to edit it again.</>
+              : <>Hit <strong>Add new post</strong> above to start one.</>}
           </p>
-          <button
-            type="button"
-            onClick={() => setShowTemplates(true)}
-            className="mt-3 px-3 py-1.5 rounded-md bg-primary text-white text-[11px] font-semibold uppercase tracking-wider hover:bg-primary/90"
-          >
-            Browse templates
-          </button>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-black/5">
@@ -1626,7 +1626,11 @@ function CreativeDraftsPanel() {
                   month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
                 });
                 return (
-                  <tr key={d.id} className="border-t border-black/5 hover:bg-warm-bg/30">
+                  <tr
+                    key={d.id}
+                    draggable
+                    onDragStart={(e) => { e.dataTransfer.setData('application/x-draft-move', JSON.stringify({ id: d.id, from: 'draft' })); e.dataTransfer.effectAllowed = 'move'; }}
+                    className="border-t border-black/5 hover:bg-warm-bg/30 cursor-grab active:cursor-grabbing">
                     <td className="px-2 py-2 align-middle">
                       {d.mediaUrls[0] ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -1758,22 +1762,43 @@ function ReadyToGoPanel() {
     setSelected(new Set());
   };
 
+  const [dragOver, setDragOver] = useState(false);
+  // Drop a Draft row here → approve it (mark ready).
+  const onDragOver = (e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes('application/x-draft-move')) { e.preventDefault(); setDragOver(true); }
+  };
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    try {
+      const raw = e.dataTransfer.getData('application/x-draft-move');
+      if (!raw) return;
+      const { id, from } = JSON.parse(raw) as { id: string; from: string };
+      if (id && from === 'draft') void setDraftReady(id, true);
+    } catch { /* malformed payload */ }
+  };
+
   return (
-    <section className="rounded-2xl border border-black/10 bg-white/65 px-4 py-4 lg:px-6 lg:py-5 pb-24">
+    <section
+      onDragOver={onDragOver}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={onDrop}
+      className={`rounded-2xl border bg-white/65 px-4 py-4 lg:px-6 lg:py-5 pb-24 transition-colors ${dragOver ? 'border-primary ring-2 ring-primary/20' : 'border-black/10'}`}
+    >
       <header className="flex items-baseline justify-between mb-3">
         <div>
           <h2 className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
-            Ready to go · {ready.length}
+            Ready · {ready.length}
           </h2>
           <p className="text-[11px] text-foreground/45 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-            Drafts your team has signed off on. Tick rows to act in bulk.
+            Drafts your team has signed off on. Drag one up to <strong>Drafts</strong> to edit it again, or tick rows to act in bulk.
           </p>
         </div>
       </header>
 
       {ready.length === 0 ? (
         <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
-          Nothing approved yet. Save a draft in Draft and tick &ldquo;Mark ready to go&rdquo; once it&rsquo;s final.
+          Nothing approved yet. Hit <strong>Mark ready</strong> on a draft above (or drag it down here) once it&rsquo;s final.
         </p>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-black/5">
@@ -1808,7 +1833,9 @@ function ReadyToGoPanel() {
                 return (
                   <tr
                     key={d.id}
-                    className={`border-t border-black/5 ${isSel ? 'bg-primary/5' : 'hover:bg-warm-bg/30'}`}
+                    draggable
+                    onDragStart={(e) => { e.dataTransfer.setData('application/x-draft-move', JSON.stringify({ id: d.id, from: 'ready' })); e.dataTransfer.effectAllowed = 'move'; }}
+                    className={`border-t border-black/5 cursor-grab active:cursor-grabbing ${isSel ? 'bg-primary/5' : 'hover:bg-warm-bg/30'}`}
                   >
                     <td className="px-3 py-2 align-middle">
                       <input
