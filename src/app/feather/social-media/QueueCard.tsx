@@ -92,6 +92,7 @@ export function QueueCard({
     try {
       const body: Record<string, unknown> = { post: draft.caption, platforms, scheduleDate: next.toISOString() };
       if (draft.mediaUrls.length > 0) body.mediaUrls = draft.mediaUrls;
+      if (draft.mediaByPlatform && Object.keys(draft.mediaByPlatform).length > 0) body.mediaByPlatform = draft.mediaByPlatform;
       const r = await fetch('/api/social-media/post', {
         method: 'POST',
         credentials: 'include',
@@ -100,7 +101,10 @@ export function QueueCard({
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setMsg({ kind: 'err', text: (j as { error?: string }).error ?? `HTTP ${r.status}` }); return; }
-      setMsg({ kind: 'ok', text: `Queued for ${next.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.` });
+      const partial = (j as { error?: string }).error;
+      setMsg(partial
+        ? { kind: 'err', text: `Queued for ${next.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}, but some networks failed — ${partial}` }
+        : { kind: 'ok', text: `Queued for ${next.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.` });
       onScheduled();
     } catch (e) {
       setMsg({ kind: 'err', text: e instanceof Error ? e.message : String(e) });

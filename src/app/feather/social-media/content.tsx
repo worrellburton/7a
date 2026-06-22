@@ -16,6 +16,7 @@ import { useSavedDrafts, saveDraft as createDraft, setDraftReady, deleteDraft, s
 import { usePendingDeletes, UndoToast } from './UndoToast';
 import { ScheduledCalendar } from './ScheduledCalendar';
 import { QueueCard } from './QueueCard';
+import { mediaByPlatformFromDeliverables } from './deliverables';
 
 // ── Cross-tab Send-to-Compose handoff ────────────────────────────────
 //
@@ -1224,6 +1225,8 @@ function SchedulePostsBody({
       mediaUrls: d.mediaUrls,
       createdAt: d.createdAt,
       platforms: d.platforms ?? [],
+      // Per-network cropped media derived from the draft's deliverable slots.
+      mediaByPlatform: mediaByPlatformFromDeliverables(d.mediaByDeliverable ?? [], d.platforms ?? []),
     })),
     [drafts],
   );
