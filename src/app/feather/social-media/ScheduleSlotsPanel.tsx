@@ -51,6 +51,10 @@ export interface ReadyDraft {
   // posts to these (intersected with the connected accounts) so the
   // operator doesn't re-pick networks at schedule time.
   platforms?: string[];
+  // Per-network cropped media (from the draft's deliverable slots), so each
+  // network posts its correctly-cropped asset. Platforms absent here fall
+  // back to the shared mediaUrls.
+  mediaByPlatform?: Record<string, string[]>;
 }
 
 /* ── Error banner with copy-to-clipboard ─────────────────────── */
@@ -360,6 +364,7 @@ export default function ScheduleDropCard({
         scheduleDate: at.toISOString(),
       };
       if (draft.mediaUrls.length > 0) body.mediaUrls = draft.mediaUrls;
+      if (draft.mediaByPlatform && Object.keys(draft.mediaByPlatform).length > 0) body.mediaByPlatform = draft.mediaByPlatform;
       const r = await fetch('/api/social-media/post', {
         method: 'POST',
         credentials: 'include',
@@ -375,7 +380,10 @@ export default function ScheduleDropCard({
         setErrCtx({ at: new Date().toISOString(), action: 'schedule', endpoint: '/api/social-media/post', httpStatus: r.status, response: j, request: { ...body, captionLength: draft.caption.length } });
         return;
       }
-      setErrCtx(null);
+      // Partial success — some networks scheduled, others rejected.
+      const partial = (j as { error?: string }).error;
+      setError(partial ? `Some networks didn’t schedule — ${partial}` : null);
+      setErrCtx(partial ? { at: new Date().toISOString(), action: 'schedule', endpoint: '/api/social-media/post', httpStatus: r.status, response: j, request: { ...body, captionLength: draft.caption.length } } : null);
       setOkMsg(`Scheduled for ${at.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.`);
       setDraft(null);
       setWhen('');
@@ -580,6 +588,7 @@ export function PostNowDropCard({
     try {
       const body: Record<string, unknown> = { post: draft.caption, platforms: targets };
       if (draft.mediaUrls.length > 0) body.mediaUrls = draft.mediaUrls;
+      if (draft.mediaByPlatform && Object.keys(draft.mediaByPlatform).length > 0) body.mediaByPlatform = draft.mediaByPlatform;
       const r = await fetch('/api/social-media/post', {
         method: 'POST',
         credentials: 'include',
@@ -595,7 +604,9 @@ export function PostNowDropCard({
         setErrCtx({ at: new Date().toISOString(), action: 'post-now', endpoint: '/api/social-media/post', httpStatus: r.status, response: j, request: { ...body, captionLength: draft.caption.length } });
         return;
       }
-      setErrCtx(null);
+      const partial = (j as { error?: string }).error;
+      setError(partial ? `Some networks didn’t post — ${partial}` : null);
+      setErrCtx(partial ? { at: new Date().toISOString(), action: 'post-now', endpoint: '/api/social-media/post', httpStatus: r.status, response: j, request: { ...body, captionLength: draft.caption.length } } : null);
       setOkMsg(`Posted to ${targets.length} ${targets.length === 1 ? 'network' : 'networks'}.`);
       setDraft(null);
       setSelectedPlatforms(new Set());
