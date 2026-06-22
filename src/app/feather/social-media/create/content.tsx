@@ -146,52 +146,49 @@ export default function CreatePostContent() {
     [platforms],
   );
 
-  // Per-platform set of surfaces the user wants to produce.
-  // Key: PlatformId. Value: Set<DeliverableSurface>.
-  // Stored as an object so it survives setState immutability
-  // without deep-cloning Sets.
-  const [enabledSurfaces, setEnabledSurfaces] = useState<Record<string, DeliverableSurface[]>>({});
+  // Per-platform set of (surface, kind) deliverable combos the user wants
+  // to produce — images and videos are tracked separately so videos are
+  // independently selectable. Value: string[] of `${surface}|${kind}`.
+  const [enabledCombos, setEnabledCombos] = useState<Record<string, string[]>>({});
 
-  // Available surfaces per selected platform — derived from the
-  // raw row set so adding a new label only requires updating
-  // platform-specs.ts.
-  const surfacesByPlatform = useMemo(() => {
-    const out = new Map<PlatformId, DeliverableSurface[]>();
+  // Available (surface, kind) combos per selected platform, derived from
+  // the raw row set (images first, then videos, per buildDeliverableRows).
+  const combosByPlatform = useMemo(() => {
+    const out = new Map<PlatformId, { surface: DeliverableSurface; kind: 'image' | 'video' }[]>();
     for (const row of allRows) {
       const list = out.get(row.platform) ?? [];
-      if (!list.includes(row.surface)) list.push(row.surface);
+      const key = `${row.surface}|${row.kind}`;
+      if (!list.some((c) => `${c.surface}|${c.kind}` === key)) list.push({ surface: row.surface, kind: row.kind });
       out.set(row.platform, list);
     }
     return out;
   }, [allRows]);
 
-  // Default: when a platform is freshly added, enable every surface
-  // it offers. The user can then uncheck the ones they don't want.
+  // Default: when a platform is freshly added, enable every combo it
+  // offers (images and videos). The user can then uncheck what they don't want.
   useEffect(() => {
-    setEnabledSurfaces((prev) => {
-      const next: Record<string, DeliverableSurface[]> = {};
-      for (const [pid, surfaces] of surfacesByPlatform.entries()) {
+    setEnabledCombos((prev) => {
+      const next: Record<string, string[]> = {};
+      for (const [pid, combos] of combosByPlatform.entries()) {
+        const keys = combos.map((c) => `${c.surface}|${c.kind}`);
         next[pid] = prev[pid]
-          // Drop any surfaces that are no longer offered by the
-          // platform (defensive — labels shouldn't disappear in
-          // practice).
-          ? prev[pid].filter((s) => surfaces.includes(s))
-          : surfaces.slice();
+          // Drop any combos no longer offered (defensive).
+          ? prev[pid].filter((k) => keys.includes(k))
+          : keys.slice();
       }
       return next;
     });
-  }, [surfacesByPlatform]);
+  }, [combosByPlatform]);
 
   const rows = useMemo(() => {
     return allRows.filter((r) => {
-      const enabled = enabledSurfaces[r.platform];
-      // Until the surfaces state has caught up with a freshly-added
-      // platform, treat everything as enabled so the user never
-      // sees an empty slots grid during the transition tick.
+      const enabled = enabledCombos[r.platform];
+      // Until the combo state has caught up with a freshly-added platform,
+      // treat everything as enabled so the slots grid isn't briefly empty.
       if (!enabled) return true;
-      return enabled.includes(r.surface);
+      return enabled.includes(`${r.surface}|${r.kind}`);
     });
-  }, [allRows, enabledSurfaces]);
+  }, [allRows, enabledCombos]);
 
   // Platform tabs for the slots grid — one per selected platform that
   // actually has enabled deliverables. An unselected platform (or one
@@ -268,13 +265,12 @@ export default function CreatePostContent() {
     });
   };
 
-  const toggleSurface = (pid: PlatformId, surface: DeliverableSurface) => {
-    setEnabledSurfaces((prev) => {
+  const toggleCombo = (pid: PlatformId, surface: DeliverableSurface, kind: 'image' | 'video') => {
+    const key = `${surface}|${kind}`;
+    setEnabledCombos((prev) => {
       const list = prev[pid] ?? [];
-      const has = list.includes(surface);
-      const nextList = has
-        ? list.filter((s) => s !== surface)
-        : [...list, surface];
+      const has = list.includes(key);
+      const nextList = has ? list.filter((k) => k !== key) : [...list, key];
       return { ...prev, [pid]: nextList };
     });
   };
@@ -501,19 +497,19 @@ export default function CreatePostContent() {
           platform-specs.ts. Toggling a surface off filters its
           slots out of the Deliverable Slots grid below. Defaults:
           every surface enabled the moment a platform is picked. */}
-      {platforms.size > 0 && surfacesByPlatform.size > 0 && (
+      {platforms.size > 0 && combosByPlatform.size > 0 && (
         <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
           <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">
             Deliverables
           </p>
           <p className="text-[11.5px] text-foreground/50 mb-3" style={{ fontFamily: 'var(--font-body)' }}>
-            Pick which surfaces each network gets. Uncheck the ones you don&rsquo;t want to produce a crop for.
+            Pick which surfaces each network gets — photos <span className="inline-flex items-center"><PhotoIcon /></span> and videos <span className="inline-flex items-center"><VideoIcon /></span> are selectable separately. Uncheck the ones you don&rsquo;t want to produce a crop for.
           </p>
           <ul className="divide-y divide-black/5">
             {ALL_PLATFORM_IDS.filter((pid) => platforms.has(pid)).map((pid) => {
-              const surfaces = surfacesByPlatform.get(pid) ?? [];
-              if (surfaces.length === 0) return null;
-              const enabled = enabledSurfaces[pid] ?? surfaces;
+              const combos = combosByPlatform.get(pid) ?? [];
+              if (combos.length === 0) return null;
+              const enabled = enabledCombos[pid] ?? combos.map((c) => `${c.surface}|${c.kind}`);
               return (
                 <li key={pid} className="py-2 flex items-center gap-3 flex-wrap">
                   <span className="inline-flex items-center gap-1.5 min-w-[6.5rem]">
@@ -525,25 +521,30 @@ export default function CreatePostContent() {
                     </span>
                   </span>
                   <div className="flex flex-wrap gap-1.5">
-                    {surfaces.map((surface) => {
-                      const on = enabled.includes(surface);
+                    {combos.map(({ surface, kind }) => {
+                      const key = `${surface}|${kind}`;
+                      const on = enabled.includes(key);
+                      const isVid = kind === 'video';
                       return (
                         <label
-                          key={surface}
+                          key={key}
                           className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11.5px] font-semibold cursor-pointer transition-colors ${
                             on
-                              ? 'bg-primary/10 text-primary border-primary/40'
+                              ? isVid ? 'bg-rose-50 text-rose-700 border-rose-300' : 'bg-primary/10 text-primary border-primary/40'
                               : 'bg-white text-foreground/55 border-black/10 hover:bg-warm-bg/60'
                           }`}
+                          title={`${SURFACE_LABEL[surface]} ${isVid ? 'video' : 'photo'} for ${PLATFORM_LABELS[pid] ?? pid}`}
                         >
                           <input
                             type="checkbox"
                             checked={on}
-                            onChange={() => toggleSurface(pid, surface)}
-                            className="w-3 h-3 accent-primary"
-                            aria-label={`${SURFACE_LABEL[surface]} for ${PLATFORM_LABELS[pid] ?? pid}`}
+                            onChange={() => toggleCombo(pid, surface, kind)}
+                            className={`w-3 h-3 ${isVid ? 'accent-rose-600' : 'accent-primary'}`}
+                            aria-label={`${SURFACE_LABEL[surface]} ${isVid ? 'video' : 'photo'} for ${PLATFORM_LABELS[pid] ?? pid}`}
                           />
+                          <span className="inline-flex items-center justify-center opacity-70">{isVid ? <VideoIcon /> : <PhotoIcon />}</span>
                           {SURFACE_LABEL[surface]}
+                          {isVid && <span className="text-[9px] uppercase tracking-wide opacity-70">video</span>}
                         </label>
                       );
                     })}
@@ -1279,6 +1280,23 @@ function CropModal({ url, ratio, onCancel, onCropped }: {
         </footer>
       </div>
     </div>
+  );
+}
+
+// Tiny photo / video glyphs used on the Deliverable combo chips so it's
+// obvious which selections are images vs videos.
+function PhotoIcon() {
+  return (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="14" rx="2" /><circle cx="8.5" cy="10" r="1.5" /><path strokeLinecap="round" strokeLinejoin="round" d="M21 16l-5-5L5 19" />
+    </svg>
+  );
+}
+function VideoIcon() {
+  return (
+    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="3" y="6" width="13" height="12" rx="2" /><path strokeLinecap="round" strokeLinejoin="round" d="M16 10l5-3v10l-5-3" />
+    </svg>
   );
 }
 

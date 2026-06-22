@@ -138,6 +138,31 @@ export function extractAyrshareError(body: AyrshareResponse, httpStatus: number,
   if (typeof body.message === 'string' && body.message.length > 0) return body.message;
   if (typeof body.error === 'string' && body.error.length > 0) return body.error;
   if (typeof body.detail === 'string' && body.detail.length > 0) return body.detail;
+
+  // /post returns a per-post results array; the actionable platform errors
+  // (e.g. "Instagram: aspect ratio must be 0.5–1.91") live under
+  // posts[].errors[] rather than a top-level errors[]. Surface those first
+  // so the UI shows the real reason instead of a bare HTTP status.
+  if (Array.isArray((body as { posts?: unknown }).posts)) {
+    const parts: string[] = [];
+    for (const p of (body as { posts: unknown[] }).posts) {
+      const errs = p && typeof p === 'object' ? (p as { errors?: unknown }).errors : null;
+      if (!Array.isArray(errs)) continue;
+      for (const e of errs) {
+        if (!e || typeof e !== 'object') continue;
+        const o = e as { message?: unknown; error?: unknown; platform?: unknown };
+        const msg = ((typeof o.message === 'string' && o.message) || (typeof o.error === 'string' && o.error) || '').trim();
+        if (!msg) continue;
+        const plat = typeof o.platform === 'string' && o.platform
+          ? o.platform.charAt(0).toUpperCase() + o.platform.slice(1)
+          : '';
+        const line = plat ? `${plat}: ${msg}` : msg;
+        if (!parts.includes(line)) parts.push(line);
+      }
+    }
+    if (parts.length > 0) return parts.join(' · ');
+  }
+
   if (Array.isArray(body.errors) && body.errors.length > 0) {
     const parts = body.errors
       .map((e: unknown) => {
