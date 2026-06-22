@@ -14,6 +14,7 @@ export const metadata: Metadata = {
 };
 
 import PageHero from '@/components/PageHero';
+import GeoAnswer from '@/components/seo/GeoAnswer';
 import DestructiveCycle from '@/components/dual-diagnosis/DestructiveCycle';
 import PrevalenceStats from '@/components/dual-diagnosis/PrevalenceStats';
 import ConditionsBento from '@/components/dual-diagnosis/ConditionsBento';
@@ -22,7 +23,26 @@ import IntegratedApproach from '@/components/dual-diagnosis/IntegratedApproach';
 import MedTherapySynergy from '@/components/dual-diagnosis/MedTherapySynergy';
 import TraumaLayer from '@/components/dual-diagnosis/TraumaLayer';
 import DualCTA from '@/components/dual-diagnosis/DualCTA';
-import { jsonLdScript } from '@/lib/seo/pageSchema';
+import { faqPageSchema, jsonLdScript } from '@/lib/seo/pageSchema';
+
+const faqJsonLd = faqPageSchema([
+  {
+    q: 'What is dual diagnosis treatment?',
+    a: 'Dual diagnosis treatment (also called co-occurring or integrated treatment) addresses a mental-health condition and a substance use disorder at the same time, under one clinical team and one shared plan. At Seven Arrows Recovery in Arizona, the psychiatrist, therapist, and medical team round on every client together so a change in one layer of care immediately informs the others, instead of treating the two conditions in separate, disconnected programs.',
+  },
+  {
+    q: 'Does Seven Arrows treat co-occurring mental health conditions with addiction?',
+    a: 'Yes. Seven Arrows treats depression, anxiety, PTSD, bipolar disorder, panic disorder, OCD, borderline personality disorder, and ADHD alongside substance use disorders. Every admission begins with a comprehensive psychiatric and clinical assessment that identifies each co-occurring condition and builds a single, unified treatment roadmap rather than two parallel ones.',
+  },
+  {
+    q: 'Why is integrated treatment better than treating each condition separately?',
+    a: 'When a mental-health condition and a substance use disorder are treated in separate programs, each side works around the other and clients fall through the gap between them. Integrated care treats both as one interrelated problem — research associates integrated treatment with markedly better sustained-recovery outcomes than parallel or sequential treatment.',
+  },
+  {
+    q: 'How does Seven Arrows address trauma in dual diagnosis?',
+    a: 'Seven Arrows holds trauma as the common thread underneath both the mental-health symptoms and the substance use. Forward-Facing® Accelerated Recovery and other trauma-informed modalities (EMDR, IFS, DBT) sit at the center of the plan, titrated and consent-based, so treating the shared root helps both conditions loosen at once.',
+  },
+]);
 
 const webPageJsonLd = {
   '@context': 'https://schema.org',
@@ -113,6 +133,7 @@ const localBusinessJsonLd = {
 export default function DualDiagnosisPage() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(faqJsonLd)} />
       <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(webPageJsonLd)} />
       <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(localBusinessJsonLd)} />
       {/* Phase 1 — shared video hero */}
@@ -165,6 +186,33 @@ export default function DualDiagnosisPage() {
           policy. Restore via the public.google_reviews cache once the
           BP API approval lands and we have enough verified
           dual-diagnosis-relevant testimony. */}
+
+      {/* Phase 9b — GEO extractive answer block (mirrors the FAQ JSON-LD) */}
+      <GeoAnswer
+        id="dual-diagnosis-treatment-arizona"
+        question="Dual diagnosis treatment in Arizona"
+        tone="bg"
+        answer={
+          <p>
+            Seven Arrows Recovery provides integrated dual diagnosis treatment in Arizona,
+            on a 160-acre ranch in Cochise County, for adults living with both a mental-health
+            condition and a substance use disorder. One clinical team — psychiatrist, therapist,
+            and medical staff — treats both under a single shared plan, with trauma-informed care
+            at the center, so the two conditions are resolved together instead of in separate,
+            disconnected programs.
+          </p>
+        }
+        bullets={[
+          { label: 'One team, one plan', body: 'The psychiatrist, therapist, and medical team round on every client together so a change in one layer of care immediately informs the others.' },
+          { label: 'Conditions treated', body: 'Depression, anxiety, PTSD, bipolar disorder, panic disorder, OCD, borderline personality disorder, and ADHD — alongside the substance use disorder.' },
+          { label: 'Trauma at the center', body: 'Forward-Facing® Accelerated Recovery, EMDR, IFS, and DBT treat the trauma underneath both conditions, titrated and consent-based.' },
+          { label: 'Comprehensive psychiatric assessment', body: 'Every admission starts with a full psychiatric and clinical evaluation that builds one unified roadmap, not two parallel ones.' },
+        ]}
+        sources={[
+          { label: 'NIDA — Comorbidity: Substance Use & Mental Disorders', href: 'https://nida.nih.gov/research-topics/comorbidity' },
+          { label: 'SAMHSA — National Helpline', href: 'https://www.samhsa.gov/find-help/national-helpline' },
+        ]}
+      />
 
       {/* Phase 10 — closing CTA */}
       <DualCTA />

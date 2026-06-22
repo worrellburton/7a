@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
 import SubstancePage10Phase from '@/components/substance/SubstancePage10Phase';
+import GeoAnswer from '@/components/seo/GeoAnswer';
 import { inhalantsContent } from '@/lib/substances/inhalants';
-import { jsonLdScript } from '@/lib/seo/pageSchema';
+import { faqPageSchema, jsonLdScript } from '@/lib/seo/pageSchema';
 
 // 1-hour ISR — marketing pages are otherwise fully static; this lets the
 // edge cache hold the rendered HTML so TTFB drops from ~250ms (cold SSR)
@@ -15,6 +16,25 @@ export const metadata: Metadata = {
   description:
     'Residential inhalant addiction treatment in Arizona — urgent medical and neurological assessment, cognitive rehab, and trauma-informed therapy.',
 };
+
+const faqJsonLd = faqPageSchema([
+  {
+    q: 'Is there inhalant addiction treatment in Arizona?',
+    a: 'Yes. Seven Arrows Recovery is a JCAHO-accredited residential treatment program in Cochise County, Arizona that treats inhalant use disorder. Care begins with a medical and neurological assessment, then combines B12 and nutritional rehabilitation, cognitive rehabilitation, and trauma-informed therapy on a longer recovery runway, because inhalant recovery depends on giving the brain time and the right conditions to repair.',
+  },
+  {
+    q: 'Why do inhalants need specialized treatment?',
+    a: 'Inhalants — solvents, nitrous oxide (whippets), and nitrites (poppers) — are neurotoxic and can affect the heart, peripheral nerves, and cognition. Effective treatment is neurologically informed: it establishes a medical baseline (cardiovascular review, B12 and hematology screening, neuroimaging referral when indicated) and pairs cognitive support with addiction care, rather than treating inhalant use like any other substance.',
+  },
+  {
+    q: 'Is there a medication for inhalant withdrawal?',
+    a: 'There is no FDA-approved medication specific to inhalant use disorder. Care at Seven Arrows is supportive and restorative: medical monitoring, nutritional and B12 repletion, structured cognitive rehabilitation, and trauma-informed therapy, sequenced so the nervous system has the best possible conditions to recover.',
+  },
+  {
+    q: 'How long is residential inhalant treatment?',
+    a: 'Residential stays typically run 30 to 90 days based on clinical and neurological need. Because cognitive recovery from inhalants is gradual, the clinical team documents medical necessity so the length of stay reflects what supports real repair, not just what is quick to authorize.',
+  },
+]);
 
 const webPageJsonLd = {
   '@context': 'https://schema.org',
@@ -103,9 +123,34 @@ const localBusinessJsonLd = {
 export default function InhalantsAddictionPage() {
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(faqJsonLd)} />
       <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(webPageJsonLd)} />
       <script type="application/ld+json" dangerouslySetInnerHTML={jsonLdScript(localBusinessJsonLd)} />
       <SubstancePage10Phase content={inhalantsContent} />
+      <GeoAnswer
+        id="inhalant-addiction-treatment-arizona"
+        question="Inhalant addiction treatment in Arizona"
+        answer={
+          <p>
+            Seven Arrows Recovery is a JCAHO-accredited residential program in Arizona,
+            on a 160-acre ranch in Cochise County, that treats inhalant use disorder with a
+            neurologically-informed model. Care opens with a medical and neurological
+            assessment, then layers B12 and nutritional rehabilitation, structured cognitive
+            rehabilitation, and trauma-informed therapy, so the brain has the time and the
+            conditions to repair what can be repaired.
+          </p>
+        }
+        bullets={[
+          { label: 'Neurological assessment first', body: 'Cardiovascular review, B12 and hematology screening, peripheral-nerve checks, and neuroimaging referral when indicated establish a full medical baseline.' },
+          { label: 'Cognitive rehabilitation', body: 'Structured attention, memory, and executive-function work paired with sleep, nutrition, and movement protocols that measurably support brain recovery.' },
+          { label: 'Trauma + addiction together', body: 'Forward-Facing® Accelerated Recovery, EMDR, ART, and IFS — sequenced after the early medical and cognitive picture has stabilized.' },
+          { label: 'Longer recovery runway', body: 'Because cognitive repair from inhalants is gradual, the length of stay reflects medical necessity rather than the fastest approvable window.' },
+        ]}
+        sources={[
+          { label: 'NIDA — Inhalants DrugFacts', href: 'https://nida.nih.gov/publications/drugfacts/inhalants' },
+          { label: 'SAMHSA — National Helpline', href: 'https://www.samhsa.gov/find-help/national-helpline' },
+        ]}
+      />
     </>
   );
 }
