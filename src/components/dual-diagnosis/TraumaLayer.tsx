@@ -49,8 +49,8 @@ export default function TraumaLayer() {
           </p>
           <p className="text-foreground/60">
             That is why our integrated plan is not just &ldquo;therapy plus
-            meds.&rdquo; Trauma work — titrated, consent-based, done only when
-            the client&rsquo;s nervous system is ready — sits at the center of
+            meds.&rdquo; Trauma work (titrated, consent-based, done only when
+            the client&rsquo;s nervous system is ready) sits at the center of
             both tracks, addressing what drives them both.
           </p>
         </div>

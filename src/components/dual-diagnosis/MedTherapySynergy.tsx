@@ -42,13 +42,13 @@ export default function MedTherapySynergy() {
                 until Monday.
               </p>
               <p className="text-white/70">
-                Here, the psychiatrist, the therapist, and the medical team
-                round on every dual-diagnosis client together. A change in one
+                Here, at our dual diagnosis facility in Arizona, the psychiatrist, the therapist, and the medical team
+                round on every client together. A change in one
                 layer immediately informs the others.
               </p>
               <p className="text-white/70">
                 Our integrative psychiatrist brings a highly skilled approach
-                that honors the whole person — mind and body — not just
+                that honors the whole person, mind and body, not just
                 prescribing medications.
               </p>
             </div>

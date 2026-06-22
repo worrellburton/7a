@@ -5,7 +5,7 @@ export const opioidContent: SubstanceContent = {
     label: 'Opioid Addiction Treatment',
     title: 'Opioids quiet pain. Healing teaches the body pain can pass.',
     description:
-      'At Seven Arrows Recovery, opioid use disorder is treated as a neurological, somatic, and psychological condition at once. Our residential program in Arizona coordinates medication-assisted treatment, trauma-informed therapy, and nervous-system work so the body learns, often for the first time, that it can come down on its own.',
+      'At Seven Arrows Recovery, opioid addiction treatment in Arizona means treating the use disorder as a neurological, somatic, and psychological condition at once. Our residential program coordinates medication-assisted treatment, trauma-informed therapy, and nervous-system work so the body learns, often for the first time, that it can come down on its own.',
     breadcrumbs: [
       { label: 'Home', href: '/' },
       { label: 'What We Treat', href: '/what-we-treat' },
@@ -22,8 +22,8 @@ export const opioidContent: SubstanceContent = {
     ),
     paragraphs: [
       "Opioids bind to mu-receptors that the body already uses for its endogenous pain-and-comfort system (endorphins, enkephalins). The hit is not foreign — it is a flood of what the body was already supposed to make for itself, at a dose the body could never produce.",
-      'Repeated use tells the brain to stop making its own. Endogenous opioid production down-regulates. The system that normally blunts ordinary pain, stress, and loneliness starts to fail, and withdrawal — physical and emotional — becomes intolerable without the drug.',
-      'Recovery is neurochemical re-learning. With time, support, and often a bridge medication, the mu-system comes back online. The body remembers how to comfort itself.',
+      'Repeated use tells the brain to stop making its own. Endogenous opioid production down-regulates. The system that normally blunts ordinary pain, stress, and loneliness starts to fail, and withdrawal, physical and emotional, becomes intolerable without the drug.',
+      'Opioid recovery is neurochemical re-learning. With time, support, and often a bridge medication, the mu-system comes back online. The body remembers how to comfort itself.',
     ],
     chart: {
       natural: { label: 'endogenous opioids', color: '#2f6f5e' },
@@ -39,7 +39,7 @@ export const opioidContent: SubstanceContent = {
       </>
     ),
     paragraphs: [
-      'Opioid dependence compresses into a tight physical loop — use, relief, early withdrawal, use again — often running on a six-to-twelve-hour clock. What started as pain management becomes pain maintenance.',
+      'Opioid dependence compresses into a tight physical loop: use, relief, early withdrawal, use again, often running on a six-to-twelve-hour clock. What started as pain management becomes pain maintenance.',
       "Residential care buys the nervous system what the loop has been stealing: time, safety, and someone else holding the wheel while the chemistry recalibrates.",
     ],
     stages: [
@@ -56,7 +56,7 @@ export const opioidContent: SubstanceContent = {
         Opioid overactivation is <em className="not-italic text-accent">physically dangerous</em>.
       </>
     ),
-    body: 'Opioids suppress respiration, disrupt the gut, depress the immune system, and wreck sleep architecture. Overdose risk rises steeply with poly-substance use — especially with benzodiazepines or alcohol on board — and has only gotten worse in the fentanyl era.',
+    body: 'Opioids suppress respiration, disrupt the gut, depress the immune system, and wreck sleep architecture. Overdose risk rises steeply with poly-substance use, especially with benzodiazepines or alcohol on board, and has only gotten worse in the fentanyl era.',
     stats: [
       {
         value: 80,
@@ -120,7 +120,7 @@ export const opioidContent: SubstanceContent = {
         <em className="not-italic text-primary">almost none of them started with the goal of getting high.</em>
       </>
     ),
-    body: 'Opioid dependence almost never begins as recreational use. Most people we see took something at some point for real pain — and could not get back off of it.',
+    body: 'Opioid dependence almost never begins as recreational use. Most people we see took something at some point for real pain, and could not get back off of it. That is why treatment for opioid addiction has to start with the pain and the dependence together, not blame the person for either.',
     personas: [
       {
         label: 'The post-surgical dependence',
@@ -171,7 +171,7 @@ export const opioidContent: SubstanceContent = {
       },
       {
         title: 'Trauma-informed therapy',
-        body: 'Forward-Facing® Accelerated Recovery, EMDR, ART, and IFS — sequenced after the body is stable so processing supports regulation rather than unsettling it.',
+        body: 'Forward-Facing® Accelerated Recovery, EMDR, ART, and IFS, sequenced after the body is stable so processing supports regulation rather than unsettling it.',
         iconId: 'spiral',
       },
       {
@@ -186,7 +186,7 @@ export const opioidContent: SubstanceContent = {
       },
       {
         title: 'Breathwork, yoga, sound',
-        body: 'Parasympathetic-activating practice that restores the body\'s own down-regulation tools. These are not extras — they are medicine.',
+        body: 'Parasympathetic-activating practice that restores the body\'s own down-regulation tools. These are not extras. They are medicine.',
         iconId: 'breath',
       },
       {
