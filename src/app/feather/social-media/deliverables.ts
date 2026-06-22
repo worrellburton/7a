@@ -139,6 +139,38 @@ export function specLinesFor(pid: PlatformId): SpecLine[] {
   return out;
 }
 
+// Resolve the media each network should actually post, from a draft's
+// per-deliverable crops. For each platform we take its feed/"post" image
+// slot (primary + any gallery extras), so per-network posting sends the
+// correctly-cropped asset for that network. Video-only networks fall back
+// to their first video slot. Platforms with no crops are omitted, so the
+// caller can fall back to the shared media for them.
+export function mediaByPlatformFromDeliverables(
+  mediaByDeliverable: { key: string; url: string }[],
+  platforms: string[],
+): Record<string, string[]> {
+  const dedupe = (arr: string[]) => Array.from(new Set(arr.filter((u) => u && u.trim())));
+  const labelOf = (key: string) => key.split('|').slice(3).join('|');
+  const out: Record<string, string[]> = {};
+  for (const pid of platforms) {
+    const imgEntries = mediaByDeliverable.filter((m) => m.key.startsWith(`${pid}|image|`) && m.url.trim());
+    if (imgEntries.length > 0) {
+      // Prefer the feed/post image slot; otherwise the first image slot.
+      const postKey = imgEntries.find((m) => inferSurface(labelOf(m.key)) === 'post')?.key ?? imgEntries[0].key;
+      const urls = dedupe(imgEntries.filter((m) => m.key === postKey).map((m) => m.url));
+      if (urls.length > 0) out[pid] = urls;
+      continue;
+    }
+    const vidEntries = mediaByDeliverable.filter((m) => m.key.startsWith(`${pid}|video|`) && m.url.trim());
+    if (vidEntries.length > 0) {
+      const firstKey = vidEntries[0].key;
+      const urls = dedupe(vidEntries.filter((m) => m.key === firstKey).map((m) => m.url));
+      if (urls.length > 0) out[pid] = urls;
+    }
+  }
+  return out;
+}
+
 // CSS aspect-ratio for a "w:h" string (falls back to square).
 export function aspectStyle(ratio: string): CSSProperties {
   const m = ratio.match(/^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/);
