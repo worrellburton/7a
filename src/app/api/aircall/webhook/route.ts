@@ -2,12 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminSupabase } from '@/lib/supabase-server';
 import {
   mapAircallCall,
+  mapAircallMessage,
   extractCallId,
   extractTranscriptText,
   extractSummaryText,
   extractTopics,
   extractSentiment,
   type AircallCall,
+  type AircallMessageObj,
 } from '@/lib/aircall';
 
 // POST /api/aircall/webhook
@@ -78,6 +80,27 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     return NextResponse.json({ ok: true, event, aircall_id: call.id });
+  }
+
+  // --- SMS / text message events ---------------------------------------
+  // message.received / message.sent / message.status_updated (+ group_*).
+  // Aircall nests the resource under `data` (sometimes data.message); the
+  // mapper tolerates either. Persisted into aircall_messages, which the
+  // Calls page streams via Realtime.
+  if (event.startsWith('message.') || event.startsWith('group_message.')) {
+    const m = ((data.message ?? data) as unknown) as AircallMessageObj;
+    if (m?.id === undefined || m?.id === null) {
+      return NextResponse.json({ error: 'missing message id' }, { status: 400 });
+    }
+    const row = mapAircallMessage(m);
+    const { error } = await supabase
+      .from('aircall_messages')
+      .upsert(row, { onConflict: 'aircall_message_id' });
+    if (error) {
+      console.error('[aircall/webhook] message upsert failed', error.message);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true, event, aircall_message_id: row.aircall_message_id });
   }
 
   // --- Conversation-Intelligence (AI) events ---------------------------

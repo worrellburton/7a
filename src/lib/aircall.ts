@@ -159,6 +159,91 @@ export function mapAircallCall(c: AircallCall): Record<string, unknown> {
 }
 
 // ------------------------------------------------------------
+// Messages (Aircall Business Text Messaging — SMS / MMS).
+// ------------------------------------------------------------
+
+export interface AircallMessageObj {
+  id?: number | string;
+  direction?: string;
+  status?: string;
+  channel?: string;
+  number_id?: number;
+  number?: AircallNumber;
+  to?: string;
+  from?: string;
+  body?: string;
+  content?: string;
+  media_url?: string;
+  user?: AircallUser | null;
+  sent_at?: number | string | null;
+  received_at?: number | string | null;
+  created_at?: number | string | null;
+}
+
+// Accept Aircall's unix-seconds, unix-millis, or an ISO string.
+function anyToIso(v: number | string | null | undefined): string | null {
+  if (v === null || v === undefined) return null;
+  if (typeof v === 'number') return unixToIso(v);
+  const ms = Date.parse(v);
+  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
+}
+
+// Map an Aircall message object → aircall_messages row. The "contact" is
+// always the OTHER party (the line is ours): inbound → `from` is the
+// contact, outbound → `to` is the contact. contact_number (digits-only)
+// is the thread key the Calls UI groups on.
+export function mapAircallMessage(m: AircallMessageObj): Record<string, unknown> {
+  const dir = (m.direction ?? '').toLowerCase();
+  const isInbound = dir === 'inbound';
+  const contactRaw = isInbound ? m.from : m.to;
+  const lineRaw = isInbound ? m.to : m.from;
+  const now = new Date().toISOString();
+  return {
+    aircall_message_id: m.id !== undefined && m.id !== null ? String(m.id) : null,
+    direction: dir || null,
+    status: m.status ?? null,
+    channel: m.channel ?? null,
+    number_id: m.number_id ?? m.number?.id ?? null,
+    number_name: m.number?.name ?? null,
+    number_digits: digitsOnly(m.number?.digits ?? lineRaw),
+    contact_number: digitsOnly(contactRaw),
+    raw_to: m.to ?? null,
+    raw_from: m.from ?? null,
+    body: (m.body ?? m.content ?? null) as string | null,
+    media_url: m.media_url ?? null,
+    user_id: m.user?.id ?? null,
+    user_name: m.user?.name ?? null,
+    sent_at: !isInbound ? (anyToIso(m.sent_at ?? m.created_at) ?? now) : anyToIso(m.sent_at),
+    received_at: isInbound ? (anyToIso(m.received_at ?? m.created_at) ?? now) : anyToIso(m.received_at),
+    raw: m as unknown as Record<string, unknown>,
+  };
+}
+
+export interface SendMessageInput {
+  numberId: number;
+  to: string; // E.164
+  body: string;
+  mediaUrl?: string;
+  // skip_inbox sends without threading into the Aircall agent inbox —
+  // we keep the default (inbox) so messages also show in Aircall itself.
+  skipInbox?: boolean;
+}
+
+// Send an SMS/MMS through Aircall. Returns the new message id when Aircall
+// includes it in the response (it also fires a message.sent webhook, which
+// is the source of truth for the persisted row).
+export async function sendAircallMessage(input: SendMessageInput): Promise<{ id: string | null; raw: unknown }> {
+  const path = input.skipInbox ? '/messages/skip_inbox' : '/messages';
+  const payload: Record<string, unknown> = { number_id: input.numberId, to: input.to };
+  if (input.body) payload.body = input.body;
+  if (input.mediaUrl) payload.media_url = input.mediaUrl;
+  const result = await aircallFetch<Record<string, unknown>>(path, { method: 'POST', body: payload });
+  const msg = (result?.message ?? result) as { id?: unknown } | undefined;
+  const id = msg?.id !== undefined && msg?.id !== null ? String(msg.id) : null;
+  return { id, raw: result };
+}
+
+// ------------------------------------------------------------
 // Conversation-Intelligence (AI) webhook helpers.
 //
 // The AI events (transcription.created, summary.created, topics.created,

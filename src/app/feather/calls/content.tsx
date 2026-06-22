@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { OperatorSchedule } from './OperatorSchedule';
 import { OperatorCheatSheet } from './OperatorCheatSheet';
 import { CallsHeatmap } from './CallsHeatmap';
+import MessagesPanel from './MessagesPanel';
 import {
   type AircallCallRow,
   PHOENIX_TZ,
@@ -710,6 +711,11 @@ export default function CallsContent() {
 
       {/* Admissions call-flow cheat sheet — collapsed row, drops down. */}
       <OperatorCheatSheet />
+
+      {/* Text messages (Aircall SMS) — launcher chip opens a threaded drawer. */}
+      <div className="mb-5">
+        <MessagesPanel token={token} />
+      </div>
 
       {/* Insight stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
