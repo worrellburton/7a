@@ -55,6 +55,7 @@ export interface ReadyDraft {
   // network posts its correctly-cropped asset. Platforms absent here fall
   // back to the shared mediaUrls.
   mediaByPlatform?: Record<string, string[]>;
+  createdByName?: string | null;
 }
 
 /* ── Error banner with copy-to-clipboard ─────────────────────── */
@@ -120,9 +121,9 @@ export function ReadyToGoCard({
     <section className="rounded-2xl border border-black/10 bg-white px-4 py-4 lg:px-5 lg:py-5">
       <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
         <div>
-          <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Ready · {drafts.length}</h2>
-          <p className="text-[11px] text-foreground/45 mt-0.5">
-            Drag a draft onto the Post now or Schedule card — or use the buttons on each tile.
+          <h2 className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">Ready · {drafts.length}</h2>
+          <p className="text-[11px] text-foreground/45 mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
+            Drag a row onto the Queue, Post now, or Schedule card — or use the buttons on each row.
           </p>
         </div>
       </div>
@@ -133,22 +134,35 @@ export function ReadyToGoCard({
           </p>
         </div>
       ) : (
-        <ul className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 gap-2">
-          {drafts.map((d) => (
-            <ReadyDraftTile key={d.id} draft={d} onQuickAction={onQuickAction} />
-          ))}
-        </ul>
+        <div className="overflow-x-auto rounded-lg border border-black/5">
+          <table className="w-full text-left text-[12.5px]" style={{ fontFamily: 'var(--font-body)' }}>
+            <thead className="bg-warm-bg/40 text-foreground/55">
+              <tr className="border-b border-black/5">
+                <th scope="col" className="px-2 py-2 w-12 text-[9.5px] font-bold uppercase tracking-[0.14em]">Media</th>
+                <th scope="col" className="px-2 py-2 text-[9.5px] font-bold uppercase tracking-[0.14em]">Caption</th>
+                <th scope="col" className="px-2 py-2 w-28 text-[9.5px] font-bold uppercase tracking-[0.14em]">Platforms</th>
+                <th scope="col" className="px-2 py-2 w-28 text-[9.5px] font-bold uppercase tracking-[0.14em] hidden md:table-cell">Created by</th>
+                <th scope="col" className="px-2 py-2 w-32 text-[9.5px] font-bold uppercase tracking-[0.14em] hidden md:table-cell">Saved</th>
+                <th scope="col" className="px-2 py-2 text-[9.5px] font-bold uppercase tracking-[0.14em] text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {drafts.map((d) => (
+                <ReadyDraftRow key={d.id} draft={d} onQuickAction={onQuickAction} />
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </section>
   );
 }
 
-// One draggable tile. Pulled out so we can wire the dataTransfer
-// payload + cursor styling in one place and so the inner <img>
-// stays `draggable={false}` — without that, the browser's native
-// image-drag intercepts the gesture and our 'application/x-ready-draft'
-// MIME type never gets set, so every drop target rejected the drop.
-function ReadyDraftTile({
+// One draggable Ready row — same layout as the Compose Ready list. The <tr>
+// carries the 'application/x-ready-draft' payload so it can be dropped on the
+// Queue / Post-now / Schedule cards, and the Actions cell offers the same as
+// a click path (essential on touch, where drag-drop never fires).
+function ReadyDraftRow({
   draft,
   onQuickAction,
 }: {
@@ -157,82 +171,90 @@ function ReadyDraftTile({
 }) {
   const thumb = draft.mediaUrls[0];
   const isVideo = typeof thumb === 'string' && /\.(mp4|mov|webm|m4v)(\?|$)/i.test(thumb);
+  const saved = new Date(draft.createdAt).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   return (
-    <li
+    <tr
       draggable
       onDragStart={(e) => {
         e.dataTransfer.setData('application/x-ready-draft', JSON.stringify(draft));
         e.dataTransfer.effectAllowed = 'copy';
       }}
-      className="group relative rounded-lg overflow-hidden border border-emerald-200 bg-emerald-50/40 cursor-grab active:cursor-grabbing aspect-square"
+      className="border-t border-black/5 hover:bg-warm-bg/30 cursor-grab active:cursor-grabbing"
       title={draft.caption || '(no caption)'}
     >
-      {thumb ? (
-        isVideo ? (
-          <video
-            src={thumb}
-            preload="metadata"
-            muted
-            playsInline
-            draggable={false}
-            className="w-full h-full object-cover bg-black pointer-events-none"
-          />
+      <td className="px-2 py-2 align-middle">
+        <div className="relative w-9 h-9 rounded overflow-hidden border border-emerald-200">
+          {thumb ? (
+            isVideo ? (
+              <video src={thumb} preload="metadata" muted playsInline draggable={false} className="w-full h-full object-cover bg-black pointer-events-none" />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={thumb} alt="" draggable={false} className="w-full h-full object-cover pointer-events-none" />
+            )
+          ) : (
+            <span className="w-full h-full flex items-center justify-center bg-warm-bg/60 text-foreground/40 text-[10px]" aria-hidden>—</span>
+          )}
+          <span className="absolute top-0.5 left-0.5 inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white" aria-hidden />
+        </div>
+      </td>
+      <td className="px-2 py-2 align-middle min-w-0">
+        <p className="text-foreground/85 line-clamp-2 whitespace-pre-line">
+          {draft.caption || <span className="text-foreground/40 italic">(no caption)</span>}
+        </p>
+      </td>
+      <td className="px-2 py-2 align-middle">
+        <div className="flex flex-wrap gap-1">
+          {(draft.platforms ?? []).length === 0 ? (
+            <span className="text-foreground/40 text-[11px]">—</span>
+          ) : (draft.platforms ?? []).map((p) => (
+            <span key={p} className="inline-flex items-center justify-center w-4 h-4 text-foreground/70" title={p}>
+              <PlatformIcon platform={p as PlatformId} size={14} />
+            </span>
+          ))}
+        </div>
+      </td>
+      <td className="px-2 py-2 align-middle text-[11px] text-foreground/55 whitespace-nowrap hidden md:table-cell">
+        {draft.createdByName || <span className="text-foreground/40">—</span>}
+      </td>
+      <td className="px-2 py-2 align-middle text-[11px] text-foreground/55 tabular-nums whitespace-nowrap hidden md:table-cell">
+        {saved}
+      </td>
+      <td className="px-2 py-2 align-middle text-right whitespace-nowrap">
+        {onQuickAction ? (
+          <div className="inline-flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => onQuickAction(draft, 'queue')}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-black/10 bg-white text-[10px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+              title="Add to the next open queue slot"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h10" /></svg>
+              <span className="hidden sm:inline">Queue</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onQuickAction(draft, 'schedule')}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-black/10 bg-white text-[10px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+              title="Schedule this post"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2" /><path strokeLinecap="round" d="M3 9h18M8 2v4M16 2v4" /></svg>
+              <span className="hidden sm:inline">Schedule</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onQuickAction(draft, 'postnow')}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-primary text-white text-[10px] font-semibold hover:bg-primary/90"
+              title="Post this now"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" /></svg>
+              <span className="hidden sm:inline">Now</span>
+            </button>
+          </div>
         ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={thumb}
-            alt={draft.caption}
-            draggable={false}
-            className="w-full h-full object-cover pointer-events-none"
-          />
-        )
-      ) : (
-        <div className="w-full h-full flex items-center justify-center bg-warm-bg/40 text-[10px] text-foreground/45 px-1.5 text-center" style={{ fontFamily: 'var(--font-body)' }}>
-          No media
-        </div>
-      )}
-      <span className="absolute top-1 left-1 inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 ring-2 ring-white" aria-hidden />
-      {!onQuickAction && (
-        <div className="absolute inset-x-0 bottom-0 px-1.5 py-1 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-          <p className="text-[10px] text-white leading-tight line-clamp-2" style={{ fontFamily: 'var(--font-body)' }}>
-            {draft.caption || '(no caption)'}
-          </p>
-        </div>
-      )}
-      {/* Click-path actions — always visible on touch (no hover, no drag),
-          fade-in on hover for desktop where dragging is the primary gesture. */}
-      {onQuickAction && (
-        <div className="absolute inset-x-0 bottom-0 flex divide-x divide-white/20 bg-black/55 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
-          <button
-            type="button"
-            onClick={() => onQuickAction(draft, 'queue')}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-white hover:bg-white/10"
-            title="Add to the next open queue slot"
-          >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h10" /></svg>
-            <span className="hidden sm:inline">Queue</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onQuickAction(draft, 'schedule')}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-white hover:bg-white/10"
-            title="Schedule this post"
-          >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2" /><path strokeLinecap="round" d="M3 9h18M8 2v4M16 2v4" /></svg>
-            <span className="hidden sm:inline">Schedule</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => onQuickAction(draft, 'postnow')}
-            className="flex-1 flex items-center justify-center gap-1 py-1.5 text-[10px] font-semibold text-white hover:bg-white/10"
-            title="Post this now"
-          >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" /></svg>
-            <span className="hidden sm:inline">Now</span>
-          </button>
-        </div>
-      )}
-    </li>
+          <span className="text-[10px] text-foreground/40 uppercase tracking-wider">Drag to a card</span>
+        )}
+      </td>
+    </tr>
   );
 }
 
