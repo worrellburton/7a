@@ -1225,6 +1225,7 @@ function SchedulePostsBody({
       mediaUrls: d.mediaUrls,
       createdAt: d.createdAt,
       platforms: d.platforms ?? [],
+      createdByName: d.createdByName ?? null,
       // Per-network cropped media derived from the draft's deliverable slots.
       mediaByPlatform: mediaByPlatformFromDeliverables(d.mediaByDeliverable ?? [], d.platforms ?? []),
     })),
