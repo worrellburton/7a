@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from 'react';
 const stats = [
   { v: 50, suffix: '%', unit: 'co-occurrence', label: 'of adults with a substance use disorder also meet criteria for a co-occurring mental-health condition.' },
   { v: 21.5, suffix: 'M', unit: 'adults', label: 'live with co-occurring mental-health and substance-use disorders in the United States.' },
-  { v: 8, suffix: '%', unit: 'receive both', label: 'of those with co-occurring conditions receive treatment for both — the rest are only partially treated.' },
+  { v: 8, suffix: '%', unit: 'receive both', label: 'of those with co-occurring conditions receive treatment for both, the rest are only partially treated.' },
   { v: 3, suffix: '×', unit: 'outcomes', label: 'better sustained-recovery outcomes when the two conditions are treated in an integrated program versus separately.' },
 ];
 

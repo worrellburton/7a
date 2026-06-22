@@ -93,7 +93,7 @@ export default function ConditionsBento() {
             The <em className="not-italic text-primary">eight</em> we see most.
           </h2>
           <p className="text-foreground/70 text-sm leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
-            Every condition below changes substance use &mdash; and every
+            Every condition below changes substance use, and every
             substance changes the condition. Both get treated, together, here.
           </p>
         </div>

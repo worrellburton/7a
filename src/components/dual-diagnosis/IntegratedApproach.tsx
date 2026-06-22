@@ -12,7 +12,7 @@ type Item = { title: string; body: string; Icon: (p: { className?: string }) => 
 
 const flagship: Item = {
   title: 'Comprehensive psychiatric assessment',
-  body: 'Every admission begins with a thorough psychiatric and clinical evaluation to identify every co-occurring condition and build a single, unified treatment roadmap — not two parallel ones.',
+  body: 'Every admission begins with a thorough psychiatric and clinical evaluation to identify every co-occurring condition and build a single, unified treatment roadmap, not two parallel ones.',
   Icon: ({ className }) => (
     <svg className={className} viewBox="0 0 48 48" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="8" y="10" width="32" height="30" rx="3" /><path d="M14 18h20M14 24h20M14 30h14" /><circle cx="38" cy="14" r="3" fill="currentColor" stroke="none" /></svg>
   ),
@@ -21,14 +21,14 @@ const flagship: Item = {
 const items: Item[] = [
   {
     title: 'Integrated individual therapy',
-    body: 'One-on-one sessions with licensed therapists using CBT, DBT, EMDR, and IFS — addressing addiction and mental-health symptoms in the same hour.',
+    body: 'One-on-one sessions with licensed therapists using CBT, DBT, EMDR, and IFS, addressing addiction and mental-health symptoms in the same hour.',
     Icon: ({ className }) => (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3" /><circle cx="17" cy="10" r="2.5" /><path d="M3 20c0-3 2.5-5 6-5s6 2 6 5" /></svg>
     ),
   },
   {
     title: 'Medication management',
-    body: 'Psychiatric oversight ensures safe, effective use of non-addictive medications when clinically indicated — coordinated with every other layer of care.',
+    body: 'Psychiatric oversight ensures safe, effective use of non-addictive medications when clinically indicated, coordinated with every other layer of care.',
     Icon: ({ className }) => (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="8" y="3" width="8" height="18" rx="4" /><path d="M8 12h8" /></svg>
     ),
@@ -42,7 +42,7 @@ const items: Item[] = [
   },
   {
     title: 'Trauma-informed everything',
-    body: 'Our Forward-Facing® Accelerated Recovery approach holds trauma as the common thread between the mental-health condition and the substance use — and treats that thread directly.',
+    body: 'Our Forward-Facing® Accelerated Recovery approach holds trauma as the common thread between the mental-health condition and the substance use, and treats that thread directly.',
     Icon: ({ className }) => (
       <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l9 4v6c0 5-4 7-9 8-5-1-9-3-9-8V7z" /><path d="M9 12l2 2 4-4" /></svg>
     ),

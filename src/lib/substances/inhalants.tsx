@@ -2,10 +2,12 @@ import type { SubstanceContent } from './types';
 
 export const inhalantsContent: SubstanceContent = {
   hero: {
-    label: 'Inhalant Addiction Treatment',
+    label: 'Inhalant Addiction Treatment in Arizona',
+    labelAs: 'h1',
+    titleAs: 'p',
     title: 'Inhalants are cheap, legal, and the most neurologically dangerous drug most users never hear about.',
     description:
-      'At Seven Arrows Recovery, inhalant use disorder is treated with the medical seriousness its neurotoxicity demands. Our residential program in Arizona coordinates urgent medical assessment, cognitive rehabilitation, trauma-informed therapy, and long-arc recovery work for a class of substances that causes damage faster than almost any other.',
+      'At Seven Arrows Recovery, inhalant use disorder is treated with the medical seriousness its neurotoxicity demands. Our inhalant addiction treatment center in Arizona coordinates urgent medical assessment, cognitive rehabilitation, trauma-informed therapy, and long-arc recovery work for a class of substances that causes damage faster than almost any other.',
     breadcrumbs: [
       { label: 'Home', href: '/' },
       { label: 'What We Treat', href: '/what-we-treat' },
@@ -16,14 +18,14 @@ export const inhalantsContent: SubstanceContent = {
     eyebrow: 'The Neurochemistry',
     title: (
       <>
-        Inhalants hit fast and hit hard —{' '}
-        <em className="not-italic text-primary">and every use is neurologically expensive.</em>
+        How Inhalants Affect the Brain:{' '}
+        <em className="not-italic text-primary">Fast, Hard, and Neurologically Expensive</em>
       </>
     ),
     paragraphs: [
-      'Solvents, aerosols, nitrous oxide, and volatile nitrites act on GABA, NMDA, and dopamine systems all at once, producing a rapid brief high that peaks within seconds to minutes. The speed of onset is part of what makes them dangerous — and what makes the pattern hard to interrupt without support.',
+      'Solvents, aerosols, nitrous oxide, and volatile nitrites act on GABA, NMDA, and dopamine systems all at once, producing a rapid brief high that peaks within seconds to minutes. The speed of onset is part of what makes them dangerous and what makes the pattern hard to interrupt without support.',
       'Unlike almost every other recreational drug, inhalants are directly neurotoxic at any dose. Chronic use produces measurable loss of white matter, cognitive impairment, and peripheral nerve damage. "Sudden sniffing death" from cardiac arrhythmia can happen on a first or thousandth use.',
-      'Recovery means stopping immediately and giving the brain and body the best conditions to repair what can be repaired. Time, structure, and neurological support do the heavy lifting.',
+      'In inhalant addiction recovery means stopping immediately and giving the brain and body the best conditions to repair what can be repaired. Time, structure, and neurological support do the heavy lifting.',
     ],
     chart: {
       natural: { label: 'cognitive baseline', color: '#2f6f5e' },
@@ -40,7 +42,7 @@ export const inhalantsContent: SubstanceContent = {
     ),
     paragraphs: [
       'The inhalant cycle is uniquely fast: use, seconds-to-minutes peak, rapid comedown, the pull to redose. Users often cycle dozens of times in a single sitting, amplifying neurotoxicity with every pass.',
-      'Residential care breaks the cycle by physical separation — from the substance, from the tools of use, and from the environments that enable rapid redosing. The nervous system gets a real chance to begin repair.',
+      'Our Residential inhalant addiction treatment in Arizona breaks the cycle by physical separation from the substance, from the tools of use, and from the environments that enable rapid redosing. The nervous system gets a real chance to begin repair.',
     ],
     stages: [
       { label: 'Inhale', hint: 'Seconds to peak' },
@@ -84,10 +86,11 @@ export const inhalantsContent: SubstanceContent = {
     eyebrow: 'The First Ninety Days',
     title: (
       <>
-        Inhalant withdrawal is <em className="not-italic text-primary">mild physically</em> — and the real work is neurological recovery.
+        Inhalant Withdrawal Is Mild Physically.{' '}
+        <em className="not-italic text-primary">The Real Work Is Neurological Recovery.</em>
       </>
     ),
-    body: 'Physical withdrawal is rarely dramatic. What takes time is the brain and body repair — cognitive function, peripheral nerve health, and psychiatric stability all need months of abstinence and structured support to come back.',
+    body: 'Physical withdrawal of inhalant addiction is rarely dramatic. What takes time is the brain and body repair cognitive function, peripheral nerve health, and psychiatric stability all need months of abstinence and structured support to come back.',
     phases: [
       {
         label: 'Acute withdrawal',
@@ -115,8 +118,8 @@ export const inhalantsContent: SubstanceContent = {
     eyebrow: 'Who We Actually See',
     title: (
       <>
-        Five patterns through our door —{' '}
-        <em className="not-italic text-primary">often younger, often hidden</em>.
+        Who Comes Through Our Door for Inhalant Treatment in Arizona:{' '}
+        <em className="not-italic text-primary">Often Younger, Often Hidden</em>
       </>
     ),
     body: 'Inhalant use skews younger than other substances and is often hidden or misidentified as something else. Early intervention matters enormously because the neurotoxicity compounds.',
@@ -152,7 +155,8 @@ export const inhalantsContent: SubstanceContent = {
     eyebrow: 'Our Approach',
     title: (
       <>
-        Protect the brain. <em className="not-italic text-primary">Support the repair.</em> Treat what was underneath.
+        Our Inhalant Addiction Treatment in Arizona:{' '}
+        <em className="not-italic text-primary">Protect the Brain, Support the Repair, Treat What Was Underneath</em>
       </>
     ),
     body: 'Inhalant recovery starts with immediate cessation, thorough medical and cognitive assessment, and a long-arc plan that supports the brain and body while they do the slow work of rebuilding.',
@@ -174,7 +178,7 @@ export const inhalantsContent: SubstanceContent = {
       },
       {
         title: 'Trauma-informed therapy',
-        body: 'Forward-Facing® Accelerated Recovery, EMDR, ART, and IFS — sequenced after the early medical and cognitive picture is stable.',
+        body: 'Forward-Facing® Accelerated Recovery, EMDR, ART, and IFS sequenced after the early medical and cognitive picture is stable.',
         iconId: 'spiral',
       },
       {
@@ -202,8 +206,8 @@ export const inhalantsContent: SubstanceContent = {
       </>
     ),
     paragraphs: [
-      'Most alumni describe a measurable shift somewhere between months two and four — attention sharpens, memory consolidates, mood steadies, the fog clears. Neurological repair is real and visible over months of abstinence.',
-      'Sleep, movement, connection, and meaning — the four pillars — are the literal activities that support brain repair. None of this is a metaphor.',
+      'Most alumni describe a measurable shift somewhere between months two and four, attention sharpens, memory consolidates, mood steadies, the fog clears. Neurological repair is real and visible over months of abstinence.',
+      'Sleep, movement, connection, and meaning the four pillars are the literal activities that support brain repair. None of this is a metaphor.',
     ],
     anchors: [
       { x: 0.12, label: 'Sleep', hint: 'White-matter repair' },
@@ -248,6 +252,6 @@ export const inhalantsContent: SubstanceContent = {
         The brain repairs. <em className="not-italic text-accent">Start giving it the conditions.</em>
       </>
     ),
-    body: 'Our admissions team can verify your insurance, coordinate neurological and cognitive assessment, and begin intake within 24 to 48 hours. Inhalant use is one of the few addictions where "start today" is a medical statement, not a marketing one.',
+    body: 'Our admissions team at the inhalant addiction treatment center in Arizona can verify your insurance, coordinate neurological and cognitive assessment, and begin intake within 24 to 48 hours. Inhalant use is one of the few addictions where "start today" is a medical statement, not a marketing one.',
   },
 };
