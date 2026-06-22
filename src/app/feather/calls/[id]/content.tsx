@@ -12,6 +12,8 @@ import {
   formatDuration,
   formatPhone,
   formatWait,
+  resolveSource,
+  sourceChipClass,
 } from '../_shared';
 import { callerLocation } from '../area-codes';
 
@@ -42,6 +44,9 @@ export default function CallDetailContent() {
   const [call, setCall] = useState<AircallCallDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Per-number admin "source" overrides (same map the desktop grid uses), so
+  // the Source field here resolves to the exact value shown on the row.
+  const [sourceOverrides, setSourceOverrides] = useState<Record<string, string>>({});
   const [showTranscript, setShowTranscript] = useState(false);
   const [showRaw, setShowRaw] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -88,6 +93,20 @@ export default function CallDetailContent() {
     return () => { cancelled = true; };
   }, [id, session?.access_token]);
 
+  // Source overrides are keyed by digit-only number; fetched once.
+  useEffect(() => {
+    if (!session?.access_token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/aircall/number-label', { headers: { Authorization: `Bearer ${session.access_token}` } });
+        const json = await res.json();
+        if (!cancelled && res.ok) setSourceOverrides((json.sources ?? {}) as Record<string, string>);
+      } catch { /* non-fatal — falls back to the per-call AI source */ }
+    })();
+    return () => { cancelled = true; };
+  }, [session?.access_token]);
+
   if (loading) {
     return <div className="px-4 sm:px-6 lg:px-10 py-10"><div className="h-40 rounded-2xl bg-foreground/5 animate-pulse max-w-3xl" /></div>;
   }
@@ -107,6 +126,11 @@ export default function CallDetailContent() {
   const callerLabel = call.contact_name || formatPhone(call.raw_digits || call.caller_number);
   const dirKey = (call.direction || '').toLowerCase();
   const dirClass = directionStyle[dirKey] || 'bg-gray-100 text-gray-600';
+
+  // Resolved "how did you hear about us?" source — admin per-number override
+  // wins, else the per-call AI value, matching the desktop Source column.
+  const numKey = call.caller_number || (call.raw_digits || '').replace(/\D/g, '');
+  const resolvedSource = resolveSource(numKey ? sourceOverrides[numKey] : null, call.source);
 
   const Field = ({ label, value }: { label: string; value: React.ReactNode }) => (
     <div>
@@ -175,6 +199,9 @@ export default function CallDetailContent() {
             : phone;
         })()} />
         <Field label="Location" value={(() => { const l = callerLocation(call.raw_digits || call.caller_number); return l ? `${l.name}` : null; })()} />
+        <Field label="Source" value={resolvedSource
+          ? <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${sourceChipClass(resolvedSource)}`}>{resolvedSource}</span>
+          : null} />
         <Field label="Contact" value={call.contact_name} />
         <Field label="Company" value={call.contact_company} />
         <Field label="Agent" value={call.user_name} />
