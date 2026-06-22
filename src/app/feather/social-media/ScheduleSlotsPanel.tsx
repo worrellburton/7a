@@ -11,6 +11,23 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { usePostingEnabled, PostingPausedBanner } from './PostingStatus';
+import { PlatformIcon, type PlatformId } from './PlatformIcon';
+
+// Read-only row of the networks a draft will post to. Network selection
+// happens in the post itself (Create → Networks), so here we just show the
+// icons rather than re-asking with checkboxes.
+function PlatformIcons({ platforms }: { platforms: string[] }) {
+  if (platforms.length === 0) return <span className="text-[11px] text-red-700">no connected platforms</span>;
+  return (
+    <div className="flex items-center gap-1.5" title={`Posting to ${platforms.join(', ')}`}>
+      {platforms.map((p) => (
+        <span key={p} className="inline-flex items-center justify-center w-5 h-5 text-foreground/75" title={p}>
+          <PlatformIcon platform={p as PlatformId} size={16} />
+        </span>
+      ))}
+    </div>
+  );
+}
 
 // Browser timezone abbreviation (e.g. "MST", "PDT") so the operator knows
 // which clock the datetime-local picker is in — it sends absolute UTC, but
@@ -302,13 +319,6 @@ export default function ScheduleDropCard({
     ? assigned.filter((p) => connectedPlatforms.includes(p))
     : connectedPlatforms;
 
-  const togglePlatform = (p: string) => {
-    setSelectedPlatforms((prev) => {
-      const next = new Set(prev);
-      if (next.has(p)) next.delete(p); else next.add(p);
-      return next;
-    });
-  };
 
   const onDragOver = (e: React.DragEvent) => {
     if (e.dataTransfer.types.includes('application/x-ready-draft')) {
@@ -445,23 +455,7 @@ export default function ScheduleDropCard({
               {draft.caption || '(no caption)'}
             </span>
 
-            {availablePlatforms.length === 0 ? (
-              <span className="text-[11px] text-red-700">no connected platforms</span>
-            ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                {availablePlatforms.map((p) => (
-                  <label key={p} className="inline-flex items-center gap-1 text-[11.5px] text-foreground/70 capitalize cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={selectedPlatforms.has(p)}
-                      onChange={() => togglePlatform(p)}
-                      className="w-3.5 h-3.5 accent-primary"
-                    />
-                    {p}
-                  </label>
-                ))}
-              </div>
-            )}
+            <PlatformIcons platforms={availablePlatforms} />
 
             <input
               type="datetime-local"
@@ -553,13 +547,6 @@ export function PostNowDropCard({
     ? assigned.filter((p) => connectedPlatforms.includes(p))
     : connectedPlatforms;
 
-  const togglePlatform = (p: string) => {
-    setSelectedPlatforms((prev) => {
-      const next = new Set(prev);
-      if (next.has(p)) next.delete(p); else next.add(p);
-      return next;
-    });
-  };
 
   const onDragOver = (e: React.DragEvent) => {
     if (e.dataTransfer.types.includes('application/x-ready-draft')) {
@@ -681,23 +668,7 @@ export function PostNowDropCard({
               {draft.caption || '(no caption)'}
             </span>
 
-            {availablePlatforms.length === 0 ? (
-              <span className="text-[11px] text-red-700">no connected platforms</span>
-            ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                {availablePlatforms.map((p) => (
-                  <label key={p} className="inline-flex items-center gap-1 text-[11.5px] text-foreground/70 capitalize cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={selectedPlatforms.has(p)}
-                      onChange={() => togglePlatform(p)}
-                      className="w-3.5 h-3.5 accent-primary"
-                    />
-                    {p}
-                  </label>
-                ))}
-              </div>
-            )}
+            <PlatformIcons platforms={availablePlatforms} />
 
             <button
               type="button"
