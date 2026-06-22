@@ -12,6 +12,8 @@ import {
   formatPhone,
   formatRelativeTime,
   formatWait,
+  resolveSource,
+  sourceChipClass,
 } from '../../_shared';
 import { callerLocation } from '../../area-codes';
 
@@ -33,6 +35,7 @@ export default function NumberCallsContent() {
   // Pinned name for this number.
   const [name, setName] = useState('');
   const [savedName, setSavedName] = useState<string | null>(null);
+  const [savedSource, setSavedSource] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedTick, setSavedTick] = useState(false);
 
@@ -71,6 +74,7 @@ export default function NumberCallsContent() {
         if (cancelled) return;
         setSavedName(json.name ?? null);
         setName(json.name ?? '');
+        setSavedSource(json.source ?? null);
       } catch { /* leave blank */ }
     })();
     return () => { cancelled = true; };
@@ -99,6 +103,12 @@ export default function NumberCallsContent() {
   const contactName = useMemo(() => calls.find((c) => c.contact_name)?.contact_name ?? null, [calls]);
   const displayName = savedName || contactName;
   const loc = useMemo(() => callerLocation(number), [number]);
+  // Resolved source for this number: admin override else the first call's AI
+  // value — same value the desktop Source column shows.
+  const resolvedSource = useMemo(
+    () => resolveSource(savedSource, calls.find((c) => c.source)?.source ?? null),
+    [savedSource, calls],
+  );
 
   const total = calls.length;
   const missed = calls.filter((c) => c.missed).length;
@@ -127,6 +137,12 @@ export default function NumberCallsContent() {
               {displayName && loc && <span className="text-foreground/30"> · </span>}
               {loc && <span>{loc.name}</span>}
             </p>
+            {resolvedSource && (
+              <p className="mt-1.5 flex items-center gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground/45">Source</span>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${sourceChipClass(resolvedSource)}`}>{resolvedSource}</span>
+              </p>
+            )}
           </div>
           <button
             type="button"

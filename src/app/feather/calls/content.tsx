@@ -19,6 +19,7 @@ import {
   formatRelativeTime,
   formatWait,
   initials,
+  sourceChipClass,
 } from './_shared';
 import { callerLocation } from './area-codes';
 
@@ -84,22 +85,6 @@ function callStatusMeta(c: AircallCallRow): { dot: string; label: string } {
   if (c.missed) return { dot: 'bg-rose-500', label: 'Missed' };
   if (c.direction === 'inbound') return { dot: 'bg-emerald-500', label: 'Inbound' };
   return { dot: 'bg-blue-500', label: c.direction === 'outbound' ? 'Outbound' : 'Call' };
-}
-
-// Soft color chip per source type so the Source column scans by category.
-function sourceChipClass(value: string): string {
-  const v = value.toLowerCase();
-  if (v.includes('google') || v.includes('web') || v.includes('search')) return 'bg-blue-50 text-blue-700';
-  if (v.includes('psychology')) return 'bg-indigo-50 text-indigo-700';
-  if (v.includes('insurance')) return 'bg-teal-50 text-teal-700';
-  if (v.includes('referral') || v.includes('doctor') || v.includes('professional')) return 'bg-emerald-50 text-emerald-700';
-  if (v.includes('friend') || v.includes('family')) return 'bg-amber-50 text-amber-700';
-  if (v.includes('alumni') || v.includes('returning')) return 'bg-purple-50 text-purple-700';
-  if (v.includes('facebook')) return 'bg-sky-50 text-sky-700';
-  if (v.includes('instagram')) return 'bg-pink-50 text-pink-700';
-  if (v.includes('samhsa')) return 'bg-cyan-50 text-cyan-700';
-  if (v.includes('billboard') || v.includes(' ad') || v === 'ad') return 'bg-orange-50 text-orange-700';
-  return 'bg-foreground/5 text-foreground/65';
 }
 
 // Curated "how did you hear about us?" options for the Source dropdown.

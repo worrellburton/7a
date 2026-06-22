@@ -89,6 +89,30 @@ export const directionStyle: Record<string, string> = {
   outbound: 'bg-blue-50 text-blue-700',
 };
 
+// Resolved "how did you hear about us?" source: the per-number admin
+// override wins, else the per-call AI-detected value. Shared so the desktop
+// grid and the per-call detail page surface the exact same value.
+export function resolveSource(override: string | null | undefined, aiSource: string | null | undefined): string {
+  return ((override ?? '') || (aiSource ?? '')).trim();
+}
+
+// Soft color chip per source category so Source scans by type the same way
+// on the desktop grid and the call detail page.
+export function sourceChipClass(value: string): string {
+  const v = value.toLowerCase();
+  if (v.includes('google') || v.includes('web') || v.includes('search')) return 'bg-blue-50 text-blue-700';
+  if (v.includes('psychology')) return 'bg-indigo-50 text-indigo-700';
+  if (v.includes('insurance')) return 'bg-teal-50 text-teal-700';
+  if (v.includes('referral') || v.includes('doctor') || v.includes('professional')) return 'bg-emerald-50 text-emerald-700';
+  if (v.includes('friend') || v.includes('family')) return 'bg-amber-50 text-amber-700';
+  if (v.includes('alumni') || v.includes('returning')) return 'bg-purple-50 text-purple-700';
+  if (v.includes('facebook')) return 'bg-sky-50 text-sky-700';
+  if (v.includes('instagram')) return 'bg-pink-50 text-pink-700';
+  if (v.includes('samhsa')) return 'bg-cyan-50 text-cyan-700';
+  if (v.includes('billboard') || v.includes(' ad') || v === 'ad') return 'bg-orange-50 text-orange-700';
+  return 'bg-foreground/5 text-foreground/65';
+}
+
 // Availability badge styling for an Aircall user's live phone status.
 export function availabilityStyle(status: string | undefined | null): { dot: string; label: string; text: string } {
   switch ((status ?? '').toLowerCase()) {
