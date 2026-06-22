@@ -184,6 +184,8 @@ export async function GET(): Promise<Response> {
     '',
     'Seven Arrows treats adults for substance use disorders and co-occurring mental-health conditions. The program is salutogenic and trauma-first: rather than only managing symptoms, it rebuilds self-leadership and treats the trauma underneath both the addiction and the mental-health condition. The pages below are the canonical, citable sources for our program, the conditions we treat, admissions and insurance, locations, and our editorial library.',
     '',
+    `For full inlined body copy of the condition pages and the complete text of every published article, see ${abs('/llms-full.txt')}.`,
+    '',
   );
 
   // Core pages.
