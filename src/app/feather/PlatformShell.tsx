@@ -657,11 +657,11 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   // /feather/chat the page nav swaps for the conversation rail
   // (back button + Everybody + DM threads).
   const isChatMode = pathname === '/feather/chat' || pathname?.startsWith('/feather/chat/');
-  // Home pins the desktop rail open (expanded, not the collapsed
-  // icon-rail); every inner page keeps the hover-to-expand behaviour.
-  // Alumni home is /feather/alumni; staff home is /feather. Chat mode
-  // swaps the rail for the conversation pane, so never pin there.
-  const railPinnedOpen = !isChatMode && pathname === (isAlumni ? '/feather/alumni' : '/feather');
+  // The desktop rail is collapsed-by-default on every route, Home
+  // included — an icon rail that hover-expands. (Home used to pin the
+  // rail open at w-64 via a `.rail-pinned` class; that's been removed so
+  // Home matches the rest of the app.) Chat mode still swaps the rail for
+  // the conversation pane.
   const [navDepartments, setNavDepartments] = useState<NavDepartment[]>([]);
   // Counts of "new" submissions per nav path. Currently only powers
   // the badge on /app/website-requests; the structure leaves room for
@@ -1223,7 +1223,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           absolutely positioned and slides out to `w-64` over the
           page on group-hover, restoring labels + section headers
           via an opacity fade. Click-away or unhover collapses back. */}
-      <aside data-sidebar-rail className={`group/sidebar ${railPinnedOpen ? 'w-64 rail-pinned' : 'w-16'} shrink-0 hidden lg:block relative z-30`}>
+      <aside data-sidebar-rail className="group/sidebar w-16 shrink-0 hidden lg:block relative z-30">
         {/* Sticky sized to the real viewport. The `100vh/0.82`
             divisor here was compensating for `.app-shell { zoom: 0.82 }`
             at lg+, but that transform was removed (see globals.css —
