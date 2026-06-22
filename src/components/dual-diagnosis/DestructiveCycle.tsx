@@ -39,7 +39,7 @@ export default function DestructiveCycle() {
               </p>
               <p className="text-foreground/60">
                 When only one side is treated, the other keeps pulling recovery
-                apart. Integration isn&rsquo;t an upgrade &mdash; it&rsquo;s the
+                apart. Integration isn&rsquo;t an upgrade, it&rsquo;s the
                 minimum viable approach for lasting change.
               </p>
             </div>
