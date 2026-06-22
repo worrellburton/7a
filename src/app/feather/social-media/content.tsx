@@ -1353,7 +1353,7 @@ function ScheduledPanel({
   // Authoritative scheduled posts from OUR records (activity_log), so a
   // post that's queued in Ayrshare can never be silently hidden by a
   // /history quirk. Merged with the Ayrshare /history scheduled rows.
-  interface LocalScheduled { logId: string; ayrshareId: string | null; scheduleDate: string | null; platforms: string[]; mediaUrls?: string[]; caption: string; createdByName: string | null }
+  interface LocalScheduled { logId: string; ayrshareId: string | null; ayrshareIds?: string[]; scheduleDate: string | null; platforms: string[]; mediaUrls?: string[]; caption: string; createdByName: string | null }
   interface CanceledRec { at: string; caption: string; scheduleDate: string | null; canceledByName: string | null }
   const [local, setLocal] = useState<LocalScheduled[]>([]);
   const [canceledRecs, setCanceledRecs] = useState<CanceledRec[]>([]);
@@ -1373,22 +1373,25 @@ function ScheduledPanel({
   // a freshly-scheduled post shows up here without a manual refresh.
   useEffect(() => { void loadLocal(); }, [posts, loadLocal]);
 
-  interface SchedItem { key: string; ayrshareId: string | null; scheduleDate: string; platforms: string[]; mediaUrls: string[]; caption: string; createdByName: string | null }
+  interface SchedItem { key: string; ayrshareIds: string[]; scheduleDate: string; platforms: string[]; mediaUrls: string[]; caption: string; createdByName: string | null }
   const queue = useMemo<SchedItem[]>(() => {
     const items: SchedItem[] = [];
     const seen = new Set<string>();
+    // Dedupe by logical post (time + caption) so the local activity_log row
+    // and any Ayrshare /history echo of the same post show once.
     const add = (it: SchedItem) => {
-      const dedupe = it.ayrshareId ? `id:${it.ayrshareId}` : `dc:${it.scheduleDate}|${it.caption.slice(0, 24)}`;
+      const dedupe = `dc:${it.scheduleDate}|${it.caption.slice(0, 24)}`;
       if (seen.has(dedupe)) return;
       seen.add(dedupe);
       items.push(it);
     };
     for (const p of local) {
       if (!p.scheduleDate) continue;
-      add({ key: `local:${p.logId}`, ayrshareId: p.ayrshareId, scheduleDate: p.scheduleDate, platforms: p.platforms ?? [], mediaUrls: p.mediaUrls ?? [], caption: p.caption ?? '', createdByName: p.createdByName ?? null });
+      const ids = p.ayrshareIds ?? (p.ayrshareId ? [p.ayrshareId] : []);
+      add({ key: `local:${p.logId}`, ayrshareIds: ids, scheduleDate: p.scheduleDate, platforms: p.platforms ?? [], mediaUrls: p.mediaUrls ?? [], caption: p.caption ?? '', createdByName: p.createdByName ?? null });
     }
     for (const p of posts.filter(isScheduledPending)) {
-      add({ key: `ay:${(p.id as string) ?? p.scheduleDate}`, ayrshareId: (p.id as string) ?? null, scheduleDate: p.scheduleDate as string, platforms: p.platforms ?? [], mediaUrls: p.mediaUrls ?? [], caption: p.post ?? '', createdByName: null });
+      add({ key: `ay:${(p.id as string) ?? p.scheduleDate}`, ayrshareIds: typeof p.id === 'string' ? [p.id] : [], scheduleDate: p.scheduleDate as string, platforms: p.platforms ?? [], mediaUrls: p.mediaUrls ?? [], caption: p.post ?? '', createdByName: null });
     }
     return items.sort((a, b) => Date.parse(a.scheduleDate) - Date.parse(b.scheduleDate));
   }, [local, posts]);
@@ -1424,7 +1427,7 @@ function ScheduledPanel({
   };
 
   const cancel = async (item: SchedItem) => {
-    if (!item.ayrshareId) {
+    if (item.ayrshareIds.length === 0) {
       await modal.alert('Can’t cancel in-app yet', {
         message: 'We couldn’t find this post’s Ayrshare id, so cancel it from the Ayrshare dashboard (Posts → Scheduled). Posts scheduled from here cancel directly.',
       });
@@ -1442,7 +1445,7 @@ function ScheduledPanel({
         method: 'POST',
         credentials: 'include',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ id: item.ayrshareId, caption: item.caption, scheduleDate: item.scheduleDate }),
+        body: JSON.stringify({ ids: item.ayrshareIds, caption: item.caption, scheduleDate: item.scheduleDate }),
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) {
