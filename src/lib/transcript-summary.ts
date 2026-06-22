@@ -1,18 +1,44 @@
 // Summarise a pasted call / meeting transcript via the Claude API.
 //
 // Used by /api/contacts/:id/log-contact when an admin pastes a
-// transcript into the Log-a-Contact modal. The summary lives on the
-// contact_log row so the inline history drawer can show it without
-// having to download the raw transcript text from Storage.
+// transcript into the Log-a-Contact modal, and by the Aircall AI
+// backfill to summarise call transcripts. The summary lives on the
+// contact_log / aircall_calls row so the UI can show it without having
+// to download the raw transcript text.
 //
 // Returns null on any failure (missing API key, network error,
 // truncated response). The caller treats "no summary" as a soft
-// degrade — the log entry still saves with the raw transcript on
-// Storage, the summary just shows as a fallback message.
+// degrade — the log entry still saves with the raw transcript, the
+// summary just shows as a fallback message.
+//
+// Model resilience: the summariser is the only consumer of
+// ANTHROPIC_SUMMARY_MODEL. A stale/invalid value there (e.g. a Sonnet
+// version Anthropic retired) would 404 every request and silently blank
+// out call summaries AND "how did you hear about us" source detection,
+// while every other Claude feature (which uses ANTHROPIC_CONTENT_MODEL /
+// ANTHROPIC_MODEL) keeps working — exactly the failure we hit on
+// 2026-06-22. So we try the configured model first and fall back through
+// known-good models on any non-200, and we log the real Claude error so
+// the cause is visible in the runtime logs instead of vanishing.
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_VERSION = '2023-06-01';
-const CLAUDE_MODEL = process.env.ANTHROPIC_SUMMARY_MODEL || 'claude-sonnet-4-6';
+
+// Canonical, current models (see CLAUDE.md / the anthropic model-check
+// cron). Sonnet for quality summaries, Haiku as a cheap always-available
+// last resort so a degraded summary beats no summary.
+const DEFAULT_MODEL = 'claude-sonnet-4-6';
+const FALLBACK_MODEL = 'claude-haiku-4-5-20251001';
+
+// Configured model first, then the canonical defaults. De-duped so we
+// never call the same model twice when no override is set.
+const MODEL_CANDIDATES: string[] = [
+  ...new Set([
+    process.env.ANTHROPIC_SUMMARY_MODEL || DEFAULT_MODEL,
+    DEFAULT_MODEL,
+    FALLBACK_MODEL,
+  ]),
+];
 
 const SYSTEM_PROMPT = [
   'You summarise call / meeting transcripts for an admissions team at a residential treatment centre.',
@@ -45,14 +71,19 @@ const SOURCE_SYSTEM_PROMPT = [
   '- Output the label or NONE only. No quotes, no punctuation, no explanation, no preamble.',
 ].join('\n');
 
-// Returns the caller's "how did you hear about us" source, or null when
-// it was never asked / answered. Used to populate aircall_calls.source.
-export async function extractCallSource(transcript: string): Promise<string | null> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return null;
+interface ClaudeCall { status: number; text: string | null }
 
-  const trimmed = transcript.trim().slice(0, 200_000);
-  if (!trimmed) return null;
+// Single Claude messages request for one model. Returns the HTTP status
+// so the caller can decide whether to fall back (non-200) or accept the
+// result (200, even when the model produced empty text).
+async function claudeOnce(
+  model: string,
+  system: string,
+  user: string,
+  maxTokens: number,
+): Promise<ClaudeCall> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) return { status: 0, text: null };
 
   try {
     const res = await fetch(CLAUDE_API_URL, {
@@ -63,69 +94,66 @@ export async function extractCallSource(transcript: string): Promise<string | nu
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: CLAUDE_MODEL,
-        max_tokens: 30,
-        system: SOURCE_SYSTEM_PROMPT,
-        messages: [
-          {
-            role: 'user',
-            content: `Transcript:\n\n---\n${trimmed}\n---`,
-          },
-        ],
+        model,
+        max_tokens: maxTokens,
+        system,
+        messages: [{ role: 'user', content: user }],
       }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const body = await res.text().catch(() => '');
+      console.error(`[transcript-summary] Claude ${res.status} for model "${model}": ${body.slice(0, 300)}`);
+      return { status: res.status, text: null };
+    }
     const json = (await res.json()) as { content?: Array<{ type?: string; text?: string }> };
-    const out = (json.content ?? [])
+    const text = (json.content ?? [])
       .filter((p) => p.type === 'text' && typeof p.text === 'string')
       .map((p) => p.text as string)
-      .join(' ')
-      .trim()
-      .replace(/^["']|["']$/g, '')
+      .join('\n')
       .trim();
-    if (!out || /^none$/i.test(out)) return null;
-    // Guard against a runaway answer — keep it short.
-    return out.length > 60 ? out.slice(0, 60).trim() : out;
-  } catch {
-    return null;
+    return { status: 200, text: text || null };
+  } catch (e) {
+    console.error('[transcript-summary] Claude request threw:', e instanceof Error ? e.message : e);
+    return { status: 0, text: null };
   }
 }
 
-export async function summariseTranscript(transcript: string): Promise<string | null> {
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) return null;
+// Try each candidate model until one returns a 200. A 200 with empty
+// text is a real "nothing to say" answer and stops the cascade; only a
+// transport/HTTP failure (status !== 200) advances to the next model.
+async function runClaude(system: string, user: string, maxTokens: number): Promise<string | null> {
+  for (const model of MODEL_CANDIDATES) {
+    const r = await claudeOnce(model, system, user, maxTokens);
+    if (r.status === 200) return r.text;
+    if (model !== MODEL_CANDIDATES[MODEL_CANDIDATES.length - 1]) {
+      console.error(`[transcript-summary] falling back from "${model}" after status ${r.status}`);
+    }
+  }
+  return null;
+}
 
+// Returns the caller's "how did you hear about us" source, or null when
+// it was never asked / answered. Used to populate aircall_calls.source.
+export async function extractCallSource(transcript: string): Promise<string | null> {
   const trimmed = transcript.trim().slice(0, 200_000);
   if (!trimmed) return null;
 
-  try {
-    const res = await fetch(CLAUDE_API_URL, {
-      method: 'POST',
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': CLAUDE_VERSION,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: CLAUDE_MODEL,
-        max_tokens: 800,
-        system: SYSTEM_PROMPT,
-        messages: [
-          {
-            role: 'user',
-            content: `Summarise the following call / meeting transcript per the rules in the system message.\n\n---\n${trimmed}\n---`,
-          },
-        ],
-      }),
-    });
-    if (!res.ok) return null;
-    const json = (await res.json()) as { content?: Array<{ type?: string; text?: string }> };
-    const parts = (json.content ?? [])
-      .filter((p) => p.type === 'text' && typeof p.text === 'string')
-      .map((p) => p.text as string);
-    const out = parts.join('\n').trim();
-    return out || null;
-  } catch {
-    return null;
-  }
+  const text = await runClaude(SOURCE_SYSTEM_PROMPT, `Transcript:\n\n---\n${trimmed}\n---`, 30);
+  if (!text) return null;
+
+  const out = text.replace(/^["']|["']$/g, '').trim();
+  if (!out || /^none$/i.test(out)) return null;
+  // Guard against a runaway answer — keep it short.
+  return out.length > 60 ? out.slice(0, 60).trim() : out;
+}
+
+export async function summariseTranscript(transcript: string): Promise<string | null> {
+  const trimmed = transcript.trim().slice(0, 200_000);
+  if (!trimmed) return null;
+
+  return runClaude(
+    SYSTEM_PROMPT,
+    `Summarise the following call / meeting transcript per the rules in the system message.\n\n---\n${trimmed}\n---`,
+    800,
+  );
 }
