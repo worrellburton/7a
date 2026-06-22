@@ -21,9 +21,18 @@ import { summariseTranscript, extractCallSource } from '@/lib/transcript-summary
 //
 // AI data only exists for calls Aircall processed under an ACTIVE AI
 // Assist license, so calls from before AI Assist was enabled simply
-// return nothing. We stamp every call we try with ai_synced_at and never
-// retry it — otherwise we'd re-ask Aircall's four AI endpoints for those
-// calls on every cron run and burn through the rate limit.
+// return nothing.
+//
+// Readiness is gated on when the call ENDED (ended_at), not when it
+// started: Aircall only generates Conversation Intelligence after a call
+// finishes, so a window measured from started_at would make a long call a
+// candidate while it's still in progress — we'd pull an empty blob and,
+// historically, stamp ai_synced_at and never look again, permanently
+// losing the transcript (and summary) of a 15-20 minute admissions call.
+// Now we wait 15 min after ended_at, and bound retries with ai_attempts:
+// a call still missing a transcript is re-pulled up to MAX_AI_ATTEMPTS
+// times (so a slow Aircall transcription is recovered) and then left
+// alone (so a call Aircall never transcribes isn't re-fetched forever).
 //
 // This account's Aircall plan returns TRANSCRIPTS but not summaries, so
 // when a call has a transcript and no summary we generate one with Claude
@@ -37,6 +46,13 @@ export const maxDuration = 120;
 
 const DEFAULT_CALL_CAP = 10; // calls per run (Aircall fetch + a Claude summary each)
 const MAX_CALL_CAP = 50;
+
+// How many times we'll re-pull Aircall AI for a call that still has no
+// transcript before giving up. Cron runs every 5 min and readiness opens
+// 15 min after the call ends, so 5 attempts covers ~25 min of Aircall
+// processing lag — well beyond its usual few-minutes turnaround — without
+// re-fetching no-CI calls (missed, short, IVR) forever.
+const MAX_AI_ATTEMPTS = 5;
 
 const AI_SUBRESOURCES = ['transcription', 'summary', 'sentiments', 'topics'] as const;
 
@@ -80,23 +96,31 @@ async function handleBackfillAi(req: NextRequest) {
 
   const supabase = getAdminSupabase();
 
-  // Candidates needing AI work: no summary yet, old enough that Aircall's
-  // own AI webhooks have had a chance, AND either we've never pulled
-  // Aircall AI for it OR it already has a transcript we can summarise.
-  // (Calls already attempted with no transcript are skipped — nothing left
-  // to do for them.)
+  // Candidates needing AI work, considered only once the call has been
+  // OVER for 15 minutes (ended_at, not started_at — so we never pull AI
+  // for a call that's still in progress). Rows with a null ended_at (not
+  // yet finalized) are excluded by the .lt below.
   let q = supabase
     .from('aircall_calls')
-    .select('aircall_id, ai, transcript, summary, source, ai_synced_at')
+    .select('aircall_id, ai, transcript, summary, source, ai_synced_at, ai_attempts')
     .order('started_at', { ascending: false })
     .limit(limit);
   if (!force) {
     const cutoff = new Date(Date.now() - 15 * 60 * 1000).toISOString();
     // Needs work = never pulled Aircall AI, OR has a transcript but no
-    // summary, OR has a transcript but no source-detection pass yet.
+    // summary, OR has a transcript but no source-detection pass yet, OR
+    // still has no transcript but is under the retry budget (so a
+    // transcript Aircall produced late still gets picked up).
     q = q
-      .lt('started_at', cutoff)
-      .or('ai_synced_at.is.null,and(transcript.not.is.null,summary.is.null),and(transcript.not.is.null,source.is.null)');
+      .lt('ended_at', cutoff)
+      .or(
+        [
+          'ai_synced_at.is.null',
+          'and(transcript.not.is.null,summary.is.null)',
+          'and(transcript.not.is.null,source.is.null)',
+          `and(transcript.is.null,ai_attempts.lt.${MAX_AI_ATTEMPTS})`,
+        ].join(','),
+      );
   }
 
   const { data: rows, error } = await q;
@@ -115,15 +139,21 @@ async function handleBackfillAi(req: NextRequest) {
       summary: string | null;
       source: string | null;
       ai_synced_at: string | null;
+      ai_attempts: number | null;
     };
     const callId = r.aircall_id;
+    const attempts = r.ai_attempts ?? 0;
     const mergedAi: Record<string, unknown> = { ...(r.ai ?? {}) };
     const patch: Record<string, unknown> = { aircall_id: callId };
     let transcript = r.transcript;
     let summary = r.summary;
 
-    // 1) Pull Aircall's own AI endpoints once per call (or when forced).
-    if (r.ai_synced_at == null || force) {
+    // 1) Pull Aircall's own AI endpoints: the first time we see the call,
+    // when forced, or — for a call still missing a transcript — until we
+    // exhaust the retry budget (covers Aircall transcribing after our
+    // first look).
+    const hasTranscript = !!(transcript && transcript.trim());
+    if (force || r.ai_synced_at == null || (!hasTranscript && attempts < MAX_AI_ATTEMPTS)) {
       for (const sub of AI_SUBRESOURCES) {
         const res = await fetchAi(callId, sub);
         if (res.status === 429) { rateLimited = true; break; }
@@ -146,6 +176,9 @@ async function handleBackfillAi(req: NextRequest) {
       if (rateLimited) break; // stop WITHOUT marking — retried next run
       patch.ai = mergedAi;
       patch.ai_synced_at = new Date().toISOString();
+      // Still no transcript after this pull → count the attempt so we
+      // eventually stop re-fetching a call Aircall never transcribes.
+      if (!(transcript && transcript.trim())) patch.ai_attempts = attempts + 1;
     }
 
     // 2) Aircall gave a transcript but no summary → have Claude write one.
