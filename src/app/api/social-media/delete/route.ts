@@ -1,20 +1,26 @@
 import { NextResponse } from 'next/server';
 import { getServerSupabase } from '@/lib/supabase-server';
 import { requireSuperAdmin } from '@/lib/social-media-auth';
-import { ayrshareDelete, AyrshareNotConfigured } from '@/lib/ayrshare';
+import { ayrshareDelete, extractAyrshareError, AyrshareNotConfigured } from '@/lib/ayrshare';
 
 // POST /api/social-media/delete
-//   body: { id: string }    // Ayrshare post id (the `id` field from /history)
+//   body: { id?: string, ids?: string[], caption?, scheduleDate? }
 //
-// Cancels a scheduled post or removes the historical record. Ayrshare's
-// own /delete endpoint takes the id in the body, so we forward it
-// straight through. We use POST on our side so the client-side fetch
-// can carry a JSON body without the "DELETE-with-body" quirks some
-// browsers / Next dev servers stumble over.
+// Cancels a scheduled post (or removes a historical record). A single
+// logical post can map to several Ayrshare ids — per-network posting splits
+// it into one post per network, each with its own id — so we accept an
+// array and delete each. An id Ayrshare reports as already-gone counts as
+// canceled. We record the cancellation in activity_log so the scheduled
+// list (sourced from there) drops it immediately.
 
 export const dynamic = 'force-dynamic';
 
-type Body = { id?: string; caption?: string; scheduleDate?: string };
+type Body = { id?: string; ids?: string[]; caption?: string; scheduleDate?: string };
+
+function looksAlreadyGone(msg: string): boolean {
+  const m = msg.toLowerCase();
+  return m.includes('not found') || m.includes('no post') || m.includes('does not exist') || m.includes('invalid id') || m.includes("doesn't exist");
+}
 
 export async function POST(req: Request) {
   const supabase = await getServerSupabase();
@@ -23,28 +29,43 @@ export async function POST(req: Request) {
 
   let body: Body;
   try { body = (await req.json()) as Body; } catch { body = {}; }
-  const id = (body.id ?? '').trim();
-  if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+  const ids = Array.from(new Set([
+    ...(Array.isArray(body.ids) ? body.ids : []),
+    ...(typeof body.id === 'string' ? [body.id] : []),
+  ].filter((v): v is string => typeof v === 'string' && v.trim().length > 0)));
+  if (ids.length === 0) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
 
   try {
-    const { status, body: result } = await ayrshareDelete('/delete', { id });
-    // Record the cancellation so the scheduled-posts list (sourced from
-    // activity_log) drops this post immediately, even before Ayrshare's
-    // own state catches up.
-    if (status >= 200 && status < 300 && auth.user?.id) {
+    const canceled: string[] = [];
+    let lastError: string | null = null;
+    for (const id of ids) {
+      const { status, body: result } = await ayrshareDelete('/delete', { id });
+      if (status >= 200 && status < 300) { canceled.push(id); continue; }
+      const msg = extractAyrshareError(result, status, '/delete');
+      if (looksAlreadyGone(msg)) { canceled.push(id); continue; }
+      lastError = msg;
+    }
+
+    if (canceled.length === 0) {
+      return NextResponse.json({ error: lastError ?? 'Could not cancel the post' }, { status: 502 });
+    }
+
+    if (auth.user?.id) {
       try {
         await supabase.from('activity_log').insert({
           user_id: auth.user.id,
           type: 'social.schedule_canceled',
           target_kind: 'social_post',
           target_id: null,
-          target_label: null,
+          target_label: body.caption ?? null,
           target_path: '/feather/social-media',
-          metadata: { ayrshareId: id, caption: body.caption ?? null, scheduleDate: body.scheduleDate ?? null },
+          metadata: { ayrshareId: canceled[0], ayrshareIds: canceled, caption: body.caption ?? null, scheduleDate: body.scheduleDate ?? null },
         });
       } catch { /* best-effort — never block the cancel response */ }
     }
-    return NextResponse.json(result, { status });
+    // 200 even on partial (some ids canceled, one stubborn) so the row
+    // disappears; surface the residual error for visibility.
+    return NextResponse.json({ canceled, ...(lastError ? { error: lastError } : {}) }, { status: 200 });
   } catch (err) {
     if (err instanceof AyrshareNotConfigured) {
       return NextResponse.json({ error: 'Ayrshare is not configured.' }, { status: 503 });

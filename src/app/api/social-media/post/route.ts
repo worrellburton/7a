@@ -40,14 +40,25 @@ function cleanUrls(raw: unknown): string[] {
     .slice(0, 10);
 }
 
-// Dig Ayrshare's scheduled-post id out of a /post result (id / refId, or
-// inside the postIds array). Needed so the post can be canceled later.
-function ayrshareIdOf(result: unknown): string | null {
-  const r = (result ?? {}) as { id?: unknown; refId?: unknown; postIds?: Array<{ id?: unknown; postId?: unknown }> };
-  const fromPostIds = Array.isArray(r.postIds)
-    ? r.postIds.map((p) => (typeof p?.id === 'string' && p.id) || (typeof p?.postId === 'string' && p.postId) || '').find(Boolean)
-    : undefined;
-  return (typeof r.id === 'string' && r.id) || (typeof r.refId === 'string' && r.refId) || fromPostIds || null;
+// Collect every Ayrshare post id a /post result carries — needed to cancel
+// later. For scheduled posts the cancelable id lives under posts[].id (NOT
+// the top-level id/refId, which come back null), so we dig through posts[]
+// and postIds[] as well as the top level.
+function ayrshareIdsOf(result: unknown): string[] {
+  const r = (result ?? {}) as {
+    id?: unknown; refId?: unknown;
+    posts?: Array<{ id?: unknown; refId?: unknown }>;
+    postIds?: Array<{ id?: unknown; postId?: unknown }>;
+  };
+  const ids = new Set<string>();
+  const add = (v: unknown) => { if (typeof v === 'string' && v) ids.add(v); };
+  add(r.id);
+  if (Array.isArray(r.posts)) for (const p of r.posts) { add(p?.id); add(p?.refId); }
+  if (Array.isArray(r.postIds)) for (const p of r.postIds) { add(p?.id); add(p?.postId); }
+  // refId is an idempotency hash, not a deletable post id — only fall back
+  // to it if nothing else surfaced.
+  if (ids.size === 0) add(r.refId);
+  return [...ids];
 }
 
 export async function POST(req: Request) {
@@ -156,7 +167,8 @@ export async function POST(req: Request) {
                 scheduleDate: scheduleIso,
                 mediaUrls: g.media,
                 postIds: Array.isArray(r.postIds) ? r.postIds : [],
-                ayrshareId: ayrshareIdOf(result),
+                ayrshareId: ayrshareIdsOf(result)[0] ?? null,
+                ayrshareIds: ayrshareIdsOf(result),
                 raw: result,
               },
             });

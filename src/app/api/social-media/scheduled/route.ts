@@ -17,23 +17,29 @@ export const dynamic = 'force-dynamic';
 
 interface Row { id: string; created_at: string; target_label: string | null; metadata: Record<string, unknown> | null; user_id: string | null }
 
-// Dig the Ayrshare post id out of an activity_log metadata blob. Prefer
-// the top-level `ayrshareId` we now capture at schedule time, but fall
-// back to the stashed raw Ayrshare response (id / refId / postIds[]) so
-// rows written before the capture fix are still cancelable in-app.
-function ayrshareIdFromMetadata(metadata: Record<string, unknown> | null): string | null {
-  const m = (metadata ?? {}) as { ayrshareId?: unknown; raw?: unknown };
-  if (typeof m.ayrshareId === 'string' && m.ayrshareId) return m.ayrshareId;
-  const raw = (m.raw ?? {}) as { id?: unknown; refId?: unknown; postIds?: unknown };
-  if (typeof raw.id === 'string' && raw.id) return raw.id;
-  if (typeof raw.refId === 'string' && raw.refId) return raw.refId;
-  if (Array.isArray(raw.postIds)) {
-    for (const p of raw.postIds as Array<{ id?: unknown; postId?: unknown }>) {
-      if (p && typeof p.id === 'string' && p.id) return p.id;
-      if (p && typeof p.postId === 'string' && p.postId) return p.postId;
-    }
-  }
-  return null;
+// Collect every Ayrshare post id an activity_log metadata blob carries.
+// For scheduled posts the cancelable id lives under raw.posts[].id (the
+// top-level ayrshareId can be null), so we dig through there too — that's
+// what makes posts logged before the capture fix cancelable in-app.
+function ayrshareIdsFromMetadata(metadata: Record<string, unknown> | null): string[] {
+  const m = (metadata ?? {}) as { ayrshareId?: unknown; ayrshareIds?: unknown; raw?: unknown };
+  const ids = new Set<string>();
+  const add = (v: unknown) => { if (typeof v === 'string' && v) ids.add(v); };
+  add(m.ayrshareId);
+  if (Array.isArray(m.ayrshareIds)) for (const v of m.ayrshareIds) add(v);
+  const raw = (m.raw ?? {}) as { id?: unknown; refId?: unknown; posts?: Array<{ id?: unknown; refId?: unknown }>; postIds?: Array<{ id?: unknown; postId?: unknown }> };
+  add(raw.id);
+  if (Array.isArray(raw.posts)) for (const p of raw.posts) { add(p?.id); add(p?.refId); }
+  if (Array.isArray(raw.postIds)) for (const p of raw.postIds) { add(p?.id); add(p?.postId); }
+  if (ids.size === 0) add(raw.refId);
+  return [...ids];
+}
+
+// A logical-post signature (schedule time + caption) used to (a) drop posts
+// whose cancellation we recorded even if ids don't line up, and (b) merge a
+// per-network post that was split into multiple Ayrshare calls into one row.
+function sigOf(scheduleDate: string | null | undefined, caption: string | null | undefined): string {
+  return `${scheduleDate ?? ''}|${(caption ?? '').slice(0, 40)}`;
 }
 
 export async function GET() {
@@ -49,19 +55,21 @@ export async function GET() {
   ]);
 
   const canceledIds = new Set<string>();
+  const canceledSigs = new Set<string>();
   for (const r of (canceledRows ?? []) as Row[]) {
-    const id = ayrshareIdFromMetadata(r.metadata);
-    if (id) canceledIds.add(id);
+    for (const id of ayrshareIdsFromMetadata(r.metadata)) canceledIds.add(id);
+    const m = (r.metadata ?? {}) as { caption?: string | null; scheduleDate?: string | null };
+    canceledSigs.add(sigOf(m.scheduleDate, m.caption ?? r.target_label));
   }
 
   const now = Date.now();
-  interface Item { logId: string; ayrshareId: string | null; scheduleDate: string; platforms: string[]; mediaUrls: string[]; caption: string; userId: string | null; createdByName: string | null }
-  const items: Item[] = ((scheduledRows ?? []) as Row[])
+  interface Item { logId: string; ayrshareIds: string[]; scheduleDate: string; platforms: string[]; mediaUrls: string[]; caption: string; userId: string | null; createdByName: string | null }
+  const rawItems: Item[] = ((scheduledRows ?? []) as Row[])
     .map((r) => {
       const m = (r.metadata ?? {}) as { scheduleDate?: string | null; platforms?: unknown; mediaUrls?: unknown };
       return {
         logId: r.id,
-        ayrshareId: ayrshareIdFromMetadata(r.metadata),
+        ayrshareIds: ayrshareIdsFromMetadata(r.metadata),
         scheduleDate: m.scheduleDate ?? '',
         platforms: Array.isArray(m.platforms) ? (m.platforms as string[]) : [],
         mediaUrls: Array.isArray(m.mediaUrls) ? (m.mediaUrls as unknown[]).filter((u): u is string => typeof u === 'string') : [],
@@ -74,10 +82,29 @@ export async function GET() {
       if (!p.scheduleDate) return false;
       const t = Date.parse(p.scheduleDate);
       if (!Number.isFinite(t) || t <= now) return false;
-      if (p.ayrshareId && canceledIds.has(p.ayrshareId)) return false;
+      // Drop anything we've recorded a cancellation for — by id, or by the
+      // logical-post signature when ids don't line up.
+      if (p.ayrshareIds.some((id) => canceledIds.has(id))) return false;
+      if (canceledSigs.has(sigOf(p.scheduleDate, p.caption))) return false;
       return true;
-    })
-    .sort((a, b) => Date.parse(a.scheduleDate) - Date.parse(b.scheduleDate));
+    });
+
+  // Merge per-network rows (same time + caption, split across Ayrshare calls)
+  // into ONE cancelable row that carries every platform + every id.
+  const grouped = new Map<string, Item>();
+  for (const it of rawItems) {
+    const key = sigOf(it.scheduleDate, it.caption);
+    const g = grouped.get(key);
+    if (!g) {
+      grouped.set(key, { ...it, platforms: [...it.platforms], ayrshareIds: [...it.ayrshareIds], mediaUrls: [...it.mediaUrls] });
+      continue;
+    }
+    for (const p of it.platforms) if (!g.platforms.includes(p)) g.platforms.push(p);
+    for (const id of it.ayrshareIds) if (!g.ayrshareIds.includes(id)) g.ayrshareIds.push(id);
+    if (g.mediaUrls.length === 0 && it.mediaUrls.length > 0) g.mediaUrls = it.mediaUrls;
+    if (!g.userId && it.userId) g.userId = it.userId;
+  }
+  const items = [...grouped.values()].sort((a, b) => Date.parse(a.scheduleDate) - Date.parse(b.scheduleDate));
 
   // Resolve scheduler / canceler names in one batch.
   const userIds = Array.from(new Set([
@@ -96,7 +123,7 @@ export async function GET() {
   // Recover Ayrshare ids for posts scheduled before we recorded them, by
   // matching against Ayrshare /history (scheduleDate + caption prefix),
   // so those posts become cancelable in-app instead of dashboard-only.
-  if (items.some((p) => !p.ayrshareId)) {
+  if (items.some((p) => p.ayrshareIds.length === 0)) {
     try {
       const { status, body } = await ayrshareGet('/history', { lastRecords: 200 });
       if (status < 400) {
@@ -111,7 +138,7 @@ export async function GET() {
           }))
           .filter((x) => x.id && x.scheduleDate);
         for (const p of items) {
-          if (p.ayrshareId) continue;
+          if (p.ayrshareIds.length > 0) continue;
           const pt = Date.parse(p.scheduleDate);
           const cap = p.caption.slice(0, 24);
           const match = aySched.find((x) => {
@@ -119,14 +146,14 @@ export async function GET() {
             return Number.isFinite(xt) && Math.abs(xt - pt) < 60_000
               && (cap.length === 0 || x.post.startsWith(cap) || p.caption.startsWith(x.post.slice(0, 24)));
           });
-          if (match && !canceledIds.has(match.id as string)) p.ayrshareId = match.id as string;
+          if (match && !canceledIds.has(match.id as string)) p.ayrshareIds = [match.id as string];
         }
       }
     } catch { /* leave dashboard-only */ }
   }
 
-  const posts = items.map(({ logId, ayrshareId, scheduleDate, platforms, mediaUrls, caption, createdByName }) => ({
-    logId, ayrshareId, scheduleDate, platforms, mediaUrls, caption, createdByName,
+  const posts = items.map(({ logId, ayrshareIds, scheduleDate, platforms, mediaUrls, caption, createdByName }) => ({
+    logId, ayrshareId: ayrshareIds[0] ?? null, ayrshareIds, scheduleDate, platforms, mediaUrls, caption, createdByName,
   }));
 
   const recentlyCanceled = ((canceledRows ?? []) as Row[]).slice(0, 8).map((r) => {
