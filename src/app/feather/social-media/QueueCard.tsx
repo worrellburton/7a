@@ -6,7 +6,7 @@
 // a datetime every time. Slots are a shared app_flag; only super-admins edit
 // them, but anyone can queue into them.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { usePostingEnabled } from './PostingStatus';
 import type { ReadyDraft } from './ScheduleSlotsPanel';
@@ -54,6 +54,10 @@ export function QueueCard({
   const postingEnabled = usePostingEnabled();
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loaded, setLoaded] = useState(false);
+  // Times we've just queued into this session but that aren't yet reflected
+  // in `scheduledMs` (it only updates after history refetches). Without this,
+  // two rapid queues both resolve to the same "next open slot".
+  const justQueuedRef = useRef<number[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [newWeekday, setNewWeekday] = useState(1);
@@ -84,7 +88,11 @@ export function QueueCard({
   const queueDraft = useCallback(async (draft: ReadyDraft) => {
     setMsg(null);
     if (postingEnabled === false) { setMsg({ kind: 'err', text: 'Posting is paused — switch it on first.' }); return; }
-    const next = upcomingSlots(slots, scheduledMs)[0];
+    // Treat times queued earlier this session as taken too, so back-to-back
+    // queues don't both land on the same slot before history catches up.
+    justQueuedRef.current = justQueuedRef.current.filter((t) => t > Date.now());
+    const taken = [...scheduledMs, ...justQueuedRef.current];
+    const next = upcomingSlots(slots, taken)[0];
     if (!next) { setMsg({ kind: 'err', text: slots.length === 0 ? 'Add at least one queue slot first.' : 'No open slots in the next few weeks.' }); return; }
     const targets = (draft.platforms ?? []).filter((p) => connectedPlatforms.includes(p));
     const platforms = targets.length > 0 ? targets : connectedPlatforms;
@@ -102,6 +110,8 @@ export function QueueCard({
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setMsg({ kind: 'err', text: (j as { error?: string }).error ?? `HTTP ${r.status}` }); return; }
       const partial = (j as { error?: string }).error;
+      // Reserve this slot locally so a follow-up queue picks the next one.
+      justQueuedRef.current.push(next.getTime());
       setMsg(partial
         ? { kind: 'err', text: `Queued for ${next.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}, but some networks failed — ${partial}` }
         : { kind: 'ok', text: `Queued for ${next.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}.` });
@@ -112,11 +122,16 @@ export function QueueCard({
   }, [slots, scheduledMs, connectedPlatforms, postingEnabled, session?.access_token, onScheduled]);
 
   // Touch / click path: a Queue button on a Ready tile injects the draft.
+  // Wait until slots have loaded so an early click doesn't fail with
+  // "add a slot first"; the ref guard makes each injection run exactly once
+  // even though we now also depend on `loaded` and `queueDraft`.
+  const lastInjectedN = useRef<number | null>(null);
   useEffect(() => {
-    if (!injected) return;
+    if (!injected || !loaded) return;
+    if (lastInjectedN.current === injected.n) return;
+    lastInjectedN.current = injected.n;
     void queueDraft(injected.draft);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [injected?.n]);
+  }, [injected, loaded, queueDraft]);
 
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
