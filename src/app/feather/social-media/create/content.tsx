@@ -475,7 +475,15 @@ export default function CreatePostContent() {
     const enabledKeys = new Set(rows.map((r) => r.key));
     const effectivePlatforms = Array.from(platforms).filter((pid) => {
       const offered = combosByPlatform.get(pid)?.length ?? 0;
-      return offered === 0 || (enabledCombos[pid]?.length ?? 0) > 0;
+      if (offered === 0) return true; // posts with the shared media
+      // Stay consistent with what's actually rendered/fillable (`rows`):
+      // keep the network if any of its deliverable slots are enabled. Using
+      // enabledKeys (not enabledCombos[pid] > 0) avoids dropping a network
+      // whose combo state is still the transient "all enabled" (undefined),
+      // which the slots grid treats as on — the mismatch that let a filled
+      // network get silently dropped on save.
+      for (const key of enabledKeys) if (key.startsWith(`${pid}|`)) return true;
+      return false;
     });
     if (effectivePlatforms.length === 0) {
       setError('Every deliverable is unchecked — pick at least one to post.');
@@ -494,15 +502,26 @@ export default function CreatePostContent() {
           enabledKeys.has(key) ? urls.filter((u) => u && u.trim().length > 0).map((url) => ({ key, url })) : []),
       ];
 
+      // Persist the exact set of checked deliverables so the draft-detail
+      // page agrees with the composer about what's "selected" (empty there
+      // means "all checked", which previously made a ready post reopen as
+      // "not ready"). Same key scheme on both sides (deliverableKey).
+      const selectedDeliverables = Array.from(enabledKeys);
+
       if (editId) {
         // Editing an existing draft → update it in place.
-        await updateDraft(editId, {
+        const ok = await updateDraft(editId, {
           caption: caption.trim(),
           mediaUrls: stagedMedia,
           platforms: effectivePlatforms,
           ready,
           mediaByDeliverable,
+          selectedDeliverables,
         });
+        if (!ok) {
+          setError('Could not save your changes. Try again.');
+          return;
+        }
       } else {
         const saved = await saveDraft({
           caption: caption.trim(),
@@ -510,6 +529,7 @@ export default function CreatePostContent() {
           platforms: effectivePlatforms,
           ready,
           mediaByDeliverable,
+          selectedDeliverables,
           createdBy: user?.id ?? null,
           createdByName: ((user?.user_metadata?.full_name as string | undefined) || user?.email) ?? null,
         });

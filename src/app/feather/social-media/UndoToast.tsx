@@ -24,14 +24,17 @@ export function usePendingDeletes(commit: (ids: string[]) => void, delayMs = 600
 
   const request = useCallback((ids: string[], label: string) => {
     // Commit any in-flight pending immediately before starting a new one,
-    // so two quick deletes don't lose the first.
-    setPending((prev) => {
-      if (prev) commitRef.current(prev.ids);
-      return { ids, label };
-    });
+    // so two quick deletes don't lose the first. Read it from the ref and
+    // commit OUTSIDE the state updater — a side effect inside the updater can
+    // double-fire under StrictMode and double-commit the previous batch.
+    const prev = pendingRef.current;
+    if (prev) commitRef.current(prev.ids);
+    setPending({ ids, label });
     clearTimer();
     timer.current = window.setTimeout(() => {
-      setPending((cur) => { if (cur) commitRef.current(cur.ids); return null; });
+      const cur = pendingRef.current;
+      if (cur) commitRef.current(cur.ids);
+      setPending(null);
       timer.current = null;
     }, delayMs);
   }, [delayMs]);

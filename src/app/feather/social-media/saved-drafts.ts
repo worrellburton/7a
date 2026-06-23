@@ -131,6 +131,7 @@ export interface NewDraftInput {
   platforms?: string[];
   ready?: boolean;
   mediaByDeliverable?: { key: string; url: string }[];
+  selectedDeliverables?: string[];
   createdBy?: string | null;
   createdByName?: string | null;
 }
@@ -161,6 +162,7 @@ export async function saveDraft(input: NewDraftInput): Promise<SavedDraft | null
       platforms: input.platforms ?? [],
       ready: input.ready ?? false,
       media_by_deliverable: input.mediaByDeliverable ?? [],
+      selected_deliverables: input.selectedDeliverables ?? [],
       created_by: createdBy,
       created_by_name: createdByName,
     })
@@ -175,7 +177,10 @@ export async function saveDraft(input: NewDraftInput): Promise<SavedDraft | null
 
 export type DraftPatch = Partial<Pick<SavedDraft, 'caption' | 'mediaUrls' | 'platforms' | 'ready' | 'mediaByDeliverable' | 'selectedDeliverables' | 'reviewStatus'>>;
 
-export async function updateDraft(id: string, patch: DraftPatch): Promise<void> {
+// Returns true when the row was actually written, false on a no-op or a DB
+// error — callers that navigate away on "saved" must check this so a failed
+// write (RLS/network) doesn't masquerade as success.
+export async function updateDraft(id: string, patch: DraftPatch): Promise<boolean> {
   const dbPatch: Record<string, unknown> = {};
   if (patch.caption !== undefined) dbPatch.caption = patch.caption;
   if (patch.mediaUrls !== undefined) dbPatch.media_urls = patch.mediaUrls;
@@ -184,23 +189,27 @@ export async function updateDraft(id: string, patch: DraftPatch): Promise<void> 
   if (patch.mediaByDeliverable !== undefined) dbPatch.media_by_deliverable = patch.mediaByDeliverable;
   if (patch.selectedDeliverables !== undefined) dbPatch.selected_deliverables = patch.selectedDeliverables;
   if (patch.reviewStatus !== undefined) dbPatch.review_status = patch.reviewStatus;
-  if (Object.keys(dbPatch).length === 0) return;
+  if (Object.keys(dbPatch).length === 0) return false;
   const { error } = await supabase.from(TABLE).update(dbPatch).eq('id', id);
-  if (error) return;
+  if (error) {
+    console.error('[saved-drafts] updateDraft failed', error);
+    return false;
+  }
   cache = cache.map((d) => (d.id === id ? { ...d, ...patch } : d));
   notify();
+  return true;
 }
 
 export async function setDraftReady(id: string, ready: boolean): Promise<void> {
   // Keep the review state in lockstep with ready everywhere ready is
   // toggled (drag moves, bulk unmark, the Mark-ready button): ready ⇒
   // approved, not-ready ⇒ back to draft.
-  return updateDraft(id, { ready, reviewStatus: ready ? 'approved' : 'draft' });
+  await updateDraft(id, { ready, reviewStatus: ready ? 'approved' : 'draft' });
 }
 
 /** Submit a not-ready draft for a super-admin's review. */
 export async function submitForReview(id: string): Promise<void> {
-  return updateDraft(id, { reviewStatus: 'in_review' });
+  await updateDraft(id, { reviewStatus: 'in_review' });
 }
 
 export async function deleteDraft(id: string): Promise<void> {

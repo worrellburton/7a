@@ -16,6 +16,7 @@ import { useSavedDrafts, saveDraft as createDraft, setDraftReady, deleteDraft, s
 import { usePendingDeletes, UndoToast } from './UndoToast';
 import { ScheduledCalendar } from './ScheduledCalendar';
 import { QueueCard } from './QueueCard';
+import { usePostingEnabled } from './PostingStatus';
 import { mediaByPlatformFromDeliverables } from './deliverables';
 
 // ── Cross-tab Send-to-Compose handoff ────────────────────────────────
@@ -405,13 +406,29 @@ function SocialTabBody(props: TabBodyProps) {
 // shown at the bottom of Overview. Platform tabs; each shows that network's
 // most recent posts with media, caption, date, and a link to the live post.
 function feedIsVideo(u: string): boolean {
-  return /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u);
+  // Extension match first; fall back to a "/video/" path segment since
+  // Ayrshare CDN URLs are often extensionless. A misclassified asset still
+  // degrades gracefully via the <img>/<video> onError handlers below.
+  return /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u) || /\/video\//i.test(u);
+}
+
+// Hide a media element that fails to load (expired/404 Ayrshare URL, or a
+// video URL that slipped into an <img>) so the card shows its neutral
+// placeholder background instead of a broken-image glyph.
+function hideBrokenMedia(e: React.SyntheticEvent<HTMLImageElement | HTMLVideoElement>) {
+  e.currentTarget.style.display = 'none';
 }
 
 function RecentPostsFeed({ posts }: { posts: HistoryPost[] }) {
-  // Already-published only — drop anything still scheduled for the future.
+  // Already-published only — drop anything still scheduled for the future,
+  // and drop fully-failed posts (status "error") so the feed reflects what
+  // actually went live, not dead links.
   const published = useMemo(
-    () => posts.filter((p) => !(p.scheduleDate && Date.parse(p.scheduleDate) > Date.now())),
+    () => posts.filter((p) => {
+      if (p.scheduleDate && Date.parse(p.scheduleDate) > Date.now()) return false;
+      if (typeof p.status === 'string' && p.status.toLowerCase() === 'error') return false;
+      return true;
+    }),
     [posts],
   );
 
@@ -483,10 +500,10 @@ function RecentPostsFeed({ posts }: { posts: HistoryPost[] }) {
                 <div className="aspect-square bg-warm-bg/40 overflow-hidden">
                   {r.media ? (
                     feedIsVideo(r.media) ? (
-                      <video src={r.media} muted playsInline className="w-full h-full object-cover bg-black" />
+                      <video src={r.media} muted playsInline onError={hideBrokenMedia} className="w-full h-full object-cover bg-black" />
                     ) : (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={r.media} alt="" className="w-full h-full object-cover" />
+                      <img src={r.media} alt={r.caption ? r.caption.slice(0, 80) : ''} onError={hideBrokenMedia} className="w-full h-full object-cover" />
                     )
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-[10px] text-foreground/35">No media</div>
@@ -1338,6 +1355,7 @@ function SchedulePostsBody({
   // chosen in Creative so scheduling doesn't re-ask for networks.
   const { drafts } = useSavedDrafts();
   const { session } = useAuth();
+  const postingEnabled = usePostingEnabled();
   // Inline status for the row-level "Now" button (replaces the old Post-now
   // drop card).
   const [postNowStatus, setPostNowStatus] = useState<{ ok: boolean; text: string } | null>(null);
@@ -1386,6 +1404,12 @@ function SchedulePostsBody({
   const [inject, setInject] = useState<{ draft: ReadyDraft; action: 'schedule' | 'queue'; n: number } | null>(null);
   const quickAction = useCallback(async (draft: ReadyDraft, action: 'schedule' | 'postnow' | 'queue') => {
     if (action === 'postnow') {
+      // Mirror the Schedule/Queue guard so a paused state is caught here too,
+      // instead of letting the request through to a confusing server 423.
+      if (postingEnabled === false) {
+        setPostNowStatus({ ok: false, text: 'Posting is paused — switch it on first.' });
+        return;
+      }
       const targets = (draft.platforms ?? []).filter((p) => connectedPlatforms.includes(p));
       if (targets.length === 0) {
         setPostNowStatus({ ok: false, text: 'This draft has no connected networks to post to.' });
@@ -1421,7 +1445,7 @@ function SchedulePostsBody({
     window.setTimeout(() => {
       (action === 'schedule' ? scheduleRef : queueRef).current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 60);
-  }, [connectedPlatforms, session?.access_token, refreshHistory]);
+  }, [connectedPlatforms, session?.access_token, refreshHistory, postingEnabled]);
 
   return (
     <div className="space-y-4">
@@ -3154,9 +3178,16 @@ function ConnectedAccountsStrip({
 
   // Refresh the connected-accounts list when the user returns to
   // this tab — covers the "linked an account on Ayrshare's
-  // dashboard and came back" flow.
+  // dashboard and came back" flow. Throttled to at most once a minute so
+  // routine alt-tabbing doesn't fire a billed Ayrshare round-trip each time.
+  const lastFocusFetch = useRef(0);
   useEffect(() => {
-    const onFocus = () => onChanged();
+    const onFocus = () => {
+      const now = Date.now();
+      if (now - lastFocusFetch.current < 60_000) return;
+      lastFocusFetch.current = now;
+      onChanged();
+    };
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, [onChanged]);
@@ -4174,13 +4205,19 @@ function HistoryList({
   // Per-post engagement, lazily fetched when a row's Stats is expanded.
   interface PostStat { loading: boolean; error?: string; platforms?: { platform: string; metrics: { label: string; value: number }[] }[] }
   const [statsById, setStatsById] = useState<Record<string, PostStat>>({});
+  // Mirror the latest stats map in a ref so the open/close toggle reads
+  // committed state synchronously instead of a stale render closure (a fast
+  // double-click could otherwise skip a fetch or fetch after a close).
+  const statsByIdRef = useRef(statsById);
+  useEffect(() => { statsByIdRef.current = statsById; }, [statsById]);
   const loadStats = async (postId: string, platforms?: string[]) => {
-    setStatsById((prev) => {
-      // Toggle closed if already open.
-      if (prev[postId] && !prev[postId].loading) { const n = { ...prev }; delete n[postId]; return n; }
-      return { ...prev, [postId]: { loading: true } };
-    });
-    if (statsById[postId] && !statsById[postId].loading) return; // was a close
+    const cur = statsByIdRef.current[postId];
+    if (cur && !cur.loading) {
+      // Already open → toggle closed and stop.
+      setStatsById((prev) => { const n = { ...prev }; delete n[postId]; return n; });
+      return;
+    }
+    setStatsById((prev) => ({ ...prev, [postId]: { loading: true } }));
     try {
       const r = await fetch('/api/social-media/analytics/post', {
         method: 'POST', credentials: 'include',
