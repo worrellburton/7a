@@ -36,3 +36,13 @@ export interface HorseOption {
   image_url: string | null;
   works_in: string | null;
 }
+
+// A Google review the marketer can pin as the email's pull-quote. Sourced
+// from public.google_reviews (the same pool the build route auto-picks from).
+export interface QuoteOption {
+  id: string;
+  author_name: string;
+  rating: number | null;
+  text: string;
+  relative_time: string | null;
+}

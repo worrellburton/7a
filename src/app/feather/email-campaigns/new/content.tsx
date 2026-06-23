@@ -36,8 +36,8 @@ interface LibraryImage {
 
 // Shared types now live in ./types so the FeaturedX cards can
 // import them from a stable location.
-import type { BlogOption, EmployeeOption, HorseOption } from './types';
-import { FeaturedBlogCard, FeaturedEmployeeCard, FeaturedHorseCard, FeaturedPageCard } from './FeaturedCards';
+import type { BlogOption, EmployeeOption, HorseOption, QuoteOption } from './types';
+import { FeaturedBlogCard, FeaturedEmployeeCard, FeaturedHorseCard, FeaturedPageCard, FeaturedQuoteCard } from './FeaturedCards';
 
 interface CampaignDraft {
   id?: string;
@@ -48,9 +48,13 @@ interface CampaignDraft {
   // Surfaces (866) 718-1665 inside the rendered email when on.
   // Persisted on email_campaigns.include_phone.
   includePhone: boolean;
-  // Picks a top Google review and renders it as a block-quote
-  // section. Persisted on email_campaigns.include_quote.
+  // Renders a Google review as a block-quote section. Persisted on
+  // email_campaigns.include_quote.
   includeQuote: boolean;
+  // Optional id of the SPECIFIC google_reviews row to use as the quote.
+  // Null = let the build route auto-pick the top review (legacy behaviour).
+  // Persisted on email_campaigns.featured_quote_id.
+  featuredQuoteId: string | null;
   // Renders a small Aetna / BCBS / Cigna / Humana / TRICARE logo
   // strip near the top of the email so coverage is visible at a
   // glance. Persisted on email_campaigns.include_insurance_strip.
@@ -111,6 +115,7 @@ export default function NewEmailCampaignContent() {
     linkToWebsite: true,
     includePhone: false,
     includeQuote: false,
+    featuredQuoteId: null,
     includeInsuranceStrip: false,
     includeSocialFooter: false,
     darkMode: false,
@@ -129,10 +134,12 @@ export default function NewEmailCampaignContent() {
   const [blogs, setBlogs] = useState<BlogOption[]>([]);
   const [employees, setEmployees] = useState<EmployeeOption[]>([]);
   const [horses, setHorses] = useState<HorseOption[]>([]);
+  const [quotes, setQuotes] = useState<QuoteOption[]>([]);
   const [blogPickerOpen, setBlogPickerOpen] = useState(false);
   const [employeePickerOpen, setEmployeePickerOpen] = useState(false);
   const [horsePickerOpen, setHorsePickerOpen] = useState(false);
   const [pagePickerOpen, setPagePickerOpen] = useState(false);
+  const [quotePickerOpen, setQuotePickerOpen] = useState(false);
   // The Preview pane shows a "Replace images" button that opens
   // this picker; on confirm the selection swap is committed AND a
   // fresh rebuild is kicked off so the marketer never has to
@@ -190,7 +197,7 @@ export default function NewEmailCampaignContent() {
     void (async () => {
       const { data } = await supabase
         .from('email_campaigns')
-        .select('id, prompt, image_urls, use_logos, link_to_website, include_phone, include_quote, include_insurance_strip, include_social_footer, dark_mode, featured_blog_id, featured_episode_slug, featured_page_path, featured_page_image_url, featured_employee_id, featured_equine_id, generated_html, generated_subject, status, scheduled_send_at')
+        .select('id, prompt, image_urls, use_logos, link_to_website, include_phone, include_quote, featured_quote_id, include_insurance_strip, include_social_footer, dark_mode, featured_blog_id, featured_episode_slug, featured_page_path, featured_page_image_url, featured_employee_id, featured_equine_id, generated_html, generated_subject, status, scheduled_send_at')
         .eq('id', editingId)
         .maybeSingle();
       if (cancelled || !data) return;
@@ -202,6 +209,7 @@ export default function NewEmailCampaignContent() {
         linkToWebsite: !!data.link_to_website,
         includePhone: !!data.include_phone,
         includeQuote: !!data.include_quote,
+        featuredQuoteId: (data as { featured_quote_id?: string | null }).featured_quote_id ?? null,
         includeInsuranceStrip: !!data.include_insurance_strip,
         includeSocialFooter: !!data.include_social_footer,
         // Dark mode retired — old drafts saved with dark_mode=true
@@ -234,7 +242,7 @@ export default function NewEmailCampaignContent() {
       // published AI blogs, newest first, hidden-slug filtered) so
       // the blog picker can show the full Recovery Roadmap catalogue
       // with episode numbers, not just the AI-pipeline subset.
-      const [imagesRes, episodesRes, usersRes, horsesRes] = await Promise.all([
+      const [imagesRes, episodesRes, usersRes, horsesRes, quotesRes] = await Promise.all([
         supabase.from('site_images')
           .select('id, public_url, filename')
           // Recently-used assets bubble to the top across every
@@ -252,6 +260,16 @@ export default function NewEmailCampaignContent() {
           .select('id, name, image_url, works_in')
           .order('name', { ascending: true })
           .limit(50),
+        // The same pool the build route auto-picks from: visible, 5-star,
+        // non-empty reviews, featured first then most recent.
+        supabase.from('google_reviews')
+          .select('id, author_name, rating, text, relative_time')
+          .eq('hidden', false)
+          .gte('rating', 5)
+          .not('text', 'is', null)
+          .order('featured', { ascending: false, nullsFirst: false })
+          .order('review_time', { ascending: false, nullsFirst: false })
+          .limit(60),
       ]);
       if (cancelled) return;
       const imageRows = (imagesRes.data ?? []) as Array<{ id: string; public_url: string; filename: string | null }>;
@@ -288,6 +306,7 @@ export default function NewEmailCampaignContent() {
       })));
       setEmployees((usersRes.data ?? []) as EmployeeOption[]);
       setHorses((horsesRes.data ?? []) as HorseOption[]);
+      setQuotes((quotesRes.data ?? []) as QuoteOption[]);
     })();
     return () => { cancelled = true; };
   }, []);
@@ -458,6 +477,10 @@ export default function NewEmailCampaignContent() {
     () => horses.find((h) => h.id === draft.featuredEquineId) ?? null,
     [horses, draft.featuredEquineId],
   );
+  const featuredQuote = useMemo(
+    () => quotes.find((q) => q.id === draft.featuredQuoteId) ?? null,
+    [quotes, draft.featuredQuoteId],
+  );
 
   // Picker selection helpers — clear the sibling slot so featured
   // blog ID + episode slug can never both be set, and the saved
@@ -516,6 +539,7 @@ export default function NewEmailCampaignContent() {
           linkToWebsite: draft.linkToWebsite,
           includePhone: draft.includePhone,
           includeQuote: draft.includeQuote,
+          featuredQuoteId: draft.includeQuote ? draft.featuredQuoteId : null,
           includeInsuranceStrip: draft.includeInsuranceStrip,
           includeSocialFooter: draft.includeSocialFooter,
           darkMode: draft.darkMode,
@@ -577,6 +601,7 @@ export default function NewEmailCampaignContent() {
           linkToWebsite: draft.linkToWebsite,
           includePhone: draft.includePhone,
           includeQuote: draft.includeQuote,
+          featuredQuoteId: draft.includeQuote ? draft.featuredQuoteId : null,
           includeInsuranceStrip: draft.includeInsuranceStrip,
           includeSocialFooter: draft.includeSocialFooter,
           darkMode: draft.darkMode,
@@ -641,6 +666,7 @@ export default function NewEmailCampaignContent() {
         link_to_website: draft.linkToWebsite,
         include_phone: draft.includePhone,
         include_quote: draft.includeQuote,
+        featured_quote_id: draft.includeQuote ? draft.featuredQuoteId : null,
         include_insurance_strip: draft.includeInsuranceStrip,
         include_social_footer: draft.includeSocialFooter,
         dark_mode: draft.darkMode,
@@ -916,9 +942,9 @@ export default function NewEmailCampaignContent() {
         />
         <Toggle
           label="Add a quote"
-          description="Pull a top Google review into the email as a block quote."
+          description="Drop a Google review into the email as a block quote. Pick a specific one below, or we'll auto-pick your top review."
           on={draft.includeQuote}
-          onChange={(v) => setDraft((p) => ({ ...p, includeQuote: v }))}
+          onChange={(v) => setDraft((p) => ({ ...p, includeQuote: v, featuredQuoteId: v ? p.featuredQuoteId : null }))}
         />
         <Toggle
           label="Insurance strip"
@@ -936,6 +962,35 @@ export default function NewEmailCampaignContent() {
             light palette (Sand background, Ink text). The darkMode
             field stays in the draft model pinned to false so the
             build/save plumbing is unchanged. */}
+      </section>
+      )}
+
+      {/* Featured quote — only relevant when "Add a quote" is on. Lets the
+          marketer pin a SPECIFIC Google review instead of the auto-pick. */}
+      {step === 'info' && draft.includeQuote && (
+      <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
+        <div className="flex items-baseline justify-between gap-2 flex-wrap mb-2">
+          <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
+            Quote
+          </p>
+          <button
+            type="button"
+            onClick={() => setQuotePickerOpen(true)}
+            className="px-2.5 py-1 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+          >
+            {featuredQuote ? 'Change review' : 'Choose a review'}
+          </button>
+        </div>
+        {featuredQuote ? (
+          <FeaturedQuoteCard
+            quote={featuredQuote}
+            onClear={() => setDraft((p) => ({ ...p, featuredQuoteId: null }))}
+          />
+        ) : (
+          <p className="text-[12.5px] text-foreground/55 italic" style={{ fontFamily: 'var(--font-body)' }}>
+            We&apos;ll auto-pick your top Google review. Choose a specific one to control exactly which quote appears.
+          </p>
+        )}
       </section>
       )}
 
@@ -1271,6 +1326,17 @@ export default function NewEmailCampaignContent() {
             setHorsePickerOpen(false);
           }}
           onClose={() => setHorsePickerOpen(false)}
+        />
+      )}
+      {quotePickerOpen && (
+        <QuotePicker
+          quotes={quotes}
+          selectedId={draft.featuredQuoteId}
+          onSelect={(id) => {
+            setDraft((p) => ({ ...p, featuredQuoteId: id }));
+            setQuotePickerOpen(false);
+          }}
+          onClose={() => setQuotePickerOpen(false)}
         />
       )}
       {pagePickerOpen && (
@@ -1658,6 +1724,75 @@ function HorsePicker({ horses, selectedId, onSelect, onClose }: {
             );
           })}
         </ul>
+      )}
+    </ModalShell>
+  );
+}
+
+function QuotePicker({ quotes, selectedId, onSelect, onClose }: {
+  quotes: QuoteOption[];
+  selectedId: string | null;
+  onSelect: (id: string | null) => void;
+  onClose: () => void;
+}) {
+  const [query, setQuery] = useState('');
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return quotes;
+    return quotes.filter((r) =>
+      r.author_name.toLowerCase().includes(q) || r.text.toLowerCase().includes(q),
+    );
+  }, [quotes, query]);
+  return (
+    <ModalShell title="Choose a review" subtitle={`${quotes.length} five-star reviews to choose from.`} onClose={onClose}>
+      {quotes.length === 0 ? (
+        <p className="text-[12.5px] text-foreground/55 italic text-center py-12" style={{ fontFamily: 'var(--font-body)' }}>
+          No eligible reviews yet — the email will skip the quote until some are available.
+        </p>
+      ) : (
+        <>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by name or words in the review…"
+            className="w-full mb-3 px-3 py-1.5 rounded-md border border-black/10 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/30"
+            style={{ fontFamily: 'var(--font-body)' }}
+          />
+          <ul className="space-y-2">
+            {filtered.map((r) => {
+              const isSelected = r.id === selectedId;
+              const stars = Math.max(0, Math.min(5, Math.round(r.rating ?? 0)));
+              return (
+                <li key={r.id}>
+                  <button
+                    type="button"
+                    onClick={() => onSelect(r.id)}
+                    className={`w-full flex flex-col gap-1 rounded-xl border p-3 text-left transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-black/10 bg-white hover:bg-warm-bg/40'}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-[12.5px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{r.author_name}</span>
+                      <span className="text-[11px] text-amber-500 tracking-tight" aria-label={`${stars} out of 5 stars`}>
+                        {'★'.repeat(stars)}<span className="text-foreground/20">{'★'.repeat(5 - stars)}</span>
+                      </span>
+                      {r.relative_time && (
+                        <span className="ml-auto text-[10.5px] text-foreground/45 shrink-0">{r.relative_time}</span>
+                      )}
+                    </div>
+                    <p className="text-[12px] text-foreground/70 line-clamp-4" style={{ fontFamily: 'var(--font-body)' }}>
+                      “{r.text}”
+                    </p>
+                  </button>
+                </li>
+              );
+            })}
+            {filtered.length === 0 && (
+              <li className="text-[12px] text-foreground/55 italic text-center py-8" style={{ fontFamily: 'var(--font-body)' }}>
+                No reviews match “{query}”.
+              </li>
+            )}
+          </ul>
+        </>
       )}
     </ModalShell>
   );
