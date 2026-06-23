@@ -6,9 +6,42 @@
 // Extracted from content.tsx to keep the main file under control
 // — these are pure presentational components with no shared state.
 
-import type { BlogOption, EmployeeOption, HorseOption } from './types';
+import type { BlogOption, EmployeeOption, HorseOption, QuoteOption } from './types';
 import type { SitePage } from '@/lib/site-pages';
 import { toAvatarThumb } from '@/lib/avatarThumb';
+
+// A short star row for a review's rating (e.g. ★★★★★).
+function Stars({ rating }: { rating: number | null }) {
+  const n = Math.max(0, Math.min(5, Math.round(rating ?? 0)));
+  return (
+    <span className="text-[11px] text-amber-500 tracking-tight" aria-label={`${n} out of 5 stars`}>
+      {'★'.repeat(n)}<span className="text-foreground/20">{'★'.repeat(5 - n)}</span>
+    </span>
+  );
+}
+
+export function FeaturedQuoteCard({ quote, onClear }: { quote: QuoteOption; onClear: () => void }) {
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="text-[12.5px] font-semibold text-foreground truncate" style={{ fontFamily: 'var(--font-body)' }}>{quote.author_name}</p>
+          <Stars rating={quote.rating} />
+        </div>
+        <p className="mt-1 text-[11.5px] text-foreground/70 line-clamp-3" style={{ fontFamily: 'var(--font-body)' }}>
+          “{quote.text}”
+        </p>
+      </div>
+      <button
+        type="button"
+        onClick={onClear}
+        className="text-[11px] text-foreground/55 hover:text-foreground shrink-0"
+      >
+        Remove
+      </button>
+    </div>
+  );
+}
 
 export function FeaturedBlogCard({ blog, onClear }: { blog: BlogOption; onClear: () => void }) {
   return (
