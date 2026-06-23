@@ -18,12 +18,12 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { uploadFile } from '@/lib/upload';
 import { useAuth } from '@/lib/AuthProvider';
 import { PlatformIcon, type PlatformId } from '../PlatformIcon';
-import { saveDraft } from '../saved-drafts';
+import { saveDraft, updateDraft, useSavedDrafts } from '../saved-drafts';
 import { PostingPausedBanner } from '../PostingStatus';
 import { PostPreview } from '../PostPreview';
 import { PLATFORM_SPECS } from '../platform-specs';
@@ -33,6 +33,7 @@ import {
   SURFACE_LABEL,
   buildDeliverableRows,
   aspectStyle,
+  inferSurface,
   type DeliverableSurface,
 } from '../deliverables';
 
@@ -66,6 +67,12 @@ interface LibraryAsset {
 
 export default function CreatePostContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // When ?edit=<draftId> is present we reopen an existing draft: hydrate the
+  // composer from it and update it in place on save (instead of creating new).
+  const editId = searchParams.get('edit');
+  const { drafts: allDrafts } = useSavedDrafts();
+  const hydratedRef = useRef(false);
   const { session, user } = useAuth();
   const [stagedMedia, setStagedMedia] = useState<string[]>([]);
   const [caption, setCaption] = useState('');
@@ -104,9 +111,53 @@ export default function CreatePostContent() {
   const [activeTab, setActiveTab] = useState<PlatformId | null>(null);
 
   useEffect(() => {
+    // Editing → media comes from the draft (hydrated below), not the
+    // Creative-staging handoff, so don't clobber it with stale staging.
+    if (editId) return;
     const m = readStagedMedia();
     setStagedMedia(m);
-  }, []);
+  }, [editId]);
+
+  // Edit mode: hydrate the composer from the saved draft, once, when it
+  // resolves from the store. Reconstructs the per-deliverable media (primary
+  // + gallery) and the enabled-combo selection from the saved keys, so the
+  // checkboxes and slots come back exactly as they were.
+  useEffect(() => {
+    if (!editId || hydratedRef.current) return;
+    const d = allDrafts.find((x) => x.id === editId);
+    if (!d) return;
+    hydratedRef.current = true;
+
+    setCaption(d.caption ?? '');
+    setPlatforms(new Set((d.platforms ?? []) as PlatformId[]));
+    setStagedMedia(d.mediaUrls ?? []);
+
+    const byKey: Record<string, string[]> = {};
+    for (const { key, url } of d.mediaByDeliverable ?? []) {
+      if (!url) continue;
+      (byKey[key] ??= []).push(url);
+    }
+    const primary: Record<string, string> = {};
+    const gallery: Record<string, string[]> = {};
+    const combos: Record<string, string[]> = {};
+    for (const [key, urls] of Object.entries(byKey)) {
+      primary[key] = urls[0];
+      if (urls.length > 1) gallery[key] = urls.slice(1);
+      // key = `${pid}|${kind}|${index}|${label}` → infer the (surface|kind)
+      // combo so the deliverable checkbox comes back checked.
+      const [pid, kind, , ...labelParts] = key.split('|');
+      const label = labelParts.join('|');
+      const comboKey = `${inferSurface(label)}|${kind}`;
+      (combos[pid] ??= []);
+      if (!combos[pid].includes(comboKey)) combos[pid].push(comboKey);
+    }
+    setUrlByKey(primary);
+    setGalleryByKey(gallery);
+    // Set enabledCombos before the default-enable effect runs for the new
+    // platform set: because it preserves any platform already present in
+    // state, our reconstructed selection survives instead of resetting to all.
+    if (Object.keys(combos).length > 0) setEnabledCombos(combos);
+  }, [editId, allDrafts]);
 
   useEffect(() => {
     let cancelled = false;
@@ -434,25 +485,38 @@ export default function CreatePostContent() {
     setError(null);
     setSaving(true);
     try {
-      const saved = await saveDraft({
-        caption: caption.trim(),
-        mediaUrls: stagedMedia,
-        platforms: effectivePlatforms,
-        ready,
-        mediaByDeliverable: [
-          ...Object.entries(urlByKey)
-            .filter(([key, url]) => enabledKeys.has(key) && url && url.trim().length > 0)
-            .map(([key, url]) => ({ key, url })),
-          // Gallery extras ride along as additional rows under the same key.
-          ...Object.entries(galleryByKey).flatMap(([key, urls]) =>
-            enabledKeys.has(key) ? urls.filter((u) => u && u.trim().length > 0).map((url) => ({ key, url })) : []),
-        ],
-        createdBy: user?.id ?? null,
-        createdByName: ((user?.user_metadata?.full_name as string | undefined) || user?.email) ?? null,
-      });
-      if (!saved) {
-        setError('Could not save the draft. Try again.');
-        return;
+      const mediaByDeliverable = [
+        ...Object.entries(urlByKey)
+          .filter(([key, url]) => enabledKeys.has(key) && url && url.trim().length > 0)
+          .map(([key, url]) => ({ key, url })),
+        // Gallery extras ride along as additional rows under the same key.
+        ...Object.entries(galleryByKey).flatMap(([key, urls]) =>
+          enabledKeys.has(key) ? urls.filter((u) => u && u.trim().length > 0).map((url) => ({ key, url })) : []),
+      ];
+
+      if (editId) {
+        // Editing an existing draft → update it in place.
+        await updateDraft(editId, {
+          caption: caption.trim(),
+          mediaUrls: stagedMedia,
+          platforms: effectivePlatforms,
+          ready,
+          mediaByDeliverable,
+        });
+      } else {
+        const saved = await saveDraft({
+          caption: caption.trim(),
+          mediaUrls: stagedMedia,
+          platforms: effectivePlatforms,
+          ready,
+          mediaByDeliverable,
+          createdBy: user?.id ?? null,
+          createdByName: ((user?.user_metadata?.full_name as string | undefined) || user?.email) ?? null,
+        });
+        if (!saved) {
+          setError('Could not save the draft. Try again.');
+          return;
+        }
       }
       clearStagedMedia();
       router.push(`/feather/social-media?tab=creative&sub=${ready ? 'ai' : 'drafts'}`);
@@ -466,7 +530,7 @@ export default function CreatePostContent() {
       <header className="mb-5 flex items-baseline justify-between flex-wrap gap-3">
         <div>
           <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/45">
-            Social Media · Create post
+            Social Media · {editId ? 'Edit post' : 'Create post'}
           </p>
           <h1 className="mt-1 text-2xl font-semibold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
             Build the post · {stagedMedia.length} {stagedMedia.length === 1 ? 'asset' : 'assets'} staged
