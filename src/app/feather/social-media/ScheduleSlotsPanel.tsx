@@ -9,6 +9,7 @@
 // posts to come from where the draft was assigned in Creative.
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/lib/AuthProvider';
 import { usePostingEnabled, PostingPausedBanner } from './PostingStatus';
 import { PlatformIcon, type PlatformId } from './PlatformIcon';
@@ -222,6 +223,15 @@ function ReadyDraftRow({
       <td className="px-2 py-2 align-middle text-right whitespace-nowrap">
         {onQuickAction ? (
           <div className="inline-flex items-center gap-1">
+            <Link
+              href={`/feather/social-media/create?edit=${draft.id}`}
+              draggable={false}
+              className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-black/10 bg-white text-[10px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
+              title="Edit this post"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+              <span className="hidden sm:inline">Edit</span>
+            </Link>
             <button
               type="button"
               onClick={() => onQuickAction(draft, 'queue')}

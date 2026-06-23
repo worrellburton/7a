@@ -394,7 +394,126 @@ function SocialTabBody(props: TabBodyProps) {
         history={history}
       />
       <AnalyticsPanel connected={accounts?.activeSocialAccounts ?? []} />
+      <RecentPostsFeed posts={history} />
     </div>
+  );
+}
+
+// ── Recent posts feed ───────────────────────────────────────────────
+//
+// A per-platform feed of what we've actually published (Ayrshare /history),
+// shown at the bottom of Overview. Platform tabs; each shows that network's
+// most recent posts with media, caption, date, and a link to the live post.
+function feedIsVideo(u: string): boolean {
+  return /\.(mp4|mov|webm|m4v)(\?|$)/i.test(u);
+}
+
+function RecentPostsFeed({ posts }: { posts: HistoryPost[] }) {
+  // Already-published only — drop anything still scheduled for the future.
+  const published = useMemo(
+    () => posts.filter((p) => !(p.scheduleDate && Date.parse(p.scheduleDate) > Date.now())),
+    [posts],
+  );
+
+  const platformsWithPosts = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of published) {
+      for (const x of p.postIds ?? []) if (x.platform) set.add(x.platform);
+      for (const pid of p.platforms ?? []) set.add(pid);
+    }
+    return PLATFORMS.map((x) => x.id).filter((id) => set.has(id));
+  }, [published]);
+
+  const [tab, setTab] = useState<Platform | null>(null);
+  useEffect(() => {
+    setTab((cur) => (cur && platformsWithPosts.includes(cur)) ? cur : (platformsWithPosts[0] ?? null));
+  }, [platformsWithPosts]);
+
+  const rows = useMemo(() => {
+    if (!tab) return [];
+    return published
+      .filter((p) => (p.postIds ?? []).some((x) => x.platform === tab) || (p.platforms ?? []).includes(tab))
+      .map((p, i) => {
+        const entry = (p.postIds ?? []).find((x) => x.platform === tab);
+        return {
+          key: `${p.id ?? 'post'}-${i}`,
+          caption: p.post ?? '',
+          media: p.mediaUrls?.[0],
+          created: p.created,
+          url: entry?.postUrl,
+          status: entry?.status ?? p.status,
+        };
+      })
+      .slice(0, 12);
+  }, [published, tab]);
+
+  if (platformsWithPosts.length === 0) return null;
+
+  return (
+    <section className="mt-5 rounded-2xl border border-black/10 bg-white px-4 py-4 lg:px-5 lg:py-5" style={{ fontFamily: 'var(--font-body)' }}>
+      <div className="mb-3">
+        <h2 className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">Recent posts</h2>
+        <p className="text-[11px] text-foreground/45 mt-0.5">The latest content published to each network through Feather.</p>
+      </div>
+
+      <div className="flex flex-wrap gap-1.5 mb-4">
+        {platformsWithPosts.map((id) => {
+          const on = tab === id;
+          const label = PLATFORMS.find((p) => p.id === id)?.label ?? id;
+          return (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[12px] font-semibold border transition-colors ${on ? 'bg-primary text-white border-primary' : 'bg-white text-foreground/70 border-black/10 hover:bg-warm-bg/60'}`}
+            >
+              <PlatformIcon platform={id as PlatformId} size={13} />
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {rows.length === 0 ? (
+        <p className="text-[12px] text-foreground/45 italic px-1 py-6 text-center">No posts published to this network yet.</p>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {rows.map((r) => {
+            const card = (
+              <div className="group rounded-xl border border-black/10 bg-warm-bg/20 overflow-hidden hover:border-primary/30 transition-colors h-full flex flex-col">
+                <div className="aspect-square bg-warm-bg/40 overflow-hidden">
+                  {r.media ? (
+                    feedIsVideo(r.media) ? (
+                      <video src={r.media} muted playsInline className="w-full h-full object-cover bg-black" />
+                    ) : (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={r.media} alt="" className="w-full h-full object-cover" />
+                    )
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-[10px] text-foreground/35">No media</div>
+                  )}
+                </div>
+                <div className="p-2.5 flex-1 flex flex-col gap-1">
+                  <p className="text-[11.5px] text-foreground/80 leading-snug line-clamp-3 whitespace-pre-line">
+                    {r.caption || <span className="text-foreground/40 italic">(no caption)</span>}
+                  </p>
+                  <div className="mt-auto flex items-center justify-between gap-2 pt-1">
+                    <span className="text-[10px] text-foreground/45 tabular-nums">
+                      {r.created ? new Date(r.created).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                    </span>
+                    {r.url && <span className="text-[10px] font-semibold text-primary group-hover:underline">View ↗</span>}
+                  </div>
+                </div>
+              </div>
+            );
+            return r.url ? (
+              <a key={r.key} href={r.url} target="_blank" rel="noopener noreferrer" className="block">{card}</a>
+            ) : (
+              <div key={r.key}>{card}</div>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
 
