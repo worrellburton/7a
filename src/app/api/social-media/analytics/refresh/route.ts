@@ -36,10 +36,21 @@ export async function POST(req: Request) {
   const origin = new URL(req.url).origin;
   const target = `${origin}/api/cron/social-media/analytics?source=manual`;
 
-  const res = await fetch(target, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${secret}` },
-  });
+  let res: Response;
+  try {
+    res = await fetch(target, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${secret}` },
+    });
+  } catch (e) {
+    // A connection failure to the cron handler shouldn't surface as an
+    // uncaught 500 / stack trace — return a friendly error instead.
+    console.error('[social-media/analytics/refresh] cron proxy failed', e);
+    return NextResponse.json(
+      { error: 'Could not reach the analytics job. Try again.' },
+      { status: 502 },
+    );
+  }
   const json = await res.json().catch(() => ({}));
   return NextResponse.json(json, { status: res.status });
 }

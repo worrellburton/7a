@@ -49,10 +49,23 @@ export async function GET() {
 
   const admin = getAdminSupabase();
 
-  const [{ data: scheduledRows }, { data: canceledRows }] = await Promise.all([
+  const [{ data: scheduledRows, error: scheduledErr }, { data: canceledRows, error: canceledErr }] = await Promise.all([
     admin.from('activity_log').select('id, created_at, target_label, metadata, user_id').eq('type', 'social.scheduled').order('created_at', { ascending: false }).limit(500),
     admin.from('activity_log').select('id, created_at, target_label, metadata, user_id').eq('type', 'social.schedule_canceled').order('created_at', { ascending: false }).limit(200),
   ]);
+
+  // Surface a failed read instead of silently returning an empty list — an
+  // empty "Scheduled posts" card on a DB blip looks exactly like "nothing is
+  // scheduled," which is dangerously misleading for a publishing tool.
+  if (scheduledErr) {
+    console.error('[social-media/scheduled] failed to read scheduled posts', scheduledErr);
+    return NextResponse.json({ error: 'Could not load scheduled posts. Try again.' }, { status: 502 });
+  }
+  if (canceledErr) {
+    // Non-fatal: we just can't filter out cancellations this pass. Log it
+    // rather than hide the whole list.
+    console.error('[social-media/scheduled] failed to read cancellations', canceledErr);
+  }
 
   const canceledIds = new Set<string>();
   const canceledSigs = new Set<string>();
