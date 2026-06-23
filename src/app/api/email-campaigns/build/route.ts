@@ -53,6 +53,9 @@ interface BuildBody {
   featuredPageImageUrl?: unknown;
   featuredEmployeeId?: unknown;
   featuredEquineId?: unknown;
+  // Optional id of a specific google_reviews row to use as the pull-quote.
+  // When absent we auto-pick the top review (legacy behaviour).
+  featuredQuoteId?: unknown;
   previousHtml?: unknown;
   iterationNote?: unknown;
   // Optional pre-drafted text payload from /api/email-campaigns/
@@ -152,6 +155,7 @@ export async function POST(req: NextRequest) {
     : null;
   const featuredEmployeeId = typeof body.featuredEmployeeId === 'string' ? body.featuredEmployeeId : null;
   const featuredEquineId = typeof body.featuredEquineId === 'string' ? body.featuredEquineId : null;
+  const featuredQuoteId = typeof body.featuredQuoteId === 'string' && body.featuredQuoteId.length > 0 ? body.featuredQuoteId : null;
   const previousHtml = typeof body.previousHtml === 'string' ? body.previousHtml : null;
   const iterationNote = typeof body.iterationNote === 'string' ? body.iterationNote.trim().slice(0, 1500) : null;
   const draftText = (body.draftText && typeof body.draftText === 'object')
@@ -177,28 +181,52 @@ export async function POST(req: NextRequest) {
     featuredEquineId
       ? supabase.from('equine').select('id, name, image_url, works_in, notes, gallery_urls').eq('id', featuredEquineId).maybeSingle()
       : Promise.resolve({ data: null }),
-    // Pick a top Google review: 5-star, not hidden, featured first
-    // then highest-rated, then most recent. Falls back to no quote
-    // if nothing meaningful is available so we never insert
-    // placeholder text.
-    includeQuote
-      ? supabase.from('google_reviews')
-          .select('author_name, rating, text, review_time, featured, hidden')
-          .eq('hidden', false)
-          .gte('rating', 5)
-          .not('text', 'is', null)
-          .order('featured', { ascending: false, nullsFirst: false })
-          .order('rating', { ascending: false })
-          .order('review_time', { ascending: false, nullsFirst: false })
-          .limit(1)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
+    // The review used as the pull-quote. When the marketer pinned a
+    // specific one (featuredQuoteId) we honour that exact review; otherwise
+    // auto-pick a top review: 5-star, not hidden, featured first then
+    // highest-rated, then most recent. Falls back to no quote if nothing
+    // meaningful is available so we never insert placeholder text.
+    !includeQuote
+      ? Promise.resolve({ data: null })
+      : featuredQuoteId
+        ? supabase.from('google_reviews')
+            .select('author_name, rating, text')
+            .eq('id', featuredQuoteId)
+            .eq('hidden', false)
+            .not('text', 'is', null)
+            .maybeSingle()
+        : supabase.from('google_reviews')
+            .select('author_name, rating, text')
+            .eq('hidden', false)
+            .gte('rating', 5)
+            .not('text', 'is', null)
+            .order('featured', { ascending: false, nullsFirst: false })
+            .order('rating', { ascending: false })
+            .order('review_time', { ascending: false, nullsFirst: false })
+            .limit(1)
+            .maybeSingle(),
   ]);
   const blog = (blogRes as { data: { title: string; slug: string | null; body_markdown?: string | null } | null }).data;
   const emp = (empRes as { data: { full_name: string; job_title: string | null; avatar_url: string | null; public_slug: string | null; bio?: string | null } | null }).data;
   const blogImages = ((blogImagesRes as { data: Array<{ url: string; alt: string | null; position: number }> | null }).data ?? []);
   const horse = (horseRes as { data: { name: string; image_url: string | null; works_in: string | null; notes: string | null; gallery_urls: string[] | null } | null }).data;
-  const quote = (quoteRes as { data: { author_name: string; rating: number | null; text: string } | null }).data;
+  let quote = (quoteRes as { data: { author_name: string; rating: number | null; text: string } | null }).data;
+  // If the pinned review was hidden or evicted (30-day TTL) since it was
+  // chosen, don't silently drop the quote — fall back to a top review so the
+  // email still gets one.
+  if (includeQuote && featuredQuoteId && !quote) {
+    const fb = await supabase.from('google_reviews')
+      .select('author_name, rating, text')
+      .eq('hidden', false)
+      .gte('rating', 5)
+      .not('text', 'is', null)
+      .order('featured', { ascending: false, nullsFirst: false })
+      .order('rating', { ascending: false })
+      .order('review_time', { ascending: false, nullsFirst: false })
+      .limit(1)
+      .maybeSingle();
+    quote = (fb as { data: { author_name: string; rating: number | null; text: string } | null }).data;
+  }
   // Crop quote text to a single tight pull-quote so the email
   // doesn't get hijacked by a 5-paragraph review. Earlier versions
   // hard-sliced at 280 chars and stripped trailing punctuation,

@@ -30,6 +30,7 @@ interface CampaignRow {
   link_to_website: boolean;
   include_phone: boolean;
   include_quote: boolean;
+  featured_quote_id: string | null;
   include_insurance_strip: boolean;
   include_social_footer: boolean;
   dark_mode: boolean;
@@ -110,7 +111,7 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
   const refresh = async () => {
     const [campaignRes, recipientsRes] = await Promise.all([
       supabase.from('email_campaigns')
-        .select('id, generated_html, generated_subject, status, sent_at, prompt, image_urls, use_logos, link_to_website, include_phone, include_quote, include_insurance_strip, include_social_footer, dark_mode, featured_blog_id, featured_episode_slug, featured_page_path, featured_employee_id, featured_equine_id')
+        .select('id, generated_html, generated_subject, status, sent_at, prompt, image_urls, use_logos, link_to_website, include_phone, include_quote, featured_quote_id, include_insurance_strip, include_social_footer, dark_mode, featured_blog_id, featured_episode_slug, featured_page_path, featured_employee_id, featured_equine_id')
         .eq('id', campaignId)
         .maybeSingle(),
       supabase.from('email_campaign_recipients')
@@ -163,6 +164,7 @@ export default function FinalizeContent({ campaignId }: { campaignId: string }) 
           linkToWebsite: campaign.link_to_website,
           includePhone: campaign.include_phone,
           includeQuote: campaign.include_quote,
+          featuredQuoteId: campaign.featured_quote_id,
           includeInsuranceStrip: campaign.include_insurance_strip,
           includeSocialFooter: campaign.include_social_footer,
           // Dark mode retired — rebuilds always render the light palette.
