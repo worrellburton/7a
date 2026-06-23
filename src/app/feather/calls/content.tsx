@@ -690,15 +690,19 @@ export default function CallsContent() {
               <a href="/feather/ctm" className="text-primary hover:underline font-medium">CTM</a>
             </p>
           </div>
-          <button
-            onClick={() => { loadCalls(); loadInsights(); }}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/85 border border-white/70 text-xs font-semibold uppercase tracking-wider text-foreground hover:bg-white transition-colors shadow-sm"
-          >
-            <svg className="w-3.5 h-3.5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Refresh
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Text messages (Aircall SMS) — opens a threaded drawer. */}
+            <MessagesPanel token={token} />
+            <button
+              onClick={() => { loadCalls(); loadInsights(); }}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/85 border border-white/70 text-xs font-semibold uppercase tracking-wider text-foreground hover:bg-white transition-colors shadow-sm"
+            >
+              <svg className="w-3.5 h-3.5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
+            </button>
+          </div>
         </div>
       </header>
 
@@ -711,11 +715,6 @@ export default function CallsContent() {
 
       {/* Admissions call-flow cheat sheet — collapsed row, drops down. */}
       <OperatorCheatSheet />
-
-      {/* Text messages (Aircall SMS) — launcher chip opens a threaded drawer. */}
-      <div className="mb-5">
-        <MessagesPanel token={token} />
-      </div>
 
       {/* Insight stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">

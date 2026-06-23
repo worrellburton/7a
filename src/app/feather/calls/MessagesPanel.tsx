@@ -286,83 +286,24 @@ export default function MessagesPanel({ token }: { token: string | null }) {
   }
 
   const openInbox = () => { setComposing(false); setActiveKey(null); setError(null); setOpen(true); };
-  const openThread = (key: string) => { setComposing(false); setActiveKey(key); setError(null); setOpen(true); };
 
-  // Inline preview of the latest conversations so incoming texts are
-  // visible on the Calls page itself, not only inside the drawer.
-  const previewThreads = threads.slice(0, 3);
-
+  // Compact button (lives in the Calls header, upper right). Opens the full
+  // SMS inbox drawer; a badge shows the conversation count and a dot flags a
+  // recent inbound text.
   const card = (
-    <div
-      className="rounded-2xl border border-white/70 bg-white/55 supports-[backdrop-filter]:bg-white/35 backdrop-blur-xl px-3 py-3 shadow-[0_10px_30px_-18px_rgba(60,48,42,0.35)] w-full sm:max-w-md"
+    <button
+      onClick={openInbox}
+      className="relative inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-white/85 border border-white/70 text-xs font-semibold uppercase tracking-wider text-foreground hover:bg-white transition-colors shadow-sm"
       style={{ fontFamily: 'var(--font-body)' }}
+      aria-label="Open text messages"
     >
-      <div className="flex items-center justify-between gap-2">
-        <button onClick={openInbox} className="flex items-center gap-2.5 min-w-0 text-left">
-          <span className="relative inline-flex items-center justify-center w-9 h-9 rounded-xl bg-primary/10 text-primary shrink-0">
-            <PhoneTextIcon className="w-4 h-4" />
-            {recentInbound && <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />}
-          </span>
-          <span className="flex flex-col leading-tight min-w-0">
-            <span className="text-[13px] font-semibold text-foreground/90">Text messages</span>
-            <span className="text-[11px] text-foreground/50 truncate">
-              {threads.length > 0 ? `${threads.length} conversation${threads.length === 1 ? '' : 's'}` : 'Aircall SMS inbox'}
-            </span>
-          </span>
-        </button>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {configured && (
-            <button
-              onClick={() => { setComposing(true); setActiveKey(null); setError(null); setOpen(true); }}
-              className="inline-flex items-center gap-1 rounded-full bg-primary text-white text-[11px] font-semibold px-2.5 py-1.5 hover:bg-primary-dark transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14" /></svg>
-              New
-            </button>
-          )}
-          <button onClick={openInbox} aria-label="Open SMS inbox" className="text-foreground/40 hover:text-foreground p-1">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
-          </button>
-        </div>
-      </div>
-
-      {threads.length > 0 ? (
-        <ul className="mt-2.5 rounded-xl overflow-hidden border border-foreground/5 bg-white/50 divide-y divide-foreground/5">
-          {previewThreads.map((t) => {
-            const inbound = t.lastDir === 'inbound';
-            return (
-              <li key={t.key}>
-                <button onClick={() => openThread(t.key)} className="w-full text-left px-3 py-2 hover:bg-white/70 transition-colors flex items-center gap-2.5">
-                  <span className={`shrink-0 h-2 w-2 rounded-full ${inbound ? 'bg-emerald-500' : 'bg-transparent'}`} />
-                  <span className="flex-1 min-w-0">
-                    <span className="flex items-center justify-between gap-2">
-                      <span className="text-[12.5px] font-semibold text-foreground truncate">{t.display}</span>
-                      <span className="text-[10px] text-foreground/40 shrink-0">{t.lastAt ? formatRelativeTime(t.lastAt) : ''}</span>
-                    </span>
-                    <span className="block text-[11.5px] text-foreground/55 truncate">
-                      {inbound ? '' : 'You: '}{t.lastBody}
-                    </span>
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-          {threads.length > previewThreads.length && (
-            <li>
-              <button onClick={openInbox} className="w-full text-center px-3 py-2 text-[11px] font-semibold text-primary hover:bg-white/70 transition-colors">
-                View all {threads.length} conversations →
-              </button>
-            </li>
-          )}
-        </ul>
-      ) : (
-        <p className="mt-2 text-[11px] text-foreground/45 leading-snug">
-          {configured
-            ? 'No texts yet — incoming messages appear here the moment someone texts your Aircall number.'
-            : 'Aircall isn’t configured for SMS yet. Incoming texts will appear here once it’s set up.'}
-        </p>
+      <PhoneTextIcon className="w-3.5 h-3.5 text-primary" />
+      Texts
+      {threads.length > 0 && (
+        <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-primary/10 text-primary text-[10px] tabular-nums">{threads.length}</span>
       )}
-    </div>
+      {recentInbound && <span className="absolute -top-0.5 -right-0.5 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />}
+    </button>
   );
 
   const drawer =
