@@ -11,7 +11,7 @@ import { PlatformIcon, type PlatformId } from './PlatformIcon';
 import { MediaPicker, type PickedMedia } from './MediaPicker';
 import { PostStatusToast, type PostStatus, type PerPlatformResult } from './PostStatusToast';
 import { PLATFORM_SPECS, type MediaSpec, type VideoSpec } from './platform-specs';
-import ScheduleDropCard, { ReadyToGoCard, PostNowDropCard, type ReadyDraft } from './ScheduleSlotsPanel';
+import ScheduleDropCard, { ReadyToGoCard, type ReadyDraft } from './ScheduleSlotsPanel';
 import { useSavedDrafts, saveDraft as createDraft, setDraftReady, deleteDraft, submitForReview, updateDraft, type SavedDraft } from './saved-drafts';
 import { usePendingDeletes, UndoToast } from './UndoToast';
 import { ScheduledCalendar } from './ScheduledCalendar';
@@ -1218,6 +1218,10 @@ function SchedulePostsBody({
   // draggable onto the Schedule card below, and carry the platforms
   // chosen in Creative so scheduling doesn't re-ask for networks.
   const { drafts } = useSavedDrafts();
+  const { session } = useAuth();
+  // Inline status for the row-level "Now" button (replaces the old Post-now
+  // drop card).
+  const [postNowStatus, setPostNowStatus] = useState<{ ok: boolean; text: string } | null>(null);
   const readyDrafts = useMemo<ReadyDraft[]>(
     () => drafts.filter((d) => d.ready).map((d) => ({
       id: d.id,
@@ -1253,22 +1257,64 @@ function SchedulePostsBody({
     [history],
   );
 
-  // Click-path: load a Ready tile into the matching card without dragging
-  // (the only way that works on touch). `n` makes each click a fresh
-  // injection even for the same draft.
-  const postNowRef = useRef<HTMLDivElement>(null);
+  // Click-path: Queue / Schedule load a Ready tile into the matching card
+  // without dragging (the only way that works on touch). "Now" posts the
+  // draft immediately — the old Post-now drop card was removed, so the row
+  // button is the post-now action. `n` makes each click a fresh injection
+  // even for the same draft.
   const scheduleRef = useRef<HTMLDivElement>(null);
   const queueRef = useRef<HTMLDivElement>(null);
-  const [inject, setInject] = useState<{ draft: ReadyDraft; action: 'schedule' | 'postnow' | 'queue'; n: number } | null>(null);
-  const quickAction = useCallback((draft: ReadyDraft, action: 'schedule' | 'postnow' | 'queue') => {
+  const [inject, setInject] = useState<{ draft: ReadyDraft; action: 'schedule' | 'queue'; n: number } | null>(null);
+  const quickAction = useCallback(async (draft: ReadyDraft, action: 'schedule' | 'postnow' | 'queue') => {
+    if (action === 'postnow') {
+      const targets = (draft.platforms ?? []).filter((p) => connectedPlatforms.includes(p));
+      if (targets.length === 0) {
+        setPostNowStatus({ ok: false, text: 'This draft has no connected networks to post to.' });
+        return;
+      }
+      const preview = draft.caption.trim().slice(0, 48);
+      if (!window.confirm(`Post ${preview ? `“${preview}${draft.caption.length > 48 ? '…' : ''}” ` : ''}now to ${targets.length} network${targets.length === 1 ? '' : 's'}?`)) return;
+      setPostNowStatus(null);
+      try {
+        const body: Record<string, unknown> = { post: draft.caption, platforms: targets };
+        if (draft.mediaUrls.length > 0) body.mediaUrls = draft.mediaUrls;
+        if (draft.mediaByPlatform && Object.keys(draft.mediaByPlatform).length > 0) body.mediaByPlatform = draft.mediaByPlatform;
+        const r = await fetch('/api/social-media/post', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'content-type': 'application/json', ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
+          body: JSON.stringify(body),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          setPostNowStatus({ ok: false, text: (j as { error?: string; message?: string }).error ?? (j as { message?: string }).message ?? `HTTP ${r.status}` });
+          return;
+        }
+        const partial = (j as { error?: string }).error;
+        setPostNowStatus({ ok: !partial, text: partial ? `Some networks didn’t post — ${partial}` : `Posted to ${targets.length} network${targets.length === 1 ? '' : 's'}.` });
+        refreshHistory();
+      } catch (e) {
+        setPostNowStatus({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      }
+      return;
+    }
     setInject({ draft, action, n: Date.now() });
     window.setTimeout(() => {
-      (action === 'schedule' ? scheduleRef : action === 'queue' ? queueRef : postNowRef).current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      (action === 'schedule' ? scheduleRef : queueRef).current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, 60);
-  }, []);
+  }, [connectedPlatforms, session?.access_token, refreshHistory]);
 
   return (
     <div className="space-y-4">
+      {postNowStatus && (
+        <div
+          role="status"
+          className={`flex items-center justify-between gap-3 rounded-xl border px-4 py-2.5 text-[12.5px] ${postNowStatus.ok ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-rose-200 bg-rose-50 text-rose-700'}`}
+        >
+          <span>{postNowStatus.text}</span>
+          <button onClick={() => setPostNowStatus(null)} className="text-[10px] font-semibold uppercase tracking-wider opacity-70 hover:opacity-100">Dismiss</button>
+        </div>
+      )}
       <ReadyToGoCard drafts={readyDrafts} onQuickAction={quickAction} />
       <div ref={queueRef} className="scroll-mt-4">
         <QueueCard
@@ -1276,13 +1322,6 @@ function SchedulePostsBody({
           scheduledMs={scheduledMs}
           onScheduled={handleScheduled}
           injected={inject?.action === 'queue' ? inject : null}
-        />
-      </div>
-      <div ref={postNowRef} className="scroll-mt-4">
-        <PostNowDropCard
-          connectedPlatforms={connectedPlatforms}
-          onPosted={refreshHistory}
-          injected={inject?.action === 'postnow' ? inject : null}
         />
       </div>
       <div ref={scheduleRef} className="scroll-mt-4">
