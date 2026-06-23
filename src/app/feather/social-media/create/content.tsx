@@ -411,21 +411,41 @@ export default function CreatePostContent() {
       setError(`Before saving as ready: ${readyBlockers.join('; ')}.`);
       return;
     }
+
+    // Make the Deliverables panel authoritative for what gets saved:
+    //  - Only persist media for slots that are actually ENABLED (selected
+    //    platform + checked combo). Media dragged onto a slot for a network
+    //    or deliverable the user later unchecked stays in urlByKey/galleryByKey
+    //    and would otherwise be saved — that's how a Facebook-only post ended
+    //    up carrying Instagram + LinkedIn deliverables.
+    //  - Drop any selected network whose deliverables are ALL unchecked.
+    //    Networks that offer no deliverable specs at all are kept (they post
+    //    with the shared media).
+    const enabledKeys = new Set(rows.map((r) => r.key));
+    const effectivePlatforms = Array.from(platforms).filter((pid) => {
+      const offered = combosByPlatform.get(pid)?.length ?? 0;
+      return offered === 0 || (enabledCombos[pid]?.length ?? 0) > 0;
+    });
+    if (effectivePlatforms.length === 0) {
+      setError('Every deliverable is unchecked — pick at least one to post.');
+      return;
+    }
+
     setError(null);
     setSaving(true);
     try {
       const saved = await saveDraft({
         caption: caption.trim(),
         mediaUrls: stagedMedia,
-        platforms: Array.from(platforms),
+        platforms: effectivePlatforms,
         ready,
         mediaByDeliverable: [
           ...Object.entries(urlByKey)
-            .filter(([, url]) => url && url.trim().length > 0)
+            .filter(([key, url]) => enabledKeys.has(key) && url && url.trim().length > 0)
             .map(([key, url]) => ({ key, url })),
           // Gallery extras ride along as additional rows under the same key.
           ...Object.entries(galleryByKey).flatMap(([key, urls]) =>
-            urls.filter((u) => u && u.trim().length > 0).map((url) => ({ key, url }))),
+            enabledKeys.has(key) ? urls.filter((u) => u && u.trim().length > 0).map((url) => ({ key, url })) : []),
         ],
         createdBy: user?.id ?? null,
         createdByName: ((user?.user_metadata?.full_name as string | undefined) || user?.email) ?? null,
