@@ -17,10 +17,11 @@ import { AIRCALL_DIAL_EVENT } from '@/lib/aircall-dial';
 //
 // Mobile: the Aircall softphone isn't usable on a phone (no dial pad room,
 // no place to keep an audio call alive while scrolling the log), so the
-// dock and its connect / sign-in controls are hidden entirely on phones —
-// the component renders nothing below the 640px breakpoint. Desktop is
-// unchanged: the one-time "Connect phone" launcher, then the persistent
-// bottom dock.
+// dock and its controls are hidden entirely on phones — the component
+// renders nothing below the 640px breakpoint. Desktop: a one-time "Connect
+// phone" launcher, then a compact round button in the lower-right corner
+// that expands the dock (the workspace iframe stays mounted so the phone
+// keeps ringing while collapsed).
 
 const CONNECTED_KEY = 'sa-aircall-connected';
 const WORKSPACE_DOM_ID = 'aircall-workspace';
@@ -159,42 +160,69 @@ export default function AircallDock() {
     );
   }
 
-  // Connected → persistent bottom-right dock. The header bar always shows;
-  // the workspace iframe collapses to zero height when minimised but stays
-  // mounted so the phone keeps ringing.
+  // Connected → a compact round button in the lower-right corner. Tapping
+  // it expands the dock (header + workspace iframe). The iframe is kept
+  // mounted whenever connected — even while collapsed to the button — so
+  // the phone keeps ringing; it just collapses to zero size when closed.
   return (
-    <div className="fixed bottom-5 right-5 z-[60]" style={{ fontFamily: 'var(--font-body)' }}>
-      {/* Dock header / launcher bar. */}
-      <div className="flex items-center justify-between gap-2 rounded-t-2xl bg-foreground/90 text-white px-3 py-2 shadow-lg w-[340px] max-w-[calc(100vw-2.5rem)]">
-        <button onClick={() => setOpen((v) => !v)} className="flex items-center gap-2 min-w-0">
-          <span className={`h-2 w-2 rounded-full ${loggedIn ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-          <span className="text-xs font-semibold uppercase tracking-wider truncate">
-            {incoming ? `Incoming · ${incoming.from ?? ''}` : loggedIn ? 'Aircall phone' : 'Aircall · sign in'}
-          </span>
+    <>
+      {/* Collapsed → floating button (lower right). */}
+      {!open && (
+        <button
+          onClick={() => setOpen(true)}
+          className="fixed bottom-5 right-5 z-[60] flex items-center justify-center w-14 h-14 rounded-full bg-primary text-white shadow-lg hover:bg-primary-dark transition-colors"
+          style={{ fontFamily: 'var(--font-body)' }}
+          aria-label={incoming ? `Incoming call from ${incoming.from ?? 'unknown'}` : 'Open Aircall phone'}
+        >
+          <PhoneIcon className="w-6 h-6" />
+          {/* Login-status dot: green when signed in, amber when sign-in needed. */}
+          <span className={`absolute top-1 right-1 h-3 w-3 rounded-full ring-2 ring-white ${loggedIn ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+          {/* Incoming-call pulse. */}
+          {incoming && <span className="absolute inset-0 rounded-full ring-4 ring-primary/40 animate-ping pointer-events-none" />}
         </button>
-        <button onClick={() => setOpen((v) => !v)} aria-label={open ? 'Minimise' : 'Expand'} className="text-white/70 hover:text-white">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-            <path strokeLinecap="round" strokeLinejoin="round" d={open ? 'M19 9l-7 7-7-7' : 'M5 15l7-7 7 7'} />
-          </svg>
-        </button>
-      </div>
-
-      {/* Incoming-call banner with a jump to the live log. */}
-      {incoming && open && (
-        <div className="bg-emerald-50 border-x border-emerald-200 px-3 py-2 w-[340px] max-w-[calc(100vw-2.5rem)] flex items-center justify-between gap-2">
-          <span className="text-xs text-emerald-800 truncate">📞 {incoming.from ?? 'Unknown'} calling…</span>
-          <button onClick={() => router.push('/feather/calls')} className="text-[11px] font-semibold text-emerald-700 hover:underline shrink-0">Open log</button>
-        </div>
       )}
 
-      {/* Workspace iframe host. Kept mounted whenever connected (so it rings
-          even when minimised); collapsed to zero height when closed. */}
+      {/* Dock — header + iframe show only when expanded; the iframe wrapper
+          stays mounted and collapses to zero size when closed so calls keep
+          ringing in the background. */}
       <div
-        className={`bg-white border-x border-b border-foreground/10 rounded-b-2xl shadow-lg overflow-hidden transition-all ${open ? 'opacity-100' : 'h-0 opacity-0 pointer-events-none'}`}
+        className={`fixed bottom-5 right-5 z-[60] ${open ? '' : 'pointer-events-none'}`}
+        style={{ fontFamily: 'var(--font-body)' }}
         aria-hidden={!open}
       >
-        <div id={WORKSPACE_DOM_ID} className="w-[340px] max-w-[calc(100vw-2.5rem)] h-[480px]" />
+        {open && (
+          <div className="flex items-center justify-between gap-2 rounded-t-2xl bg-foreground/90 text-white px-3 py-2 shadow-lg w-[340px] max-w-[calc(100vw-2.5rem)]">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className={`h-2 w-2 rounded-full ${loggedIn ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+              <span className="text-xs font-semibold uppercase tracking-wider truncate">
+                {incoming ? `Incoming · ${incoming.from ?? ''}` : loggedIn ? 'Aircall phone' : 'Aircall · sign in'}
+              </span>
+            </div>
+            <button onClick={() => setOpen(false)} aria-label="Minimise" className="text-white/70 hover:text-white">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {/* Incoming-call banner with a jump to the live log. */}
+        {incoming && open && (
+          <div className="bg-emerald-50 border-x border-emerald-200 px-3 py-2 w-[340px] max-w-[calc(100vw-2.5rem)] flex items-center justify-between gap-2">
+            <span className="text-xs text-emerald-800 truncate">📞 {incoming.from ?? 'Unknown'} calling…</span>
+            <button onClick={() => router.push('/feather/calls')} className="text-[11px] font-semibold text-emerald-700 hover:underline shrink-0">Open log</button>
+          </div>
+        )}
+
+        {/* Workspace iframe host. Kept mounted whenever connected (so it rings
+            even when collapsed to the button); zero size when closed. */}
+        <div
+          className={`bg-white border-x border-b border-foreground/10 rounded-b-2xl shadow-lg overflow-hidden transition-all ${open ? 'opacity-100' : 'h-0 opacity-0 pointer-events-none'}`}
+          aria-hidden={!open}
+        >
+          <div id={WORKSPACE_DOM_ID} className="w-[340px] max-w-[calc(100vw-2.5rem)] h-[480px]" />
+        </div>
       </div>
-    </div>
+    </>
   );
 }
