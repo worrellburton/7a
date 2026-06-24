@@ -1447,6 +1447,15 @@ function SchedulePostsBody({
     }, 60);
   }, [connectedPlatforms, session?.access_token, refreshHistory, postingEnabled]);
 
+  // Delete a Ready draft straight from the Post tab. The list comes from the
+  // shared drafts store, so deleteDraft() refreshes it automatically.
+  const deleteReadyDraft = useCallback(async (draft: ReadyDraft) => {
+    const preview = draft.caption.trim().slice(0, 48);
+    const label = preview ? `“${preview}${draft.caption.length > 48 ? '…' : ''}”` : 'this draft';
+    if (!window.confirm(`Delete ${label}? This can’t be undone.`)) return;
+    await deleteDraft(draft.id);
+  }, []);
+
   return (
     <div className="space-y-4">
       {postNowStatus && (
@@ -1458,7 +1467,7 @@ function SchedulePostsBody({
           <button onClick={() => setPostNowStatus(null)} className="text-[10px] font-semibold uppercase tracking-wider opacity-70 hover:opacity-100">Dismiss</button>
         </div>
       )}
-      <ReadyToGoCard drafts={readyDrafts} onQuickAction={quickAction} />
+      <ReadyToGoCard drafts={readyDrafts} onQuickAction={quickAction} onDelete={deleteReadyDraft} />
       <div ref={queueRef} className="scroll-mt-4">
         <QueueCard
           connectedPlatforms={connectedPlatforms}
@@ -1467,20 +1476,24 @@ function SchedulePostsBody({
           injected={inject?.action === 'queue' ? inject : null}
         />
       </div>
-      <div ref={scheduleRef} className="scroll-mt-4">
+      {/* Combined card: "Schedule a post" (drop + exact time) on top, and the
+          list/calendar of what's already scheduled directly below it. */}
+      <div ref={scheduleRef} className="scroll-mt-4 rounded-2xl border border-black/10 bg-white px-4 py-4 lg:px-5 lg:py-5">
         <ScheduleDropCard
+          embedded
           connectedPlatforms={connectedPlatforms}
           onScheduled={handleScheduled}
           injected={inject?.action === 'schedule' ? inject : null}
         />
-      </div>
-      <div ref={scheduledRef} className="scroll-mt-4">
-        <ScheduledPanel
-          posts={history}
-          loading={historyLoading}
-          error={historyErr}
-          onChanged={refreshHistory}
-        />
+        <div ref={scheduledRef} className="mt-4 pt-4 border-t border-black/10 scroll-mt-4">
+          <ScheduledPanel
+            embedded
+            posts={history}
+            loading={historyLoading}
+            error={historyErr}
+            onChanged={refreshHistory}
+          />
+        </div>
       </div>
     </div>
   );
@@ -1519,13 +1532,16 @@ function ScheduleCountdown({ target }: { target: string }) {
 }
 
 function ScheduledPanel({
-  posts, loading, error, onChanged, onDropDraft,
+  posts, loading, error, onChanged, onDropDraft, embedded = false,
 }: {
   posts: HistoryPost[];
   loading: boolean;
   error: string | null;
   onChanged: () => void;
   onDropDraft?: (draft: ReadyDraft) => Promise<{ ok: boolean; when?: Date; error?: string }>;
+  // When embedded, render without card chrome so it can sit inside the
+  // combined "Schedule a post" card under the drop area.
+  embedded?: boolean;
 }) {
   const modal = useModal();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -1644,14 +1660,17 @@ function ScheduledPanel({
     }
   };
 
+  const Root = embedded ? 'div' : 'section';
   return (
-    <section
+    <Root
       onDragOver={onZoneDragOver}
       onDragLeave={() => setDragOver(false)}
       onDrop={onZoneDrop}
-      className={`rounded-2xl border bg-white p-5 transition-colors ${
-        dragOver ? 'border-primary ring-2 ring-primary/20 bg-primary/[0.02]' : 'border-black/10'
-      }`}
+      className={embedded
+        ? 'transition-colors'
+        : `rounded-2xl border bg-white p-5 transition-colors ${
+            dragOver ? 'border-primary ring-2 ring-primary/20 bg-primary/[0.02]' : 'border-black/10'
+          }`}
     >
       <div className="flex items-baseline justify-between mb-3 gap-3 flex-wrap">
         <div>
@@ -1781,7 +1800,7 @@ function ScheduledPanel({
           </ul>
         </div>
       )}
-    </section>
+    </Root>
   );
 }
 

@@ -111,12 +111,15 @@ function PostErrorBanner({ message, context }: { message: string; context: unkno
 export function ReadyToGoCard({
   drafts,
   onQuickAction,
+  onDelete,
 }: {
   drafts: ReadyDraft[];
   // Click-path alternative to dragging — load a draft straight into the
   // Schedule or Post-now card. Essential on touch, where HTML5 drag-drop
   // doesn't fire at all.
   onQuickAction?: (draft: ReadyDraft, action: 'schedule' | 'postnow' | 'queue') => void;
+  // Delete a ready draft straight from this list.
+  onDelete?: (draft: ReadyDraft) => void;
 }) {
   return (
     <section className="rounded-2xl border border-black/10 bg-white px-4 py-4 lg:px-5 lg:py-5">
@@ -149,7 +152,7 @@ export function ReadyToGoCard({
             </thead>
             <tbody>
               {drafts.map((d) => (
-                <ReadyDraftRow key={d.id} draft={d} onQuickAction={onQuickAction} />
+                <ReadyDraftRow key={d.id} draft={d} onQuickAction={onQuickAction} onDelete={onDelete} />
               ))}
             </tbody>
           </table>
@@ -166,9 +169,11 @@ export function ReadyToGoCard({
 function ReadyDraftRow({
   draft,
   onQuickAction,
+  onDelete,
 }: {
   draft: ReadyDraft;
   onQuickAction?: (draft: ReadyDraft, action: 'schedule' | 'postnow' | 'queue') => void;
+  onDelete?: (draft: ReadyDraft) => void;
 }) {
   const thumb = draft.mediaUrls[0];
   const isVideo = typeof thumb === 'string' && /\.(mp4|mov|webm|m4v)(\?|$)/i.test(thumb);
@@ -224,7 +229,7 @@ function ReadyDraftRow({
         {onQuickAction ? (
           <div className="inline-flex items-center gap-1">
             <Link
-              href={`/feather/social-media/create?edit=${draft.id}`}
+              href={`/feather/social-media/create?edit=${draft.id}&from=post`}
               draggable={false}
               className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-black/10 bg-white text-[10px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
               title="Edit this post"
@@ -232,15 +237,6 @@ function ReadyDraftRow({
               <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
               <span className="hidden sm:inline">Edit</span>
             </Link>
-            <button
-              type="button"
-              onClick={() => onQuickAction(draft, 'queue')}
-              className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-black/10 bg-white text-[10px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
-              title="Add to the next open queue slot"
-            >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h10" /></svg>
-              <span className="hidden sm:inline">Queue</span>
-            </button>
             <button
               type="button"
               onClick={() => onQuickAction(draft, 'schedule')}
@@ -259,6 +255,17 @@ function ReadyDraftRow({
               <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M13 2 4 14h7l-1 8 9-12h-7l1-8z" /></svg>
               <span className="hidden sm:inline">Now</span>
             </button>
+            {onDelete && (
+              <button
+                type="button"
+                onClick={() => onDelete(draft)}
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-black/10 bg-white text-[10px] font-semibold text-foreground/55 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200"
+                title="Delete this draft"
+                aria-label="Delete this draft"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0 1 16.138 21H7.862a2 2 0 0 1-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v3M4 7h16" /></svg>
+              </button>
+            )}
           </div>
         ) : (
           <span className="text-[10px] text-foreground/40 uppercase tracking-wider">Drag to a card</span>
@@ -317,11 +324,15 @@ export default function ScheduleDropCard({
   connectedPlatforms,
   onScheduled,
   injected,
+  embedded = false,
 }: {
   connectedPlatforms: string[];
   onScheduled: () => void;
   // Click-path injection: load this draft as if it had been dropped.
   injected?: { draft: ReadyDraft; n: number } | null;
+  // When embedded, render without the card chrome so a parent can host
+  // this and the Scheduled-posts list inside one combined card.
+  embedded?: boolean;
 }) {
   const { session } = useAuth();
   const postingEnabled = usePostingEnabled();
@@ -438,8 +449,9 @@ export default function ScheduleDropCard({
     ? `${whenDate.toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} ${browserTzLabel()}`
     : null;
 
+  const Root = embedded ? 'div' : 'section';
   return (
-    <section className="rounded-2xl border border-black/10 bg-white px-4 py-4 lg:px-5 lg:py-5">
+    <Root className={embedded ? '' : 'rounded-2xl border border-black/10 bg-white px-4 py-4 lg:px-5 lg:py-5'}>
       <div className="mb-3">
         <h2 className="text-sm font-bold text-foreground uppercase tracking-wider">Schedule a post</h2>
         <p className="text-[11px] text-foreground/45 mt-0.5">
@@ -541,6 +553,6 @@ export default function ScheduleDropCard({
           )}
         </div>
       )}
-    </section>
+    </Root>
   );
 }
