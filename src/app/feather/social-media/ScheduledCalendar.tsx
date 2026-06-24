@@ -83,15 +83,27 @@ export function ScheduledCalendar({ items, onCancel }: { items: CalendarItem[]; 
                 {dayItems.slice(0, 3).map((it) => {
                   const time = new Date(it.scheduleDate).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
                   const on = selectedKey === it.key;
+                  const thumb = it.mediaUrls[0];
+                  const isVideo = typeof thumb === 'string' && /\.(mp4|mov|webm|m4v)(\?|$)/i.test(thumb);
                   return (
                     <button
                       key={it.key}
                       type="button"
                       onClick={() => setSelectedKey((cur) => (cur === it.key ? null : it.key))}
-                      className={`w-full text-left rounded px-1 py-0.5 text-[9px] font-semibold leading-tight truncate transition-colors ${on ? 'bg-primary text-white' : 'bg-amber-50 text-amber-800 hover:bg-amber-100'}`}
+                      className={`w-full flex items-center gap-1 rounded px-1 py-0.5 text-[9px] font-semibold leading-tight transition-colors ${on ? 'bg-primary text-white' : 'bg-amber-50 text-amber-800 hover:bg-amber-100'}`}
                       title={`${time} · ${it.caption || '(no caption)'}`}
                     >
-                      {time} {it.caption ? it.caption.slice(0, 18) : '(no caption)'}
+                      {thumb && (
+                        <span className="shrink-0 w-3.5 h-3.5 rounded-sm overflow-hidden border border-black/10 bg-warm-bg/40">
+                          {isVideo ? (
+                            <video src={thumb} muted playsInline className="w-full h-full object-cover bg-black" />
+                          ) : (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={thumb} alt="" className="w-full h-full object-cover" />
+                          )}
+                        </span>
+                      )}
+                      <span className="truncate">{time} {it.caption ? it.caption.slice(0, 16) : '(no caption)'}</span>
                     </button>
                   );
                 })}
