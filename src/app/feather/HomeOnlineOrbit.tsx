@@ -181,6 +181,66 @@ type HoverState =
   | { kind: 'user'; user: OrbitUser; viewing: string | null; navTarget: string | null; online: boolean }
   | { kind: 'horse'; horse: OrbitHorse };
 
+// Avatar <img> that never gets stuck on a broken image. On the first load
+// failure it retries once with a cache-busting query param (covers a
+// transient network blip or a stale cached 0-byte response — the "reload"),
+// and if that also fails it renders the initials bubble instead of leaving a
+// broken-image glyph orbiting forever. A null/empty src goes straight to the
+// fallback. Resets whenever the src changes (a fresh data fetch).
+function AvatarImage({
+  src,
+  alt,
+  fallbackChar,
+  imgClassName,
+  fallbackClassName,
+  width,
+  height,
+}: {
+  src: string | null | undefined;
+  alt: string;
+  fallbackChar: string;
+  imgClassName: string;
+  fallbackClassName: string;
+  width: number;
+  height: number;
+}) {
+  const [failed, setFailed] = useState(false);
+  const [currentSrc, setCurrentSrc] = useState<string | null | undefined>(src);
+  const triedReload = useRef(false);
+  useEffect(() => {
+    setFailed(false);
+    setCurrentSrc(src);
+    triedReload.current = false;
+  }, [src]);
+
+  if (failed || !currentSrc) {
+    return <span className={fallbackClassName}>{fallbackChar}</span>;
+  }
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={currentSrc}
+      alt={alt}
+      referrerPolicy="no-referrer"
+      width={width}
+      height={height}
+      decoding="async"
+      loading="lazy"
+      onError={() => {
+        // data: URLs don't fail transiently, so don't cache-bust them.
+        const isHttp = /^https?:/i.test(src ?? '');
+        if (isHttp && !triedReload.current) {
+          triedReload.current = true;
+          setCurrentSrc(`${src}${src!.includes('?') ? '&' : '?'}r=${Date.now()}`);
+        } else {
+          setFailed(true);
+        }
+      }}
+      className={imgClassName}
+    />
+  );
+}
+
 interface TooltipPos {
   // Fixed-positioning anchor. The tooltip is portaled to <body> so it
   // escapes every parent's overflow-hidden — only the viewport itself
@@ -641,23 +701,15 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                         style={{ transform: `rotate(${-angle}deg)` }}
                       >
                         <span className="relative block">
-                          {h.image_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={toAvatarThumb(h.image_url, 200) ?? h.image_url}
-                              alt={h.name}
-                              referrerPolicy="no-referrer"
-                              width={36}
-                              height={36}
-                              decoding="async"
-                              loading="lazy"
-                              className="block w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover border-2 border-white shadow-md transition-transform duration-300 group-hover:scale-110"
-                            />
-                          ) : (
-                            <span className="flex w-6 h-6 sm:w-7 sm:h-7 rounded-full items-center justify-center text-xs font-semibold border-2 border-white bg-warm-bg text-foreground/55 shadow-md transition-transform duration-300 group-hover:scale-110">
-                              {h.name.charAt(0)}
-                            </span>
-                          )}
+                          <AvatarImage
+                            src={toAvatarThumb(h.image_url, 200) ?? h.image_url}
+                            alt={h.name}
+                            fallbackChar={h.name.charAt(0)}
+                            width={36}
+                            height={36}
+                            imgClassName="block w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover border-2 border-white shadow-md transition-transform duration-300 group-hover:scale-110"
+                            fallbackClassName="flex w-6 h-6 sm:w-7 sm:h-7 rounded-full items-center justify-center text-xs font-semibold border-2 border-white bg-warm-bg text-foreground/55 shadow-md transition-transform duration-300 group-hover:scale-110"
+                          />
                         </span>
                       </span>
                     </span>
@@ -742,37 +794,27 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                       style={{ transform: `rotate(${-angle}deg)` }}
                     >
                       <span className="relative block">
-                        {u.avatar_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={u.avatar_thumb ?? toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
-                            alt={u.full_name || ''}
-                            referrerPolicy="no-referrer"
-                            width={48}
-                            height={48}
-                            decoding="async"
-                            loading="lazy"
-                            className={`block w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border-2 transition-transform duration-300 group-hover:scale-110 ${
-                              onFire
-                                ? 'border-orange-400 shadow-[0_0_18px_rgba(251,146,60,0.7)]'
-                                : online
-                                  ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)]'
-                                  : 'border-white shadow-md'
-                            }`}
-                          />
-                        ) : (
-                          <span
-                            className={`flex w-8 h-8 sm:w-10 sm:h-10 rounded-full items-center justify-center text-sm font-bold border-2 transition-transform duration-300 group-hover:scale-110 ${
-                              onFire
-                                ? 'border-orange-400 shadow-[0_0_18px_rgba(251,146,60,0.7)] bg-primary text-white'
-                                : online
-                                  ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)] bg-primary text-white'
-                                  : 'border-white bg-primary text-white shadow-md'
-                            }`}
-                          >
-                            {(u.full_name || '?').charAt(0).toUpperCase()}
-                          </span>
-                        )}
+                        <AvatarImage
+                          src={u.avatar_thumb ?? toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
+                          alt={u.full_name || ''}
+                          fallbackChar={(u.full_name || '?').charAt(0).toUpperCase()}
+                          width={48}
+                          height={48}
+                          imgClassName={`block w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border-2 transition-transform duration-300 group-hover:scale-110 ${
+                            onFire
+                              ? 'border-orange-400 shadow-[0_0_18px_rgba(251,146,60,0.7)]'
+                              : online
+                                ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)]'
+                                : 'border-white shadow-md'
+                          }`}
+                          fallbackClassName={`flex w-8 h-8 sm:w-10 sm:h-10 rounded-full items-center justify-center text-sm font-bold border-2 transition-transform duration-300 group-hover:scale-110 ${
+                            onFire
+                              ? 'border-orange-400 shadow-[0_0_18px_rgba(251,146,60,0.7)] bg-primary text-white'
+                              : online
+                                ? 'border-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.55)] bg-primary text-white'
+                                : 'border-white bg-primary text-white shadow-md'
+                          }`}
+                        />
                         {onFire && (
                           <span
                             aria-label="On a streak"
@@ -874,31 +916,21 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
                     <span className={`motion-reduce:!animate-none ${mounted ? 'orbit-counter-rev' : ''}`}>
                       <span className="block" style={{ transform: `rotate(${-angle}deg)` }}>
                         <span className={`relative block ${freshCheckin ? 'orbit-fresh-checkin' : ''}`}>
-                          {u.avatar_url ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={u.avatar_thumb ?? toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
-                              alt={u.full_name || ''}
-                              referrerPolicy="no-referrer"
-                              width={40}
-                              height={40}
-                              decoding="async"
-                              loading="lazy"
-                              className={`block w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover border-2 ${
-                                online
-                                  ? 'border-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.55)]'
-                                  : 'border-violet-200/70 shadow-sm'
-                              }`}
-                            />
-                          ) : (
-                            <span
-                              className={`flex w-6 h-6 sm:w-7 sm:h-7 rounded-full items-center justify-center text-xs font-bold border-2 bg-violet-500/85 text-white ${
-                                online ? 'border-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.55)]' : 'border-violet-200/70'
-                              }`}
-                            >
-                              {(u.full_name || '?').charAt(0).toUpperCase()}
-                            </span>
-                          )}
+                          <AvatarImage
+                            src={u.avatar_thumb ?? toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url}
+                            alt={u.full_name || ''}
+                            fallbackChar={(u.full_name || '?').charAt(0).toUpperCase()}
+                            width={40}
+                            height={40}
+                            imgClassName={`block w-6 h-6 sm:w-7 sm:h-7 rounded-full object-cover border-2 ${
+                              online
+                                ? 'border-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.55)]'
+                                : 'border-violet-200/70 shadow-sm'
+                            }`}
+                            fallbackClassName={`flex w-6 h-6 sm:w-7 sm:h-7 rounded-full items-center justify-center text-xs font-bold border-2 bg-violet-500/85 text-white ${
+                              online ? 'border-violet-400 shadow-[0_0_10px_rgba(167,139,250,0.55)]' : 'border-violet-200/70'
+                            }`}
+                          />
                           {online && (
                             <span aria-hidden="true" className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-violet-400 border-2 border-white" />
                           )}
