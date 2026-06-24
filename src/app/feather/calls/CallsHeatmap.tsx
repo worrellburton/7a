@@ -35,9 +35,12 @@ interface Props {
   direction?: string;
   missed?: boolean;
   search?: string;
+  /** Human label for the active range (e.g. "Last 7 days") shown in the
+   *  header so it's clear the chart is scoped to the selected filter. */
+  rangeLabel?: string;
 }
 
-export function CallsHeatmap({ token, from, direction, missed, search }: Props) {
+export function CallsHeatmap({ token, from, direction, missed, search, rangeLabel }: Props) {
   const [rows, setRows] = useState<AircallCallRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -100,7 +103,7 @@ export function CallsHeatmap({ token, from, direction, missed, search }: Props) 
             </h2>
           </div>
           <span className="text-[11px] font-medium text-foreground/45 tabular-nums">
-            {loading ? 'Loading…' : `${total.toLocaleString()} calls · by hour (MST)`}
+            {loading ? 'Loading…' : `${rangeLabel ? `${rangeLabel} · ` : ''}${total.toLocaleString()} calls · by hour (MST)`}
           </span>
         </div>
 
