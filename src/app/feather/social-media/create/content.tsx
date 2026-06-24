@@ -71,6 +71,13 @@ export default function CreatePostContent() {
   // When ?edit=<draftId> is present we reopen an existing draft: hydrate the
   // composer from it and update it in place on save (instead of creating new).
   const editId = searchParams.get('edit');
+  // Where to send the user on Cancel / after save. When they came from the
+  // Post tab (Edit on a Ready row), return there instead of the Compose
+  // drafts list so "back" lands on the page they left.
+  const fromParam = searchParams.get('from');
+  const returnHref = fromParam === 'post'
+    ? '/feather/social-media?tab=post'
+    : null;
   const { drafts: allDrafts } = useSavedDrafts();
   const hydratedRef = useRef(false);
   const { session, user } = useAuth();
@@ -326,6 +333,28 @@ export default function CreatePostContent() {
     });
   };
 
+  // Bulk check / uncheck every deliverable across all selected networks.
+  const setAllCombos = (on: boolean) => {
+    setEnabledCombos(() => {
+      const next: Record<string, string[]> = {};
+      for (const [pid, combos] of combosByPlatform.entries()) {
+        next[pid] = on ? combos.map((c) => `${c.surface}|${c.kind}`) : [];
+      }
+      return next;
+    });
+  };
+  // True when every offered combo is currently enabled → the bulk button
+  // flips to "Uncheck all".
+  const allCombosOn = useMemo(() => {
+    let total = 0, onCount = 0;
+    for (const [pid, combos] of combosByPlatform.entries()) {
+      const enabled = enabledCombos[pid] ?? combos.map((c) => `${c.surface}|${c.kind}`);
+      total += combos.length;
+      onCount += enabled.filter((k) => combos.some((c) => `${c.surface}|${c.kind}` === k)).length;
+    }
+    return total > 0 && onCount >= total;
+  }, [combosByPlatform, enabledCombos]);
+
   const usePrimaryForKey = (key: string) => {
     const row = rows.find((r) => r.key === key);
     const want = row?.kind === 'video';
@@ -539,7 +568,7 @@ export default function CreatePostContent() {
         }
       }
       clearStagedMedia();
-      router.push(`/feather/social-media?tab=creative&sub=${ready ? 'ai' : 'drafts'}`);
+      router.push(returnHref ?? `/feather/social-media?tab=creative&sub=${ready ? 'ai' : 'drafts'}`);
     } finally {
       setSaving(false);
     }
@@ -560,7 +589,7 @@ export default function CreatePostContent() {
           </p>
         </div>
         <Link
-          href="/feather/social-media?tab=creative"
+          href={returnHref ?? '/feather/social-media?tab=creative'}
           className="px-3 py-1.5 rounded-md border border-black/10 bg-white text-[11px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
         >
           ← Cancel
@@ -603,9 +632,18 @@ export default function CreatePostContent() {
           every surface enabled the moment a platform is picked. */}
       {platforms.size > 0 && combosByPlatform.size > 0 && (
         <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
-          <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">
-            Deliverables
-          </p>
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">
+              Deliverables
+            </p>
+            <button
+              type="button"
+              onClick={() => setAllCombos(!allCombosOn)}
+              className="text-[10.5px] font-semibold text-primary hover:underline"
+            >
+              {allCombosOn ? 'Uncheck all' : 'Check all'}
+            </button>
+          </div>
           <p className="text-[11.5px] text-foreground/50 mb-3" style={{ fontFamily: 'var(--font-body)' }}>
             Pick which surfaces each network gets — photos <span className="inline-flex items-center"><PhotoIcon /></span> and videos <span className="inline-flex items-center"><VideoIcon /></span> are selectable separately. Uncheck the ones you don&rsquo;t want to produce a crop for.
           </p>
@@ -1029,12 +1067,16 @@ export default function CreatePostContent() {
 
       <PostPreview
         caption={caption}
-        platforms={Array.from(platforms).sort()}
-        mediaFor={(pid) => {
-          // Prefer a filled deliverable slot for this network; fall back to
-          // the first staged image so the preview isn't empty pre-crop.
-          const slot = rows.find((r) => r.platform === pid && (urlByKey[r.key] ?? '').trim());
-          const url = slot ? urlByKey[slot.key] : stagedMedia.find((u) => !isVideoUrl(u)) ?? stagedMedia[0];
+        // Only the ENABLED deliverables (rows) feed the preview, so unchecked
+        // surfaces/networks don't show, and each previews at its own ratio.
+        deliverables={rows.map((r) => ({ key: r.key, platform: r.platform, surface: r.surface, kind: r.kind, ratio: r.ratio }))}
+        mediaFor={(key) => {
+          // Prefer the media filled into this exact slot; fall back to a
+          // staged item of the right kind so the preview isn't empty pre-crop.
+          const row = rows.find((r) => r.key === key);
+          const want = row?.kind === 'video';
+          const filled = (urlByKey[key] ?? '').trim();
+          const url = filled || stagedMedia.find((u) => isVideoUrl(u) === want) || (want ? undefined : stagedMedia[0]);
           return url ? { url, isVideo: isVideoUrl(url) } : undefined;
         }}
       />
@@ -1048,7 +1090,7 @@ export default function CreatePostContent() {
           </span>
         )}
         <Link
-          href="/feather/social-media?tab=creative"
+          href={returnHref ?? '/feather/social-media?tab=creative'}
           className="px-4 py-2 rounded-md border border-black/10 bg-white text-[12px] font-semibold text-foreground/70 hover:bg-warm-bg/60"
         >
           Cancel

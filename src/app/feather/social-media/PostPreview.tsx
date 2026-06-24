@@ -2,16 +2,28 @@
 
 // Lightweight "how will it look" preview for the create flow. Not a
 // pixel-perfect mock of every network — just enough chrome (avatar, name,
-// media at the platform's primary ratio, caption truncated where that
+// media at the selected deliverable's ratio, caption truncated where that
 // network hides the rest behind "more", and the link-clickability note) to
 // catch a bad crop or a buried hook before anything is queued.
+//
+// Driven by the ENABLED deliverables (not just the selected networks): a
+// network with no checked deliverable doesn't appear, and each surface
+// previews at its own aspect ratio (a Story shows 9:16, a feed Post 1:1).
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { PLATFORM_SPECS } from './platform-specs';
-import { PLATFORM_LABELS, aspectStyle } from './deliverables';
+import { PLATFORM_LABELS, SURFACE_LABEL, aspectStyle, type DeliverableSurface } from './deliverables';
 import { PlatformIcon, type PlatformId } from './PlatformIcon';
 
 export interface PreviewMedia { url: string; isVideo: boolean }
+
+export interface PreviewDeliverable {
+  key: string;
+  platform: PlatformId;
+  surface: DeliverableSurface;
+  kind: 'image' | 'video';
+  ratio: string;
+}
 
 // Where each network collapses the caption behind a "more" affordance.
 const PREVIEW_TRUNCATE: Partial<Record<PlatformId, number>> = {
@@ -25,39 +37,63 @@ const PREVIEW_TRUNCATE: Partial<Record<PlatformId, number>> = {
   bluesky: 300,
 };
 
-function primaryRatio(pid: PlatformId): string {
-  return PLATFORM_SPECS[pid]?.images[0]?.ratio?.split(/\s*[/,]\s*/)[0]?.trim() || '1:1';
+// First atomic ratio of a possibly-compound spec ("1:1 / 4:5" → "1:1").
+function firstRatio(ratio: string): string {
+  return ratio?.split(/\s*[/,]\s*/)[0]?.trim() || '1:1';
 }
 
 export function PostPreview({
   caption,
-  platforms,
+  deliverables,
   mediaFor,
 }: {
   caption: string;
-  platforms: PlatformId[];
-  mediaFor: (pid: PlatformId) => PreviewMedia | undefined;
+  deliverables: PreviewDeliverable[];
+  mediaFor: (key: string) => PreviewMedia | undefined;
 }) {
+  // Networks that actually have an enabled deliverable, in first-seen order.
+  const platforms = useMemo(() => {
+    const seen: PlatformId[] = [];
+    for (const d of deliverables) if (!seen.includes(d.platform)) seen.push(d.platform);
+    return seen;
+  }, [deliverables]);
+
   const [active, setActive] = useState<PlatformId | null>(platforms[0] ?? null);
   useEffect(() => {
     setActive((cur) => (cur && platforms.includes(cur) ? cur : platforms[0] ?? null));
   }, [platforms]);
 
+  // The enabled deliverables for the active network, plus which one is being
+  // previewed (default to the feed "post" surface when present).
+  const activeDeliverables = useMemo(
+    () => deliverables.filter((d) => d.platform === active),
+    [deliverables, active],
+  );
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  useEffect(() => {
+    setActiveKey((cur) => {
+      if (cur && activeDeliverables.some((d) => d.key === cur)) return cur;
+      const post = activeDeliverables.find((d) => d.surface === 'post');
+      return (post ?? activeDeliverables[0])?.key ?? null;
+    });
+  }, [activeDeliverables]);
+
   if (platforms.length === 0 || !active) return null;
 
+  const current = activeDeliverables.find((d) => d.key === activeKey) ?? activeDeliverables[0];
   const spec = PLATFORM_SPECS[active];
-  const media = mediaFor(active);
+  const media = current ? mediaFor(current.key) : undefined;
   const limit = PREVIEW_TRUNCATE[active] ?? 220;
   const truncated = caption.length > limit;
   const shown = truncated ? caption.slice(0, limit).trimEnd() : caption;
-  const ratio = primaryRatio(active);
+  const ratio = firstRatio(current?.ratio ?? '1:1');
 
   return (
     <section className="rounded-2xl border border-black/10 bg-white p-4 mb-5">
       <p className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55 mb-2">Preview</p>
 
-      {/* Platform tabs — one per selected network. */}
-      <div className="flex flex-wrap gap-1.5 mb-3">
+      {/* Platform tabs — one per network with an enabled deliverable. */}
+      <div className="flex flex-wrap gap-1.5 mb-2">
         {platforms.map((pid) => {
           const on = active === pid;
           return (
@@ -74,6 +110,28 @@ export function PostPreview({
         })}
       </div>
 
+      {/* Surface sub-tabs — only when the active network has more than one
+          enabled deliverable, so the marketer can preview each ratio. */}
+      {activeDeliverables.length > 1 && (
+        <div className="flex flex-wrap gap-1 mb-3">
+          {activeDeliverables.map((d) => {
+            const on = d.key === current?.key;
+            return (
+              <button
+                key={d.key}
+                type="button"
+                onClick={() => setActiveKey(d.key)}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10.5px] font-semibold transition-colors ${on ? 'bg-primary/10 text-primary border-primary/40' : 'bg-white text-foreground/55 border-black/10 hover:bg-warm-bg/60'}`}
+                title={`${SURFACE_LABEL[d.surface]} ${d.kind === 'video' ? 'video' : 'photo'} · ${firstRatio(d.ratio)}`}
+              >
+                {SURFACE_LABEL[d.surface]}
+                {d.kind === 'video' && <span className="text-[8px] uppercase tracking-wide opacity-70">vid</span>}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Mock post card. */}
       <div className="max-w-[420px] mx-auto rounded-xl border border-black/10 overflow-hidden bg-white shadow-sm">
         <div className="flex items-center gap-2 px-3 py-2.5">
@@ -82,7 +140,9 @@ export function PostPreview({
           </span>
           <div className="min-w-0">
             <p className="text-[12.5px] font-semibold text-foreground leading-tight">Your {PLATFORM_LABELS[active] ?? 'page'}</p>
-            <p className="text-[10.5px] text-foreground/45 leading-tight">Sponsored · just now</p>
+            <p className="text-[10.5px] text-foreground/45 leading-tight">
+              Sponsored · just now{current ? ` · ${SURFACE_LABEL[current.surface]} (${ratio})` : ''}
+            </p>
           </div>
         </div>
 
@@ -97,7 +157,7 @@ export function PostPreview({
           </div>
         ) : (
           <div className="w-full flex items-center justify-center text-[11px] text-foreground/35 bg-warm-bg/30" style={aspectStyle(ratio)}>
-            No media for this network yet
+            No media for this deliverable yet
           </div>
         )}
 
