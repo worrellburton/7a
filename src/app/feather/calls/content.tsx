@@ -47,6 +47,17 @@ function rangeFrom(preset: RangePreset): string | undefined {
   }
 }
 
+// Human label for the active range — shown on the heatmap so it's clear the
+// chart is scoped to the same Today / 7-day / 30-day / All filter as the list.
+function rangeLabel(preset: RangePreset): string {
+  switch (preset) {
+    case 'today': return 'Today';
+    case '7d': return 'Last 7 days';
+    case '30d': return 'Last 30 days';
+    case 'all': return 'All time';
+  }
+}
+
 // Phoenix-local day key + a friendly label (Today / Yesterday / Mon, Jun 16)
 // for the per-day group dividers.
 function callDayKey(iso: string | null): string {
@@ -803,6 +814,7 @@ export default function CallsContent() {
           direction={direction}
           missed={missedOnly}
           search={debouncedSearch}
+          rangeLabel={rangeLabel(preset)}
         />
       )}
 
