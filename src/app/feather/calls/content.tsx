@@ -357,6 +357,28 @@ export default function CallsContent() {
     return () => { cancelled = true; };
   }, [token]);
 
+  // AI source detection is per-call: the model only catches "how did you
+  // hear about us?" when the caller actually says it, so one call from a
+  // number can show a source while its re-occurring siblings show nothing.
+  // Treat the source as a property of the NUMBER — the most recent non-empty
+  // AI source from any loaded call becomes the value for every call from that
+  // number, so re-occurring calls all read the same source. (A per-number
+  // admin override still wins over this.)
+  const aiSourceByNumber = useMemo(() => {
+    const best: Record<string, { source: string; at: number }> = {};
+    for (const c of calls) {
+      const key = c.caller_number || (c.raw_digits || '').replace(/\D/g, '');
+      const src = (c.source || '').trim();
+      if (!key || !src) continue;
+      const at = Date.parse(c.started_at ?? '') || 0;
+      const cur = best[key];
+      if (!cur || at > cur.at) best[key] = { source: src, at };
+    }
+    const out: Record<string, string> = {};
+    for (const k of Object.keys(best)) out[k] = best[k].source;
+    return out;
+  }, [calls]);
+
   // Source usage frequency across the loaded rows (resolved = override
   // else AI value) → "most used" sources float to the top of the dropdown.
   const sourceCounts = useMemo(() => {
@@ -959,7 +981,7 @@ export default function CallsContent() {
                     <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
                       <SourceCell
                         number={c.caller_number || (c.raw_digits || '').replace(/\D/g, '')}
-                        aiSource={c.source}
+                        aiSource={aiSourceByNumber[c.caller_number || (c.raw_digits || '').replace(/\D/g, '')] ?? c.source}
                         override={sources[c.caller_number || (c.raw_digits || '').replace(/\D/g, '')]}
                         canEdit={canManage}
                         token={token}
