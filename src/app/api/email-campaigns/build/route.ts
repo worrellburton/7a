@@ -181,51 +181,41 @@ export async function POST(req: NextRequest) {
     featuredEquineId
       ? supabase.from('equine').select('id, name, image_url, works_in, notes, gallery_urls').eq('id', featuredEquineId).maybeSingle()
       : Promise.resolve({ data: null }),
-    // The review used as the pull-quote. When the marketer pinned a
-    // specific one (featuredQuoteId) we honour that exact review; otherwise
-    // auto-pick a top review: 5-star, not hidden, featured first then
-    // highest-rated, then most recent. Falls back to no quote if nothing
-    // meaningful is available so we never insert placeholder text.
-    !includeQuote
+    // The review used as the pull-quote. When the marketer pinned a specific
+    // one (featuredQuoteId) we honour that exact review here; otherwise the
+    // auto-pick is RANDOMISED below so newsletters rotate through reviews
+    // instead of always quoting the same deterministic "top" one.
+    !includeQuote || !featuredQuoteId
       ? Promise.resolve({ data: null })
-      : featuredQuoteId
-        ? supabase.from('google_reviews')
-            .select('author_name, rating, text')
-            .eq('id', featuredQuoteId)
-            .eq('hidden', false)
-            .not('text', 'is', null)
-            .maybeSingle()
-        : supabase.from('google_reviews')
-            .select('author_name, rating, text')
-            .eq('hidden', false)
-            .gte('rating', 5)
-            .not('text', 'is', null)
-            .order('featured', { ascending: false, nullsFirst: false })
-            .order('rating', { ascending: false })
-            .order('review_time', { ascending: false, nullsFirst: false })
-            .limit(1)
-            .maybeSingle(),
+      : supabase.from('google_reviews')
+          .select('author_name, rating, text')
+          .eq('id', featuredQuoteId)
+          .eq('hidden', false)
+          .not('text', 'is', null)
+          .maybeSingle(),
   ]);
   const blog = (blogRes as { data: { title: string; slug: string | null; body_markdown?: string | null } | null }).data;
   const emp = (empRes as { data: { full_name: string; job_title: string | null; avatar_url: string | null; public_slug: string | null; bio?: string | null } | null }).data;
   const blogImages = ((blogImagesRes as { data: Array<{ url: string; alt: string | null; position: number }> | null }).data ?? []);
   const horse = (horseRes as { data: { name: string; image_url: string | null; works_in: string | null; notes: string | null; gallery_urls: string[] | null } | null }).data;
   let quote = (quoteRes as { data: { author_name: string; rating: number | null; text: string } | null }).data;
-  // If the pinned review was hidden or evicted (30-day TTL) since it was
-  // chosen, don't silently drop the quote — fall back to a top review so the
-  // email still gets one.
-  if (includeQuote && featuredQuoteId && !quote) {
-    const fb = await supabase.from('google_reviews')
+  // No pinned quote (or the pinned one was hidden/evicted since it was
+  // chosen) → pick a RANDOM eligible review so each newsletter rotates its
+  // quote instead of always landing on the same top-sorted one. The pool is
+  // every visible 5-star review with text; the marketer can pin a specific
+  // quote in the builder when they want a particular one every time.
+  if (includeQuote && !quote) {
+    const { data: pool } = await supabase.from('google_reviews')
       .select('author_name, rating, text')
       .eq('hidden', false)
       .gte('rating', 5)
       .not('text', 'is', null)
-      .order('featured', { ascending: false, nullsFirst: false })
-      .order('rating', { ascending: false })
-      .order('review_time', { ascending: false, nullsFirst: false })
-      .limit(1)
-      .maybeSingle();
-    quote = (fb as { data: { author_name: string; rating: number | null; text: string } | null }).data;
+      .order('review_time', { ascending: false })
+      .limit(100);
+    const eligible = (pool ?? []) as Array<{ author_name: string; rating: number | null; text: string }>;
+    if (eligible.length > 0) {
+      quote = eligible[Math.floor(Math.random() * eligible.length)];
+    }
   }
   // Crop quote text to a single tight pull-quote so the email
   // doesn't get hijacked by a 5-paragraph review. Earlier versions
