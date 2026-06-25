@@ -4,7 +4,6 @@ import { useAuth } from '@/lib/AuthProvider';
 import { db } from '@/lib/db';
 import { logActivity } from '@/lib/activity';
 import { useModal } from '@/lib/ModalProvider';
-import { formatNameWithCredentials } from '@/lib/displayName';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
@@ -84,7 +83,7 @@ function SortableTh({
   const alignClass = align === 'center' ? 'text-center' : 'text-left';
   return (
     <th
-      className={`${alignClass} px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider ${className || ''}`}
+      className={`${alignClass} px-6 py-2.5 text-xs font-semibold text-foreground/50 uppercase tracking-wider ${className || ''}`}
       style={{ fontFamily: 'var(--font-body)' }}
     >
       <button
@@ -498,16 +497,16 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
                   <SortableTh label="Name" sortKey="user" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} />
                   <SortableTh label="Position" sortKey="job_title" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden sm:table-cell" />
                   <SortableTh label="Department" sortKey="department" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden md:table-cell" />
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>E-mail</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Location</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Phone</th>
-                  <th className="px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider w-12" style={{ fontFamily: 'var(--font-body)' }}></th>
+                  <th className="px-6 py-2.5 text-left text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>E-mail</th>
+                  <th className="px-6 py-2.5 text-left text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Location</th>
+                  <th className="px-6 py-2.5 text-left text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Phone</th>
+                  <th className="px-6 py-2.5 text-xs font-semibold text-foreground/50 uppercase tracking-wider w-12" style={{ fontFamily: 'var(--font-body)' }}></th>
                 </tr>
               </thead>
               <tbody>
                 {visibleUsers.map((u) => (
                   <tr key={u.id} className="border-b border-gray-100 last:border-b-0 hover:bg-warm-bg/30 transition-colors">
-                    <td className="px-6 py-4">
+                    <td className="px-6 py-2">
                       <div className="flex items-center gap-3">
                         {(() => {
                           const online = presenceLabel(u.last_seen_at).online;
@@ -529,14 +528,21 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
                           );
                         })()}
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground">{formatNameWithCredentials(u.full_name, u.credentials) || 'Unknown'}</p>
+                          <p className="text-sm font-medium text-foreground">
+                            {u.full_name || 'Unknown'}
+                            {/* Credentials trail the name in small, copper-tinted
+                                type so they read as a qualifier, not the name. */}
+                            {u.credentials && (
+                              <span className="ml-1.5 text-[10px] font-normal tracking-wide text-primary/70">{u.credentials}</span>
+                            )}
+                          </p>
                           {/* Email shows under the name on small screens where
                               the dedicated E-mail column is hidden. */}
                           <p className="text-xs text-foreground/40 truncate md:hidden">{u.email}</p>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 hidden sm:table-cell">
+                    <td className="px-6 py-2 hidden sm:table-cell">
                       {(() => {
                         const matchedJd = jobDescriptions.find((j) => j.title === u.job_title);
                         const signed = matchedJd ? signedByUser.get(u.id)?.has(matchedJd.id) ?? false : false;
@@ -641,7 +647,7 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
                         );
                       })()}
                     </td>
-                    <td className="px-6 py-4 hidden md:table-cell">
+                    <td className="px-6 py-2 hidden md:table-cell">
                       {(() => {
                         const userDept = departments.find((d) => d.id === u.department_id) || null;
                         return (
@@ -663,10 +669,28 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
                         );
                       })()}
                     </td>
-                    <td className="px-6 py-4 hidden md:table-cell">
-                      <span className="text-xs text-foreground/50 break-all" style={{ fontFamily: 'var(--font-body)' }}>{u.email}</span>
+                    <td className="px-6 py-2 hidden md:table-cell">
+                      {/* Mail icon — keeps the column tight; the full address
+                          shows on hover and the icon opens a compose window. */}
+                      <a
+                        href={`mailto:${u.email}`}
+                        className="group/mail relative inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/40 hover:text-primary hover:bg-primary/5 transition-colors"
+                        aria-label={`Email ${u.full_name || u.email}`}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75">
+                          <rect x="3" y="5" width="18" height="14" rx="2" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m3 7 9 6 9-6" />
+                        </svg>
+                        <span
+                          role="tooltip"
+                          className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-1 z-30 px-2 py-1 rounded-md bg-foreground text-white text-[11px] whitespace-nowrap opacity-0 group-hover/mail:opacity-100 transition-opacity shadow-lg"
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        >
+                          {u.email}
+                        </span>
+                      </a>
                     </td>
-                    <td className="px-6 py-4 hidden lg:table-cell">
+                    <td className="px-6 py-2 hidden lg:table-cell">
                       <input
                         type="text"
                         defaultValue={u.location ?? ''}
@@ -677,7 +701,7 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
                         style={{ fontFamily: 'var(--font-body)' }}
                       />
                     </td>
-                    <td className="px-6 py-4 hidden lg:table-cell">
+                    <td className="px-6 py-2 hidden lg:table-cell">
                       <input
                         type="tel"
                         defaultValue={u.phone ?? ''}
@@ -688,7 +712,7 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
                         style={{ fontFamily: 'var(--font-body)' }}
                       />
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-6 py-2 text-center">
                       {u.id !== user?.id && (
                         <button
                           onClick={() => deleteUser(u.id, u.full_name || u.email)}
