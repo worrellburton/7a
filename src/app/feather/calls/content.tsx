@@ -77,8 +77,26 @@ function callDayLabel(iso: string | null): string {
 // A call is "live" while it hasn't ended and Aircall still reports it as
 // ringing (initial) or connected (answered). These get pinned to a
 // pulsing "Live now" strip above the table.
-function isLiveCall(c: AircallCallRow): boolean {
-  return !c.ended_at && (c.status === 'initial' || c.status === 'answered');
+//
+// Guard against stuck calls: a missed `call.hangup` webhook can leave a
+// real call with ended_at = null forever, and the incremental backfill
+// (watermarked on started_at) never revisits it — so it would otherwise
+// show a "live" timer counting up for hours. Cap the live state by age:
+// a call ringing longer than 15 min, or connected longer than 3 h, is
+// treated as stale (its end event was lost) and falls back into the
+// regular list instead of a runaway Live-now timer.
+const LIVE_RINGING_MAX_MS = 15 * 60 * 1000;        // 15 minutes
+const LIVE_CONNECTED_MAX_MS = 3 * 60 * 60 * 1000;  // 3 hours
+function isLiveCall(c: AircallCallRow, now: number = Date.now()): boolean {
+  if (c.ended_at) return false;
+  if (c.status !== 'initial' && c.status !== 'answered') return false;
+  const since = c.answered_at ?? c.started_at;
+  if (!since) return false;
+  const started = Date.parse(since);
+  if (!Number.isFinite(started)) return false;
+  const age = now - started;
+  const cap = c.answered_at ? LIVE_CONNECTED_MAX_MS : LIVE_RINGING_MAX_MS;
+  return age >= 0 && age <= cap;
 }
 
 // Running clock for live calls — m:ss, rolling to h:mm:ss past an hour.
@@ -455,8 +473,10 @@ export default function CallsContent() {
   }, [calls, todayKey]);
 
   // Calls happening right now (ringing or connected) — pinned, ticking.
-  const liveCalls = useMemo(() => calls.filter(isLiveCall), [calls]);
+  // Re-evaluated on each tick so a call that crosses the staleness cap
+  // (missed hangup) drops out of "live" promptly instead of ticking forever.
   const [nowTs, setNowTs] = useState(() => Date.now());
+  const liveCalls = useMemo(() => calls.filter((c) => isLiveCall(c, nowTs)), [calls, nowTs]);
   useEffect(() => {
     if (liveCalls.length === 0) return;
     const id = setInterval(() => setNowTs(Date.now()), 1000);
