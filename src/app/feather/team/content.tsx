@@ -113,7 +113,7 @@ function presenceLabel(lastSeenAt: string | null): { online: boolean; text: stri
   return { online: false, text: `${day}d ago` };
 }
 
-export default function UsersContent() {
+export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'all' }) {
   const { user, session, isAdmin, isSuperAdmin } = useAuth();
   const router = useRouter();
   const { confirm } = useModal();
@@ -154,14 +154,12 @@ export default function UsersContent() {
     async function fetchUsers() {
       const data = await db({ action: 'select', table: 'users', order: { column: 'created_at', ascending: false } });
       if (Array.isArray(data)) {
-        // Hide non-staff users — Guests + Alumni are managed on
-        // /app/incoming-users and shouldn't clutter the staff grid.
-        // Treat a missing user_kind (older rows pre-migration) as
-        // staff so they keep showing up.
-        const filtered = data.filter((u: { user_kind?: string }) => {
-          const k = u.user_kind ?? 'staff';
-          return k === 'staff';
-        });
+        // Team scope = employees only: strictly user_kind === 'staff', so
+        // Guests + Alumni (managed on /app/incoming-users) never show on
+        // the team grid. Users scope = everyone, staff + alumni together.
+        const filtered = scope === 'all'
+          ? data
+          : data.filter((u: { user_kind?: string }) => u.user_kind === 'staff');
         setUsers(filtered);
       }
       setLoading(false);
@@ -366,12 +364,15 @@ export default function UsersContent() {
     <div className="p-4 sm:p-6 lg:p-10">
       <div className="mb-8 flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">Team</h1>
+          <h1 className="text-lg font-semibold text-foreground tracking-tight mb-1">{scope === 'all' ? 'Users' : 'Team'}</h1>
           <p className="text-sm text-foreground/50" style={{ fontFamily: 'var(--font-body)' }}>
-            People who have signed into Feather.
+            {scope === 'all'
+              ? 'Everyone who has signed into Feather — staff and alumni.'
+              : 'Employees who have signed into Feather.'}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          {scope !== 'all' && (
           <button
             onClick={() => setOrderModalOpen(true)}
             className="inline-flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-3 rounded-xl text-xs sm:text-sm font-semibold bg-white text-foreground border border-black/10 hover:border-primary/40 hover:text-primary shadow-sm transition-all"
@@ -388,6 +389,7 @@ export default function UsersContent() {
             </svg>
             Team Page Order
           </button>
+          )}
           <button
             onClick={() => router.push('/feather/org-chart')}
             className="inline-flex items-center gap-2 px-3 py-2 sm:px-5 sm:py-3 rounded-xl text-xs sm:text-sm font-semibold bg-primary text-white hover:bg-primary-dark shadow-sm hover:shadow-md transition-all"

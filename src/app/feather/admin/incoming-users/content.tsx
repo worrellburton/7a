@@ -196,8 +196,9 @@ export default function IncomingUsersContent() {
           // pipeline Pending Staff's Deny uses, so the email lands on
           // the denied list and future sign-ins stay locked out.
           onDecline={(u) => classify(u, 'guest', 'denied')}
-          // Alumni admins get exactly one move here (Mark alumni) —
-          // the classify API enforces the same restriction.
+          // Alumni admins get two moves here (Mark alumni + Decline) but
+          // not the super-admin Classify — the classify API enforces the
+          // same restriction server-side.
           alumniActionsOnly={alumniScoped}
         />
       ) : (
@@ -325,8 +326,9 @@ function ExternalPanel({
   onClassify: (u: IncomingUser) => void;
   onAlumni: (u: IncomingUser) => void;
   onDecline: (u: IncomingUser) => void;
-  /** Alumni-admin viewers: hide Classify + Decline, leaving only
-   *  Mark alumni — the one transition their role may perform. */
+  /** Alumni-admin viewers: hide the super-admin-only Classify action,
+   *  leaving Mark alumni + Decline — the two transitions their role may
+   *  perform. */
   alumniActionsOnly?: boolean;
 }) {
   if (rows.length === 0) {
@@ -362,11 +364,9 @@ function ExternalPanel({
             >
               Mark alumni
             </button>
-            {!alumniActionsOnly && (
-              <button onClick={() => onDecline(u)} className="px-3 py-1.5 rounded-md bg-white text-rose-700 border border-rose-200 text-[11px] font-semibold uppercase tracking-wider hover:bg-rose-50">
-                Decline
-              </button>
-            )}
+            <button onClick={() => onDecline(u)} className="px-3 py-1.5 rounded-md bg-white text-rose-700 border border-rose-200 text-[11px] font-semibold uppercase tracking-wider hover:bg-rose-50">
+              Decline
+            </button>
           </div>
         </li>
       ))}

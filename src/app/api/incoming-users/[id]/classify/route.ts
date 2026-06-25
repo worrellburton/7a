@@ -30,8 +30,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   if (!ALLOWED_KINDS.has(kind)) {
     return NextResponse.json({ error: 'kind must be staff, guest, or alumni' }, { status: 400 });
   }
-  if (alumniScoped && (kind !== 'alumni' || (typeof body.status === 'string' && body.status !== 'active'))) {
-    return NextResponse.json({ error: 'Alumni admins can only mark accounts as alumni.' }, { status: 403 });
+  // Alumni admins may make exactly two moves on an external sign-in:
+  //   • Mark alumni  → kind='alumni' (status active/unset)
+  //   • Decline      → kind='guest', status='denied' (same pipeline the
+  //                    super-admin Decline uses)
+  // Everything else (staff approval, guest-as-active classification) stays
+  // super-admin-only.
+  if (alumniScoped) {
+    const isMarkAlumni = kind === 'alumni' && (body.status === undefined || body.status === 'active');
+    const isDecline = kind === 'guest' && body.status === 'denied';
+    if (!isMarkAlumni && !isDecline) {
+      return NextResponse.json(
+        { error: 'Alumni admins can only mark accounts as alumni or decline them.' },
+        { status: 403 },
+      );
+    }
   }
   const patch: Record<string, unknown> = { user_kind: kind };
 

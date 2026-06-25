@@ -144,6 +144,9 @@ export const defaultPages: PageConfig[] = [
   // see it surface but bounce to the app root if they navigate in.
   { path: '/feather/levers', label: 'Levers and switches', adminOnly: true, superAdminOnly: true, section: 'popup', sort_order: 7, allowedDepartments: [], departmentId: null },
   { path: '/feather/team', label: 'Team', adminOnly: true, section: 'popup', sort_order: 0, allowedDepartments: [], departmentId: null },
+  // Same grid as Team, but scoped to EVERYONE (staff + alumni) instead of
+  // employees only. Admin-gated like Team.
+  { path: '/feather/users', label: 'Users', adminOnly: true, section: 'popup', sort_order: 1, allowedDepartments: [], departmentId: null },
   // Kaizen — super-admin-only daily codebase scan. Lives in the
   // regular sidebar nav for discoverability; the runtime
   // is_super_admin check inside the page bounces non-super admins
