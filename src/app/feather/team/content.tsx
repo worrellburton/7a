@@ -536,6 +536,10 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
                               <span className="ml-1.5 text-[10px] font-normal tracking-wide text-primary/70">{u.credentials}</span>
                             )}
                           </p>
+                          {/* Job title on its own line under the name. */}
+                          {u.job_title && (
+                            <p className="text-[11px] text-foreground/45 truncate" style={{ fontFamily: 'var(--font-body)' }}>{u.job_title}</p>
+                          )}
                           {/* Email shows under the name on small screens where
                               the dedicated E-mail column is hidden. */}
                           <p className="text-xs text-foreground/40 truncate md:hidden">{u.email}</p>
