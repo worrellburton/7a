@@ -39,6 +39,27 @@ function upcomingSlots(slots: Slot[], takenMs: number[], weeks = 6): Date[] {
   return out.sort((a, b) => a.getTime() - b.getTime());
 }
 
+// The single next concrete datetime a recurring slot will fire — the soonest
+// future occurrence of its weekday+time that isn't already taken. Powers the
+// one-chip-per-slot "Next open slots" list.
+function nextOccurrence(slot: Slot, takenMs: number[], weeks = 6): Date | null {
+  const now = Date.now();
+  const base = new Date();
+  base.setHours(0, 0, 0, 0);
+  for (let day = 0; day <= weeks * 7; day++) {
+    const d = new Date(base);
+    d.setDate(base.getDate() + day);
+    if (d.getDay() !== slot.weekday) continue;
+    const [h, m] = slot.time.split(':').map(Number);
+    const dt = new Date(d);
+    dt.setHours(h, m, 0, 0);
+    if (dt.getTime() <= now) continue;
+    if (takenMs.some((t) => Math.abs(t - dt.getTime()) < 60_000)) continue;
+    return dt;
+  }
+  return null;
+}
+
 export function QueueCard({
   connectedPlatforms,
   scheduledMs,
@@ -83,7 +104,21 @@ export function QueueCard({
     } catch { /* best-effort; UI already updated */ }
   }, [session?.access_token]);
 
-  const upcoming = useMemo(() => upcomingSlots(slots, scheduledMs), [slots, scheduledMs]);
+  // One entry per UNIQUE recurring slot, with the next concrete datetime it
+  // fires. Replaces both the abstract weekday/time chips and the separate
+  // upcoming list (which duplicated each other), so the queue shows a single
+  // de-duplicated list of removable "next open slots".
+  const slotChips = useMemo(() => {
+    const seen = new Set<string>();
+    const out: { slot: Slot; next: Date | null }[] = [];
+    for (const s of slots) {
+      const k = `${s.weekday}|${s.time}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      out.push({ slot: s, next: nextOccurrence(s, scheduledMs) });
+    }
+    return out.sort((a, b) => (a.next?.getTime() ?? Infinity) - (b.next?.getTime() ?? Infinity));
+  }, [slots, scheduledMs]);
 
   const queueDraft = useCallback(async (draft: ReadyDraft) => {
     setMsg(null);
@@ -143,7 +178,12 @@ export function QueueCard({
     } catch { /* malformed */ }
   };
 
-  const addSlot = () => { void saveSlots([...slots, { weekday: newWeekday, time: newTime }]); };
+  const addSlot = () => {
+    // Dedupe — a weekday+time that already exists is a no-op (this is what
+    // produced the duplicate chips).
+    if (slots.some((x) => x.weekday === newWeekday && x.time === newTime)) return;
+    void saveSlots([...slots, { weekday: newWeekday, time: newTime }]);
+  };
   const removeSlot = (s: Slot) => { void saveSlots(slots.filter((x) => !(x.weekday === s.weekday && x.time === s.time))); };
 
   return (
@@ -166,21 +206,7 @@ export function QueueCard({
         </p>
       )}
 
-      {/* Slot config — editable by super-admins, read-only chips otherwise. */}
-      <div className="flex flex-wrap items-center gap-1.5 mb-2">
-        {slots.length === 0 && loaded && (
-          <span className="text-[11.5px] text-foreground/45" style={{ fontFamily: 'var(--font-body)' }}>No slots yet.</span>
-        )}
-        {slots.map((s) => (
-          <span key={`${s.weekday}|${s.time}`} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-black/10 bg-warm-bg/30 text-[11px] font-semibold text-foreground/70">
-            {WEEKDAYS[s.weekday]} {s.time}
-            {isSuperAdmin && (
-              <button type="button" onClick={() => removeSlot(s)} className="text-foreground/40 hover:text-rose-700" aria-label="Remove slot">✕</button>
-            )}
-          </span>
-        ))}
-      </div>
-
+      {/* Slot config — super-admins add a recurring weekday+time. */}
       {isSuperAdmin && (
         <div className="flex flex-wrap items-center gap-1.5 mb-3">
           <select value={newWeekday} onChange={(e) => setNewWeekday(Number(e.target.value))} className="rounded-lg border border-black/10 bg-white px-2 py-1 text-[12px]" aria-label="Slot weekday">
@@ -191,13 +217,26 @@ export function QueueCard({
         </div>
       )}
 
-      {upcoming.length > 0 && (
+      {/* Next open slots — one removable chip per recurring slot, showing the
+          concrete datetime it next fires. The single source of truth for the
+          queue's schedule (no separate duplicate weekday/time chips). */}
+      {slotChips.length === 0 && loaded ? (
+        <span className="text-[11.5px] text-foreground/45" style={{ fontFamily: 'var(--font-body)' }}>No slots yet.</span>
+      ) : (
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-foreground/40 mb-1">Next open slots</p>
           <div className="flex flex-wrap gap-1.5">
-            {upcoming.slice(0, 5).map((d, i) => (
-              <span key={d.toISOString()} className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${i === 0 ? 'bg-primary/10 text-primary border border-primary/30' : 'bg-warm-bg/40 text-foreground/55 border border-black/5'}`}>
-                {d.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+            {slotChips.map(({ slot, next }, i) => (
+              <span
+                key={`${slot.weekday}|${slot.time}`}
+                className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold ${i === 0 ? 'bg-primary/10 text-primary border border-primary/30' : 'bg-warm-bg/40 text-foreground/55 border border-black/5'}`}
+              >
+                {next
+                  ? next.toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+                  : `${WEEKDAYS[slot.weekday]} ${slot.time}`}
+                {isSuperAdmin && (
+                  <button type="button" onClick={() => removeSlot(slot)} className="opacity-50 hover:opacity-100 hover:text-rose-700" aria-label="Remove slot">✕</button>
+                )}
               </span>
             ))}
           </div>
