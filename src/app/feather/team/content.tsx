@@ -358,6 +358,15 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
     }
   });
 
+  // The Team grid shows APPROVED staff only — pending (on_hold, i.e. incoming
+  // sign-ins awaiting approval) and denied accounts are kept out until a
+  // super-admin approves them on Incoming Users. The Users (all) view shows
+  // everyone regardless of status. `users` still holds every loaded row so
+  // the pending-approval banner below can count on_hold accounts.
+  const visibleUsers = scope === 'all'
+    ? sortedUsers
+    : sortedUsers.filter((u) => u.status === 'active');
+
   if (!user || !isAdmin) return null;
 
   return (
@@ -443,7 +452,7 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
           <div className="flex items-center justify-center py-16">
             <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : users.length === 0 ? (
+        ) : visibleUsers.length === 0 ? (
           <div className="text-center py-16">
             <div className="w-12 h-12 rounded-2xl bg-warm-bg flex items-center justify-center mx-auto mb-3">
               <svg className="w-6 h-6 text-foreground/30" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.5">
@@ -473,7 +482,7 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
                 </tr>
               </thead>
               <tbody>
-                {sortedUsers.map((u) => (
+                {visibleUsers.map((u) => (
                   <tr key={u.id} className="border-b border-gray-100 last:border-b-0 hover:bg-warm-bg/30 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
