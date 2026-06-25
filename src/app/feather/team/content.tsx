@@ -27,6 +27,8 @@ interface AppUser {
   last_path: string | null;
   last_seen_at: string | null;
   department_id: string | null;
+  location: string | null;
+  phone: string | null;
   status: 'active' | 'on_hold' | 'denied';
 }
 
@@ -297,6 +299,26 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
     }
   }
 
+  // Inline edits for the Location + Phone columns. Save on blur/Enter,
+  // optimistically reflect in the grid.
+  async function updateLocation(userId: string, location: string | null) {
+    const result = await db({ action: 'update', table: 'users', data: { location }, match: { id: userId } });
+    if (result?.error) {
+      showToast(`Failed to update location: ${result.error}`);
+      return;
+    }
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, location } : u)));
+  }
+
+  async function updatePhone(userId: string, phone: string | null) {
+    const result = await db({ action: 'update', table: 'users', data: { phone }, match: { id: userId } });
+    if (result?.error) {
+      showToast(`Failed to update phone: ${result.error}`);
+      return;
+    }
+    setUsers((prev) => prev.map((u) => (u.id === userId ? { ...u, phone } : u)));
+  }
+
   async function setUserStatus(userId: string, nextStatus: 'active' | 'denied') {
     const target = users.find((u) => u.id === userId);
     if (target && (target.email || '').toLowerCase() === 'bobby@sevenarrowsrecovery.com' && nextStatus !== 'active') {
@@ -473,11 +495,12 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100 bg-warm-bg/50">
-                  <SortableTh label="User" sortKey="user" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} />
-                  <SortableTh label="Viewing" sortKey="viewing" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} />
+                  <SortableTh label="Name" sortKey="user" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} />
+                  <SortableTh label="Position" sortKey="job_title" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden sm:table-cell" />
                   <SortableTh label="Department" sortKey="department" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden md:table-cell" />
-                  <SortableTh label="Job Title" sortKey="job_title" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden sm:table-cell" />
-                  <SortableTh label="Joined" sortKey="created_at" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden lg:table-cell" />
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>E-mail</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Location</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden lg:table-cell" style={{ fontFamily: 'var(--font-body)' }}>Phone</th>
                   <th className="px-6 py-3 text-xs font-semibold text-foreground/50 uppercase tracking-wider w-12" style={{ fontFamily: 'var(--font-body)' }}></th>
                 </tr>
               </thead>
@@ -486,59 +509,32 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
                   <tr key={u.id} className="border-b border-gray-100 last:border-b-0 hover:bg-warm-bg/30 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        {u.avatar_url ? (
-                          <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-8 h-8 rounded-full" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
-                            {(u.full_name || u.email || '?').charAt(0).toUpperCase()}
-                          </div>
-                        )}
-                        <div>
+                        {(() => {
+                          const online = presenceLabel(u.last_seen_at).online;
+                          return (
+                            <span className="relative shrink-0">
+                              {u.avatar_url ? (
+                                <img src={toAvatarThumb(u.avatar_url, 200) ?? u.avatar_url} alt="" className="w-8 h-8 rounded-full" />
+                              ) : (
+                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold">
+                                  {(u.full_name || u.email || '?').charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              {/* Online dot — preserves the at-a-glance presence
+                                  cue that used to live in the Viewing column. */}
+                              {online && (
+                                <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-white" aria-label="Online now" />
+                              )}
+                            </span>
+                          );
+                        })()}
+                        <div className="min-w-0">
                           <p className="text-sm font-medium text-foreground">{formatNameWithCredentials(u.full_name, u.credentials) || 'Unknown'}</p>
-                          <p className="text-xs text-foreground/40">{u.email}</p>
+                          {/* Email shows under the name on small screens where
+                              the dedicated E-mail column is hidden. */}
+                          <p className="text-xs text-foreground/40 truncate md:hidden">{u.email}</p>
                         </div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      {(() => {
-                        const p = presenceLabel(u.last_seen_at);
-                        const pageLabel = pageLabelFromPath(u.last_path);
-                        return (
-                          <div className="flex items-center gap-2">
-                            <span className={`w-2 h-2 rounded-full shrink-0 ${p.online ? 'bg-emerald-500 ring-2 ring-emerald-500/20 animate-pulse' : 'bg-gray-300'}`} />
-                            <div className="min-w-0">
-                              <p className="text-xs font-medium text-foreground/80 truncate" style={{ fontFamily: 'var(--font-body)' }}>
-                                {p.online && pageLabel ? pageLabel : p.text}
-                              </p>
-                              {p.online && pageLabel && (
-                                <p className="text-[10px] text-emerald-600" style={{ fontFamily: 'var(--font-body)' }}>Online now</p>
-                              )}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </td>
-                    <td className="px-6 py-4 hidden md:table-cell">
-                      {(() => {
-                        const userDept = departments.find((d) => d.id === u.department_id) || null;
-                        return (
-                          <select
-                            value={u.department_id || ''}
-                            onChange={(e) => updateDepartment(u.id, e.target.value || null)}
-                            className={`text-xs px-2 py-1 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[180px] ${userDept ? 'font-medium' : 'text-foreground/40 bg-white border border-gray-200'}`}
-                            style={{
-                              fontFamily: 'var(--font-body)',
-                              backgroundColor: userDept ? (userDept.color || '#a0522d') + '1f' : undefined,
-                              color: userDept ? (userDept.color || '#a0522d') : undefined,
-                            }}
-                          >
-                            <option value="">—</option>
-                            {departments.map((d) => (
-                              <option key={d.id} value={d.id}>{d.name}</option>
-                            ))}
-                          </select>
-                        );
-                      })()}
                     </td>
                     <td className="px-6 py-4 hidden sm:table-cell">
                       {(() => {
@@ -601,7 +597,7 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
                                     setCustomTitleDraft('');
                                   }
                                 }}
-                                className="text-xs px-2 py-1 rounded-lg border border-primary/40 focus:border-primary focus:outline-none bg-white max-w-full sm:max-w-[180px]"
+                                className="text-xs px-2 py-1 rounded-lg border border-primary/40 focus:border-primary focus:outline-none bg-white w-full max-w-[230px] truncate"
                                 style={{ fontFamily: 'var(--font-body)' }}
                               />
                             ) : (
@@ -615,7 +611,7 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
                                   }
                                   updateJobTitle(u.id, e.target.value || null);
                                 }}
-                                className={`text-xs px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white max-w-full sm:max-w-[180px] ${u.job_title ? 'text-foreground' : 'text-foreground/30 italic'}`}
+                                className={`text-xs px-2 py-1 pr-7 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white w-full max-w-[230px] truncate ${u.job_title ? 'text-foreground' : 'text-foreground/30 italic'}`}
                                 style={{ fontFamily: 'var(--font-body)' }}
                               >
                                 <option value="">Add title...</option>
@@ -645,26 +641,52 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
                         );
                       })()}
                     </td>
-                    <td className="px-6 py-4 hidden lg:table-cell">
+                    <td className="px-6 py-4 hidden md:table-cell">
                       {(() => {
-                        const d = new Date(u.created_at);
-                        const now = new Date();
-                        const sameYear = d.getFullYear() === now.getFullYear();
-                        // Within the current year, drop the year to shorten
-                        // the cell; older joins keep the year for clarity.
-                        const text = sameYear
-                          ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-                          : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                        const userDept = departments.find((d) => d.id === u.department_id) || null;
                         return (
-                          <span
-                            className="text-xs text-foreground/50 whitespace-nowrap"
-                            style={{ fontFamily: 'var(--font-body)' }}
-                            title={d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                          <select
+                            value={u.department_id || ''}
+                            onChange={(e) => updateDepartment(u.id, e.target.value || null)}
+                            className={`text-xs px-2 py-1 rounded-full border-0 focus:outline-none focus:ring-1 focus:ring-primary/40 max-w-[180px] ${userDept ? 'font-medium' : 'text-foreground/40 bg-white border border-gray-200'}`}
+                            style={{
+                              fontFamily: 'var(--font-body)',
+                              backgroundColor: userDept ? (userDept.color || '#a0522d') + '1f' : undefined,
+                              color: userDept ? (userDept.color || '#a0522d') : undefined,
+                            }}
                           >
-                            {text}
-                          </span>
+                            <option value="">—</option>
+                            {departments.map((d) => (
+                              <option key={d.id} value={d.id}>{d.name}</option>
+                            ))}
+                          </select>
                         );
                       })()}
+                    </td>
+                    <td className="px-6 py-4 hidden md:table-cell">
+                      <span className="text-xs text-foreground/50 break-all" style={{ fontFamily: 'var(--font-body)' }}>{u.email}</span>
+                    </td>
+                    <td className="px-6 py-4 hidden lg:table-cell">
+                      <input
+                        type="text"
+                        defaultValue={u.location ?? ''}
+                        placeholder="—"
+                        onBlur={(e) => { const v = e.target.value.trim(); if (v !== (u.location ?? '')) updateLocation(u.id, v || null); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                        className="text-xs px-2 py-1 rounded-lg border border-transparent hover:border-gray-200 focus:border-primary focus:outline-none bg-transparent focus:bg-white w-full max-w-[160px]"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      />
+                    </td>
+                    <td className="px-6 py-4 hidden lg:table-cell">
+                      <input
+                        type="tel"
+                        defaultValue={u.phone ?? ''}
+                        placeholder="—"
+                        onBlur={(e) => { const v = e.target.value.trim(); if (v !== (u.phone ?? '')) updatePhone(u.id, v || null); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                        className="text-xs px-2 py-1 rounded-lg border border-transparent hover:border-gray-200 focus:border-primary focus:outline-none bg-transparent focus:bg-white w-full max-w-[150px]"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                      />
                     </td>
                     <td className="px-6 py-4 text-center">
                       {u.id !== user?.id && (
