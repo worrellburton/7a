@@ -98,18 +98,58 @@ async function handleBackfill(req: NextRequest) {
       page++;
     }
 
+    // Reconcile stuck "open" calls. A missed call.hangup webhook can leave a
+    // call with ended_at = null forever, and the forward-only walk above
+    // (watermarked on started_at) never revisits it — so it would show as a
+    // runaway "live" call. Re-fetch each still-open call older than an hour
+    // straight from Aircall and upsert the authoritative record so it
+    // self-heals; a call Aircall no longer knows about (404) is closed
+    // locally. Best-effort + bounded so a 5-minute cron never stalls.
+    let reconciled = 0;
+    try {
+      const cutoff = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      const { data: openRows } = await supabase
+        .from('aircall_calls')
+        .select('aircall_id')
+        .is('ended_at', null)
+        .lt('started_at', cutoff)
+        .order('started_at', { ascending: true })
+        .limit(25);
+      for (const { aircall_id } of (openRows ?? []) as Array<{ aircall_id: number }>) {
+        try {
+          const resp = await aircallFetch<{ call?: AircallCall }>(`/calls/${aircall_id}`);
+          if (resp?.call) {
+            await supabase.from('aircall_calls').upsert(mapAircallCall(resp.call), { onConflict: 'aircall_id' });
+            reconciled++;
+          }
+        } catch (e) {
+          // 404 → Aircall no longer has this call; close it locally so it
+          // stops reading as open. Other errors: leave it for the next run.
+          if (e instanceof Error && e.message.includes('Aircall 404')) {
+            await supabase.from('aircall_calls')
+              .update({ ended_at: new Date().toISOString() })
+              .eq('aircall_id', aircall_id)
+              .is('ended_at', null);
+            reconciled++;
+          }
+        }
+      }
+    } catch {
+      /* reconciliation is best-effort — never fail the sync over it */
+    }
+
     await supabase.from('aircall_sync_state').upsert(
       {
         id: 'singleton',
         last_synced_at: maxStartedAt ?? new Date().toISOString(),
         last_call_id: maxCallId,
         full_backfill_done: full ? true : undefined,
-        note: `processed ${processed} over ${page} page(s)`,
+        note: `processed ${processed} over ${page} page(s), reconciled ${reconciled}`,
       },
       { onConflict: 'id' },
     );
 
-    return NextResponse.json({ ok: true, processed, pagesFetched: page, full, fromUnix: fromUnix ?? null });
+    return NextResponse.json({ ok: true, processed, pagesFetched: page, reconciled, full, fromUnix: fromUnix ?? null });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : String(err), pagesFetched: page },
