@@ -6,5 +6,5 @@ export const metadata: Metadata = {
 };
 
 export default function UsersPage() {
-  return <UsersContent />;
+  return <UsersContent scope="staff" />;
 }
