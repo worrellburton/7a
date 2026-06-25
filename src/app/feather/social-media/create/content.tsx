@@ -89,6 +89,23 @@ export default function CreatePostContent() {
   const [variants, setVariants] = useState<string[]>([]);
   const [hashtags, setHashtags] = useState<string[]>([]);
   const [loadingVariants, setLoadingVariants] = useState(false);
+  // The Variants / Improve-with-Claude actions only appear once there's
+  // caption text, sliding up from the bottom (Transitions.dev stagger).
+  // Mount while text exists; keep mounted briefly on clear so the exit fade
+  // can play before unmount.
+  const captionHasText = caption.trim().length > 0;
+  const [captionActionsMounted, setCaptionActionsMounted] = useState(false);
+  const [captionActionsShown, setCaptionActionsShown] = useState(false);
+  useEffect(() => {
+    if (captionHasText) {
+      setCaptionActionsMounted(true);
+      const id = window.setTimeout(() => setCaptionActionsShown(true), 10);
+      return () => window.clearTimeout(id);
+    }
+    setCaptionActionsShown(false);
+    const t = window.setTimeout(() => setCaptionActionsMounted(false), 240);
+    return () => window.clearTimeout(t);
+  }, [captionHasText]);
   const [platforms, setPlatforms] = useState<Set<PlatformId>>(() => new Set(['facebook', 'instagram', 'linkedin']));
   // Per-deliverable media URL. Keyed by "${platform}|${label}".
   const [urlByKey, setUrlByKey] = useState<Record<string, string>>({});
@@ -708,31 +725,6 @@ export default function CreatePostContent() {
       <section className="rounded-2xl border border-black/10 bg-white p-4 mb-4">
         <div className="flex items-center justify-between mb-1.5 gap-2 flex-wrap">
           <span className="text-[10px] font-bold tracking-[0.22em] uppercase text-foreground/55">Caption</span>
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={generateVariants}
-              disabled={loadingVariants || !session?.access_token}
-              title="Get three caption options + hashtag ideas"
-              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-primary/30 bg-white text-primary text-[11px] font-semibold hover:bg-primary/5 disabled:opacity-50"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              <ClaudeMark className="w-3.5 h-3.5" />
-              {loadingVariants ? 'Thinking…' : 'Variants'}
-            </button>
-            <button
-              type="button"
-              onClick={generateCaption}
-              disabled={generatingCaption || !session?.access_token}
-              title="Draft a caption with Claude"
-              aria-label="Draft caption with Claude"
-              className="inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-primary/30 bg-primary/5 text-primary text-[11px] font-semibold hover:bg-primary/10 disabled:opacity-50"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              <ClaudeMark className="w-3.5 h-3.5" />
-              {generatingCaption ? 'Drafting…' : 'Write with Claude'}
-            </button>
-          </div>
         </div>
         <textarea
           value={caption}
@@ -742,6 +734,74 @@ export default function CreatePostContent() {
           className="w-full px-3 py-2 rounded-md border border-black/10 text-[13.5px] leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/30"
           style={{ fontFamily: 'var(--font-body)' }}
         />
+
+        {/* Claude actions — only once there's caption text, sliding up from
+            the bottom with a staggered reveal (Transitions.dev). */}
+        {captionActionsMounted && (
+          <div className={`t-stagger flex items-center justify-end gap-1.5 mt-2 ${captionActionsShown ? 'is-shown' : 'is-hiding'}`}>
+            <button
+              type="button"
+              onClick={generateVariants}
+              disabled={loadingVariants || !session?.access_token}
+              title="Get three caption options + hashtag ideas"
+              className="t-stagger-line t-stagger-line--1 inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-primary/30 bg-white text-primary text-[11px] font-semibold hover:bg-primary/5 disabled:opacity-50"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <ClaudeMark className="w-3.5 h-3.5" />
+              {loadingVariants ? 'Thinking…' : 'Variants'}
+            </button>
+            <button
+              type="button"
+              onClick={generateCaption}
+              disabled={generatingCaption || !session?.access_token}
+              title="Improve this caption with Claude"
+              aria-label="Improve caption with Claude"
+              className="t-stagger-line t-stagger-line--2 inline-flex items-center gap-1.5 px-2 py-1 rounded-md border border-primary/30 bg-primary/5 text-primary text-[11px] font-semibold hover:bg-primary/10 disabled:opacity-50"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              <ClaudeMark className="w-3.5 h-3.5" />
+              {generatingCaption ? 'Improving…' : 'Improve with Claude'}
+            </button>
+            <style jsx>{`
+              .t-stagger {
+                --stagger-dur: 500ms;
+                --stagger-distance: 12px;
+                --stagger-stagger: 40ms;
+                --stagger-blur: 3px;
+                --stagger-ease: cubic-bezier(0.22, 1, 0.36, 1);
+              }
+              .t-stagger-line {
+                opacity: 0;
+                transform: translateY(var(--stagger-distance));
+                filter: blur(var(--stagger-blur));
+                transition:
+                  opacity var(--stagger-dur) var(--stagger-ease),
+                  transform var(--stagger-dur) var(--stagger-ease),
+                  filter var(--stagger-dur) var(--stagger-ease);
+                will-change: transform, opacity, filter;
+              }
+              .t-stagger-line--2 { transition-delay: var(--stagger-stagger); }
+              .t-stagger.is-shown .t-stagger-line {
+                opacity: 1;
+                transform: translateY(0);
+                filter: blur(0);
+              }
+              .t-stagger.is-hiding .t-stagger-line {
+                opacity: 0;
+                transform: translateY(0);
+                filter: blur(0);
+                transition:
+                  opacity 200ms ease,
+                  transform 0s linear,
+                  filter 0s linear;
+                transition-delay: 0s;
+              }
+              @media (prefers-reduced-motion: reduce) {
+                .t-stagger-line { transition: none !important; }
+              }
+            `}</style>
+          </div>
+        )}
 
         {/* AI variants + hashtag suggestions. */}
         {(variants.length > 0 || hashtags.length > 0) && (
@@ -1071,13 +1131,11 @@ export default function CreatePostContent() {
         // surfaces/networks don't show, and each previews at its own ratio.
         deliverables={rows.map((r) => ({ key: r.key, platform: r.platform, surface: r.surface, kind: r.kind, ratio: r.ratio }))}
         mediaFor={(key) => {
-          // Prefer the media filled into this exact slot; fall back to a
-          // staged item of the right kind so the preview isn't empty pre-crop.
-          const row = rows.find((r) => r.key === key);
-          const want = row?.kind === 'video';
+          // Only show media that's actually been placed in this deliverable
+          // slot — no staged-media fallback — so the preview reflects the
+          // real slot state instead of a stand-in image.
           const filled = (urlByKey[key] ?? '').trim();
-          const url = filled || stagedMedia.find((u) => isVideoUrl(u) === want) || (want ? undefined : stagedMedia[0]);
-          return url ? { url, isVideo: isVideoUrl(url) } : undefined;
+          return filled ? { url: filled, isVideo: isVideoUrl(filled) } : undefined;
         }}
       />
 
