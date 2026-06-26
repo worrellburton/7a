@@ -145,7 +145,11 @@ export async function GET() {
   // deliberately DON'T apply our local canceled-signatures to these — if it's
   // still in Ayrshare's queue, it still posts, and it must be visible.
   try {
-    const { status, body } = await ayrshareGet('/history', { lastRecords: 200 });
+    // type=scheduled is REQUIRED — the default /history returns sent posts,
+    // not the future-scheduled queue (that's why /history was "unreliable for
+    // future-dated posts"). Scheduled posts come back with status pending /
+    // paused and a future scheduleDate.
+    const { status, body } = await ayrshareGet('/history', { type: 'scheduled', lastRecords: 100 });
     if (status < 400) {
       const arr = Array.isArray(body)
         ? body
