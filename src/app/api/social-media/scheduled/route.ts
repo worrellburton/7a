@@ -160,9 +160,13 @@ export async function GET() {
             caption: typeof x.post === 'string' ? x.post : '',
             platforms: Array.isArray(x.platforms) ? (x.platforms as unknown[]).filter((p): p is string => typeof p === 'string') : [],
             mediaUrls: Array.isArray(x.mediaUrls) ? (x.mediaUrls as unknown[]).filter((u): u is string => typeof u === 'string') : [],
-            // Pending = future-dated and not in a terminal state.
+            // Pending = future-dated and not in a terminal state. NOTE:
+            // Ayrshare returns scheduled posts with status "success" (the
+            // schedule request succeeded) and a future scheduleDate, so we
+            // must NOT exclude success here — only error/deleted/canceled.
+            // This mirrors the client's isScheduledPending exactly.
             pending: Number.isFinite(t) && t > now
-              && st !== 'error' && st !== 'deleted' && st !== 'canceled' && st !== 'cancelled' && st !== 'success',
+              && st !== 'error' && st !== 'deleted' && st !== 'canceled' && st !== 'cancelled',
           };
         })
         .filter((x) => x.pending && x.id);
@@ -185,8 +189,10 @@ export async function GET() {
 
       // (b) add Ayrshare-scheduled posts we have no row for, so the in-app
       // list always equals Ayrshare's queue.
+      let added = 0;
       for (const a of ayrScheduled) {
         if (items.some((p) => matches(a, p) || p.ayrshareIds.includes(a.id))) continue;
+        added++;
         items.push({
           logId: `ayr:${a.id}`,
           ayrshareIds: [a.id],
@@ -199,8 +205,10 @@ export async function GET() {
         });
       }
       items.sort((x, y) => Date.parse(x.scheduleDate) - Date.parse(y.scheduleDate));
+      console.log(`[social-media/scheduled] ayrshare queue: ${ayrScheduled.length} scheduled, ${added} surfaced not in our log`);
     }
-  } catch {
+  } catch (e) {
+    console.error('[social-media/scheduled] Ayrshare reconcile failed', e);
     /* Ayrshare unreachable — fall back to our own records only. */
   }
 
