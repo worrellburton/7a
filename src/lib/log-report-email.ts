@@ -48,9 +48,9 @@ export interface LogReportContactRow {
 }
 
 // A self-contained slice of the week's logs — used to render the
-// report in two parts: one for Email logs, one for everything else.
-// Each segment carries its own counts + breakdowns so the two parts
-// read as independent recaps.
+// report in two parts: one for Email Campaign logs, one for
+// everything else. Each segment carries its own counts + breakdowns
+// so the two parts read as independent recaps.
 export interface LogReportSegment {
   counts: {
     total: number;
@@ -84,10 +84,11 @@ export interface LogReportData {
   leaderboard: LogReportLeaderRow[];  // sorted desc by outreach then total
   topAreas: LogReportAreaRow[];       // sorted desc by count, top 8
   topContacts: LogReportContactRow[]; // sorted desc by touches, top 10
-  // Two-part split — Email logs vs everything else. The renderer
-  // builds one part per segment so email outreach gets its own
-  // dedicated recap separate from phone / in-person / data work.
-  emails: LogReportSegment;
+  // Two-part split — Email Campaign sends vs everything else. The
+  // renderer builds one part per segment so the bulk campaign
+  // outreach gets its own dedicated recap separate from phone /
+  // in-person / manual email / data work.
+  emailCampaigns: LogReportSegment;
   everythingElse: LogReportSegment;
   generatedAt: string;                // ISO timestamp the report was rendered
   appOrigin?: string;                 // for the in-email "Open dashboard" CTA
@@ -467,18 +468,18 @@ function footer(): string {
 // ─── Top-level renderer ─────────────────────────────────────────
 
 export function renderLogReportEmail(data: LogReportData): string {
-  // Two-part body. Part 1 is everything that happened over email;
-  // Part 2 is every other kind of log (phone, in-person, text, data
-  // work, …). Older callers that predate the split fall back to a
-  // single "everything" segment so the email still renders.
-  const emails: LogReportSegment = data.emails ?? emptySegment();
+  // Two-part body. Part 1 is the bulk email-campaign sends; Part 2 is
+  // every other kind of log (phone, in-person, text, manual email,
+  // data work, …). Older callers that predate the split fall back to
+  // a single "everything" segment so the email still renders.
+  const emailCampaigns: LogReportSegment = data.emailCampaigns ?? emptySegment();
   const everythingElse: LogReportSegment = data.everythingElse ?? segmentFromLegacy(data);
 
-  const emailStats: Array<[string, string, string?]> = [
-    ['Emails', fmtNumber(emails.counts.total)],
-    ['Reps', fmtNumber(emails.counts.uniqueReps)],
-    ['Contacts', fmtNumber(emails.counts.uniqueContacts)],
-    ['Time', fmtDuration(emails.counts.totalDurationSec)],
+  const campaignStats: Array<[string, string, string?]> = [
+    ['Emails sent', fmtNumber(emailCampaigns.counts.total)],
+    ['Reps', fmtNumber(emailCampaigns.counts.uniqueReps)],
+    ['Contacts', fmtNumber(emailCampaigns.counts.uniqueContacts)],
+    ['Time', fmtDuration(emailCampaigns.counts.totalDurationSec)],
   ];
   const elseDataWork = everythingElse.byMethod
     .filter((m) => m.isDataMethod)
@@ -504,17 +505,17 @@ export function renderLogReportEmail(data: LogReportData): string {
         <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px;background:${BONE};border-collapse:collapse;box-shadow:0 4px 20px rgba(44,24,16,0.06);border-radius:4px;">
           ${header(data)}
 
-          ${partLabel('Part 1', 'Emails', 'Every email your team logged this week')}
-          ${kpiBand(emailStats)}
-          ${sectionTitle('Email leaderboard', 'Who sent the most email')}
-          ${leaderboard(emails.leaderboard, 'No emails were logged this week.')}
-          ${sectionTitle('Most-emailed contacts', 'People who got the most email this week')}
-          ${topContactsTable(emails.topContacts, 'No contacts were emailed this week.')}
+          ${partLabel('Part 1', 'Email Campaigns', 'Every email campaign your team sent this week')}
+          ${kpiBand(campaignStats)}
+          ${sectionTitle('Campaign leaderboard', 'Who sent the most campaign email')}
+          ${leaderboard(emailCampaigns.leaderboard, 'No email campaigns went out this week.')}
+          ${sectionTitle('Most-reached contacts', 'People who received the most campaign email this week')}
+          ${topContactsTable(emailCampaigns.topContacts, 'No contacts received a campaign this week.')}
 
           ${divider()}
           ${pageBreak()}
 
-          ${partLabel('Part 2', 'Everything else', 'Phone, in-person, text, voicemail, and data work — every non-email log')}
+          ${partLabel('Part 2', 'Everything else', 'Phone, in-person, text, manual email, voicemail, and data work — every non-campaign log')}
           ${kpiBand(elseStats)}
           ${sectionTitle('How the team reached out', 'Mix of phone, in-person, text, and the rest')}
           ${methodsTable(everythingElse.byMethod)}
@@ -620,18 +621,17 @@ export function buildStubLogReportData(): LogReportData {
       { name: 'David Wilson',   company: null,                       touches: 4, lastMethod: 'Text Message', lastAt: now.toISOString() },
       { name: 'Emily Roberts',  company: 'Yavapai Counseling',      touches: 3, lastMethod: 'Phone', lastAt: now.toISOString() },
     ],
-    emails: {
-      counts: { total: 6, uniqueContacts: 5, uniqueReps: 3, totalDurationSec: 0.2 * 3600 },
-      byMethod: [{ method: 'Email', count: 6, durationSec: 0.2 * 3600, isDataMethod: false }],
+    emailCampaigns: {
+      counts: { total: 950, uniqueContacts: 540, uniqueReps: 2, totalDurationSec: 0 },
+      byMethod: [{ method: 'Email Campaign', count: 950, durationSec: 0, isDataMethod: false }],
       leaderboard: [
-        { userId: '2', name: 'Brendan Kenney',     avatarUrl: null, logs: 3, outreachLogs: 3, dataLogs: 0, durationSec: 0.1 * 3600 },
-        { userId: '1', name: 'Sakina Mayan',       avatarUrl: null, logs: 2, outreachLogs: 2, dataLogs: 0, durationSec: 0.06 * 3600 },
-        { userId: '3', name: 'Lindsay Rothschild', avatarUrl: null, logs: 1, outreachLogs: 1, dataLogs: 0, durationSec: 0.04 * 3600 },
+        { userId: '3', name: 'Lindsay Rothschild', avatarUrl: null, logs: 620, outreachLogs: 620, dataLogs: 0, durationSec: 0 },
+        { userId: '2', name: 'Gwen Henderson',     avatarUrl: null, logs: 330, outreachLogs: 330, dataLogs: 0, durationSec: 0 },
       ],
-      topAreas: [{ area: 'Tucson, AZ', count: 3 }, { area: 'Phoenix, AZ', count: 2 }],
+      topAreas: [{ area: 'Tucson, AZ', count: 210 }, { area: 'Phoenix, AZ', count: 180 }],
       topContacts: [
-        { name: 'Maria Gonzalez', company: 'Tucson Recovery Network', touches: 2, lastMethod: 'Email', lastAt: now.toISOString() },
-        { name: 'Jennifer Park',  company: 'AZ Sober Living',         touches: 1, lastMethod: 'Email', lastAt: now.toISOString() },
+        { name: 'Maria Gonzalez', company: 'Tucson Recovery Network', touches: 2, lastMethod: 'Email Campaign', lastAt: now.toISOString() },
+        { name: 'Jennifer Park',  company: 'AZ Sober Living',         touches: 1, lastMethod: 'Email Campaign', lastAt: now.toISOString() },
       ],
     },
     everythingElse: {

@@ -137,11 +137,12 @@ function buildSegment(
   };
 }
 
-// One log counts as "email" when its method is Email. Everything
-// else (phone, in-person, text, voicemail, data work, …) lands in
-// the second part of the report.
-function isEmailMethod(method: string | null | undefined): boolean {
-  return (method ?? '').trim().toLowerCase() === 'email';
+// One log counts toward Part 1 when its method is "Email Campaign" —
+// the system-generated log written once per recipient when a bulk
+// email campaign is sent. Everything else (phone, in-person, text,
+// manual email, voicemail, data work, …) lands in Part 2.
+function isEmailCampaignMethod(method: string | null | undefined): boolean {
+  return (method ?? '').trim().toLowerCase() === 'email campaign';
 }
 
 export interface BuildLogReportOpts {
@@ -329,10 +330,10 @@ export async function buildLogReportData(
     leaderboard,
     topAreas,
     topContacts,
-    // Two-part split for the email body: one recap for email logs,
-    // one for every other kind of log.
-    emails: buildSegment(logs.filter((l) => isEmailMethod(l.method)), userById, contactById),
-    everythingElse: buildSegment(logs.filter((l) => !isEmailMethod(l.method)), userById, contactById),
+    // Two-part split for the email body: one recap for the bulk
+    // email-campaign sends, one for every other kind of log.
+    emailCampaigns: buildSegment(logs.filter((l) => isEmailCampaignMethod(l.method)), userById, contactById),
+    everythingElse: buildSegment(logs.filter((l) => !isEmailCampaignMethod(l.method)), userById, contactById),
     generatedAt: new Date().toISOString(),
     appOrigin: opts.appOrigin ?? 'https://sevenarrowsrecoveryarizona.com',
   };
