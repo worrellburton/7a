@@ -29,6 +29,10 @@ interface AppUser {
   location: string | null;
   phone: string | null;
   status: 'active' | 'on_hold' | 'denied';
+  // 'staff' | 'guest' | 'alumni' (DB default 'staff'). Surfaced as the
+  // Type column on the Users (all) view so staff and alumni are
+  // distinguishable at a glance.
+  user_kind: string | null;
 }
 
 interface Department {
@@ -42,8 +46,32 @@ interface JobDescriptionLite {
   title: string;
 }
 
-type SortKey = 'user' | 'viewing' | 'department' | 'job_title' | 'created_at';
+type SortKey = 'user' | 'kind' | 'viewing' | 'department' | 'job_title' | 'created_at';
 type SortDir = 'asc' | 'desc';
+
+// Small pill for the Type column — staff vs alumni vs guest, color-
+// coded so the three populations read apart at a glance (alumni share
+// the violet used for the home orbit's alumni ring).
+function kindBadge(kind: string | null) {
+  const k = (kind || '').toLowerCase();
+  const label = k === 'staff' ? 'Staff'
+    : k === 'alumni' ? 'Alumni'
+    : k === 'guest' ? 'Guest'
+    : kind ? kind.charAt(0).toUpperCase() + kind.slice(1)
+    : '—';
+  const cls = k === 'staff' ? 'bg-primary/10 text-primary'
+    : k === 'alumni' ? 'bg-violet-100 text-violet-700'
+    : k === 'guest' ? 'bg-amber-100 text-amber-700'
+    : 'bg-gray-100 text-gray-500';
+  return (
+    <span
+      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold ${cls}`}
+      style={{ fontFamily: 'var(--font-body)' }}
+    >
+      {label}
+    </span>
+  );
+}
 
 function pageLabelFromPath(path: string | null): string {
   if (!path) return '';
@@ -365,6 +393,8 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
     switch (sortKey) {
       case 'user':
         return cmp((a.full_name || a.email || '').toLowerCase(), (b.full_name || b.email || '').toLowerCase());
+      case 'kind':
+        return cmp((a.user_kind || '').toLowerCase() || null, (b.user_kind || '').toLowerCase() || null);
       case 'viewing':
         return cmp(a.last_seen_at ? new Date(a.last_seen_at).getTime() : null, b.last_seen_at ? new Date(b.last_seen_at).getTime() : null);
       case 'department': {
@@ -494,7 +524,10 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-100 bg-warm-bg/50">
-                  <SortableTh label="Name" sortKey="user" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} />
+                  <SortableTh label="Name" sortKey="user" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="w-[260px]" />
+                  {scope === 'all' && (
+                    <SortableTh label="Type" sortKey="kind" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} />
+                  )}
                   <SortableTh label="Position" sortKey="job_title" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden sm:table-cell" />
                   <SortableTh label="Department" sortKey="department" currentKey={sortKey} currentDir={sortDir} onClick={toggleSort} className="hidden md:table-cell" />
                   <th className="px-6 py-2.5 text-left text-xs font-semibold text-foreground/50 uppercase tracking-wider hidden md:table-cell" style={{ fontFamily: 'var(--font-body)' }}>E-mail</th>
@@ -506,7 +539,7 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
               <tbody>
                 {visibleUsers.map((u) => (
                   <tr key={u.id} className="border-b border-gray-100 last:border-b-0 hover:bg-warm-bg/30 transition-colors">
-                    <td className="px-6 py-2">
+                    <td className="px-6 py-2 w-[260px]">
                       <div className="flex items-center gap-3">
                         {(() => {
                           const online = presenceLabel(u.last_seen_at).online;
@@ -527,8 +560,8 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
                             </span>
                           );
                         })()}
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-foreground">
+                        <div className="min-w-0 max-w-[180px]">
+                          <p className="text-sm font-medium text-foreground truncate" title={u.full_name || 'Unknown'}>
                             {u.full_name || 'Unknown'}
                             {/* Credentials trail the name in small, copper-tinted
                                 type so they read as a qualifier, not the name. */}
@@ -538,7 +571,7 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
                           </p>
                           {/* Job title on its own line under the name. */}
                           {u.job_title && (
-                            <p className="text-[11px] text-foreground/45 truncate" style={{ fontFamily: 'var(--font-body)' }}>{u.job_title}</p>
+                            <p className="text-[11px] text-foreground/45 truncate" style={{ fontFamily: 'var(--font-body)' }} title={u.job_title}>{u.job_title}</p>
                           )}
                           {/* Email shows under the name on small screens where
                               the dedicated E-mail column is hidden. */}
@@ -546,6 +579,9 @@ export default function UsersContent({ scope = 'staff' }: { scope?: 'staff' | 'a
                         </div>
                       </div>
                     </td>
+                    {scope === 'all' && (
+                      <td className="px-6 py-2">{kindBadge(u.user_kind)}</td>
+                    )}
                     <td className="px-6 py-2 hidden sm:table-cell">
                       {(() => {
                         const matchedJd = jobDescriptions.find((j) => j.title === u.job_title);
