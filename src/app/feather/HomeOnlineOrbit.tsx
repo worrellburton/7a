@@ -598,7 +598,18 @@ export default function HomeOnlineOrbit({ users, alumni = [], horses = [], pathL
       <div className="w-full flex justify-center px-8 sm:px-12 pt-24 pb-24">
         <div
           className="relative w-full aspect-square"
-          style={{ maxWidth: `${idealDiameter}px` }}
+          // maxWidth is height-aware: the orbit + its title + the
+          // pt-24/pb-24 clearance is centered inside HomeContent's
+          // fixed-height `overflow-hidden` console (h-[calc(100svh-1px)]).
+          // When idealDiameter (up to 460px) made the whole unit taller
+          // than the viewport allowed, the 6-o'clock avatar got hard-
+          // clipped by that overflow-hidden ("his picture is cut off").
+          // clamp() caps the box to (viewport − chrome) on short screens
+          // so the full ring — including the alumni overhang — always
+          // fits, while tall screens keep the ideal size unchanged. The
+          // 320px reserve covers the title (~60px) + pt/pb-24 (192px) +
+          // the console's own py padding with a small safety margin.
+          style={{ maxWidth: `clamp(240px, calc(100svh - 320px), ${idealDiameter}px)` }}
         >
         {/* Decorative concentric rings + centre medallion.
             Each ring border now lands EXACTLY at the radius of
