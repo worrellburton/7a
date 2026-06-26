@@ -133,36 +133,75 @@ export async function GET() {
   }
   for (const p of items) p.createdByName = p.userId ? (nameById.get(p.userId) ?? null) : null;
 
-  // Recover Ayrshare ids for posts scheduled before we recorded them, by
-  // matching against Ayrshare /history (scheduleDate + caption prefix),
-  // so those posts become cancelable in-app instead of dashboard-only.
-  if (items.some((p) => p.ayrshareIds.length === 0)) {
-    try {
-      const { status, body } = await ayrshareGet('/history', { lastRecords: 200 });
-      if (status < 400) {
-        const arr = Array.isArray(body)
-          ? body
-          : Array.isArray((body as { posts?: unknown[] }).posts) ? (body as { posts: unknown[] }).posts : [];
-        const aySched = (arr as Array<Record<string, unknown>>)
-          .map((x) => ({
-            id: (typeof x.id === 'string' && x.id) || (typeof x.refId === 'string' && x.refId) || null,
-            scheduleDate: typeof x.scheduleDate === 'string' ? x.scheduleDate : null,
-            post: typeof x.post === 'string' ? x.post : '',
-          }))
-          .filter((x) => x.id && x.scheduleDate);
-        for (const p of items) {
-          if (p.ayrshareIds.length > 0) continue;
-          const pt = Date.parse(p.scheduleDate);
-          const cap = p.caption.slice(0, 24);
-          const match = aySched.find((x) => {
-            const xt = Date.parse(x.scheduleDate as string);
-            return Number.isFinite(xt) && Math.abs(xt - pt) < 60_000
-              && (cap.length === 0 || x.post.startsWith(cap) || p.caption.startsWith(x.post.slice(0, 24)));
-          });
-          if (match && !canceledIds.has(match.id as string)) p.ayrshareIds = [match.id as string];
-        }
+  // Reconcile against Ayrshare's REAL scheduled queue — it's the source of
+  // truth for what will actually post. We ALWAYS pull it (not just when an id
+  // is missing) so Feather can never diverge from Ayrshare and let a post fire
+  // unseen. From it we both:
+  //   (a) recover ids for our own logged items, and
+  //   (b) surface any scheduled Ayrshare post that ISN'T in our log — one
+  //       scheduled directly in the Ayrshare dashboard, OR one whose in-app
+  //       cancel never actually took (so the user can re-cancel it here).
+  // Ayrshare's own status is authoritative for "is it still scheduled", so we
+  // deliberately DON'T apply our local canceled-signatures to these — if it's
+  // still in Ayrshare's queue, it still posts, and it must be visible.
+  try {
+    const { status, body } = await ayrshareGet('/history', { lastRecords: 200 });
+    if (status < 400) {
+      const arr = Array.isArray(body)
+        ? body
+        : Array.isArray((body as { posts?: unknown[] }).posts) ? (body as { posts: unknown[] }).posts : [];
+      const ayrScheduled = (arr as Array<Record<string, unknown>>)
+        .map((x) => {
+          const st = (typeof x.status === 'string' ? x.status : '').toLowerCase();
+          const t = typeof x.scheduleDate === 'string' ? Date.parse(x.scheduleDate) : NaN;
+          return {
+            id: (typeof x.id === 'string' && x.id) || (typeof x.refId === 'string' && x.refId) || '',
+            scheduleDate: typeof x.scheduleDate === 'string' ? x.scheduleDate : '',
+            caption: typeof x.post === 'string' ? x.post : '',
+            platforms: Array.isArray(x.platforms) ? (x.platforms as unknown[]).filter((p): p is string => typeof p === 'string') : [],
+            mediaUrls: Array.isArray(x.mediaUrls) ? (x.mediaUrls as unknown[]).filter((u): u is string => typeof u === 'string') : [],
+            // Pending = future-dated and not in a terminal state.
+            pending: Number.isFinite(t) && t > now
+              && st !== 'error' && st !== 'deleted' && st !== 'canceled' && st !== 'cancelled' && st !== 'success',
+          };
+        })
+        .filter((x) => x.pending && x.id);
+
+      const matches = (a: { scheduleDate: string; caption: string }, p: Item): boolean => {
+        const at = Date.parse(a.scheduleDate);
+        const pt = Date.parse(p.scheduleDate);
+        if (!Number.isFinite(at) || !Number.isFinite(pt) || Math.abs(at - pt) >= 60_000) return false;
+        const ac = a.caption.slice(0, 24);
+        const pc = p.caption.slice(0, 24);
+        return ac.length === 0 || pc.length === 0 || a.caption.startsWith(pc) || p.caption.startsWith(ac);
+      };
+
+      // (a) recover ids for our logged items that don't carry one yet.
+      for (const p of items) {
+        if (p.ayrshareIds.length > 0) continue;
+        const match = ayrScheduled.find((a) => matches(a, p));
+        if (match) p.ayrshareIds = [match.id];
       }
-    } catch { /* leave dashboard-only */ }
+
+      // (b) add Ayrshare-scheduled posts we have no row for, so the in-app
+      // list always equals Ayrshare's queue.
+      for (const a of ayrScheduled) {
+        if (items.some((p) => matches(a, p) || p.ayrshareIds.includes(a.id))) continue;
+        items.push({
+          logId: `ayr:${a.id}`,
+          ayrshareIds: [a.id],
+          scheduleDate: a.scheduleDate,
+          platforms: a.platforms,
+          mediaUrls: a.mediaUrls,
+          caption: a.caption,
+          userId: null,
+          createdByName: null,
+        });
+      }
+      items.sort((x, y) => Date.parse(x.scheduleDate) - Date.parse(y.scheduleDate));
+    }
+  } catch {
+    /* Ayrshare unreachable — fall back to our own records only. */
   }
 
   const posts = items.map(({ logId, ayrshareIds, scheduleDate, platforms, mediaUrls, caption, createdByName }) => ({
