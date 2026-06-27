@@ -109,3 +109,49 @@ export async function createPullRequest(
     body: JSON.stringify(opts),
   });
 }
+
+// Most-recent PRs (state=all) so the history panel can show whether each
+// tool-opened PR is still open, was merged, or was closed. One call,
+// best-effort — callers tolerate failure (no token / network).
+export async function listRecentPullStates(
+  cfg: GithubConfig,
+): Promise<Map<number, 'open' | 'closed' | 'merged'>> {
+  const data = await gh<Array<{ number: number; state: string; merged_at: string | null }>>(
+    cfg,
+    `/repos/${cfg.owner}/${cfg.repo}/pulls?state=all&per_page=100`,
+  );
+  const map = new Map<number, 'open' | 'closed' | 'merged'>();
+  for (const pr of data) {
+    map.set(pr.number, pr.merged_at ? 'merged' : pr.state === 'closed' ? 'closed' : 'open');
+  }
+  return map;
+}
+
+// ── Edit application (shared by the propose + revert routes) ──────
+
+export interface EditOp { old_string: string; new_string: string }
+export interface FileChange { path: string; edits: EditOp[] }
+
+// Apply a list of exact-match string replacements. Each old_string must
+// occur exactly once, or we throw — never a silent partial/duplicate edit.
+export function applyEdits(content: string, edits: EditOp[]): string {
+  let out = content;
+  for (const e of edits) {
+    if (!e.old_string) throw new Error('an edit had an empty old_string');
+    const first = out.indexOf(e.old_string);
+    if (first === -1) throw new Error('could not find the text to change — it may have already changed');
+    const second = out.indexOf(e.old_string, first + e.old_string.length);
+    if (second !== -1) throw new Error('the text to change appears more than once');
+    out = out.slice(0, first) + e.new_string + out.slice(first + e.old_string.length);
+  }
+  return out;
+}
+
+// Reverse a set of file changes (swap new→old, reverse order) so a merged
+// change can be undone against the current file content.
+export function reverseChanges(changes: FileChange[]): FileChange[] {
+  return changes.map((c) => ({
+    path: c.path,
+    edits: c.edits.slice().reverse().map((e) => ({ old_string: e.new_string, new_string: e.old_string })),
+  }));
+}
