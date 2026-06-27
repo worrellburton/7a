@@ -9,20 +9,23 @@ import {
   createBranch,
   putFile,
   createPullRequest,
+  listRecentPullStates,
+  applyEdits,
+  type FileChange,
 } from '@/lib/github-edit';
 
-// POST /api/landing/code — the Landing → Code editor.
+// POST /api/landing/code — propose a landing-page change.
+// GET  /api/landing/code — recent PRs opened through the tab (+ status).
 //
-// Flow: admin describes a change → Claude proposes surgical edits to
-// the public landing-page source (old_string/new_string per file) →
-// we validate every path against the LANDING_EDITABLE_FILES allowlist,
-// apply the edits, commit them to a fresh branch, and open a PR into
-// `main`. The admin reviews + merges the PR; the existing main→master
-// deploy sync ships it. Nothing reaches production without that review.
+// POST flow: admin describes a change (optionally with screenshots) →
+// Claude proposes surgical old_string/new_string edits to the public
+// landing source → we validate every path against LANDING_EDITABLE_FILES,
+// apply the edits, commit them to a fresh branch, open a PR into `main`,
+// and record the PR (+ requester + the edits, for revert) in
+// landing_code_requests. Nothing ships until the admin merges the PR.
 //
-// Required env: ANTHROPIC_API_KEY, GITHUB_TOKEN (fine-grained PAT with
-// Contents + Pull requests write on the repo). Optional: GITHUB_REPO
-// ("owner/name", default worrellburton/7a), ANTHROPIC_MODEL.
+// Required env: ANTHROPIC_API_KEY, GITHUB_TOKEN. Optional: GITHUB_REPO,
+// GITHUB_BASE_BRANCH (default main), ANTHROPIC_MODEL.
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -31,9 +34,8 @@ const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_VERSION = '2023-06-01';
 const DEFAULT_MODEL = 'claude-opus-4-8';
 const BASE_BRANCH = process.env.GITHUB_BASE_BRANCH || 'main';
+const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 
-interface EditOp { old_string: string; new_string: string }
-interface FileChange { path: string; edits: EditOp[] }
 interface ProposedEdit {
   summary: string;
   pr_title: string;
@@ -86,7 +88,7 @@ const EDIT_TOOL = {
 
 const SYSTEM_PROMPT = `You are a senior frontend engineer editing the SOURCE CODE of Seven Arrows Recovery's public landing page (the residential-inpatient page), a Next.js + React + TypeScript + Tailwind app.
 
-You will be given the current contents of the editable landing files and a plain-English change request from a non-technical admin. Make the smallest change that satisfies the request.
+You will be given the current contents of the editable landing files, a plain-English change request from a non-technical admin, and optionally screenshots illustrating what they mean. Make the smallest change that satisfies the request.
 
 Rules:
 - Only edit the files you were given. Never invent new file paths.
@@ -94,21 +96,8 @@ Rules:
 - Each edit is an exact-match string replacement: old_string MUST appear in the file byte-for-byte (including whitespace/indentation) and MUST be unique — include enough surrounding context to guarantee uniqueness.
 - Preserve the existing code style, imports, and TypeScript types. Do not reformat unrelated code.
 - Keep the JSX/TSX valid. Do not remove "use client", props, or types that are still used.
-- If the request is ambiguous or unsafe, make the most reasonable minimal interpretation and explain it in pr_body.
+- If the request is ambiguous, make the most reasonable minimal interpretation and explain it in pr_body.
 - Write pr_title and summary in plain language an admin will understand.`;
-
-function applyEdits(content: string, edits: EditOp[]): string {
-  let out = content;
-  for (const e of edits) {
-    if (!e.old_string) throw new Error('an edit had an empty old_string');
-    const first = out.indexOf(e.old_string);
-    if (first === -1) throw new Error('could not find the text to change — try rephrasing the request');
-    const second = out.indexOf(e.old_string, first + e.old_string.length);
-    if (second !== -1) throw new Error('the text to change appears more than once — try a more specific request');
-    out = out.slice(0, first) + e.new_string + out.slice(first + e.old_string.length);
-  }
-  return out;
-}
 
 export async function POST(req: NextRequest) {
   const gate = await requireAdmin(req);
@@ -132,13 +121,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
 
-  const body = (await req.json().catch(() => ({}))) as { instruction?: string; paths?: string[] };
+  const body = (await req.json().catch(() => ({}))) as {
+    instruction?: string;
+    paths?: string[];
+    images?: Array<{ media_type?: string; data?: string }>;
+  };
   const instruction = (body.instruction || '').trim();
   if (!instruction) return NextResponse.json({ error: 'Describe the change you want to make.' }, { status: 400 });
 
-  // Which files to put in front of the model. Default to all editable
-  // files so the admin can just describe the change without knowing
-  // which file it lives in; honour an explicit selection if given.
+  const images = (Array.isArray(body.images) ? body.images : [])
+    .filter((im) => im && typeof im.data === 'string' && im.media_type && ALLOWED_IMAGE_TYPES.has(im.media_type))
+    .slice(0, 6) as Array<{ media_type: string; data: string }>;
+
   const requested = Array.isArray(body.paths) ? body.paths.filter(isLandingEditableFile) : [];
   const targetPaths = requested.length > 0 ? requested : [...LANDING_EDITABLE_FILES];
 
@@ -148,11 +142,19 @@ export async function POST(req: NextRequest) {
       targetPaths.map(async (path) => ({ path, ...(await getFile(cfg, path, BASE_BRANCH)) })),
     );
 
-    // 2. Ask Claude for surgical edits.
-    const userContent =
+    // 2. Ask Claude for surgical edits (with any screenshots attached).
+    const promptText =
       `Change request:\n${instruction}\n\n` +
+      (images.length > 0 ? `(${images.length} screenshot(s) attached above for reference.)\n\n` : '') +
       `Here are the current landing files you may edit:\n\n` +
       files.map((f) => `### ${f.path}\n\`\`\`tsx\n${f.content}\n\`\`\``).join('\n\n');
+    const userBlocks = [
+      ...images.map((im) => ({
+        type: 'image' as const,
+        source: { type: 'base64' as const, media_type: im.media_type, data: im.data },
+      })),
+      { type: 'text' as const, text: promptText },
+    ];
 
     const claudeRes = await fetch(CLAUDE_API_URL, {
       method: 'POST',
@@ -163,7 +165,7 @@ export async function POST(req: NextRequest) {
         system: SYSTEM_PROMPT,
         tools: [EDIT_TOOL],
         tool_choice: { type: 'tool', name: 'propose_landing_edit' },
-        messages: [{ role: 'user', content: userContent }],
+        messages: [{ role: 'user', content: userBlocks }],
       }),
     });
     const claudeJson = (await claudeRes.json()) as {
@@ -183,9 +185,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No file changes were proposed for that request.' }, { status: 422 });
     }
 
-    // 3. Validate + apply. Every path must be on the allowlist; re-fetch
-    //    each file fresh so we have its current blob sha for the commit.
+    // 3. Validate + apply against fresh content from `main`.
     const toCommit: Array<{ path: string; content: string; sha: string }> = [];
+    const appliedChanges: FileChange[] = [];
     for (const change of changes) {
       if (!isLandingEditableFile(change.path)) {
         return NextResponse.json({ error: `Refusing to edit a non-landing file: ${change.path}` }, { status: 422 });
@@ -197,7 +199,10 @@ export async function POST(req: NextRequest) {
       } catch (e) {
         return NextResponse.json({ error: `${change.path}: ${e instanceof Error ? e.message : String(e)}` }, { status: 422 });
       }
-      if (next !== current.content) toCommit.push({ path: change.path, content: next, sha: current.sha });
+      if (next !== current.content) {
+        toCommit.push({ path: change.path, content: next, sha: current.sha });
+        appliedChanges.push(change);
+      }
     }
     if (toCommit.length === 0) {
       return NextResponse.json({ error: 'The proposed edits did not change anything.' }, { status: 422 });
@@ -210,9 +215,15 @@ export async function POST(req: NextRequest) {
     for (const f of toCommit) {
       await putFile(cfg, f.path, f.content, proposal.pr_title || 'Landing edit', branch, f.sha);
     }
+    const requesterEmail = gate.user.email ?? null;
+    let requesterName: string | null = null;
+    try {
+      const u = await gate.admin.from('users').select('full_name').eq('id', gate.userId).maybeSingle();
+      requesterName = (u.data?.full_name as string | undefined) ?? null;
+    } catch { /* name is best-effort */ }
     const prBody =
       `${proposal.pr_body || proposal.summary || ''}\n\n---\n` +
-      `Requested via the Feather Landing → Code editor by ${gate.user.email ?? gate.userId}.\n\n` +
+      `Requested via the Feather Landing → Code editor by ${requesterName || requesterEmail || gate.userId}.\n\n` +
       `**Request:** ${instruction}`;
     const pr = await createPullRequest(cfg, {
       title: proposal.pr_title || 'Landing page edit',
@@ -221,15 +232,58 @@ export async function POST(req: NextRequest) {
       body: prBody,
     });
 
+    // 5. Record it for the history panel + future revert (best-effort).
+    const changedFiles = toCommit.map((f) => f.path);
+    try {
+      await gate.admin.from('landing_code_requests').insert({
+        pr_number: pr.number,
+        pr_url: pr.html_url,
+        title: proposal.pr_title || 'Landing page edit',
+        summary: proposal.summary || null,
+        instruction,
+        changed_files: changedFiles,
+        changes: appliedChanges,
+        branch,
+        requested_by: gate.userId,
+        requested_by_email: requesterEmail,
+        requested_by_name: requesterName,
+      });
+    } catch { /* history is best-effort; never fail the PR over it */ }
+
     return NextResponse.json({
       ok: true,
       summary: proposal.summary || proposal.pr_title || 'Landing edit proposed.',
       prUrl: pr.html_url,
       prNumber: pr.number,
       branch,
-      changedFiles: toCommit.map((f) => f.path),
+      changedFiles,
     });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
+}
+
+export async function GET(req: NextRequest) {
+  const gate = await requireAdmin(req);
+  if (gate instanceof NextResponse) return gate;
+
+  const { data, error } = await gate.admin
+    .from('landing_code_requests')
+    .select('id, pr_number, pr_url, title, summary, changed_files, requested_by_name, requested_by_email, reverts_pr_number, created_at')
+    .order('created_at', { ascending: false })
+    .limit(50);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Best-effort live status enrichment so the panel can badge each PR
+  // open / merged / closed. Skipped silently if GitHub isn't connected.
+  let states: Map<number, 'open' | 'closed' | 'merged'> | null = null;
+  try {
+    states = await listRecentPullStates(loadGithubConfig());
+  } catch { /* no token / network — fall back to no status */ }
+
+  const items = (data ?? []).map((r) => ({
+    ...r,
+    status: states?.get(r.pr_number) ?? null,
+  }));
+  return NextResponse.json({ items });
 }
