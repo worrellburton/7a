@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { useModal } from '@/lib/ModalProvider';
 import { supabase } from '@/lib/supabase';
+import LandingCodePanel from './CodePanel';
 
 // Drag-and-drop editor for the public landing-page hero timelines.
 //
@@ -70,7 +71,7 @@ function videoPoster(v: SiteVideo, imagesById: Map<string, SiteImage>): string |
 }
 
 export default function LandingContent() {
-  const { user, session } = useAuth();
+  const { user, session, isAdmin } = useAuth();
   const modal = useModal();
   const [available, setAvailable] = useState<SiteVideo[]>([]);
   const [timeline, setTimeline] = useState<SiteVideo[]>([]);
@@ -88,6 +89,10 @@ export default function LandingContent() {
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  // Top-level mode: the existing hero-video timeline editor, or the
+  // "Code" tab (drives Claude to edit the public landing page's source
+  // and open a PR — see CodePanel).
+  const [topTab, setTopTab] = useState<'heroes' | 'code'>('heroes');
   // Phase 7: the preview player is now inline. Tracks which clip
   // the player is currently on so we can advance through the
   // timeline.
@@ -445,6 +450,29 @@ export default function LandingContent() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-10" style={{ fontFamily: 'var(--font-body)' }}>
+      {/* Top-level tabs: the existing hero-timeline editor, plus a
+          "Code" tab that drives Claude to edit the public landing
+          page's source and open a PR for review (see CodePanel). */}
+      {/* Code tab is admin-only (it commits source + opens PRs); the
+          hero editor stays open to the Marketing department. */}
+      <div className="mb-5 inline-flex items-center rounded-lg border border-black/10 bg-warm-bg/40 p-0.5 gap-0.5" role="tablist" aria-label="Landing editor mode">
+        {(isAdmin ? (['heroes', 'code'] as const) : (['heroes'] as const)).map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            aria-selected={topTab === t}
+            onClick={() => setTopTab(t)}
+            className={`px-3.5 py-1.5 rounded-md text-[12px] font-semibold transition-colors ${topTab === t ? 'bg-foreground text-white' : 'text-foreground/60 hover:text-foreground'}`}
+          >
+            {t === 'heroes' ? 'Hero videos' : 'Code'}
+          </button>
+        ))}
+      </div>
+      {topTab === 'code' && isAdmin ? (
+        <LandingCodePanel token={session?.access_token ?? null} />
+      ) : (
+      <>
       <header className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
           <p className="text-xs uppercase tracking-[0.22em] text-foreground/50 mb-1">Marketing &amp; Admissions</p>
@@ -735,6 +763,8 @@ export default function LandingContent() {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 px-4 py-2.5 rounded-full bg-foreground text-white text-sm shadow-lg">
           {toast}
         </div>
+      )}
+      </>
       )}
     </div>
   );
