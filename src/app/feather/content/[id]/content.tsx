@@ -170,13 +170,14 @@ export default function BlogEditor({ id }: { id: string }) {
       <div className="mb-3">
         <Link href="/feather/content" className="text-[11.5px] text-foreground/55 hover:text-foreground">&larr; All content</Link>
       </div>
-      <header className="mb-6">
-        <p className="text-xs uppercase tracking-[0.22em] text-foreground/50 mb-1">Blog</p>
-        <h1 className="text-2xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
-          {blog.title || '(Untitled)'}
-        </h1>
-        <p className="mt-1 text-[12px] text-foreground/50 font-mono">slug: {blog.slug} · status: {blog.status}</p>
-      </header>
+      <EditableHeader
+        blogId={blog.id}
+        title={blog.title ?? ''}
+        slug={blog.slug}
+        status={blog.status}
+        token={token}
+        onChange={() => void load()}
+      />
 
       {error && (
         <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-[12px] text-rose-800">{error}</div>
@@ -451,6 +452,116 @@ function ErrorWithCopy({ message, details }: { message: string; details?: unknow
         </details>
       )}
     </div>
+  );
+}
+
+// Inline-editable post header: the title + slug used to render as
+// static text (a plain <h1> and a <p>), which read as "not editable".
+// Both are now click-to-edit fields that PATCH /api/content/[id] on
+// blur/Enter — the route already whitelists `title` and `slug`. The
+// slug is slugified live (lowercase, hyphenated, URL-safe) and the
+// leading/trailing hyphens are trimmed on commit; an empty slug is
+// rejected (reverts to the last saved value) since the live page
+// resolves /who-we-are/blog/<slug>.
+function EditableHeader({ blogId, title, slug, status, token, onChange }: {
+  blogId: string;
+  title: string;
+  slug: string;
+  status: string;
+  token: string | null;
+  onChange: () => void;
+}) {
+  const [titleDraft, setTitleDraft] = useState(title);
+  const [slugDraft, setSlugDraft] = useState(slug);
+  const [saving, setSaving] = useState<'title' | 'slug' | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const savedTitle = useRef(title);
+  const savedSlug = useRef(slug);
+
+  // Resync from the server when it changes underneath us (e.g. another
+  // tab edited it, or a generate step renamed the draft) — but never
+  // clobber an in-progress edit: only reset when the incoming value
+  // differs from what we last saved, same guard PromptPanel uses.
+  useEffect(() => {
+    if (savedTitle.current !== title) { savedTitle.current = title; setTitleDraft(title); }
+  }, [title]);
+  useEffect(() => {
+    if (savedSlug.current !== slug) { savedSlug.current = slug; setSlugDraft(slug); }
+  }, [slug]);
+
+  function slugifyLive(s: string): string {
+    return s.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/-{2,}/g, '-');
+  }
+
+  async function patch(field: 'title' | 'slug', value: string) {
+    if (!token) return;
+    setSaving(field);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/content/${blogId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ [field]: value }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((json as { error?: string }).error ?? `HTTP ${res.status}`);
+      if (field === 'title') savedTitle.current = value;
+      else savedSlug.current = value;
+      onChange();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+      // Revert the draft so the field doesn't show an unsaved value
+      // (e.g. a duplicate-slug uniqueness error from the DB).
+      if (field === 'title') setTitleDraft(savedTitle.current);
+      else setSlugDraft(savedSlug.current);
+    } finally {
+      setSaving(null);
+    }
+  }
+
+  function commitTitle() {
+    const v = titleDraft.trim();
+    if (v === savedTitle.current.trim()) return;
+    void patch('title', v);
+  }
+  function commitSlug() {
+    const v = slugifyLive(slugDraft).replace(/^-+|-+$/g, '');
+    if (!v) { setSlugDraft(savedSlug.current); return; }
+    if (v !== slugDraft) setSlugDraft(v);
+    if (v === savedSlug.current) return;
+    void patch('slug', v);
+  }
+
+  return (
+    <header className="mb-6">
+      <p className="text-xs uppercase tracking-[0.22em] text-foreground/50 mb-1">Blog</p>
+      <input
+        value={titleDraft}
+        onChange={(e) => setTitleDraft(e.target.value)}
+        onBlur={commitTitle}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); } }}
+        placeholder="(Untitled)"
+        aria-label="Post title"
+        className="w-full bg-transparent text-2xl font-bold text-foreground border border-transparent hover:border-black/10 focus:border-primary/40 rounded-md px-1 -mx-1 focus:outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-foreground/35"
+        style={{ fontFamily: 'var(--font-display)' }}
+      />
+      <div className="mt-1 flex items-center gap-1 text-[12px] text-foreground/50 font-mono flex-wrap">
+        <span>slug:</span>
+        <input
+          value={slugDraft}
+          onChange={(e) => setSlugDraft(slugifyLive(e.target.value))}
+          onBlur={commitSlug}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur(); } }}
+          placeholder="custom-slug"
+          aria-label="Post slug"
+          spellCheck={false}
+          className="min-w-[140px] bg-transparent border border-transparent hover:border-black/10 focus:border-primary/40 rounded px-1 text-foreground/70 focus:outline-none focus:ring-2 focus:ring-primary/20"
+        />
+        <span>· status: {status}</span>
+        {saving && <span className="text-foreground/40">· saving…</span>}
+        {err && <span className="text-rose-700">· {err}</span>}
+      </div>
+    </header>
   );
 }
 
