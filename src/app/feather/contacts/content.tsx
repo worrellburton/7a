@@ -58,6 +58,18 @@ function useNowTick(): number {
   return useSyncExternalStore(subscribeNow, () => nowVersion, () => 0);
 }
 
+// Reactive media query (via useSyncExternalStore so it's hydration-safe).
+// Used to mount the desktop table OR the mobile cards — never both, which
+// otherwise doubled the rendered row count (~2200 row subtrees).
+function useMediaQuery(query: string, serverDefault = true): boolean {
+  const subscribe = useCallback((cb: () => void) => {
+    const m = window.matchMedia(query);
+    m.addEventListener('change', cb);
+    return () => m.removeEventListener('change', cb);
+  }, [query]);
+  return useSyncExternalStore(subscribe, () => window.matchMedia(query).matches, () => serverDefault);
+}
+
 // ─── Types ──────────────────────────────────────────────────────
 
 type ContactMethod = SharedContactMethod;
@@ -3129,6 +3141,10 @@ function ContactsGrid({
   const someSelected = visibleIds.some((id) => selectedIds.has(id));
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  // Mount the desktop table OR the mobile cards — never both. Rendering
+  // both (CSS-hidden) doubled the React row count. Defaults to desktop on
+  // the server so the admin-primary case hydrates without a flash.
+  const isDesktop = useMediaQuery('(min-width: 768px)');
 
   // The expanded Notes editor and Contact-history panel live inside
   // <td colSpan>, which by default stretches with the horizontally
@@ -3160,8 +3176,9 @@ function ContactsGrid({
 
   return (
     <>
-      <FloatingScrollbar tableRef={tableScrollRef} />
-      <div className="hidden md:block">
+      {isDesktop && <FloatingScrollbar tableRef={tableScrollRef} />}
+      {isDesktop && (
+      <div className="block">
       <div
         ref={tableScrollRef}
         data-outreach-table
@@ -3303,11 +3320,14 @@ function ContactsGrid({
       </table>
       </div>
       </div>
+      )}
 
       {/* Mobile card layout — table is hard to scan on phones, so
           each contact gets its own stacked card with every field
-          inline + the same engagement actions. */}
-      <div className="md:hidden flex flex-col gap-3">
+          inline + the same engagement actions. Mounted only on small
+          screens so the desktop table's rows aren't doubled. */}
+      {!isDesktop && (
+      <div className="flex flex-col gap-3">
         {loading ? (
           <div className="rounded-xl border border-black/10 bg-white px-4 py-8 text-center text-[13px] text-foreground/45">
             Loading contacts…
@@ -3334,6 +3354,7 @@ function ContactsGrid({
           ))
         )}
       </div>
+      )}
     </>
   );
 }
