@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Drug Rehab in Arizona | Seven Arrows Recovery',
   description:
-    'Premier drug and alcohol rehab in Arizona — residential treatment on a 160-acre ranch at the base of the Swisshelm Mountains. Call (866) 718-1665.',
+    'Premier drug and alcohol rehab in Arizona — residential treatment on a 161-acre ranch at the base of the Swisshelm Mountains. Call (866) 718-1665.',
 };
 
 // Re-render the homepage at most every 60s so a Set-live / timeline
