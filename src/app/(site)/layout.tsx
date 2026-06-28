@@ -58,7 +58,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
           carries its own bottom padding for the floating pill's
           safe-area on mobile (see Footer.tsx); reserving space
           here just stacks white space mid-page. */}
-      <main id="main-content" className="flex-1">{children}</main>
+      <main id="main-content" className="flex-1 overflow-x-hidden">{children}</main>
       {/* Pre-footer conversion stack. Brought BeforeFooterCTA back
           above the form — the dog-photo "Change your life with a
           single call" block is the warm hook (anyone, casual), then
