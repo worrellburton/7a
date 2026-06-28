@@ -3097,11 +3097,21 @@ function ContactsGrid({
   useEffect(() => {
     const el = tableScrollRef.current;
     if (!el) return;
-    const update = () => setViewportWidth(el.clientWidth);
+    // Coalesce the high-frequency ResizeObserver firings into one update
+    // per animation frame, and only commit when the width actually
+    // changed — so a drag-resize doesn't spam setState every pixel.
+    let raf = 0;
+    let last = -1;
+    const update = () => {
+      raf = 0;
+      const w = el.clientWidth;
+      if (w !== last) { last = w; setViewportWidth(w); }
+    };
+    const schedule = () => { if (!raf) raf = requestAnimationFrame(update); };
     update();
-    const ro = new ResizeObserver(update);
+    const ro = new ResizeObserver(schedule);
     ro.observe(el);
-    return () => ro.disconnect();
+    return () => { if (raf) cancelAnimationFrame(raf); ro.disconnect(); };
   }, []);
 
   return (
@@ -3217,7 +3227,11 @@ function ContactsGrid({
                 detailsExpanded={expandedDetailsId === c.id}
                 menuOpen={actionMenuFor?.id === c.id}
                 menuRect={actionMenuFor?.id === c.id ? actionMenuFor.rect : null}
-                viewportWidth={viewportWidth}
+                // Only the expanded row needs the live viewport width (for
+                // its full-bleed panel). Passing it to every row would make
+                // a browser resize re-render all ~1100 rows each frame; the
+                // rest get a stable null so memo skips them on resize.
+                viewportWidth={expandedNotesId === c.id || expandedDetailsId === c.id ? viewportWidth : null}
                 accessToken={accessToken}
                 companyOptions={companyOptions}
                 roleOptions={roleOptions}
