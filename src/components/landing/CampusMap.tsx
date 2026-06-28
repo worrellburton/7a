@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 /**
  * Phase 5 — interactive campus tour.
  *
- * Stylized SVG map of the 160-acre ranch with hotspots keyed to
+ * Stylized SVG map of the 161-acre ranch with hotspots keyed to
  * specific zones (sweat lodge, arena, pool, group room, trails,
  * residences). Hovering / tapping a hotspot lights the zone and
  * surfaces a photo + short description on the side.
@@ -71,7 +71,7 @@ const spots: Spot[] = [
     x: 850,
     y: 140,
     image: '/hero/facility-exterior-mountains.jpg',
-    body: '160 acres backing up to the Swisshelm Mountains. Morning hikes, solo walks, the literal landscape that does a measurable amount of the clinical work.',
+    body: '161 acres backing up to the Swisshelm Mountains. Morning hikes, solo walks, the literal landscape that does a measurable amount of the clinical work.',
   },
 ];
 
@@ -130,7 +130,7 @@ export default function CampusMap() {
             className="text-foreground/65 text-lg leading-relaxed"
             style={{ fontFamily: 'var(--font-body)' }}
           >
-            A 160-acre private campus at the base of the Swisshelm
+            A 161-acre private campus at the base of the Swisshelm
             Mountains in southeastern Arizona. Six zones carry the
             day-to-day.
           </p>
