@@ -120,6 +120,15 @@ export async function createPullRequest(
   });
 }
 
+// Code search across the repo — lets the agent find which file contains a
+// bit of text or a component, instead of the admin pre-picking the page.
+// Returns matching file paths (caller filters to the editable boundary).
+export async function searchCode(cfg: GithubConfig, query: string): Promise<string[]> {
+  const q = encodeURIComponent(`${query} repo:${cfg.owner}/${cfg.repo}`);
+  const data = await gh<{ items?: Array<{ path: string }> }>(cfg, `/search/code?q=${q}&per_page=20`);
+  return Array.from(new Set((data.items ?? []).map((i) => i.path)));
+}
+
 // Merge a PR into its base (squash) — used to auto-ship a change without a
 // manual GitHub review step. Throws if GitHub refuses (conflict / not
 // mergeable), so callers can report "opened but couldn't auto-merge".
