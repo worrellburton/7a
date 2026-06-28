@@ -571,26 +571,6 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
           </div>
         )}
       </div>
-
-      {/* Horizontal scrolling ticker */}
-      <div
-        className="relative z-20 bg-dark-section overflow-hidden"
-        style={{
-          opacity: visible ? 1 : 0,
-          transition: 'opacity 0.8s ease 1.2s',
-        }}
-      >
-        <div className="py-3 flex items-center">
-          <div className="flex animate-ticker">
-            <div className="flex items-center shrink-0">
-              <TickerContent />
-            </div>
-            <div className="flex items-center shrink-0">
-              <TickerContent />
-            </div>
-          </div>
-        </div>
-      </div>
     </section>
   );
 }
