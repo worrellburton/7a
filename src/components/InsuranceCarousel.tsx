@@ -165,7 +165,7 @@ export default function InsuranceCarousel() {
       {/* Desktop: edge-to-edge marquee. Duplicated track shifted -50% so
           the loop is seamless. */}
       <div
-        className="hidden lg:block relative mb-14"
+        className="hidden lg:block relative mb-14 overflow-hidden"
         style={{
           WebkitMaskImage:
             'linear-gradient(90deg, transparent 0, #000 6%, #000 94%, transparent 100%)',
