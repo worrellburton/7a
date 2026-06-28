@@ -3058,6 +3058,23 @@ function ContactsGrid({
   const closeNotes = useCallback(() => setExpandedNotesId(null), []);
   const openMenu = useCallback((id: string, rect: DOMRect) => setActionMenuFor({ id, rect }), [setActionMenuFor]);
   const closeMenu = useCallback(() => setActionMenuFor(null), [setActionMenuFor]);
+
+  // Progressive first render. The cold load mounts 1000+ rows at once —
+  // and because both the desktop table AND the mobile card list render
+  // (one is just CSS-hidden), that's ~2× the React reconcile cost up
+  // front, the single biggest source of "sluggish load". Mount a first
+  // screenful immediately, then grow the cap a chunk per animation frame
+  // so the grid paints fast and the rest streams in off the critical
+  // path. The cap only GROWS, so once it reaches the row count it stays
+  // there — edits / search / sort (which keep or shrink the count) then
+  // render in full with no flash.
+  const [renderCap, setRenderCap] = useState(60);
+  useEffect(() => {
+    if (renderCap >= rows.length) return;
+    const id = requestAnimationFrame(() => setRenderCap((n) => n + 250));
+    return () => cancelAnimationFrame(id);
+  }, [renderCap, rows.length]);
+  const cappedRows = rows.length > renderCap ? rows.slice(0, renderCap) : rows;
   // The last-contact summary now lives inside `columns` (right after
   // Name) instead of a trailing sticky cell, so the only fixed cells
   // are the leading checkbox and the trailing 3-dot action expander.
@@ -3188,7 +3205,7 @@ function ContactsGrid({
               </td>
             </tr>
           ) : (
-            rows.map((c) => (
+            cappedRows.map((c) => (
               <ContactRow
                 key={c.id}
                 contact={c}
@@ -3242,7 +3259,7 @@ function ContactsGrid({
             No contacts yet. Tap <span className="font-semibold">Add contact</span> to start.
           </div>
         ) : (
-          rows.map((c) => (
+          cappedRows.map((c) => (
             <ContactMobileCard
               key={c.id}
               contact={c}
