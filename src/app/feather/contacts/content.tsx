@@ -3040,6 +3040,14 @@ function ContactsGrid({
     },
     [rows, onToggleSelectMany, onToggleSelectOne],
   );
+  // Stable per-row callbacks so the memoized ContactRow only re-renders
+  // the row that actually changed (toggling one row's notes / action menu
+  // must not re-render the other ~1100 rows). setState identities are
+  // stable, so these useCallbacks never change after first render.
+  const toggleNotes = useCallback((id: string) => setExpandedNotesId((p) => (p === id ? null : id)), []);
+  const closeNotes = useCallback(() => setExpandedNotesId(null), []);
+  const openMenu = useCallback((id: string, rect: DOMRect) => setActionMenuFor({ id, rect }), [setActionMenuFor]);
+  const closeMenu = useCallback(() => setActionMenuFor(null), [setActionMenuFor]);
   // The last-contact summary now lives inside `columns` (right after
   // Name) instead of a trailing sticky cell, so the only fixed cells
   // are the leading checkbox and the trailing 3-dot action expander.
@@ -3171,171 +3179,39 @@ function ContactsGrid({
             </tr>
           ) : (
             rows.map((c) => (
-              <Fragment key={c.id}>
-              <tr
-                onMouseDown={(e) => {
-                  // Shift+plain-mousedown would otherwise paint a
-                  // browser text-selection across the table before
-                  // our click handler fires. Suppress only when
-                  // shift is held AND the click target is non-
-                  // interactive, so inputs/buttons still focus.
-                  if (e.shiftKey && !isInteractiveClick(e.target)) {
-                    e.preventDefault();
-                  }
-                }}
-                onClick={(e) => handleRowClick(e, c.id)}
-                // content-visibility lets the browser skip layout +
-                // paint for rows that aren't in or near the viewport,
-                // which is the single biggest win for the 900+ row
-                // grid — ~10x cheaper initial paint on cold loads,
-                // free virtualization with no React refactor. The
-                // contain-intrinsic-size keeps the row's height
-                // reserved so the scrollbar stays accurate while
-                // off-screen rows skip rendering.
-                style={{ contentVisibility: 'auto', containIntrinsicSize: '0 44px' }}
-                className={`group align-middle transition-colors cursor-pointer ${selectedIds.has(c.id) ? 'bg-primary/[0.06] hover:bg-primary/10' : isNewToUser(c) ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-warm-bg/40'}`}
-              >
-                <td className="px-2 py-2.5 text-center align-middle">
-                  <CircleCheckbox
-                    checked={selectedIds.has(c.id)}
-                    onToggle={() => onToggleSelectOne(c.id)}
-                    ariaLabel={`Select ${c.name}`}
-                    size="sm"
-                  />
-                </td>
-                {columns.map((col) => {
-                  if (col.key === 'engagement') {
-                    // The relocated last-contact panel: log-a-contact
-                    // button + the last-contact summary (click to expand
-                    // history) + chevron. Now a normal scrolling cell
-                    // right after Name rather than the old sticky-right
-                    // engagement column.
-                    return (
-                      <td
-                        key={col.key}
-                        data-no-row-select
-                        className={`px-3 py-2.5 align-middle transition-colors ${expandedDetailsId === c.id ? 'bg-warm-bg/50' : ''}`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => onContact(c)}
-                            aria-label="Log a contact"
-                            title="Log a contact"
-                            className="sa-log-button shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md bg-primary/10 text-primary text-[15px] leading-none border border-primary/20 hover:bg-primary/15 transition-colors"
-                          >
-                            <span aria-hidden>🪵</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => onHistory(c)}
-                            className="min-w-0 flex-1 flex items-start justify-between gap-2 text-left rounded-md px-1 -mx-1 hover:bg-warm-bg/60 transition-colors"
-                            title={expandedDetailsId === c.id ? 'Hide history' : 'Show contact history'}
-                            aria-expanded={expandedDetailsId === c.id}
-                          >
-                            <span className="min-w-0 flex-1">
-                              <LastContactSummaryCell contact={c} />
-                            </span>
-                            <span
-                              className={`shrink-0 mt-0.5 inline-flex items-center justify-center w-6 h-6 rounded-md border transition-all ${expandedDetailsId === c.id ? 'bg-foreground text-white border-foreground rotate-180' : 'bg-white text-foreground/55 border-black/10'}`}
-                              aria-hidden
-                            >
-                              <ChevronDownIcon />
-                            </span>
-                          </button>
-                        </div>
-                      </td>
-                    );
-                  }
-                  if (col.key === 'notes') {
-                    const isExpanded = expandedNotesId === c.id;
-                    return (
-                      <td
-                        key={col.key}
-                        data-no-row-select
-                        className="px-3 py-2.5 align-middle cursor-pointer"
-                        onClick={(e) => { e.stopPropagation(); setExpandedNotesId((prev) => (prev === c.id ? null : c.id)); }}
-                        title={c.notes ? 'Click to edit notes' : 'Click to add notes'}
-                      >
-                        <div className={`rounded-md px-2 -mx-2 py-1 transition-colors ${isExpanded ? 'bg-warm-bg/60' : 'hover:bg-warm-bg/40'}`}>
-                          {c.notes ? (
-                            <span className="text-foreground/75 truncate block max-w-[420px]">{c.notes}</span>
-                          ) : (
-                            <span className="text-foreground/30 italic text-[11px]">Add notes…</span>
-                          )}
-                        </div>
-                      </td>
-                    );
-                  }
-                  return (
-                    <td key={col.key} className={`px-3 py-2.5 ${col.align === 'right' ? 'text-right' : ''}`}>
-                      <ContactCell column={col} contact={c} onSaveField={onSaveField} onSavePatch={onSavePatch} isNew={isNewToUser(c)} companyOptions={companyOptions} roleOptions={roleOptions} typeOptions={typeOptions} specialtyOptions={specialtyOptions} onBulkRenameOption={onBulkRenameOption} />
-                    </td>
-                  );
-                })}
-                {/* Only the 3-dot action menu stays pinned right; the
-                    last-contact panel moved into the scrolling columns
-                    above (the "engagement" column, right after Name). */}
-                <td className={`sticky right-0 z-10 px-2 py-2.5 text-right transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white/95 group-hover:bg-white'}`}>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      if (actionMenuFor?.id === c.id) { setActionMenuFor(null); return; }
-                      const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                      setActionMenuFor({ id: c.id, rect });
-                    }}
-                    className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/45 hover:text-foreground hover:bg-warm-bg"
-                    aria-label="Actions"
-                    aria-haspopup="menu"
-                    aria-expanded={actionMenuFor?.id === c.id}
-                  >
-                    <DotsIcon />
-                  </button>
-                  {actionMenuFor?.id === c.id && (
-                    <ActionMenuPortal
-                      rect={actionMenuFor.rect}
-                      hasPartner={!!c.partner_id}
-                      onClose={() => setActionMenuFor(null)}
-                      onContact={() => { setActionMenuFor(null); onContact(c); }}
-                      onUpgrade={() => { setActionMenuFor(null); onUpgrade(c); }}
-                      onHistory={() => { setActionMenuFor(null); onHistory(c); }}
-                      onDelete={() => { setActionMenuFor(null); onDelete(c); }}
-                    />
-                  )}
-                </td>
-              </tr>
-              {expandedNotesId === c.id && (
-                <tr className="bg-warm-bg/30">
-                  <td colSpan={totalCols} className="p-0">
-                    <div className="sticky left-0 px-4 py-4" style={viewportWidth ? { width: viewportWidth } : undefined}>
-                      <NotesEditor
-                        initial={c.notes ?? ''}
-                        onCancel={() => setExpandedNotesId(null)}
-                        onSave={async (next) => {
-                          await onSaveNotes(c.id, next);
-                          setExpandedNotesId(null);
-                        }}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              )}
-              {expandedDetailsId === c.id && (
-                <tr className="bg-warm-bg/30">
-                  <td colSpan={totalCols} className="p-0">
-                    <div className="sticky left-0 px-4 py-4" style={viewportWidth ? { width: viewportWidth } : undefined}>
-                      <ContactDetailsDrawer
-                        contact={c}
-                        accessToken={accessToken}
-                        onLogContact={() => onOpenLog(c)}
-                        onClose={() => onHistory(c)}
-                        historyOnly
-                      />
-                    </div>
-                  </td>
-                </tr>
-              )}
-              </Fragment>
+              <ContactRow
+                key={c.id}
+                contact={c}
+                columns={columns}
+                totalCols={totalCols}
+                selected={selectedIds.has(c.id)}
+                isNew={isNewToUser(c)}
+                notesExpanded={expandedNotesId === c.id}
+                detailsExpanded={expandedDetailsId === c.id}
+                menuOpen={actionMenuFor?.id === c.id}
+                menuRect={actionMenuFor?.id === c.id ? actionMenuFor.rect : null}
+                viewportWidth={viewportWidth}
+                accessToken={accessToken}
+                companyOptions={companyOptions}
+                roleOptions={roleOptions}
+                typeOptions={typeOptions}
+                specialtyOptions={specialtyOptions}
+                onRowClick={handleRowClick}
+                onToggleSelect={onToggleSelectOne}
+                onContact={onContact}
+                onUpgrade={onUpgrade}
+                onHistory={onHistory}
+                onDelete={onDelete}
+                onOpenLog={onOpenLog}
+                onSaveField={onSaveField}
+                onSavePatch={onSavePatch}
+                onSaveNotes={onSaveNotes}
+                onBulkRenameOption={onBulkRenameOption}
+                onToggleNotes={toggleNotes}
+                onCloseNotes={closeNotes}
+                onOpenMenu={openMenu}
+                onCloseMenu={closeMenu}
+              />
             ))
           )}
         </tbody>
@@ -3376,6 +3252,233 @@ function ContactsGrid({
     </>
   );
 }
+
+// One desktop table row, memoized so a render of the grid (selection,
+// opening another row's menu, expanding another row, the deferred search)
+// only re-renders the rows whose own props changed — not all ~1100. The
+// grid feeds it per-row PRIMITIVES (selected / isNew / notesExpanded /
+// detailsExpanded / menuOpen booleans) instead of the shared Sets + ids,
+// and the callbacks it takes are all stable (useCallback in the parent),
+// so React.memo's shallow compare holds for every untouched row.
+interface ContactRowProps {
+  contact: Contact;
+  columns: ColumnDef[];
+  totalCols: number;
+  selected: boolean;
+  isNew: boolean;
+  notesExpanded: boolean;
+  detailsExpanded: boolean;
+  menuOpen: boolean;
+  menuRect: DOMRect | null;
+  viewportWidth: number | null;
+  accessToken: string | null;
+  companyOptions: string[];
+  roleOptions: string[];
+  typeOptions: string[];
+  specialtyOptions: string[];
+  onRowClick: (e: React.MouseEvent<HTMLTableRowElement>, id: string) => void;
+  onToggleSelect: (id: string) => void;
+  onContact: (c: Contact) => void;
+  onUpgrade: (c: Contact) => void;
+  onHistory: (c: Contact) => void;
+  onDelete: (c: Contact) => void;
+  onOpenLog: (c: Contact) => void;
+  onSaveField: (id: string, field: 'name' | 'company' | 'role' | 'phone' | 'phone_cell' | 'phone_office' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
+  onSavePatch: (id: string, patch: Partial<Contact>) => Promise<void>;
+  onSaveNotes: (id: string, notes: string) => Promise<void>;
+  onBulkRenameOption: (column: 'company' | 'role' | 'specialty' | 'type', from: string, to: string | null) => Promise<void>;
+  onToggleNotes: (id: string) => void;
+  onCloseNotes: () => void;
+  onOpenMenu: (id: string, rect: DOMRect) => void;
+  onCloseMenu: () => void;
+}
+
+const ContactRow = memo(function ContactRow({
+  contact: c,
+  columns,
+  totalCols,
+  selected,
+  isNew,
+  notesExpanded,
+  detailsExpanded,
+  menuOpen,
+  menuRect,
+  viewportWidth,
+  accessToken,
+  companyOptions,
+  roleOptions,
+  typeOptions,
+  specialtyOptions,
+  onRowClick,
+  onToggleSelect,
+  onContact,
+  onUpgrade,
+  onHistory,
+  onDelete,
+  onOpenLog,
+  onSaveField,
+  onSavePatch,
+  onSaveNotes,
+  onBulkRenameOption,
+  onToggleNotes,
+  onCloseNotes,
+  onOpenMenu,
+  onCloseMenu,
+}: ContactRowProps) {
+  return (
+    <Fragment>
+      <tr
+        onMouseDown={(e) => {
+          // Shift+plain-mousedown would otherwise paint a browser text-
+          // selection across the table before our click handler fires.
+          // Suppress only when shift is held AND the click target is
+          // non-interactive, so inputs/buttons still focus.
+          if (e.shiftKey && !isInteractiveClick(e.target)) e.preventDefault();
+        }}
+        onClick={(e) => onRowClick(e, c.id)}
+        // content-visibility lets the browser skip layout + paint for rows
+        // that aren't near the viewport — paint-side virtualization. The
+        // memo above is the React-side counterpart (skip reconcile).
+        style={{ contentVisibility: 'auto', containIntrinsicSize: '0 44px' }}
+        className={`group align-middle transition-colors cursor-pointer ${selected ? 'bg-primary/[0.06] hover:bg-primary/10' : isNew ? 'bg-primary/5 hover:bg-primary/10' : 'hover:bg-warm-bg/40'}`}
+      >
+        <td className="px-2 py-2.5 text-center align-middle">
+          <CircleCheckbox
+            checked={selected}
+            onToggle={() => onToggleSelect(c.id)}
+            ariaLabel={`Select ${c.name}`}
+            size="sm"
+          />
+        </td>
+        {columns.map((col) => {
+          if (col.key === 'engagement') {
+            // The relocated last-contact panel: log-a-contact button + the
+            // last-contact summary (click to expand history) + a light
+            // chevron. A normal scrolling cell right after Name.
+            return (
+              <td
+                key={col.key}
+                data-no-row-select
+                className={`px-3 py-2.5 align-middle transition-colors ${detailsExpanded ? 'bg-warm-bg/50' : ''}`}
+              >
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onContact(c)}
+                    aria-label="Log a contact"
+                    title="Log a contact"
+                    className="sa-log-button shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md bg-primary/10 text-primary text-[15px] leading-none border border-primary/20 hover:bg-primary/15 transition-colors"
+                  >
+                    <span aria-hidden>🪵</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onHistory(c)}
+                    className="min-w-0 flex-1 flex items-center justify-between gap-1.5 text-left rounded-md px-1 -mx-1 hover:bg-warm-bg/60 transition-colors"
+                    title={detailsExpanded ? 'Hide history' : 'Show contact history'}
+                    aria-expanded={detailsExpanded}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <LastContactSummaryCell contact={c} />
+                    </span>
+                    {/* Light chevron — no boxed border at rest; it just
+                        darkens + flips when the row's history is open. */}
+                    <span
+                      className={`shrink-0 inline-flex items-center justify-center w-5 h-5 transition-all ${detailsExpanded ? 'text-foreground rotate-180' : 'text-foreground/35 group-hover:text-foreground/60'}`}
+                      aria-hidden
+                    >
+                      <ChevronDownIcon />
+                    </span>
+                  </button>
+                </div>
+              </td>
+            );
+          }
+          if (col.key === 'notes') {
+            return (
+              <td
+                key={col.key}
+                data-no-row-select
+                className="px-3 py-2.5 align-middle cursor-pointer"
+                onClick={(e) => { e.stopPropagation(); onToggleNotes(c.id); }}
+                title={c.notes ? 'Click to edit notes' : 'Click to add notes'}
+              >
+                <div className={`rounded-md px-2 -mx-2 py-1 transition-colors ${notesExpanded ? 'bg-warm-bg/60' : 'hover:bg-warm-bg/40'}`}>
+                  {c.notes ? (
+                    <span className="text-foreground/75 truncate block max-w-[420px]">{c.notes}</span>
+                  ) : (
+                    <span className="text-foreground/30 italic text-[11px]">Add notes…</span>
+                  )}
+                </div>
+              </td>
+            );
+          }
+          return (
+            <td key={col.key} className={`px-3 py-2.5 ${col.align === 'right' ? 'text-right' : ''}`}>
+              <ContactCell column={col} contact={c} onSaveField={onSaveField} onSavePatch={onSavePatch} isNew={isNew} companyOptions={companyOptions} roleOptions={roleOptions} typeOptions={typeOptions} specialtyOptions={specialtyOptions} onBulkRenameOption={onBulkRenameOption} />
+            </td>
+          );
+        })}
+        {/* Only the 3-dot action menu stays pinned right; the last-contact
+            panel moved into the scrolling columns above. */}
+        <td className={`sticky right-0 z-10 px-2 py-2.5 text-right transition-colors ${isNew ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white/95 group-hover:bg-white'}`}>
+          <button
+            type="button"
+            onClick={(e) => {
+              if (menuOpen) { onCloseMenu(); return; }
+              onOpenMenu(c.id, (e.currentTarget as HTMLButtonElement).getBoundingClientRect());
+            }}
+            className="inline-flex items-center justify-center w-7 h-7 rounded-md text-foreground/45 hover:text-foreground hover:bg-warm-bg"
+            aria-label="Actions"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+          >
+            <DotsIcon />
+          </button>
+          {menuOpen && menuRect && (
+            <ActionMenuPortal
+              rect={menuRect}
+              hasPartner={!!c.partner_id}
+              onClose={onCloseMenu}
+              onContact={() => { onCloseMenu(); onContact(c); }}
+              onUpgrade={() => { onCloseMenu(); onUpgrade(c); }}
+              onHistory={() => { onCloseMenu(); onHistory(c); }}
+              onDelete={() => { onCloseMenu(); onDelete(c); }}
+            />
+          )}
+        </td>
+      </tr>
+      {notesExpanded && (
+        <tr className="bg-warm-bg/30">
+          <td colSpan={totalCols} className="p-0">
+            <div className="sticky left-0 px-4 py-4" style={viewportWidth ? { width: viewportWidth } : undefined}>
+              <NotesEditor
+                initial={c.notes ?? ''}
+                onCancel={onCloseNotes}
+                onSave={async (next) => { await onSaveNotes(c.id, next); onCloseNotes(); }}
+              />
+            </div>
+          </td>
+        </tr>
+      )}
+      {detailsExpanded && (
+        <tr className="bg-warm-bg/30">
+          <td colSpan={totalCols} className="p-0">
+            <div className="sticky left-0 px-4 py-4" style={viewportWidth ? { width: viewportWidth } : undefined}>
+              <ContactDetailsDrawer
+                contact={c}
+                accessToken={accessToken}
+                onLogContact={() => onOpenLog(c)}
+                onClose={() => onHistory(c)}
+                historyOnly
+              />
+            </div>
+          </td>
+        </tr>
+      )}
+    </Fragment>
+  );
+});
 
 function ActionMenuPortal({
   rect,
@@ -6376,13 +6479,13 @@ function LastContactSummaryCell({ contact }: { contact: Contact }) {
         {/* Absolute timestamp stays in the title tooltip so the row
             stays single-line — the colored relative time conveys
             freshness, the pill conveys method. */}
-        <div className="mt-0.5 flex items-center gap-1.5 text-[10.5px] leading-tight" title={fmtAbsolute(contact.last_contact_at) ?? ''}>
+        <div className="mt-0.5 flex items-center gap-1.5 text-[10.5px] leading-tight min-w-0" title={fmtAbsolute(contact.last_contact_at) ?? ''}>
           {contact.last_contact_method && (
-            <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[contact.last_contact_method]}`}>
+            <span className={`inline-block shrink-0 whitespace-nowrap px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[contact.last_contact_method]}`}>
               {contact.last_contact_method}
             </span>
           )}
-          <span className={`font-semibold ${textTone}`}>{fmtAgo(contact.last_contact_at)}</span>
+          <span className={`shrink-0 whitespace-nowrap font-semibold ${textTone}`}>{fmtAgo(contact.last_contact_at)}</span>
         </div>
       </div>
     </div>
