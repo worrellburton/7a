@@ -337,13 +337,45 @@ export default function AlumniRosterContent() {
   );
 }
 
+// Compact visibility toggle — an icon that reads "on" (emerald) or "off"
+// (muted) at a glance, replacing the old text "✓ Map / − Phones" chips
+// that crowded the row.
+function VisDot({ on, title, children }: { on: boolean; title: string; children: React.ReactNode }) {
+  return (
+    <span
+      title={title}
+      className={`inline-flex items-center justify-center w-6 h-6 rounded-md border ${
+        on ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-warm-bg/40 border-black/10 text-foreground/30'
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+const MapPinGlyph = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z" /><circle cx="12" cy="10" r="2.5" /></svg>
+);
+const PhoneGlyph = () => (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z" /></svg>
+);
+const LockGlyph = () => (
+  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>
+);
+
 function RosterTableRow({ r, mode }: { r: RosterRow; mode: 'admin' | 'alumni' }) {
   const initial = (r.fullName || r.email || '?').charAt(0).toUpperCase();
   const milestone = soberMilestone(r.sobrietyDate);
   const location = [r.city, r.state].filter(Boolean).join(', ') || '—';
+  // Secondary detail (exact date / privacy) moves to a hover tooltip so
+  // the cell stays a single calm line.
+  const soberTitle = milestone
+    ? `Sober since ${formatDate(r.sobrietyDate)}${r.sobrietyPublic ? '' : ' · private to alumni'}`
+    : undefined;
+  const phoneTitle = [!r.phoneVisible ? 'Hidden from alumni' : null, r.textOk ? 'OK to text' : null]
+    .filter(Boolean).join(' · ') || undefined;
   return (
     <tr className="hover:bg-warm-bg/30 transition-colors">
-      <td className="px-4 py-3 align-top">
+      <td className="px-4 py-2.5 align-middle">
         <Link href={`/feather/alumni/u/${r.id}`} className="inline-flex items-center gap-3 group">
           {r.avatarUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -365,93 +397,81 @@ function RosterTableRow({ r, mode }: { r: RosterRow; mode: 'admin' | 'alumni' })
             {r.email && (
               <span className="block text-[11.5px] text-foreground/55 truncate">{r.email}</span>
             )}
-            {r.jobTitle && (
-              <span className="block text-[11px] text-foreground/45 truncate">{r.jobTitle}</span>
-            )}
           </span>
         </Link>
       </td>
-      <td className="px-4 py-3 align-top text-foreground/75 whitespace-nowrap">{location}</td>
-      <td className="px-4 py-3 align-top">
+      <td className="px-4 py-2.5 align-middle text-foreground/70 whitespace-nowrap">{location}</td>
+      <td className="px-4 py-2.5 align-middle">
         {milestone ? (
-          <div className="flex flex-col gap-0.5">
-            <span className="inline-flex w-fit items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11.5px] font-semibold">
-              🌱 {milestone.label}
-            </span>
-            <span className="text-[10.5px] text-foreground/45">
-              from {formatDate(r.sobrietyDate)}
-              {!r.sobrietyPublic && <span className="ml-1 text-amber-700">· private</span>}
-            </span>
-          </div>
+          <span
+            title={soberTitle}
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11.5px] font-semibold whitespace-nowrap border ${
+              r.sobrietyPublic ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-foreground/[0.04] border-black/10 text-foreground/55'
+            }`}
+          >
+            {milestone.label}
+            {!r.sobrietyPublic && <span className="text-foreground/40"><LockGlyph /></span>}
+          </span>
         ) : r.trackSobriety ? (
-          <span className="text-[11.5px] italic text-foreground/45">tracking, no date</span>
+          <span className="text-[11.5px] italic text-foreground/40">tracking</span>
         ) : (
-          <span className="text-[11.5px] italic text-foreground/40">—</span>
+          <span className="text-foreground/30">—</span>
         )}
       </td>
-      <td className="px-4 py-3 align-top">
+      <td className="px-4 py-2.5 align-middle">
         {r.checkInStreak > 0 ? (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200 text-orange-800 text-[11.5px] font-semibold">
+          <span
+            title={r.lastCheckInAt ? `Last check-in ${formatRelative(r.lastCheckInAt)}` : undefined}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-50 border border-orange-200 text-orange-700 text-[11.5px] font-semibold whitespace-nowrap"
+          >
             🔥 {r.checkInStreak}d
           </span>
         ) : (
-          <span className="text-[11.5px] italic text-foreground/40">—</span>
-        )}
-        {r.lastCheckInAt && (
-          <span className="block text-[10.5px] text-foreground/45 mt-0.5">last {formatRelative(r.lastCheckInAt)}</span>
+          <span className="text-foreground/30">—</span>
         )}
       </td>
-      <td className="px-4 py-3 align-top">
-        <div className="flex flex-wrap gap-1">
-          <VisibilityChip on={r.onMap} label="Map" />
-          <VisibilityChip on={r.onPhoneList} label="Phones" />
+      <td className="px-4 py-2.5 align-middle">
+        <div className="flex items-center gap-1.5">
+          <VisDot on={r.onMap} title={r.onMap ? 'Shown on the alumni map' : 'Not on the alumni map'}><MapPinGlyph /></VisDot>
+          <VisDot on={r.onPhoneList} title={r.onPhoneList ? 'Shown on the phone list' : 'Not on the phone list'}><PhoneGlyph /></VisDot>
         </div>
       </td>
-      <td className="px-4 py-3 align-top">
-        <div className="flex flex-col gap-0.5">
-          {r.phone ? (
-            <span className="inline-flex items-center gap-1 text-[12px] text-foreground/80">
-              📞 {r.phone}
-              {!r.phoneVisible && <span className="text-amber-700 text-[10.5px]">(hidden)</span>}
-              {r.textOk && <span className="text-foreground/45 text-[10.5px]">· txt</span>}
-            </span>
-          ) : (
-            <span className="text-[11.5px] italic text-foreground/40">no phone</span>
-          )}
-          {r.emailForAlumni ? (
-            <span className="inline-flex items-center gap-1 text-[12px] text-foreground/80">
-              ✉️ {r.emailForAlumni}
-              {!r.emailVisible && <span className="text-amber-700 text-[10.5px]">(hidden)</span>}
-            </span>
-          ) : null}
-        </div>
-      </td>
-      <td className="px-4 py-3 align-top">
-        {r.interests.length === 0 ? (
-          <span className="text-[11.5px] italic text-foreground/40">—</span>
+      <td className="px-4 py-2.5 align-middle whitespace-nowrap">
+        {r.phone ? (
+          <span className="text-[12px] text-foreground/75" title={phoneTitle}>
+            {r.phone}
+            {!r.phoneVisible && <span className="ml-1 text-[10.5px] text-foreground/40">hidden</span>}
+            {r.textOk && <span className="ml-1 text-[10.5px] text-foreground/40">· txt</span>}
+          </span>
         ) : (
-          <div className="flex flex-wrap gap-1 max-w-[220px]">
-            {r.interests.slice(0, 4).map((it) => (
-              <span key={it} className="px-1.5 py-0.5 rounded border border-black/10 bg-warm-bg/50 text-[10.5px] text-foreground/70">{it}</span>
+          <span className="text-[11.5px] italic text-foreground/35">no phone</span>
+        )}
+      </td>
+      <td className="px-4 py-2.5 align-middle">
+        {r.interests.length === 0 ? (
+          <span className="text-foreground/30">—</span>
+        ) : (
+          <div className="flex flex-wrap items-center gap-1 max-w-[180px]">
+            {r.interests.slice(0, 3).map((it) => (
+              <span key={it} className="px-1.5 py-0.5 rounded bg-warm-bg/60 text-[10.5px] text-foreground/65 whitespace-nowrap">{it}</span>
             ))}
-            {r.interests.length > 4 && (
-              <span className="text-[10.5px] text-foreground/45">+{r.interests.length - 4}</span>
+            {r.interests.length > 3 && (
+              <span className="text-[10.5px] text-foreground/45">+{r.interests.length - 3}</span>
             )}
           </div>
         )}
       </td>
       {mode === 'admin' && (
         <>
-          <td className="px-4 py-3 align-top">
+          <td className="px-4 py-2.5 align-middle">
             <StatusBadge status={r.status} />
           </td>
-          <td className="px-4 py-3 align-top text-foreground/65 whitespace-nowrap">
-            <span className="block text-[12px]">{formatRelative(r.lastSignIn)}</span>
-            <span className="block text-[10.5px] text-foreground/45">{formatDate(r.lastSignIn)}</span>
+          <td className="px-4 py-2.5 align-middle text-foreground/65 whitespace-nowrap text-[12px]" title={formatDate(r.lastSignIn)}>
+            {formatRelative(r.lastSignIn)}
           </td>
         </>
       )}
-      <td className="px-4 py-3 align-top text-foreground/65 whitespace-nowrap text-[12px]">
+      <td className="px-4 py-2.5 align-middle text-foreground/60 whitespace-nowrap text-[12px]">
         {formatDate(r.createdAt)}
       </td>
     </tr>
