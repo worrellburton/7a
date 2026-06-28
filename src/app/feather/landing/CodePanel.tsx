@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { fileLabel, GROUP_ORDER, LANDING_ROUTE } from '@/lib/editable-pages';
+import { fileLabel, GROUP_ORDER, HOME_ROUTE } from '@/lib/editable-pages';
 import SpaceBackground from './SpaceBackground';
 
 // Landing → Code tab. The admin describes a change to the public
@@ -37,7 +37,7 @@ interface PastedImage { id: string; media_type: string; data: string; preview: s
 interface SitePageLite { key: string; route: string; label: string; group: string }
 
 const COOKING_LINES = [
-  'Reading the landing page…',
+  'Reading the page…',
   'Stirring the components…',
   'Whisking up some JSX…',
   'Letting the edits simmer…',
@@ -88,9 +88,9 @@ function fileToImage(file: File): Promise<PastedImage | null> {
 export default function LandingCodePanel({ token }: { token: string | null }) {
   const [instruction, setInstruction] = useState('');
   const [images, setImages] = useState<PastedImage[]>([]);
-  // Selected page keys (the sitemap). Landing is pre-selected once the
-  // sitemap loads (and immediately so a submit before load still targets it).
-  const [pages, setPages] = useState<Set<string>>(new Set([LANDING_ROUTE]));
+  // Selected page keys (the sitemap). Home is the default target (set
+  // immediately so a submit before the sitemap loads still hits it).
+  const [pages, setPages] = useState<Set<string>>(new Set([HOME_ROUTE]));
   const [sitePages, setSitePages] = useState<SitePageLite[]>([]);
   const [showScope, setShowScope] = useState(false);
   const [pageQuery, setPageQuery] = useState('');
@@ -150,9 +150,9 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
   }, [sitePages, pageQuery]);
 
   const pageSummary = pages.size === 0
-    ? 'Landing (default)'
+    ? 'Home (default)'
     : pages.size === 1
-      ? (sitePages.find((p) => pages.has(p.key))?.label ?? ([...pages][0] === LANDING_ROUTE ? 'Landing' : [...pages][0]))
+      ? (sitePages.find((p) => pages.has(p.key))?.label ?? ([...pages][0] === HOME_ROUTE ? 'Home' : [...pages][0]))
       : `${pages.size} pages`;
 
   // Cycle the cooking lines while a request is in flight.

@@ -1360,6 +1360,13 @@ body.universe-mode [data-rail-panel] {
   /* Flip the foreground token so text-foreground icons/labels read light. */
   --color-foreground: #e2e9f7;
 }
+/* Force rail icons + labels (and the feather logo, a stroke=currentColor
+   glyph under a text-primary span) to read clearly white — the
+   opacity-reduced foreground tints otherwise look gray on the dark rail.
+   Backgrounds are left alone so notification dots / badges keep colour. */
+body.universe-mode [data-rail-panel] :is(a, button, span, p, svg) {
+  color: #eef4ff !important;
+}
 /* Rail tooltips use bg-foreground — keep them dark when the token flips. */
 body.universe-mode [data-rail-panel] [class*="bg-foreground"] {
   background-color: rgba(22, 24, 44, 0.96) !important;
