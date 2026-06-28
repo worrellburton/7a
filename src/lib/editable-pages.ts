@@ -1,10 +1,11 @@
 // Sitemap + edit boundary for the Landing → Code editor.
 //
-// The Code tool may edit any PUBLIC website page — every route under
-// src/app/(site) (its page.tsx / content.tsx) plus the landing-page
-// section components in src/components/landing. It may NEVER edit the
-// Feather app, the API routes, or shared libs. `isEditablePath` is that
-// security boundary, enforced server-side on every proposed change.
+// The Code tool may edit ANYTHING on the public website — every route
+// under src/app/(site) and ANY component under src/components (Hero,
+// Footer, Header, and every marketing section). It may NEVER edit the
+// Feather admin app, the backend API routes, the auth callbacks, or the
+// shared libs. `isEditablePath` is that security boundary, enforced
+// server-side on every proposed change.
 //
 // This module is pure (no server-only imports) so the client can reuse
 // the label/grouping helpers; the registry is built from a repo file
@@ -17,14 +18,31 @@ const SITE_PAGE_RE = /^src\/app\/\(site\)\/(?:.+\/)?page\.tsx$/;
 const SITE_EDITABLE_RE = /^src\/app\/\(site\)\/(?:.+\/)?(?:page|content)\.tsx$/;
 const LANDING_COMPONENT_RE = /^src\/components\/landing\/[^/]+\.tsx$/;
 
-// The one rule that gates every edit. Explicitly denies anything under
-// Feather / api / lib even though the allow-patterns wouldn't match them
-// — defense in depth against a bad proposed path.
+// Broad allow-patterns: any .ts/.tsx source file under the public (site)
+// routes or under src/components (the whole marketing component library).
+const EDITABLE_SITE_RE = /^src\/app\/\(site\)\/.+\.tsx?$/;
+const EDITABLE_COMPONENT_RE = /^src\/components\/.+\.tsx?$/;
+
+// The one rule that gates every edit. The deny-list is the real security
+// boundary — these are never "the site" and editing them could break
+// auth, leak data, or let the agent rewrite its OWN gating:
+//   - the Feather admin app (src/app/feather/**, anything with /feather/)
+//   - the backend API routes (src/app/api/**)
+//   - the auth callback routes (src/app/auth/**)
+//   - the shared libs (src/lib/** — auth, gates, the supabase clients,
+//     and THIS module)
+// Everything else on the public site (pages + every component) is fair game.
 export function isEditablePath(p: string): boolean {
-  if (p.includes('/feather/') || p.startsWith('src/app/feather') || p.startsWith('src/app/api') || p.startsWith('src/lib')) {
+  if (
+    p.includes('/feather/') ||
+    p.startsWith('src/app/feather') ||
+    p.startsWith('src/app/api') ||
+    p.startsWith('src/app/auth') ||
+    p.startsWith('src/lib')
+  ) {
     return false;
   }
-  return SITE_EDITABLE_RE.test(p) || LANDING_COMPONENT_RE.test(p);
+  return EDITABLE_SITE_RE.test(p) || EDITABLE_COMPONENT_RE.test(p);
 }
 
 export interface EditablePage {
