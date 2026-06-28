@@ -32,6 +32,7 @@ interface AppUser {
   is_admin: boolean;
   is_super_admin: boolean;
   is_alumni_admin: boolean;
+  is_code_admin: boolean;
   status: 'active' | 'on_hold' | 'denied';
   department_id: string | null;
   job_title: string | null;
@@ -169,7 +170,7 @@ export default function UserPermissionsContent() {
       const data = await db({
         action: 'select',
         table: 'users',
-        select: 'id, email, full_name, avatar_url, is_admin, is_super_admin, is_alumni_admin, status, department_id, job_title, credentials, last_seen_at, last_path, created_at, user_kind',
+        select: 'id, email, full_name, avatar_url, is_admin, is_super_admin, is_alumni_admin, is_code_admin, status, department_id, job_title, credentials, last_seen_at, last_path, created_at, user_kind',
         order: { column: 'full_name', ascending: true },
       }).catch(() => []);
       if (!cancelled && Array.isArray(data)) setUsers(data as AppUser[]);
@@ -266,10 +267,15 @@ export default function UserPermissionsContent() {
   // The root admin (bobby@) is locked at super_admin; alumni rows
   // can only be 'none' or 'alumni_admin' so a staff super-admin role
   // can't accidentally be granted to an alumni account.
-  type AdminRole = 'none' | 'super_admin' | 'alumni_admin';
+  //   - 'code_admin'   → is_code_admin=true, is_super_admin=false,
+  //                       is_alumni_admin=false. Scoped role — may open
+  //                       the Landing → Code page (alongside super
+  //                       admins) but is NOT a general admin.
+  type AdminRole = 'none' | 'super_admin' | 'alumni_admin' | 'code_admin';
   function roleOf(u: AppUser): AdminRole {
     if (u.is_super_admin) return 'super_admin';
     if (u.is_alumni_admin) return 'alumni_admin';
+    if (u.is_code_admin) return 'code_admin';
     return 'none';
   }
   async function setAdminRole(u: AppUser, next: AdminRole) {
@@ -277,15 +283,17 @@ export default function UserPermissionsContent() {
     const previous = roleOf(u);
     if (previous === next) return;
     setBusyId(u.id);
-    const patch: { is_super_admin: boolean; is_alumni_admin: boolean; is_admin?: boolean } = {
+    const patch: { is_super_admin: boolean; is_alumni_admin: boolean; is_code_admin: boolean; is_admin?: boolean } = {
       is_super_admin: next === 'super_admin',
       is_alumni_admin: next === 'alumni_admin',
+      is_code_admin: next === 'code_admin',
     };
     if (next === 'super_admin' && !u.is_admin) patch.is_admin = true;
     setUsers((prev) => prev.map((x) => (x.id === u.id ? {
       ...x,
       is_super_admin: patch.is_super_admin,
       is_alumni_admin: patch.is_alumni_admin,
+      is_code_admin: patch.is_code_admin,
       is_admin: patch.is_admin ?? x.is_admin,
     } : x)));
     const res = await db({ action: 'update', table: 'users', data: patch, match: { id: u.id } }).catch(() => null);
@@ -295,6 +303,7 @@ export default function UserPermissionsContent() {
         ...x,
         is_super_admin: u.is_super_admin,
         is_alumni_admin: u.is_alumni_admin,
+        is_code_admin: u.is_code_admin,
         is_admin: u.is_admin,
       } : x)));
     } else if (user?.id) {
@@ -310,6 +319,7 @@ export default function UserPermissionsContent() {
           next_role: next,
           is_super_admin: patch.is_super_admin,
           is_alumni_admin: patch.is_alumni_admin,
+          is_code_admin: patch.is_code_admin,
           is_admin: patch.is_admin,
         },
       });
@@ -844,9 +854,9 @@ export default function UserPermissionsContent() {
                           <select
                             value={roleOf(u)}
                             disabled={busyId === u.id || isSelf}
-                            onChange={(e) => void setAdminRole(u, e.target.value as 'none' | 'super_admin' | 'alumni_admin')}
+                            onChange={(e) => void setAdminRole(u, e.target.value as 'none' | 'super_admin' | 'alumni_admin' | 'code_admin')}
                             className={`text-xs px-2 py-1 rounded-lg border border-gray-200 focus:border-primary focus:outline-none bg-white max-w-[140px] ${
-                              u.is_super_admin || u.is_alumni_admin ? 'text-primary font-semibold' : 'text-foreground/55'
+                              u.is_super_admin || u.is_alumni_admin || u.is_code_admin ? 'text-primary font-semibold' : 'text-foreground/55'
                             } ${busyId === u.id ? 'opacity-50' : ''}`}
                             style={{ fontFamily: 'var(--font-body)' }}
                             aria-label="Admin role"
@@ -861,6 +871,12 @@ export default function UserPermissionsContent() {
                               <option value="super_admin">Super Admin</option>
                             )}
                             <option value="alumni_admin">Alumni Admin</option>
+                            {/* "Code" admin type — may open the Landing →
+                                Code page (alongside super admins). Hidden
+                                for alumni rows (staff-scoped role). */}
+                            {(!isAlumni || u.is_code_admin) && (
+                              <option value="code_admin">Code Admin</option>
+                            )}
                           </select>
                         )}
                       </td>
