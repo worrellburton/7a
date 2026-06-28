@@ -1344,3 +1344,41 @@ html.lenis body {
 .lenis.lenis-stopped {
   overflow: hidden;
 }
+
+/* ─── Universe mode ──────────────────────────────────────────────
+   Added to <body> while the Landing → Code tab is open so the space
+   theme extends across the whole Feather shell (left rail + top bar +
+   content backdrop) instead of being cut off at the content edge.
+   Scoped entirely under body.universe-mode, so it's inert everywhere
+   else in the app. */
+body.universe-mode [data-platform-main] {
+  background: #070815;
+}
+body.universe-mode [data-rail-panel] {
+  background: rgba(8, 10, 24, 0.80) !important;
+  border-color: rgba(255, 255, 255, 0.10) !important;
+  /* Flip the foreground token so text-foreground icons/labels read light. */
+  --color-foreground: #e2e9f7;
+}
+/* Rail tooltips use bg-foreground — keep them dark when the token flips. */
+body.universe-mode [data-rail-panel] [class*="bg-foreground"] {
+  background-color: rgba(22, 24, 44, 0.96) !important;
+}
+body.universe-mode [data-rail-panel] input {
+  background: rgba(255, 255, 255, 0.08) !important;
+  color: #e2e9f7 !important;
+}
+body.universe-mode [data-mobile-topbar] {
+  background: rgba(8, 10, 24, 0.88) !important;
+  border-color: rgba(255, 255, 255, 0.10) !important;
+  --color-foreground: #e2e9f7;
+}
+/* The Code tab's own tab bar (Hero videos | Code) now sits on the dark
+   backdrop — keep the unselected label readable. */
+body.universe-mode [aria-label="Landing editor mode"] {
+  background: rgba(255, 255, 255, 0.06) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+}
+body.universe-mode [aria-label="Landing editor mode"] button:not([aria-selected="true"]) {
+  color: rgba(255, 255, 255, 0.65) !important;
+}

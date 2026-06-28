@@ -1,7 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { LANDING_EDITABLE_FILES, landingFileLabel } from '@/lib/landing-files';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { fileLabel, GROUP_ORDER, LANDING_ROUTE } from '@/lib/editable-pages';
 import SpaceBackground from './SpaceBackground';
 
 // Landing → Code tab. The admin describes a change to the public
@@ -34,6 +34,7 @@ interface HistoryItem {
   status: 'open' | 'closed' | 'merged' | null;
 }
 interface PastedImage { id: string; media_type: string; data: string; preview: string }
+interface SitePageLite { key: string; route: string; label: string; group: string }
 
 const COOKING_LINES = [
   'Reading the landing page…',
@@ -87,8 +88,12 @@ function fileToImage(file: File): Promise<PastedImage | null> {
 export default function LandingCodePanel({ token }: { token: string | null }) {
   const [instruction, setInstruction] = useState('');
   const [images, setImages] = useState<PastedImage[]>([]);
-  const [paths, setPaths] = useState<Set<string>>(new Set());
+  // Selected page keys (the sitemap). Landing is pre-selected once the
+  // sitemap loads (and immediately so a submit before load still targets it).
+  const [pages, setPages] = useState<Set<string>>(new Set([LANDING_ROUTE]));
+  const [sitePages, setSitePages] = useState<SitePageLite[]>([]);
   const [showScope, setShowScope] = useState(false);
+  const [pageQuery, setPageQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [cookIdx, setCookIdx] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -113,6 +118,43 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
 
   useEffect(() => { void loadHistory(); }, [loadHistory]);
 
+  // Load the sitemap of editable public pages once.
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/landing/code/sitemap', { headers: authHeaders() });
+        const json = await res.json().catch(() => ({}));
+        if (res.ok && Array.isArray(json.pages)) setSitePages(json.pages as SitePageLite[]);
+      } catch { /* sitemap is non-critical — defaults to landing */ }
+    })();
+  }, [authHeaders]);
+
+  // Universe mode: theme the whole Feather shell (rail + top bar) dark
+  // while the Code tab is open, so the space backdrop isn't cut off at
+  // the content edge. Cleared on unmount / tab switch.
+  useEffect(() => {
+    document.body.classList.add('universe-mode');
+    return () => document.body.classList.remove('universe-mode');
+  }, []);
+
+  const groupedPages = useMemo(() => {
+    const q = pageQuery.trim().toLowerCase();
+    const filtered = q ? sitePages.filter((p) => p.label.toLowerCase().includes(q) || p.route.toLowerCase().includes(q)) : sitePages;
+    const byGroup = new Map<string, SitePageLite[]>();
+    for (const p of filtered) {
+      const arr = byGroup.get(p.group) ?? [];
+      arr.push(p);
+      byGroup.set(p.group, arr);
+    }
+    return [...byGroup.entries()].sort((a, b) => GROUP_ORDER.indexOf(a[0]) - GROUP_ORDER.indexOf(b[0]));
+  }, [sitePages, pageQuery]);
+
+  const pageSummary = pages.size === 0
+    ? 'Landing (default)'
+    : pages.size === 1
+      ? (sitePages.find((p) => pages.has(p.key))?.label ?? ([...pages][0] === LANDING_ROUTE ? 'Landing' : [...pages][0]))
+      : `${pages.size} pages`;
+
   // Cycle the cooking lines while a request is in flight.
   useEffect(() => {
     if (!busy) return;
@@ -127,10 +169,10 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
     if (processed.length) setImages((prev) => [...prev, ...processed].slice(0, 6));
   }
 
-  function togglePath(p: string) {
-    setPaths((prev) => {
+  function togglePage(key: string) {
+    setPages((prev) => {
       const next = new Set(prev);
-      if (next.has(p)) next.delete(p); else next.add(p);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   }
@@ -145,7 +187,7 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
         headers: authHeaders(),
         body: JSON.stringify({
           instruction: text,
-          paths: paths.size > 0 ? [...paths] : undefined,
+          pages: pages.size > 0 ? [...pages] : undefined,
           images: images.map((im) => ({ media_type: im.media_type, data: im.data })),
         }),
       });
@@ -251,19 +293,36 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
               </button>
               <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ''; }} />
               <button type="button" onClick={() => setShowScope((v) => !v)} className="text-[11.5px] font-semibold text-white/55 hover:text-white/85 transition-colors">
-                {showScope ? '▾' : '▸'} Limit to sections
+                {showScope ? '▾' : '▸'} Page: <span className="text-sky-300/85">{pageSummary}</span>
               </button>
             </div>
 
             {showScope && (
-              <div className="lc-in mt-2 grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                {LANDING_EDITABLE_FILES.map((p) => (
-                  <label key={p} className="flex items-center gap-2 text-[12px] text-white/75 rounded-md px-2 py-1 hover:bg-white/5 cursor-pointer">
-                    <input type="checkbox" checked={paths.has(p)} onChange={() => togglePath(p)} className="accent-sky-400" />
-                    <span className="truncate">{landingFileLabel(p)}</span>
-                  </label>
-                ))}
-                <p className="col-span-full text-[11px] text-white/40 mt-1">Leave all unchecked to let Claude find the right section.</p>
+              <div className="lc-in mt-2 rounded-xl border border-white/12 bg-white/[0.04] p-3">
+                <input
+                  value={pageQuery}
+                  onChange={(e) => setPageQuery(e.target.value)}
+                  placeholder="Search pages…"
+                  className="w-full mb-2 rounded-lg bg-white/10 border border-white/20 px-2.5 py-1.5 text-[12px] text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
+                />
+                <div className="max-h-64 overflow-y-auto pr-1 space-y-2.5">
+                  {sitePages.length === 0 ? (
+                    <p className="text-[11px] text-white/45">Sitemap unavailable — defaulting to the Landing page.</p>
+                  ) : groupedPages.map(([group, list]) => (
+                    <div key={group}>
+                      <p className="text-[9.5px] uppercase tracking-[0.18em] text-sky-300/60 font-bold mb-1">{group}</p>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                        {list.map((p) => (
+                          <label key={p.key} className="flex items-center gap-2 text-[12px] text-white/75 rounded-md px-2 py-1 hover:bg-white/5 cursor-pointer">
+                            <input type="checkbox" checked={pages.has(p.key)} onChange={() => togglePage(p.key)} className="accent-sky-400" />
+                            <span className="truncate" title={p.route}>{p.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[11px] text-white/40 mt-2">Pick one or more pages to edit. Landing is selected by default.</p>
               </div>
             )}
 
@@ -295,7 +354,7 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
                 {result.deployed && <p className="text-[11.5px] text-emerald-200/80 mt-0.5">Live on the site in ~1–2 minutes.</p>}
                 {result.deployNote && <p className="text-[11.5px] text-amber-200/90 mt-0.5">{result.deployNote}</p>}
                 {result.changedFiles.length > 0 && (
-                  <p className="text-[11.5px] text-white/50 mt-1">Changed: {result.changedFiles.map((f) => landingFileLabel(f)).join(', ')}</p>
+                  <p className="text-[11.5px] text-white/50 mt-1">Changed: {result.changedFiles.map((f) => fileLabel(f)).join(', ')}</p>
                 )}
                 <a href={result.prUrl} target="_blank" rel="noreferrer" className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-[#0b1020] text-[11.5px] font-bold hover:bg-sky-100 transition-colors">{result.deployed ? 'View on GitHub →' : 'Review &amp; merge on GitHub →'}</a>
               </div>
@@ -334,7 +393,7 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
                       #{item.pr_number} · {item.requested_by_name || item.requested_by_email || 'someone'} · {relTime(item.created_at)}
                     </p>
                     {item.changed_files.length > 0 && (
-                      <p className="mt-1 text-[10.5px] text-white/40 truncate">{item.changed_files.map((f) => landingFileLabel(f)).join(', ')}</p>
+                      <p className="mt-1 text-[10.5px] text-white/40 truncate">{item.changed_files.map((f) => fileLabel(f)).join(', ')}</p>
                     )}
                     <div className="mt-2 flex items-center gap-3">
                       <a href={item.pr_url} target="_blank" rel="noreferrer" className="text-[11px] font-semibold text-sky-300/80 hover:text-sky-200">Open PR →</a>
