@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { fileLabel, GROUP_ORDER, HOME_ROUTE } from '@/lib/editable-pages';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { fileLabel } from '@/lib/editable-pages';
 import SpaceBackground from './SpaceBackground';
 
 // Landing → Code tab. A Claude-Code-style chat for the public website:
 // describe a change (optionally with screenshots), and the agent finds
-// the right file across the whole site, edits it, then merges + deploys.
+// the right file across the whole site and edits it. Nothing goes live
+// until you press "Push live", which merges + deploys the change.
 // Iterate with follow-ups; every change is logged and one-click revertable.
 // Themed as a "space console" — deliberately unlike the rest of Feather.
 
@@ -16,7 +17,6 @@ interface ChangeResult {
   prNumber: number;
   changedFiles: string[];
   deployed?: boolean;
-  deployNote?: string | null;
 }
 interface ChatMsg {
   id: string;
@@ -40,7 +40,6 @@ interface HistoryItem {
   status: 'open' | 'closed' | 'merged' | null;
 }
 interface PastedImage { id: string; media_type: string; data: string; preview: string }
-interface SitePageLite { key: string; route: string; label: string; group: string }
 
 const COOKING_LINES = [
   'Finding the right file…',
@@ -48,7 +47,7 @@ const COOKING_LINES = [
   'Stirring the components…',
   'Whisking up some JSX…',
   'Plating the change…',
-  'Merging & deploying…',
+  'Writing it up…',
 ];
 
 let msgSeq = 0;
@@ -99,16 +98,11 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
   const [instruction, setInstruction] = useState('');
   const [images, setImages] = useState<PastedImage[]>([]);
   const [messages, setMessages] = useState<ChatMsg[]>([]);
-  // Focused page key(s). Home is the default starting point; the agent can
-  // still reach any other page on its own via search.
-  const [pages, setPages] = useState<Set<string>>(new Set([HOME_ROUTE]));
-  const [sitePages, setSitePages] = useState<SitePageLite[]>([]);
-  const [showScope, setShowScope] = useState(false);
-  const [pageQuery, setPageQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [cookIdx, setCookIdx] = useState(0);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [revertingId, setRevertingId] = useState<string | null>(null);
+  const [pushingPr, setPushingPr] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
@@ -128,16 +122,6 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
 
   useEffect(() => { void loadHistory(); }, [loadHistory]);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch('/api/landing/code/sitemap', { headers: authHeaders() });
-        const json = await res.json().catch(() => ({}));
-        if (res.ok && Array.isArray(json.pages)) setSitePages(json.pages as SitePageLite[]);
-      } catch { /* sitemap is non-critical — defaults to home */ }
-    })();
-  }, [authHeaders]);
-
   // Universe mode: theme the whole Feather shell dark while open.
   useEffect(() => {
     document.body.classList.add('universe-mode');
@@ -148,24 +132,6 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
   useEffect(() => {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, busy]);
-
-  const groupedPages = useMemo(() => {
-    const q = pageQuery.trim().toLowerCase();
-    const filtered = q ? sitePages.filter((p) => p.label.toLowerCase().includes(q) || p.route.toLowerCase().includes(q)) : sitePages;
-    const byGroup = new Map<string, SitePageLite[]>();
-    for (const p of filtered) {
-      const arr = byGroup.get(p.group) ?? [];
-      arr.push(p);
-      byGroup.set(p.group, arr);
-    }
-    return [...byGroup.entries()].sort((a, b) => GROUP_ORDER.indexOf(a[0]) - GROUP_ORDER.indexOf(b[0]));
-  }, [sitePages, pageQuery]);
-
-  const pageSummary = pages.size === 0
-    ? 'Home (default)'
-    : pages.size === 1
-      ? (sitePages.find((p) => pages.has(p.key))?.label ?? ([...pages][0] === HOME_ROUTE ? 'Home' : [...pages][0]))
-      : `${pages.size} pages`;
 
   useEffect(() => {
     if (!busy) return;
@@ -178,14 +144,6 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
     const incoming = Array.from(files);
     const processed = (await Promise.all(incoming.map(fileToImage))).filter((x): x is PastedImage => !!x);
     if (processed.length) setImages((prev) => [...prev, ...processed].slice(0, 6));
-  }
-
-  function togglePage(key: string) {
-    setPages((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key); else next.add(key);
-      return next;
-    });
   }
 
   // Conversation context sent to the agent (text only; errors excluded).
@@ -213,7 +171,6 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
         headers: authHeaders(),
         body: JSON.stringify({
           instruction: text,
-          pages: pages.size > 0 ? [...pages] : undefined,
           images: sentImages.map((im) => ({ media_type: im.media_type, data: im.data })),
           history: priorHistory,
         }),
@@ -236,7 +193,7 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
 
   async function revert(item: HistoryItem) {
     if (revertingId) return;
-    if (!window.confirm(`Revert "${item.title}"? This opens + deploys an undo.`)) return;
+    if (!window.confirm(`Revert "${item.title}"? This stages an undo you can then push live.`)) return;
     setRevertingId(item.id);
     try {
       const res = await fetch('/api/landing/code/revert', {
@@ -246,7 +203,7 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
       if (!res.ok) {
         setMessages((prev) => [...prev, { id: newId(), role: 'assistant', error: true, text: (json as { error?: string }).error ?? `Revert failed (${res.status})` }]);
       } else {
-        setMessages((prev) => [...prev, { id: newId(), role: 'assistant', change: { summary: json.deployed ? `Reverted "${item.title}".` : `Revert PR opened for "${item.title}".`, prUrl: json.prUrl, prNumber: json.prNumber, changedFiles: [], deployed: json.deployed, deployNote: json.deployNote } }]);
+        setMessages((prev) => [...prev, { id: newId(), role: 'assistant', change: { summary: `Revert staged for "${item.title}". Push it live to ship the undo.`, prUrl: json.prUrl, prNumber: json.prNumber, changedFiles: [], deployed: false } }]);
         void loadHistory();
       }
     } catch (e) {
@@ -256,20 +213,62 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
     }
   }
 
-  function ChangeCard({ c }: { c: ChangeResult }) {
+  // Push a staged change live: squash-merge its PR into main, then sync
+  // main → master to trigger the production deploy. Marks the matching
+  // chat card deployed and refreshes the flight log.
+  async function pushLive(prNumber: number, msgId?: string) {
+    if (pushingPr) return;
+    setPushingPr(prNumber);
+    try {
+      const res = await fetch('/api/landing/code/push', {
+        method: 'POST', headers: authHeaders(), body: JSON.stringify({ prNumber }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessages((prev) => [...prev, { id: newId(), role: 'assistant', error: true, text: (json as { error?: string }).error ?? `Push live failed (${res.status})` }]);
+      } else {
+        if (msgId) {
+          setMessages((prev) => prev.map((m) => (m.id === msgId && m.change ? { ...m, change: { ...m.change, deployed: true } } : m)));
+        } else {
+          setMessages((prev) => [...prev, { id: newId(), role: 'assistant', change: { summary: `Pushed PR #${prNumber} live.`, prUrl: `https://github.com/${'worrellburton/7a'}/pull/${prNumber}`, prNumber, changedFiles: [], deployed: true } }]);
+        }
+        void loadHistory();
+      }
+    } catch (e) {
+      setMessages((prev) => [...prev, { id: newId(), role: 'assistant', error: true, text: e instanceof Error ? e.message : String(e) }]);
+    } finally {
+      setPushingPr(null);
+    }
+  }
+
+  function ChangeCard({ c, msgId }: { c: ChangeResult; msgId: string }) {
+    const pushing = pushingPr === c.prNumber;
     return (
-      <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/15 px-4 py-3">
-        <p className="text-[13px] font-semibold text-emerald-100 inline-flex items-center gap-1.5">
+      <div className={`rounded-xl border px-4 py-3 ${c.deployed ? 'border-emerald-400/40 bg-emerald-500/15' : 'border-sky-400/40 bg-sky-500/12'}`}>
+        <p className={`text-[13px] font-semibold inline-flex items-center gap-1.5 ${c.deployed ? 'text-emerald-100' : 'text-sky-100'}`}>
           <span className="lc-pop">{c.deployed ? '🚀' : '✨'}</span>
-          {c.deployed ? `Deployed! PR #${c.prNumber} merged` : `Pull request #${c.prNumber} opened`}
+          {c.deployed ? `Pushed live! PR #${c.prNumber} deployed` : `Change ready — PR #${c.prNumber}`}
         </p>
         <p className="text-[12.5px] text-white/80 mt-0.5">{c.summary}</p>
-        {c.deployed && <p className="text-[11.5px] text-emerald-200/80 mt-0.5">Live on the site in ~1–2 minutes.</p>}
-        {c.deployNote && <p className="text-[11.5px] text-amber-200/90 mt-0.5">{c.deployNote}</p>}
+        {c.deployed
+          ? <p className="text-[11.5px] text-emerald-200/80 mt-0.5">Live on the site in ~1–2 minutes.</p>
+          : <p className="text-[11.5px] text-sky-200/80 mt-0.5">Staged but not live yet. Review it, then push it live.</p>}
         {c.changedFiles.length > 0 && (
           <p className="text-[11.5px] text-white/50 mt-1">Changed: {c.changedFiles.map((f) => fileLabel(f)).join(', ')}</p>
         )}
-        <a href={c.prUrl} target="_blank" rel="noreferrer" className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-[#0b1020] text-[11.5px] font-bold hover:bg-sky-100 transition-colors">View on GitHub →</a>
+        <div className="mt-2.5 flex items-center gap-2 flex-wrap">
+          {!c.deployed && (
+            <button
+              type="button"
+              onClick={() => pushLive(c.prNumber, msgId)}
+              disabled={pushing}
+              className="lc-launch inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[11.5px] font-bold text-white disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {pushing ? <><span className="lc-cook">🍳</span> Pushing…</> : <><span>🚀</span> Push live</>}
+            </button>
+          )}
+          <a href={c.prUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 text-[#0b1020] text-[11.5px] font-bold hover:bg-white transition-colors">View on GitHub →</a>
+        </div>
       </div>
     );
   }
@@ -283,13 +282,13 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
         <header className="lc-in mb-6 flex items-start justify-between gap-4 flex-wrap" style={{ animationDelay: '40ms' }}>
           <div>
             <p className="text-[11px] uppercase tracking-[0.28em] text-sky-300/70 mb-1">Marketing &amp; Admissions · Mission Control</p>
-            <h1 className="text-3xl font-bold text-white inline-flex items-center gap-2" style={{ fontFamily: 'var(--font-display)' }}>
-              <span className="lc-rocket">🚀</span> Website &middot; Code
+            <h1 className="text-3xl font-bold text-white" style={{ fontFamily: 'var(--font-display)' }}>
+              Website &middot; Code
             </h1>
             <p className="mt-1.5 text-sm text-white/65 max-w-2xl">
-              Chat with Claude to change any public page. It finds the right file, edits the code, then
-              <strong className="text-white/90"> merges &amp; deploys</strong> automatically &mdash; keep replying to refine.
-              Every change is logged and one&#8209;click revertable.
+              Chat with Claude to change any public page. It finds the right file and edits the code &mdash; then
+              you press <strong className="text-white/90">Push live</strong> to merge &amp; deploy it.
+              Keep replying to refine. Every change is logged and one&#8209;click revertable.
             </p>
           </div>
           {messages.length > 0 && (
@@ -327,7 +326,7 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
                         ))}
                       </div>
                     )}
-                    {m.change ? <ChangeCard c={m.change} /> : <p className="text-[13px] leading-relaxed whitespace-pre-wrap">{m.text}</p>}
+                    {m.change ? <ChangeCard c={m.change} msgId={m.id} /> : <p className="text-[13px] leading-relaxed whitespace-pre-wrap">{m.text}</p>}
                   </div>
                 </div>
               ))}
@@ -379,40 +378,14 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
                   <span>🖼️</span> Add / paste screenshot
                 </button>
                 <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ''; }} />
-                <button type="button" onClick={() => setShowScope((v) => !v)} className="text-[11.5px] font-semibold text-white/55 hover:text-white/85 transition-colors">
-                  {showScope ? '▾' : '▸'} Focus: <span className="text-sky-300/85">{pageSummary}</span>
-                </button>
+                <span className="text-[11.5px] text-white/40">Searches the whole public site — no need to pick a page.</span>
               </div>
-
-              {showScope && (
-                <div className="lc-in mt-2 rounded-xl border border-white/12 bg-white/[0.04] p-3">
-                  <input value={pageQuery} onChange={(e) => setPageQuery(e.target.value)} placeholder="Search pages…" className="w-full mb-2 rounded-lg bg-white/10 border border-white/20 px-2.5 py-1.5 text-[12px] text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-sky-400/40" />
-                  <div className="max-h-56 overflow-y-auto pr-1 space-y-2.5">
-                    {sitePages.length === 0 ? (
-                      <p className="text-[11px] text-white/45">Sitemap unavailable — defaulting to Home (the agent can still search the whole site).</p>
-                    ) : groupedPages.map(([group, list]) => (
-                      <div key={group}>
-                        <p className="text-[9.5px] uppercase tracking-[0.18em] text-sky-300/60 font-bold mb-1">{group}</p>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
-                          {list.map((p) => (
-                            <label key={p.key} className="flex items-center gap-2 text-[12px] text-white/75 rounded-md px-2 py-1 hover:bg-white/5 cursor-pointer">
-                              <input type="checkbox" checked={pages.has(p.key)} onChange={() => togglePage(p.key)} className="accent-sky-400" />
-                              <span className="truncate" title={p.route}>{p.label}</span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-[11px] text-white/40 mt-2">Where to start looking. The agent searches the rest of the site if needed. Home by default.</p>
-                </div>
-              )}
 
               <div className="mt-3 flex items-center gap-3 flex-wrap">
                 <button type="button" onClick={submit} disabled={busy || !instruction.trim()} className="lc-launch relative px-5 py-2.5 rounded-xl text-[13.5px] font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2">
-                  {busy ? <><span className="lc-cook">🍳</span> Cooking…</> : <><span>🚀</span> Send &amp; deploy</>}
+                  {busy ? <><span className="lc-cook">🍳</span> Cooking…</> : <><span>✨</span> Send</>}
                 </button>
-                <span className="text-[11px] text-white/45">Finds the file, edits, merges &amp; deploys — revert anytime.</span>
+                <span className="text-[11px] text-white/45">Finds the file &amp; edits it &mdash; push live when you&rsquo;re ready.</span>
               </div>
             </div>
           </section>
@@ -453,7 +426,12 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
                     )}
                     <div className="mt-2 flex items-center gap-3">
                       <a href={item.pr_url} target="_blank" rel="noreferrer" className="text-[11px] font-semibold text-sky-300/80 hover:text-sky-200">Open PR →</a>
-                      {!isRevert && (
+                      {item.status === 'open' && (
+                        <button type="button" onClick={() => pushLive(item.pr_number)} disabled={pushingPr === item.pr_number} className="text-[11px] font-semibold text-emerald-300/90 hover:text-emerald-200 disabled:opacity-50 inline-flex items-center gap-1">
+                          {pushingPr === item.pr_number ? <span className="lc-cook">🍳</span> : '🚀'} Push live
+                        </button>
+                      )}
+                      {item.status === 'merged' && !isRevert && (
                         <button type="button" onClick={() => revert(item)} disabled={revertingId === item.id} className="text-[11px] font-semibold text-rose-300/80 hover:text-rose-200 disabled:opacity-50 inline-flex items-center gap-1">
                           {revertingId === item.id ? <span className="lc-cook">🍳</span> : '↩️'} Revert
                         </button>
