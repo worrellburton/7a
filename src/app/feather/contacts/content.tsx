@@ -104,9 +104,10 @@ interface ColumnDef {
 
 const ALL_COLUMNS: ColumnDef[] = [
   // Column order locked in by admissions:
-  //   Name → Rating → Site → Company → Type → Specialty/Focus → Contact → Location → Notes → Role/Relation
-  // Rating leads (right after Name) so the tier qualifier is the
-  // first thing you see. Site → Company → Type → Specialty / Focus
+  //   Name → Last contact → Rating → Site → Company → Type → Specialty/Focus → Contact → Location → Notes → Role/Relation
+  // Last contact leads (right after Name) so the most recent touch is
+  // the first thing you read — it used to be pinned far right in the
+  // sticky "engagement" cell. Rating follows. Site → Company → Type → Specialty / Focus
   // sit as a contiguous "who is this contact / what do they do" block —
   // the four columns are intentionally adjacent so the eye reads them
   // as one identity strip and admissions can't reorder them apart
@@ -116,6 +117,11 @@ const ALL_COLUMNS: ColumnDef[] = [
   // right end. Contact history + Actions are sticky on the right
   // (rendered outside this array).
   { key: 'name', label: 'Name' },
+  // The last-contact summary, relocated out of the old sticky-right
+  // "engagement" cell to sit right after Name. Rendered as a normal
+  // (scrolling, reorderable, resizable) column whose cell carries the
+  // log-a-contact button + last-contact summary + history expander.
+  { key: 'engagement', label: 'Last contact' },
   { key: 'rating', label: 'Rating' },
   { key: 'website', label: 'Site', align: 'left' },
   { key: 'company', label: 'Company' },
@@ -357,6 +363,7 @@ function sortValue(c: Contact, key: string): string | number | null {
     case 'last_contact_at':
     case 'time_since':
     case 'last_contact_summary':
+    case 'engagement':
       return c.last_contact_at ? new Date(c.last_contact_at).getTime() : null;
     case 'last_contact_by_name': return c.last_contact_by_name || null;
     case 'follow_up':
@@ -543,7 +550,7 @@ export default function ContactsContent() {
   // the row admissions just touched sits at the top. The Contact
   // history column is sticky on the right; clicking its header
   // toggles asc/desc on the same key.
-  const [sortKey, setSortKey] = useState<string>('last_contact_at');
+  const [sortKey, setSortKey] = useState<string>('engagement');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   function toggleSort(key: string) {
     if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -3033,25 +3040,14 @@ function ContactsGrid({
     },
     [rows, onToggleSelectMany, onToggleSelectOne],
   );
-  // Trailing columns the user can't reorder/hide: Actions + the merged
-  // Last Contact summary + the action-menu expander. Was 5 (Actions,
-  // 3 trailing sticky-right cells (Actions + Contact history +
-  // 3-dot expander). The expander hugs right: 0, Contact history
-  // sits to its left, and Actions sits to the left of Contact history.
-  // Contact history is user-resizable so we read its live width from
-  // the columnWidths map to position Actions correctly.
-  // +1 for the leading checkbox column, +3 for the trailing sticky
-  // Actions / Contact-history summary / 3-dot expander columns.
-  const totalCols = columns.length + 4;
+  // The last-contact summary now lives inside `columns` (right after
+  // Name) instead of a trailing sticky cell, so the only fixed cells
+  // are the leading checkbox and the trailing 3-dot action expander.
+  // +1 for the checkbox, +1 for the expander.
+  const totalCols = columns.length + 2;
   const visibleIds = useMemo(() => rows.map((r) => r.id), [rows]);
   const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
   const someSelected = visibleIds.some((id) => selectedIds.has(id));
-  // The merged engagement column (Phase 1 of the column-merge
-  // overhaul) is a single sticky cell sitting between the 3-dot
-  // expander and the scrolling left columns. Width is resizable
-  // via the same column_widths plumbing; default 360px fits the
-  // last-contact summary + Contact button + chevron on one row.
-  const engagementWidth = columnWidths['engagement'] ?? DEFAULT_COL_WIDTHS_PX['engagement'];
 
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
 
@@ -3094,7 +3090,6 @@ function ContactsGrid({
             const w = columnWidths[c.key] ?? DEFAULT_COL_WIDTHS_PX[c.key] ?? 180;
             return <col key={c.key} style={{ width: `${w}px` }} />;
           })}
-          <col style={{ width: `${engagementWidth}px` }} />
           <col style={{ width: `${EXPANDER_COL_WIDTH_PX}px` }} />
         </colgroup>
         <thead className="bg-warm-bg/50 text-left text-[10px] uppercase tracking-wider text-foreground/55">
@@ -3140,30 +3135,10 @@ function ContactsGrid({
                 />
               </th>
             ))}
-            {/* Merged engagement column — Phase 1 of the
-                column-merge overhaul. Previously the table pinned
-                two separate sticky cells (Actions = "Contact"
-                button, Contact history = last-touch summary) +
-                the 3-dot expander. Reps were treating them as one
-                concept ("the contact panel") so we've collapsed
-                them into a single unified cell. The 3-dot
-                expander stays separate because its role is
-                different (row-level menu rather than the contact
-                workflow itself). Sorting still hits the merged
-                column's header — same last_contact_at sort the
-                history column used to drive. */}
-            <th
-              data-col-key="engagement"
-              style={{ right: `${EXPANDER_COL_WIDTH_PX}px` }}
-              onClick={() => onSort('last_contact_at')}
-              className="group/th sticky z-20 bg-[#faf8f5]/70 backdrop-blur-md backdrop-saturate-150 border-l border-white/40 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-3 py-2 whitespace-nowrap select-none cursor-pointer hover:text-foreground/80"
-            >
-              <span className="inline-flex items-center gap-1 truncate">
-                Contact
-                <SortIndicator active={sortKey === 'last_contact_at'} dir={sortDir} />
-              </span>
-              <ResizeHandle colKey="engagement" onResize={onResizeColumn} onCommit={onCommitColumnWidth} onStart={onResizeStart} onEnd={onResizeEnd} />
-            </th>
+            {/* Only the 3-dot action expander stays pinned right now —
+                the last-contact summary moved into `columns` (the
+                "engagement" key, right after Name) and scrolls with
+                the rest of the table. */}
             <th className="sticky right-0 z-20 bg-[#faf8f5]/70 backdrop-blur-md backdrop-saturate-150 px-3 py-2" />
           </tr>
         </thead>
@@ -3185,9 +3160,6 @@ function ContactsGrid({
                     />
                   </td>
                 ))}
-                <td className="px-3 py-3">
-                  <span className="block h-3 rounded bg-foreground/8 animate-pulse" style={{ width: '60%' }} />
-                </td>
                 <td className="px-3 py-3" />
               </tr>
             ))
@@ -3232,6 +3204,49 @@ function ContactsGrid({
                   />
                 </td>
                 {columns.map((col) => {
+                  if (col.key === 'engagement') {
+                    // The relocated last-contact panel: log-a-contact
+                    // button + the last-contact summary (click to expand
+                    // history) + chevron. Now a normal scrolling cell
+                    // right after Name rather than the old sticky-right
+                    // engagement column.
+                    return (
+                      <td
+                        key={col.key}
+                        data-no-row-select
+                        className={`px-3 py-2.5 align-middle transition-colors ${expandedDetailsId === c.id ? 'bg-warm-bg/50' : ''}`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => onContact(c)}
+                            aria-label="Log a contact"
+                            title="Log a contact"
+                            className="sa-log-button shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md bg-primary/10 text-primary text-[15px] leading-none border border-primary/20 hover:bg-primary/15 transition-colors"
+                          >
+                            <span aria-hidden>🪵</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => onHistory(c)}
+                            className="min-w-0 flex-1 flex items-start justify-between gap-2 text-left rounded-md px-1 -mx-1 hover:bg-warm-bg/60 transition-colors"
+                            title={expandedDetailsId === c.id ? 'Hide history' : 'Show contact history'}
+                            aria-expanded={expandedDetailsId === c.id}
+                          >
+                            <span className="min-w-0 flex-1">
+                              <LastContactSummaryCell contact={c} />
+                            </span>
+                            <span
+                              className={`shrink-0 mt-0.5 inline-flex items-center justify-center w-6 h-6 rounded-md border transition-all ${expandedDetailsId === c.id ? 'bg-foreground text-white border-foreground rotate-180' : 'bg-white text-foreground/55 border-black/10'}`}
+                              aria-hidden
+                            >
+                              <ChevronDownIcon />
+                            </span>
+                          </button>
+                        </div>
+                      </td>
+                    );
+                  }
                   if (col.key === 'notes') {
                     const isExpanded = expandedNotesId === c.id;
                     return (
@@ -3258,56 +3273,9 @@ function ContactsGrid({
                     </td>
                   );
                 })}
-                {/* Merged engagement cell — Phase 1. One sticky
-                    TD containing both the "Contact" action button
-                    (left) and the last-contact history summary +
-                    expand chevron (right). Same data sources as
-                    before the merge; the visual difference is
-                    that the cell now reads as a single panel
-                    instead of two adjacent stickies. */}
-                <td
-                  style={{ right: `${EXPANDER_COL_WIDTH_PX}px` }}
-                  // Solid (near-opaque) background instead of the old
-                  // backdrop-blur-md + backdrop-saturate-150. With 900+
-                  // rows each carrying its own sticky blurred cell, the
-                  // GPU re-blurred behind every cell on every scroll
-                  // frame and the grid visibly janked (~20-30 FPS in
-                  // the blur region). 95% opacity keeps the frosted
-                  // look without any per-frame filter work.
-                  className={`sa-engagement-cell sticky z-10 border-l border-black/5 shadow-[-8px_0_16px_-12px_rgba(0,0,0,0.18)] px-3 py-2.5 transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white/95 group-hover:bg-white'} ${expandedDetailsId === c.id ? 'sa-engagement-cell-active' : ''}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => onContact(c)}
-                      aria-label="Log a contact"
-                      title="Log a contact"
-                      className="sa-log-button shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md bg-primary/10 text-primary text-[15px] leading-none border border-primary/20 hover:bg-primary/15 transition-colors"
-                    >
-                      <span aria-hidden>🪵</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onHistory(c)}
-                      className="min-w-0 flex-1 flex items-start justify-between gap-2 text-left rounded-md px-1 -mx-1 hover:bg-warm-bg/60 transition-colors"
-                      title={expandedDetailsId === c.id ? 'Hide history' : 'Show contact history'}
-                      aria-expanded={expandedDetailsId === c.id}
-                    >
-                      <span className="min-w-0 flex-1">
-                        <LastContactSummaryCell contact={c} />
-                      </span>
-                      <span
-                        className={`shrink-0 mt-0.5 inline-flex items-center justify-center w-6 h-6 rounded-md border transition-all ${expandedDetailsId === c.id ? 'bg-foreground text-white border-foreground rotate-180' : 'bg-white text-foreground/55 border-black/10'}`}
-                        aria-hidden
-                      >
-                        <ChevronDownIcon />
-                      </span>
-                    </button>
-                  </div>
-                </td>
-                {/* Solid background — same per-row backdrop-blur
-                    removal as the engagement cell above; see the
-                    comment there for the scroll-FPS rationale. */}
+                {/* Only the 3-dot action menu stays pinned right; the
+                    last-contact panel moved into the scrolling columns
+                    above (the "engagement" column, right after Name). */}
                 <td className={`sticky right-0 z-10 px-2 py-2.5 text-right transition-colors ${isNewToUser(c) ? 'bg-[#fbf2ed] group-hover:bg-[#f7e8df]' : 'bg-white/95 group-hover:bg-white'}`}>
                   <button
                     type="button"
