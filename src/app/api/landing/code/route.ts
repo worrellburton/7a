@@ -117,7 +117,7 @@ The admin focuses on a page; its current source is provided to you, sometimes wi
 - If you genuinely can't find the target or the request is ambiguous, reply with a short plain-English question or explanation (no tool call) instead of guessing.
 
 Editing rules:
-- You may ONLY edit public-website files: src/app/(site)/** and src/components/landing/**. Never edit anything else (never the Feather app, API routes, or libs).
+- You may edit ANY public-website source file: the routes under src/app/(site)/** and ANY component under src/components/** (e.g. src/components/Hero.tsx, Footer, Header, and the marketing section folders). You may NOT edit the Feather admin app (src/app/feather/**), the backend API routes (src/app/api/**), the auth callbacks (src/app/auth/**), or the shared libraries (src/lib/**).
 - Each edit is an exact-match replacement: old_string MUST appear in the file byte-for-byte (including indentation) and MUST be unique — include enough surrounding context.
 - Preserve the existing code style, imports, and TypeScript types; keep the JSX/TSX valid. Don't remove "use client", props, or types still in use.
 - Make the smallest change that satisfies the request. Write pr_title and summary in plain language an admin understands.`;
