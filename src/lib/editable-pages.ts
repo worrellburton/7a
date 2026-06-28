@@ -11,6 +11,7 @@
 // list the server fetches via the GitHub tree API.
 
 export const LANDING_ROUTE = 'treatment/residential-inpatient';
+export const HOME_ROUTE = ''; // the site root, src/app/(site)/page.tsx
 
 const SITE_PAGE_RE = /^src\/app\/\(site\)\/(?:.+\/)?page\.tsx$/;
 const SITE_EDITABLE_RE = /^src\/app\/\(site\)\/(?:.+\/)?(?:page|content)\.tsx$/;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/api-gates';
-import { isEditablePath, buildEditablePages, LANDING_ROUTE } from '@/lib/editable-pages';
+import { isEditablePath, buildEditablePages, HOME_ROUTE } from '@/lib/editable-pages';
 import {
   loadGithubConfig,
   GithubNotConfiguredError,
@@ -141,12 +141,12 @@ export async function POST(req: NextRequest) {
   try {
     // 1. Resolve which page(s) to edit → their source files. Build the
     //    sitemap from the repo tree so keys map to real files; default to
-    //    the landing page when nothing was picked. Boundary-checked so we
+    //    the home page when nothing was picked. Boundary-checked so we
     //    only ever touch public-site files (never Feather).
     const registry = await getTreePaths(cfg, BASE_BRANCH).then(buildEditablePages);
     const chosen = selectedKeys.length > 0
       ? registry.filter((p) => selectedKeys.includes(p.key))
-      : registry.filter((p) => p.key === LANDING_ROUTE);
+      : registry.filter((p) => p.key === HOME_ROUTE);
     const targetPaths = Array.from(new Set(chosen.flatMap((p) => p.files))).filter(isEditablePath);
     if (targetPaths.length === 0) {
       return NextResponse.json({ error: 'No editable pages were selected.' }, { status: 400 });
