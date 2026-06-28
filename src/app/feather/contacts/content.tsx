@@ -7584,6 +7584,7 @@ function LogContactModal({
       title={`Log a contact with ${contact.name}`}
       eyebrow="Outreach"
       onClose={onClose}
+      wide
     >
       <form
         onSubmit={async (e) => {
@@ -7596,10 +7597,14 @@ function LogContactModal({
           }
         }}
       >
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-6 py-5">
+          <div className="grid grid-cols-1 md:grid-cols-[18rem_minmax(0,1fr)] gap-6 items-start">
+          {/* Left rail — pick the method. */}
           <ModalField label="Method" required>
-            <ContactMethodPicker value={method} onChange={setMethod} />
+            <ContactMethodPicker value={method} onChange={setMethod} columns={2} />
           </ModalField>
+          {/* Right — everything else about the touch. */}
+          <div className="space-y-4 min-w-0">
           <ModalField label="Duration" hint="Optional. How long was the call / conversation, in minutes? Leave blank for texts, emails, or left messages.">
             <div className="flex items-center gap-2">
               <input
@@ -7717,6 +7722,8 @@ function LogContactModal({
               </div>
             )}
           </div>
+          </div>{/* right column */}
+          </div>{/* two-column grid */}
         </div>
         <ModalFooter
           submitting={submitting}
@@ -8598,17 +8605,20 @@ function ModalShell({
   eyebrow,
   onClose,
   children,
+  wide = false,
 }: {
   title: string;
   eyebrow: string;
   onClose: () => void;
   children: React.ReactNode;
+  // Landscape modal — a roomier max-width for two-column layouts.
+  wide?: boolean;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-6" onClick={onClose}>
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 pb-[env(safe-area-inset-bottom)]"
+        className={`w-full ${wide ? 'sm:max-w-4xl' : 'sm:max-w-3xl'} max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-white shadow-2xl ring-1 ring-black/10 pb-[env(safe-area-inset-bottom)]`}
       >
         {/* Drag handle hint — purely visual, signals 'this is a sheet'. */}
         <div className="sm:hidden pt-2 pb-1 flex justify-center">
