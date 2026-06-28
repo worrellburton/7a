@@ -149,6 +149,42 @@ export async function mergeIntoBranch(cfg: GithubConfig, base: string, head: str
   });
 }
 
+// Find the Vercel preview deployment URL for a branch/ref. Vercel posts
+// a GitHub Deployment (+ deployment_status carrying the live preview URL)
+// for every pushed branch, so we read it back from GitHub — no Vercel
+// token needed. Returns the preview URL, or null if none is ready yet
+// (still building, or Vercel isn't reporting deployments for previews).
+export async function getPreviewUrl(cfg: GithubConfig, ref: string): Promise<string | null> {
+  // 1. Deployments for this ref — the deployment_status.environment_url
+  //    is the actual clickable preview URL.
+  try {
+    const deployments = await gh<Array<{ id: number }>>(
+      cfg,
+      `/repos/${cfg.owner}/${cfg.repo}/deployments?ref=${encodeURIComponent(ref)}&per_page=10`,
+    );
+    for (const d of deployments) {
+      const statuses = await gh<Array<{ state: string; environment_url?: string; target_url?: string }>>(
+        cfg,
+        `/repos/${cfg.owner}/${cfg.repo}/deployments/${d.id}/statuses?per_page=20`,
+      );
+      const ok = statuses.find((s) => s.state === 'success' && (s.environment_url || s.target_url));
+      if (ok) return ok.environment_url || ok.target_url || null;
+    }
+  } catch { /* fall through to commit statuses */ }
+  // 2. Fallback: the combined commit status (older Vercel integration).
+  try {
+    const data = await gh<{ statuses?: Array<{ state: string; target_url?: string; context?: string }> }>(
+      cfg,
+      `/repos/${cfg.owner}/${cfg.repo}/commits/${encodeURIComponent(ref)}/status`,
+    );
+    const vercel = (data.statuses ?? []).find(
+      (s) => /vercel/i.test(s.context ?? '') && s.state === 'success' && s.target_url,
+    );
+    if (vercel?.target_url) return vercel.target_url;
+  } catch { /* none available */ }
+  return null;
+}
+
 // Most-recent PRs (state=all) so the history panel can show whether each
 // tool-opened PR is still open, was merged, or was closed. One call,
 // best-effort — callers tolerate failure (no token / network).

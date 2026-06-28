@@ -367,7 +367,7 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await gate.admin
     .from('landing_code_requests')
-    .select('id, pr_number, pr_url, title, summary, changed_files, requested_by_name, requested_by_email, reverts_pr_number, created_at')
+    .select('id, pr_number, pr_url, title, summary, changed_files, branch, requested_by_name, requested_by_email, reverts_pr_number, created_at')
     .order('created_at', { ascending: false })
     .limit(50);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
