@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/api-gates';
+import { requireCodeAccess } from '@/lib/api-gates';
 import {
   loadGithubConfig,
   GithubNotConfiguredError,
@@ -21,7 +21,7 @@ export const maxDuration = 60;
 const BASE_BRANCH = process.env.GITHUB_BASE_BRANCH || 'main';
 
 export async function POST(req: NextRequest) {
-  const gate = await requireAdmin(req);
+  const gate = await requireCodeAccess(req);
   if (gate instanceof NextResponse) return gate;
 
   let cfg;

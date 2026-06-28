@@ -71,7 +71,10 @@ function videoPoster(v: SiteVideo, imagesById: Map<string, SiteImage>): string |
 }
 
 export default function LandingContent() {
-  const { user, session, isAdmin } = useAuth();
+  const { user, session, isAdmin, isSuperAdmin, isCodeAdmin } = useAuth();
+  // The Code tab is restricted to super admins + the "Code" admin type
+  // (NOT general admins). The Hero-videos editor stays admin-visible.
+  const canUseCode = isSuperAdmin || isCodeAdmin;
   const modal = useModal();
   const [available, setAvailable] = useState<SiteVideo[]>([]);
   const [timeline, setTimeline] = useState<SiteVideo[]>([]);
@@ -98,10 +101,10 @@ export default function LandingContent() {
   // can be bookmarked / shared. Gated on isAdmin (Code is admin-only).
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    if (isAdmin && new URLSearchParams(window.location.search).get('tab') === 'code') {
+    if (canUseCode && new URLSearchParams(window.location.search).get('tab') === 'code') {
       setTopTab('code');
     }
-  }, [isAdmin]);
+  }, [canUseCode]);
   const selectTab = useCallback((t: 'heroes' | 'code') => {
     setTopTab(t);
     if (typeof window === 'undefined') return;
@@ -473,7 +476,7 @@ export default function LandingContent() {
       {/* Code tab is admin-only (it commits source + opens PRs); the
           hero editor stays open to the Marketing department. */}
       <div className="mb-5 inline-flex items-center rounded-lg border border-black/10 bg-warm-bg/40 p-0.5 gap-0.5" role="tablist" aria-label="Landing editor mode">
-        {(isAdmin ? (['heroes', 'code'] as const) : (['heroes'] as const)).map((t) => (
+        {(canUseCode ? (['heroes', 'code'] as const) : (['heroes'] as const)).map((t) => (
           <button
             key={t}
             type="button"
@@ -486,7 +489,7 @@ export default function LandingContent() {
           </button>
         ))}
       </div>
-      {topTab === 'code' && isAdmin ? (
+      {topTab === 'code' && canUseCode ? (
         <LandingCodePanel token={session?.access_token ?? null} />
       ) : (
       <>

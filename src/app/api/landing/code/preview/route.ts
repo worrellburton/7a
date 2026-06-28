@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/api-gates';
+import { requireCodeAccess } from '@/lib/api-gates';
 import { loadGithubConfig, GithubNotConfiguredError, getPreviewUrl } from '@/lib/github-edit';
 
 // GET /api/landing/code/preview?branch=<branch> — return the Vercel
@@ -12,7 +12,7 @@ export const runtime = 'nodejs';
 export const maxDuration = 30;
 
 export async function GET(req: NextRequest) {
-  const gate = await requireAdmin(req);
+  const gate = await requireCodeAccess(req);
   if (gate instanceof NextResponse) return gate;
 
   let cfg;
