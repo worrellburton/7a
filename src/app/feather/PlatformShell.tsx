@@ -1244,7 +1244,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             (collapsed) to w-64 (expanded) on hover. Glass treatment
             lives here now so the column-only collapsed state still
             shows the frosted background behind the icons. */}
-        <div className="absolute inset-y-0 left-0 w-16 group-hover/sidebar:w-64 rail-open:w-64 transition-[width] duration-200 ease-out overflow-hidden bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-2xl border-r border-white/60 flex flex-col shadow-[0_0_0_0_rgba(0,0,0,0)] group-hover/sidebar:shadow-[0_18px_48px_-22px_rgba(60,48,42,0.32)] rail-open:shadow-[0_18px_48px_-22px_rgba(60,48,42,0.32)]">
+        <div data-rail-panel className="absolute inset-y-0 left-0 w-16 group-hover/sidebar:w-64 rail-open:w-64 transition-[width] duration-200 ease-out overflow-hidden bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-2xl border-r border-white/60 flex flex-col shadow-[0_0_0_0_rgba(0,0,0,0)] group-hover/sidebar:shadow-[0_18px_48px_-22px_rgba(60,48,42,0.32)] rail-open:shadow-[0_18px_48px_-22px_rgba(60,48,42,0.32)]">
         {/* Glass treatment — semi-transparent white, heavy backdrop
             blur, an inner specular sheen line at the top and a
             subtle vertical gradient that fades down so the panel
@@ -1750,7 +1750,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             scrollable and iOS Safari hijacks pinch-to-zoom-out as a
             swipe-back, leaving the user "zoomed in" with no escape. */}
         {/* Mobile top bar */}
-        <div className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-14 bg-white/90 backdrop-blur border-b border-gray-100">
+        <div data-mobile-topbar className="lg:hidden sticky top-0 z-30 flex items-center justify-between px-4 h-14 bg-white/90 backdrop-blur border-b border-gray-100">
           <button
             onClick={() => setMobileMenuOpen(true)}
             aria-label="Open menu"
