@@ -17,6 +17,29 @@ import type { Layout, LayoutBlock } from '@/lib/content-claude';
 //   webgl_animation    — Three.js-free canvas animation, one of 3 scenes
 //   callout            — info / note / warning banner
 
+// Blog images are stored as full-size PNGs in Supabase Storage (often
+// 1–2 MB each — the AI generators emit big PNGs). Supabase's image-
+// transformation endpoint resizes + re-encodes them on the fly and
+// content-negotiates WebP/AVIF from the browser's Accept header, turning
+// a ~1.4 MB hero PNG into ~25 KB. We rewrite the public object URL to the
+// render/image URL at display time, so existing AND future posts get
+// optimized with zero re-upload. Non-Supabase (or already-transformed)
+// URLs pass through untouched.
+const SUPABASE_PUBLIC = '/storage/v1/object/public/';
+function optimizedSrc(url: string | undefined, width: number, quality = 75): string {
+  if (!url || !url.includes(SUPABASE_PUBLIC)) return url ?? '';
+  const base = url.replace(SUPABASE_PUBLIC, '/storage/v1/render/image/public/');
+  return `${base}${base.includes('?') ? '&' : '?'}width=${width}&quality=${quality}`;
+}
+// Responsive srcset across the widths the ~720px (max-w-3xl) article can
+// need at 1x/2x DPR. Undefined for non-Supabase URLs so <img> just uses src.
+const IMG_WIDTHS = [480, 720, 1080, 1440];
+function optimizedSrcSet(url: string | undefined, quality = 75): string | undefined {
+  if (!url || !url.includes(SUPABASE_PUBLIC)) return undefined;
+  return IMG_WIDTHS.map((w) => `${optimizedSrc(url, w, quality)} ${w}w`).join(', ');
+}
+const IMG_SIZES = '(max-width: 768px) 100vw, 720px';
+
 export const ICONS: Record<string, ReactElement> = {
   compass: (
     <svg viewBox="0 0 64 64" className="w-full h-full" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -345,7 +368,9 @@ function RenderBlock({ block }: { block: LayoutBlock }) {
             // aspect-[16/9] still owns the actual render size.
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={block.image.url}
+              src={optimizedSrc(block.image.url, 1080)}
+              srcSet={optimizedSrcSet(block.image.url)}
+              sizes={IMG_SIZES}
               alt={block.image.alt}
               width={1600}
               height={900}
@@ -371,7 +396,9 @@ function RenderBlock({ block }: { block: LayoutBlock }) {
               article scrolls. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={block.url}
+            src={optimizedSrc(block.url, 1080)}
+            srcSet={optimizedSrcSet(block.url)}
+            sizes={IMG_SIZES}
             alt={block.alt}
             width={1200}
             height={800}
