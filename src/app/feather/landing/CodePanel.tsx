@@ -4,21 +4,27 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fileLabel, GROUP_ORDER, HOME_ROUTE } from '@/lib/editable-pages';
 import SpaceBackground from './SpaceBackground';
 
-// Landing → Code tab. The admin describes a change to the public
-// landing page (optionally pasting screenshots); the server has Claude
-// propose surgical source edits, opens a PR for review, and records it
-// so this panel can show a history + offer a one-click revert. Themed
-// as a "space console" — deliberately unlike the rest of Feather.
+// Landing → Code tab. A Claude-Code-style chat for the public website:
+// describe a change (optionally with screenshots), and the agent finds
+// the right file across the whole site, edits it, then merges + deploys.
+// Iterate with follow-ups; every change is logged and one-click revertable.
+// Themed as a "space console" — deliberately unlike the rest of Feather.
 
-interface CodeResult {
-  ok: true;
+interface ChangeResult {
   summary: string;
   prUrl: string;
   prNumber: number;
-  branch: string;
   changedFiles: string[];
   deployed?: boolean;
   deployNote?: string | null;
+}
+interface ChatMsg {
+  id: string;
+  role: 'user' | 'assistant';
+  text?: string;
+  images?: string[];        // preview data URLs (user turns)
+  change?: ChangeResult;    // a deployed change (assistant turns)
+  error?: boolean;
 }
 interface HistoryItem {
   id: string;
@@ -37,12 +43,16 @@ interface PastedImage { id: string; media_type: string; data: string; preview: s
 interface SitePageLite { key: string; route: string; label: string; group: string }
 
 const COOKING_LINES = [
-  'Reading the page…',
+  'Finding the right file…',
+  'Reading the source…',
   'Stirring the components…',
   'Whisking up some JSX…',
-  'Letting the edits simmer…',
-  'Plating the pull request…',
+  'Plating the change…',
+  'Merging & deploying…',
 ];
+
+let msgSeq = 0;
+function newId() { msgSeq += 1; return `m${Date.now()}-${msgSeq}`; }
 
 function relTime(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
@@ -88,20 +98,20 @@ function fileToImage(file: File): Promise<PastedImage | null> {
 export default function LandingCodePanel({ token }: { token: string | null }) {
   const [instruction, setInstruction] = useState('');
   const [images, setImages] = useState<PastedImage[]>([]);
-  // Selected page keys (the sitemap). Home is the default target (set
-  // immediately so a submit before the sitemap loads still hits it).
+  const [messages, setMessages] = useState<ChatMsg[]>([]);
+  // Focused page key(s). Home is the default starting point; the agent can
+  // still reach any other page on its own via search.
   const [pages, setPages] = useState<Set<string>>(new Set([HOME_ROUTE]));
   const [sitePages, setSitePages] = useState<SitePageLite[]>([]);
   const [showScope, setShowScope] = useState(false);
   const [pageQuery, setPageQuery] = useState('');
   const [busy, setBusy] = useState(false);
   const [cookIdx, setCookIdx] = useState(0);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<CodeResult | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [revertingId, setRevertingId] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const threadRef = useRef<HTMLDivElement | null>(null);
 
   const authHeaders = useCallback(
     (): HeadersInit => ({ 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) }),
@@ -118,24 +128,26 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
 
   useEffect(() => { void loadHistory(); }, [loadHistory]);
 
-  // Load the sitemap of editable public pages once.
   useEffect(() => {
     (async () => {
       try {
         const res = await fetch('/api/landing/code/sitemap', { headers: authHeaders() });
         const json = await res.json().catch(() => ({}));
         if (res.ok && Array.isArray(json.pages)) setSitePages(json.pages as SitePageLite[]);
-      } catch { /* sitemap is non-critical — defaults to landing */ }
+      } catch { /* sitemap is non-critical — defaults to home */ }
     })();
   }, [authHeaders]);
 
-  // Universe mode: theme the whole Feather shell (rail + top bar) dark
-  // while the Code tab is open, so the space backdrop isn't cut off at
-  // the content edge. Cleared on unmount / tab switch.
+  // Universe mode: theme the whole Feather shell dark while open.
   useEffect(() => {
     document.body.classList.add('universe-mode');
     return () => document.body.classList.remove('universe-mode');
   }, []);
+
+  // Autoscroll the thread to the newest message.
+  useEffect(() => {
+    threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight, behavior: 'smooth' });
+  }, [messages, busy]);
 
   const groupedPages = useMemo(() => {
     const q = pageQuery.trim().toLowerCase();
@@ -155,11 +167,10 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
       ? (sitePages.find((p) => pages.has(p.key))?.label ?? ([...pages][0] === HOME_ROUTE ? 'Home' : [...pages][0]))
       : `${pages.size} pages`;
 
-  // Cycle the cooking lines while a request is in flight.
   useEffect(() => {
     if (!busy) return;
     setCookIdx(0);
-    const t = setInterval(() => setCookIdx((i) => (i + 1) % COOKING_LINES.length), 1800);
+    const t = setInterval(() => setCookIdx((i) => (i + 1) % COOKING_LINES.length), 1700);
     return () => clearInterval(t);
   }, [busy]);
 
@@ -177,10 +188,25 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
     });
   }
 
+  // Conversation context sent to the agent (text only; errors excluded).
+  function buildContextHistory(msgs: ChatMsg[]): Array<{ role: 'user' | 'assistant'; text: string }> {
+    return msgs
+      .filter((m) => !m.error)
+      .map((m) => {
+        if (m.role === 'user') return { role: 'user' as const, text: m.text ?? '' };
+        if (m.change) return { role: 'assistant' as const, text: `Made a change: ${m.change.summary} (changed ${m.change.changedFiles.map(fileLabel).join(', ') || 'files'}).` };
+        return { role: 'assistant' as const, text: m.text ?? '' };
+      })
+      .filter((m) => m.text.trim());
+  }
+
   async function submit() {
     const text = instruction.trim();
     if (!text || busy) return;
-    setBusy(true); setError(null); setResult(null);
+    const priorHistory = buildContextHistory(messages);
+    const sentImages = images;
+    setMessages((prev) => [...prev, { id: newId(), role: 'user', text, images: sentImages.map((im) => im.preview) }]);
+    setInstruction(''); setImages([]); setBusy(true);
     try {
       const res = await fetch('/api/landing/code', {
         method: 'POST',
@@ -188,16 +214,21 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
         body: JSON.stringify({
           instruction: text,
           pages: pages.size > 0 ? [...pages] : undefined,
-          images: images.map((im) => ({ media_type: im.media_type, data: im.data })),
+          images: sentImages.map((im) => ({ media_type: im.media_type, data: im.data })),
+          history: priorHistory,
         }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((json as { error?: string }).error ?? `Request failed (${res.status})`);
-      setResult(json as CodeResult);
-      setInstruction(''); setImages([]);
-      void loadHistory();
+      if (!res.ok) {
+        setMessages((prev) => [...prev, { id: newId(), role: 'assistant', error: true, text: (json as { error?: string }).error ?? `Request failed (${res.status})` }]);
+      } else if (json.kind === 'change') {
+        setMessages((prev) => [...prev, { id: newId(), role: 'assistant', change: json as ChangeResult }]);
+        void loadHistory();
+      } else {
+        setMessages((prev) => [...prev, { id: newId(), role: 'assistant', text: (json as { text?: string }).text ?? 'Done.' }]);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setMessages((prev) => [...prev, { id: newId(), role: 'assistant', error: true, text: e instanceof Error ? e.message : String(e) }]);
     } finally {
       setBusy(false);
     }
@@ -205,21 +236,42 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
 
   async function revert(item: HistoryItem) {
     if (revertingId) return;
-    if (!window.confirm(`Open a PR that reverts "${item.title}"?`)) return;
-    setRevertingId(item.id); setError(null);
+    if (!window.confirm(`Revert "${item.title}"? This opens + deploys an undo.`)) return;
+    setRevertingId(item.id);
     try {
       const res = await fetch('/api/landing/code/revert', {
         method: 'POST', headers: authHeaders(), body: JSON.stringify({ id: item.id }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((json as { error?: string }).error ?? `Revert failed (${res.status})`);
-      setResult({ ok: true, summary: json.deployed ? `Reverted "${item.title}".` : `Revert PR opened for "${item.title}".`, prUrl: json.prUrl, prNumber: json.prNumber, branch: json.branch, changedFiles: [], deployed: json.deployed, deployNote: json.deployNote });
-      void loadHistory();
+      if (!res.ok) {
+        setMessages((prev) => [...prev, { id: newId(), role: 'assistant', error: true, text: (json as { error?: string }).error ?? `Revert failed (${res.status})` }]);
+      } else {
+        setMessages((prev) => [...prev, { id: newId(), role: 'assistant', change: { summary: json.deployed ? `Reverted "${item.title}".` : `Revert PR opened for "${item.title}".`, prUrl: json.prUrl, prNumber: json.prNumber, changedFiles: [], deployed: json.deployed, deployNote: json.deployNote } }]);
+        void loadHistory();
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setMessages((prev) => [...prev, { id: newId(), role: 'assistant', error: true, text: e instanceof Error ? e.message : String(e) }]);
     } finally {
       setRevertingId(null);
     }
+  }
+
+  function ChangeCard({ c }: { c: ChangeResult }) {
+    return (
+      <div className="rounded-xl border border-emerald-400/40 bg-emerald-500/15 px-4 py-3">
+        <p className="text-[13px] font-semibold text-emerald-100 inline-flex items-center gap-1.5">
+          <span className="lc-pop">{c.deployed ? '🚀' : '✨'}</span>
+          {c.deployed ? `Deployed! PR #${c.prNumber} merged` : `Pull request #${c.prNumber} opened`}
+        </p>
+        <p className="text-[12.5px] text-white/80 mt-0.5">{c.summary}</p>
+        {c.deployed && <p className="text-[11.5px] text-emerald-200/80 mt-0.5">Live on the site in ~1–2 minutes.</p>}
+        {c.deployNote && <p className="text-[11.5px] text-amber-200/90 mt-0.5">{c.deployNote}</p>}
+        {c.changedFiles.length > 0 && (
+          <p className="text-[11.5px] text-white/50 mt-1">Changed: {c.changedFiles.map((f) => fileLabel(f)).join(', ')}</p>
+        )}
+        <a href={c.prUrl} target="_blank" rel="noreferrer" className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-[#0b1020] text-[11.5px] font-bold hover:bg-sky-100 transition-colors">View on GitHub →</a>
+      </div>
+    );
   }
 
   return (
@@ -228,140 +280,144 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
       <div aria-hidden className="pointer-events-none absolute inset-0 z-0 bg-gradient-to-b from-transparent via-transparent to-[#070815]" />
 
       <div className="relative z-10 px-4 sm:px-6 lg:px-10 py-8">
-        <header className="lc-in mb-6" style={{ animationDelay: '40ms' }}>
-          <p className="text-[11px] uppercase tracking-[0.28em] text-sky-300/70 mb-1">Marketing &amp; Admissions · Mission Control</p>
-          <h1 className="text-3xl font-bold text-white inline-flex items-center gap-2" style={{ fontFamily: 'var(--font-display)' }}>
-            <span className="lc-rocket">🚀</span> Landing &middot; Code
-          </h1>
-          <p className="mt-1.5 text-sm text-white/65 max-w-2xl">
-            Describe a change to the public landing page in plain English &mdash; paste screenshots if it helps.
-            Claude rewrites the page&rsquo;s code, then <strong className="text-white/90">merges &amp; deploys</strong> it
-            automatically. Every change is logged below, and you can revert any of them in one click.
-          </p>
+        <header className="lc-in mb-6 flex items-start justify-between gap-4 flex-wrap" style={{ animationDelay: '40ms' }}>
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.28em] text-sky-300/70 mb-1">Marketing &amp; Admissions · Mission Control</p>
+            <h1 className="text-3xl font-bold text-white inline-flex items-center gap-2" style={{ fontFamily: 'var(--font-display)' }}>
+              <span className="lc-rocket">🚀</span> Website &middot; Code
+            </h1>
+            <p className="mt-1.5 text-sm text-white/65 max-w-2xl">
+              Chat with Claude to change any public page. It finds the right file, edits the code, then
+              <strong className="text-white/90"> merges &amp; deploys</strong> automatically &mdash; keep replying to refine.
+              Every change is logged and one&#8209;click revertable.
+            </p>
+          </div>
+          {messages.length > 0 && (
+            <button type="button" onClick={() => setMessages([])} className="shrink-0 text-[11.5px] font-semibold text-white/55 hover:text-white/90 border border-white/15 rounded-lg px-3 py-1.5 hover:bg-white/5 transition-colors">
+              + New chat
+            </button>
+          )}
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 items-start">
-          {/* ── Composer ─────────────────────────────────────── */}
-          <section className="lc-in lc-glass lg:col-span-3 rounded-2xl p-5" style={{ animationDelay: '120ms' }}>
-            <label htmlFor="lc-instruction" className="block text-[10px] uppercase tracking-[0.2em] text-white/55 font-bold mb-2">
-              What should change?
-            </label>
-            <div
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={(e) => { e.preventDefault(); setDragOver(false); if (e.dataTransfer?.files?.length) void addFiles(e.dataTransfer.files); }}
-              className={`rounded-xl transition-shadow ${dragOver ? 'ring-2 ring-sky-400/70' : ''}`}
-            >
-              <textarea
-                id="lc-instruction"
-                value={instruction}
-                onChange={(e) => setInstruction(e.target.value)}
-                onPaste={(e) => {
-                  const imgs = Array.from(e.clipboardData?.items ?? []).filter((it) => it.type.startsWith('image/'));
-                  if (imgs.length) {
-                    e.preventDefault();
-                    void addFiles(imgs.map((it) => it.getAsFile()).filter((f): f is File => !!f));
-                  }
-                }}
-                rows={6}
-                placeholder={'e.g. "Make the hero headline punchier and shorten the subhead." — or paste a screenshot and say what to change.'}
-                className={`lc-input w-full rounded-xl px-3.5 py-3 text-[14px] leading-relaxed resize-y focus:outline-none ${instruction.trim() ? 'has-text' : ''}`}
-              />
-            </div>
-
-            {/* Screenshot thumbnails */}
-            {images.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {images.map((im) => (
-                  <div key={im.id} className="lc-thumb relative group">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={im.preview} alt="screenshot" className="h-16 w-16 object-cover rounded-lg border border-white/25" />
-                    <button
-                      type="button"
-                      onClick={() => setImages((prev) => prev.filter((x) => x.id !== im.id))}
-                      className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 text-white text-[11px] border border-white/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      aria-label="Remove screenshot"
-                    >×</button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="mt-3 flex items-center gap-4 flex-wrap">
-              <button type="button" onClick={() => fileInputRef.current?.click()} className="text-[11.5px] font-semibold text-sky-300/80 hover:text-sky-200 transition-colors inline-flex items-center gap-1.5">
-                <span>🖼️</span> Add / paste screenshot
-              </button>
-              <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ''; }} />
-              <button type="button" onClick={() => setShowScope((v) => !v)} className="text-[11.5px] font-semibold text-white/55 hover:text-white/85 transition-colors">
-                {showScope ? '▾' : '▸'} Page: <span className="text-sky-300/85">{pageSummary}</span>
-              </button>
-            </div>
-
-            {showScope && (
-              <div className="lc-in mt-2 rounded-xl border border-white/12 bg-white/[0.04] p-3">
-                <input
-                  value={pageQuery}
-                  onChange={(e) => setPageQuery(e.target.value)}
-                  placeholder="Search pages…"
-                  className="w-full mb-2 rounded-lg bg-white/10 border border-white/20 px-2.5 py-1.5 text-[12px] text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-sky-400/40"
-                />
-                <div className="max-h-64 overflow-y-auto pr-1 space-y-2.5">
-                  {sitePages.length === 0 ? (
-                    <p className="text-[11px] text-white/45">Sitemap unavailable — defaulting to the Landing page.</p>
-                  ) : groupedPages.map(([group, list]) => (
-                    <div key={group}>
-                      <p className="text-[9.5px] uppercase tracking-[0.18em] text-sky-300/60 font-bold mb-1">{group}</p>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
-                        {list.map((p) => (
-                          <label key={p.key} className="flex items-center gap-2 text-[12px] text-white/75 rounded-md px-2 py-1 hover:bg-white/5 cursor-pointer">
-                            <input type="checkbox" checked={pages.has(p.key)} onChange={() => togglePage(p.key)} className="accent-sky-400" />
-                            <span className="truncate" title={p.route}>{p.label}</span>
-                          </label>
+          {/* ── Chat ─────────────────────────────────────────── */}
+          <section className="lc-in lc-glass lg:col-span-3 rounded-2xl p-4 sm:p-5 flex flex-col" style={{ animationDelay: '120ms' }}>
+            {/* Thread */}
+            <div ref={threadRef} className="flex-1 overflow-y-auto max-h-[48vh] min-h-[120px] pr-1 space-y-3">
+              {messages.length === 0 ? (
+                <div className="h-full min-h-[120px] flex flex-col items-center justify-center text-center px-4">
+                  <p className="text-[28px] mb-1">🛰️</p>
+                  <p className="text-[13px] text-white/65 font-semibold">Tell me what to change on the site.</p>
+                  <p className="text-[12px] text-white/40 mt-1 max-w-sm">e.g. &ldquo;On the residential page, make the &lsquo;160 acres&rsquo; stat say 161&rdquo; — paste a screenshot if it helps.</p>
+                </div>
+              ) : messages.map((m) => (
+                <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`lc-card max-w-[88%] rounded-2xl px-3.5 py-2.5 ${
+                    m.role === 'user'
+                      ? 'bg-sky-500/18 border border-sky-300/25 text-white'
+                      : m.error
+                        ? 'bg-rose-500/15 border border-rose-400/40 text-rose-100'
+                        : 'bg-white/[0.06] border border-white/12 text-white/90'
+                  }`}>
+                    {m.images && m.images.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {m.images.map((src, i) => (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img key={i} src={src} alt="screenshot" className="h-14 w-14 object-cover rounded-md border border-white/25" />
                         ))}
                       </div>
-                    </div>
-                  ))}
+                    )}
+                    {m.change ? <ChangeCard c={m.change} /> : <p className="text-[13px] leading-relaxed whitespace-pre-wrap">{m.text}</p>}
+                  </div>
                 </div>
-                <p className="text-[11px] text-white/40 mt-2">Pick one or more pages to edit. Landing is selected by default.</p>
-              </div>
-            )}
-
-            <div className="mt-5 flex items-center gap-3 flex-wrap">
-              <button
-                type="button"
-                onClick={submit}
-                disabled={busy || !instruction.trim()}
-                className="lc-launch relative px-5 py-2.5 rounded-xl text-[13.5px] font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
-              >
-                {busy ? <><span className="lc-cook">🍳</span> Cooking…</> : <><span>🚀</span> Launch &amp; deploy</>}
-              </button>
-              {busy ? (
-                <span className="lc-fade text-[12px] text-sky-200/80">{COOKING_LINES[cookIdx]}</span>
-              ) : (
-                <span className="text-[11px] text-white/45">Merges + deploys automatically — revert anytime.</span>
+              ))}
+              {busy && (
+                <div className="flex justify-start">
+                  <div className="rounded-2xl px-3.5 py-2.5 bg-white/[0.06] border border-white/12 inline-flex items-center gap-2">
+                    <span className="lc-cook">🍳</span>
+                    <span className="lc-fade text-[12.5px] text-sky-200/85">{COOKING_LINES[cookIdx]}</span>
+                  </div>
+                </div>
               )}
             </div>
 
-            {error && <div className="lc-in mt-4 rounded-xl border border-rose-400/40 bg-rose-500/15 px-3.5 py-2.5 text-[12.5px] text-rose-100">{error}</div>}
-
-            {result && (
-              <div className="lc-in mt-4 rounded-xl border border-emerald-400/40 bg-emerald-500/15 px-4 py-3">
-                <p className="text-[13px] font-semibold text-emerald-100 inline-flex items-center gap-1.5">
-                  <span className="lc-pop">{result.deployed ? '🚀' : '✨'}</span>
-                  {result.deployed ? `Deployed! PR #${result.prNumber} merged` : `Pull request #${result.prNumber} opened`}
-                </p>
-                <p className="text-[12.5px] text-white/75 mt-0.5">{result.summary}</p>
-                {result.deployed && <p className="text-[11.5px] text-emerald-200/80 mt-0.5">Live on the site in ~1–2 minutes.</p>}
-                {result.deployNote && <p className="text-[11.5px] text-amber-200/90 mt-0.5">{result.deployNote}</p>}
-                {result.changedFiles.length > 0 && (
-                  <p className="text-[11.5px] text-white/50 mt-1">Changed: {result.changedFiles.map((f) => fileLabel(f)).join(', ')}</p>
-                )}
-                <a href={result.prUrl} target="_blank" rel="noreferrer" className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-[#0b1020] text-[11.5px] font-bold hover:bg-sky-100 transition-colors">{result.deployed ? 'View on GitHub →' : 'Review &amp; merge on GitHub →'}</a>
+            {/* Composer */}
+            <div className="mt-3 pt-3 border-t border-white/10">
+              {images.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-2">
+                  {images.map((im) => (
+                    <div key={im.id} className="lc-thumb relative group">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={im.preview} alt="screenshot" className="h-14 w-14 object-cover rounded-lg border border-white/25" />
+                      <button type="button" onClick={() => setImages((prev) => prev.filter((x) => x.id !== im.id))} className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-black/80 text-white text-[11px] border border-white/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" aria-label="Remove screenshot">×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => { e.preventDefault(); setDragOver(false); if (e.dataTransfer?.files?.length) void addFiles(e.dataTransfer.files); }}
+                className={`rounded-xl transition-shadow ${dragOver ? 'ring-2 ring-sky-400/70' : ''}`}
+              >
+                <textarea
+                  value={instruction}
+                  onChange={(e) => setInstruction(e.target.value)}
+                  onPaste={(e) => {
+                    const imgs = Array.from(e.clipboardData?.items ?? []).filter((it) => it.type.startsWith('image/'));
+                    if (imgs.length) { e.preventDefault(); void addFiles(imgs.map((it) => it.getAsFile()).filter((f): f is File => !!f)); }
+                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); void submit(); } }}
+                  rows={3}
+                  placeholder={messages.length ? 'Reply to refine, or describe another change…' : 'Describe a change — paste a screenshot if it helps. (⌘/Ctrl + Enter to send)'}
+                  className={`lc-input w-full rounded-xl px-3.5 py-3 text-[14px] leading-relaxed resize-y focus:outline-none ${instruction.trim() ? 'has-text' : ''}`}
+                />
               </div>
-            )}
+
+              <div className="mt-2.5 flex items-center gap-4 flex-wrap">
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="text-[11.5px] font-semibold text-sky-300/80 hover:text-sky-200 transition-colors inline-flex items-center gap-1.5">
+                  <span>🖼️</span> Add / paste screenshot
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/*" multiple hidden onChange={(e) => { if (e.target.files) void addFiles(e.target.files); e.target.value = ''; }} />
+                <button type="button" onClick={() => setShowScope((v) => !v)} className="text-[11.5px] font-semibold text-white/55 hover:text-white/85 transition-colors">
+                  {showScope ? '▾' : '▸'} Focus: <span className="text-sky-300/85">{pageSummary}</span>
+                </button>
+              </div>
+
+              {showScope && (
+                <div className="lc-in mt-2 rounded-xl border border-white/12 bg-white/[0.04] p-3">
+                  <input value={pageQuery} onChange={(e) => setPageQuery(e.target.value)} placeholder="Search pages…" className="w-full mb-2 rounded-lg bg-white/10 border border-white/20 px-2.5 py-1.5 text-[12px] text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-sky-400/40" />
+                  <div className="max-h-56 overflow-y-auto pr-1 space-y-2.5">
+                    {sitePages.length === 0 ? (
+                      <p className="text-[11px] text-white/45">Sitemap unavailable — defaulting to Home (the agent can still search the whole site).</p>
+                    ) : groupedPages.map(([group, list]) => (
+                      <div key={group}>
+                        <p className="text-[9.5px] uppercase tracking-[0.18em] text-sky-300/60 font-bold mb-1">{group}</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                          {list.map((p) => (
+                            <label key={p.key} className="flex items-center gap-2 text-[12px] text-white/75 rounded-md px-2 py-1 hover:bg-white/5 cursor-pointer">
+                              <input type="checkbox" checked={pages.has(p.key)} onChange={() => togglePage(p.key)} className="accent-sky-400" />
+                              <span className="truncate" title={p.route}>{p.label}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[11px] text-white/40 mt-2">Where to start looking. The agent searches the rest of the site if needed. Home by default.</p>
+                </div>
+              )}
+
+              <div className="mt-3 flex items-center gap-3 flex-wrap">
+                <button type="button" onClick={submit} disabled={busy || !instruction.trim()} className="lc-launch relative px-5 py-2.5 rounded-xl text-[13.5px] font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2">
+                  {busy ? <><span className="lc-cook">🍳</span> Cooking…</> : <><span>🚀</span> Send &amp; deploy</>}
+                </button>
+                <span className="text-[11px] text-white/45">Finds the file, edits, merges &amp; deploys — revert anytime.</span>
+              </div>
+            </div>
           </section>
 
-          {/* ── History ──────────────────────────────────────── */}
+          {/* ── Flight log ───────────────────────────────────── */}
           <aside className="lc-in lg:col-span-2" style={{ animationDelay: '200ms' }}>
             <div className="flex items-center justify-between mb-2 px-1">
               <h2 className="text-[11px] uppercase tracking-[0.2em] text-white/55 font-bold">Flight log</h2>
@@ -370,7 +426,7 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
             <div className="space-y-2.5">
               {history.length === 0 ? (
                 <div className="lc-glass rounded-2xl px-4 py-6 text-center text-[12.5px] text-white/45">
-                  No changes yet. Your launched PRs will log here 🛰️
+                  No changes yet. Your shipped changes will log here 🛰️
                 </div>
               ) : history.map((item, i) => {
                 const isRevert = item.reverts_pr_number != null;
@@ -419,7 +475,6 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
           border: 1px solid rgba(255, 255, 255, 0.16);
           box-shadow: 0 18px 50px -24px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.08);
         }
-        /* Glass-white input; typed text glows brighter than the placeholder. */
         .lc-input {
           background: rgba(255, 255, 255, 0.14);
           backdrop-filter: blur(18px);
@@ -450,7 +505,7 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
         .lc-launch:not(:disabled):active { transform: translateY(0); }
         @keyframes lc-shift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
         .lc-in { animation: lc-floatin 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
-        .lc-card { animation: lc-floatin 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
+        .lc-card { animation: lc-floatin 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
         @keyframes lc-floatin { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
         .lc-thumb { animation: lc-pop 0.3s cubic-bezier(0.22, 1, 0.36, 1) backwards; }
         .lc-rocket { display: inline-block; animation: lc-bob 3s ease-in-out infinite; }
@@ -461,9 +516,7 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
         .lc-fade { animation: lc-fadein 0.5s ease; }
         @keyframes lc-fadein { from { opacity: 0; } to { opacity: 1; } }
         @media (prefers-reduced-motion: reduce) {
-          .lc-in, .lc-card, .lc-thumb, .lc-rocket, .lc-cook, .lc-pop, .lc-launch, .lc-input.has-text {
-            animation: none !important;
-          }
+          .lc-in, .lc-card, .lc-thumb, .lc-rocket, .lc-cook, .lc-pop, .lc-launch, .lc-input.has-text { animation: none !important; }
         }
       `}</style>
     </div>

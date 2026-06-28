@@ -13,6 +13,7 @@ import {
   mergePullRequest,
   mergeIntoBranch,
   listRecentPullStates,
+  searchCode,
   applyEdits,
   type FileChange,
 } from '@/lib/github-edit';
@@ -89,18 +90,40 @@ const EDIT_TOOL = {
   },
 } as const;
 
-const SYSTEM_PROMPT = `You are a senior frontend engineer editing the SOURCE CODE of Seven Arrows Recovery's public marketing website, a Next.js + React + TypeScript + Tailwind app.
+const SYSTEM_PROMPT = `You are a coding agent editing the SOURCE CODE of Seven Arrows Recovery's public marketing website (Next.js + React + TypeScript + Tailwind). You work conversationally with a non-technical admin, like Claude Code.
 
-You will be given the current contents of one or more public page files, a plain-English change request from a non-technical admin, and optionally screenshots illustrating what they mean. Make the smallest change that satisfies the request.
+The admin focuses on a page; its current source is provided to you, sometimes with screenshots. To handle a request:
+- If the thing to change IS in the provided source, edit it directly with the propose_landing_edit tool.
+- If it is NOT there — the text, stat, or section lives on a different page or a shared component — use search_site to locate the file (search for distinctive on-page text or the component name), then read_page to read it, then propose_landing_edit.
+- If you genuinely can't find the target or the request is ambiguous, reply with a short plain-English question or explanation (no tool call) instead of guessing.
 
-Rules:
-- Only edit the files you were given. Never invent new file paths.
-- Return changes ONLY via the propose_landing_edit tool.
-- Each edit is an exact-match string replacement: old_string MUST appear in the file byte-for-byte (including whitespace/indentation) and MUST be unique — include enough surrounding context to guarantee uniqueness.
-- Preserve the existing code style, imports, and TypeScript types. Do not reformat unrelated code.
-- Keep the JSX/TSX valid. Do not remove "use client", props, or types that are still used.
-- If the request is ambiguous, make the most reasonable minimal interpretation and explain it in pr_body.
-- Write pr_title and summary in plain language an admin will understand.`;
+Editing rules:
+- You may ONLY edit public-website files: src/app/(site)/** and src/components/landing/**. Never edit anything else (never the Feather app, API routes, or libs).
+- Each edit is an exact-match replacement: old_string MUST appear in the file byte-for-byte (including indentation) and MUST be unique — include enough surrounding context.
+- Preserve the existing code style, imports, and TypeScript types; keep the JSX/TSX valid. Don't remove "use client", props, or types still in use.
+- Make the smallest change that satisfies the request. Write pr_title and summary in plain language an admin understands.`;
+
+const SEARCH_TOOL = {
+  name: 'search_site',
+  description: 'Search the public website source for distinctive on-page text (e.g. a phrase the admin quoted or showed in a screenshot) or a component name, to find which file to edit. Returns matching file paths.',
+  input_schema: {
+    type: 'object',
+    properties: { query: { type: 'string', description: 'Distinctive text or a component name to search for.' } },
+    required: ['query'],
+    additionalProperties: false,
+  },
+} as const;
+
+const READ_TOOL = {
+  name: 'read_page',
+  description: 'Read the full current source of a public-website file.',
+  input_schema: {
+    type: 'object',
+    properties: { path: { type: 'string', description: 'Repo path, e.g. src/components/landing/LandingHero.tsx' } },
+    required: ['path'],
+    additionalProperties: false,
+  },
+} as const;
 
 export async function POST(req: NextRequest) {
   const gate = await requireAdmin(req);
@@ -128,6 +151,7 @@ export async function POST(req: NextRequest) {
     instruction?: string;
     pages?: string[];
     images?: Array<{ media_type?: string; data?: string }>;
+    history?: Array<{ role?: string; text?: string }>;
   };
   const instruction = (body.instruction || '').trim();
   if (!instruction) return NextResponse.json({ error: 'Describe the change you want to make.' }, { status: 400 });
@@ -137,67 +161,101 @@ export async function POST(req: NextRequest) {
     .slice(0, 6) as Array<{ media_type: string; data: string }>;
 
   const selectedKeys = Array.isArray(body.pages) ? body.pages : [];
+  const history = (Array.isArray(body.history) ? body.history : [])
+    .filter((h): h is { role: 'user' | 'assistant'; text: string } =>
+      !!h && (h.role === 'user' || h.role === 'assistant') && typeof h.text === 'string' && !!h.text.trim())
+    .slice(-12);
 
   try {
-    // 1. Resolve which page(s) to edit → their source files. Build the
-    //    sitemap from the repo tree so keys map to real files; default to
-    //    the home page when nothing was picked. Boundary-checked so we
-    //    only ever touch public-site files (never Feather).
+    // Resolve the focused page(s) → inline their source as a starting hint.
+    // The agent can still SEARCH the rest of the site if the target lives
+    // elsewhere. Defaults to Home. Boundary: public-site files only.
     const registry = await getTreePaths(cfg, BASE_BRANCH).then(buildEditablePages);
     const chosen = selectedKeys.length > 0
       ? registry.filter((p) => selectedKeys.includes(p.key))
       : registry.filter((p) => p.key === HOME_ROUTE);
-    const targetPaths = Array.from(new Set(chosen.flatMap((p) => p.files))).filter(isEditablePath);
-    if (targetPaths.length === 0) {
-      return NextResponse.json({ error: 'No editable pages were selected.' }, { status: 400 });
-    }
+    const hintPaths = Array.from(new Set(chosen.flatMap((p) => p.files))).filter(isEditablePath).slice(0, 14);
+    const hintFiles = await Promise.all(hintPaths.map(async (path) => ({ path, ...(await getFile(cfg, path, BASE_BRANCH)) })));
+    const focusLabel = chosen.map((p) => p.label).join(', ') || 'Home';
 
-    // 2. Read the current source of the candidate files from `main`.
-    const files = await Promise.all(
-      targetPaths.map(async (path) => ({ path, ...(await getFile(cfg, path, BASE_BRANCH)) })),
-    );
-
-    // 2. Ask Claude for surgical edits (with any screenshots attached).
-    const promptText =
-      `Change request:\n${instruction}\n\n` +
-      (images.length > 0 ? `(${images.length} screenshot(s) attached above for reference.)\n\n` : '') +
-      `Here are the current landing files you may edit:\n\n` +
-      files.map((f) => `### ${f.path}\n\`\`\`tsx\n${f.content}\n\`\`\``).join('\n\n');
-    const userBlocks = [
-      ...images.map((im) => ({
-        type: 'image' as const,
-        source: { type: 'base64' as const, media_type: im.media_type, data: im.data },
-      })),
-      { type: 'text' as const, text: promptText },
+    // Build the conversation: prior text turns + the current request, with
+    // the focused page's source inline and any screenshots attached.
+    type Block = Record<string, unknown>;
+    const messages: Array<{ role: 'user' | 'assistant'; content: unknown }> =
+      history.map((h) => ({ role: h.role, content: [{ type: 'text', text: h.text }] }));
+    const currentText =
+      `Page in focus: ${focusLabel}\n\n` +
+      `Request: ${instruction}\n\n` +
+      (images.length > 0 ? `(${images.length} screenshot(s) attached for reference.)\n\n` : '') +
+      `Current source of the focused page (if the thing to change isn't here, search the rest of the site):\n\n` +
+      hintFiles.map((f) => `### ${f.path}\n\`\`\`tsx\n${f.content}\n\`\`\``).join('\n\n');
+    const userBlocks: Block[] = [
+      ...images.map((im) => ({ type: 'image', source: { type: 'base64', media_type: im.media_type, data: im.data } })),
+      { type: 'text', text: currentText },
     ];
+    messages.push({ role: 'user', content: userBlocks });
 
-    const claudeRes = await fetch(CLAUDE_API_URL, {
-      method: 'POST',
-      headers: { 'x-api-key': apiKey, 'anthropic-version': CLAUDE_VERSION, 'content-type': 'application/json' },
-      body: JSON.stringify({
-        model: process.env.ANTHROPIC_MODEL || DEFAULT_MODEL,
-        max_tokens: 16000,
-        system: SYSTEM_PROMPT,
-        tools: [EDIT_TOOL],
-        tool_choice: { type: 'tool', name: 'propose_landing_edit' },
-        messages: [{ role: 'user', content: userBlocks }],
-      }),
-    });
-    const claudeJson = (await claudeRes.json()) as {
-      content?: Array<{ type: string; name?: string; input?: unknown }>;
-      error?: { message?: string };
-    };
-    if (!claudeRes.ok) {
-      return NextResponse.json({ error: claudeJson.error?.message ?? `Claude HTTP ${claudeRes.status}` }, { status: 502 });
+    // Agentic loop: search_site → read_page → propose_landing_edit.
+    let proposal: ProposedEdit | null = null;
+    let assistantText = '';
+    for (let iter = 0; iter < 5; iter++) {
+      const claudeRes = await fetch(CLAUDE_API_URL, {
+        method: 'POST',
+        headers: { 'x-api-key': apiKey, 'anthropic-version': CLAUDE_VERSION, 'content-type': 'application/json' },
+        body: JSON.stringify({
+          model: process.env.ANTHROPIC_MODEL || DEFAULT_MODEL,
+          max_tokens: 16000,
+          system: SYSTEM_PROMPT,
+          tools: [SEARCH_TOOL, READ_TOOL, EDIT_TOOL],
+          messages,
+        }),
+      });
+      const cj = (await claudeRes.json()) as {
+        content?: Array<{ type: string; name?: string; id?: string; text?: string; input?: unknown }>;
+        error?: { message?: string };
+      };
+      if (!claudeRes.ok) return NextResponse.json({ error: cj.error?.message ?? `Claude HTTP ${claudeRes.status}` }, { status: 502 });
+      const content = cj.content ?? [];
+      messages.push({ role: 'assistant', content });
+      const toolUses = content.filter((b) => b.type === 'tool_use');
+      const edit = toolUses.find((b) => b.name === 'propose_landing_edit');
+      if (edit?.input) { proposal = edit.input as ProposedEdit; break; }
+      if (toolUses.length === 0) {
+        assistantText = content.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('\n').trim();
+        break;
+      }
+      const toolResults: Block[] = [];
+      for (const tu of toolUses) {
+        let resultText = '';
+        try {
+          const input = (tu.input ?? {}) as { query?: string; path?: string };
+          if (tu.name === 'search_site') {
+            const found = (await searchCode(cfg, String(input.query ?? ''))).filter(isEditablePath).slice(0, 15);
+            resultText = found.length ? `Matching files:\n${found.join('\n')}` : 'No matches found in the public website.';
+          } else if (tu.name === 'read_page') {
+            const path = String(input.path ?? '');
+            if (!isEditablePath(path)) resultText = 'That path is outside the editable public website.';
+            else { const f = await getFile(cfg, path, BASE_BRANCH); resultText = f.content.slice(0, 80000); }
+          } else {
+            resultText = 'Unknown tool.';
+          }
+        } catch (e) {
+          resultText = `Tool error: ${e instanceof Error ? e.message : String(e)}`;
+        }
+        toolResults.push({ type: 'tool_result', tool_use_id: tu.id ?? '', content: resultText });
+      }
+      messages.push({ role: 'user', content: toolResults });
     }
-    const toolBlock = (claudeJson.content ?? []).find((b) => b.type === 'tool_use' && b.name === 'propose_landing_edit');
-    if (!toolBlock?.input) {
-      return NextResponse.json({ error: 'Claude did not return any edits. Try rephrasing.' }, { status: 422 });
+
+    if (!proposal) {
+      return NextResponse.json({
+        kind: 'message',
+        text: assistantText || "I couldn't pin down what to change. Tell me which page it's on, or quote the exact text you want changed.",
+      });
     }
-    const proposal = toolBlock.input as ProposedEdit;
     const changes = Array.isArray(proposal.changes) ? proposal.changes : [];
     if (changes.length === 0) {
-      return NextResponse.json({ error: 'No file changes were proposed for that request.' }, { status: 422 });
+      return NextResponse.json({ kind: 'message', text: proposal.summary || "I didn't find anything to change for that." });
     }
 
     // 3. Validate + apply against fresh content from `main`.
@@ -220,7 +278,7 @@ export async function POST(req: NextRequest) {
       }
     }
     if (toCommit.length === 0) {
-      return NextResponse.json({ error: 'The proposed edits did not change anything.' }, { status: 422 });
+      return NextResponse.json({ kind: 'message', text: 'Those edits didn\'t actually change anything — it may already be the way you want it.' });
     }
 
     // 4. Branch, commit each file, open the PR into `main`.
@@ -282,7 +340,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      summary: proposal.summary || proposal.pr_title || 'Landing edit proposed.',
+      kind: 'change',
+      summary: proposal.summary || proposal.pr_title || 'Change made.',
       prUrl: pr.html_url,
       prNumber: pr.number,
       branch,
