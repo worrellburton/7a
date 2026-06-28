@@ -36,7 +36,26 @@ export const maxDuration = 60;
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_VERSION = '2023-06-01';
+// Pin the coding agent to the BEST available Claude model (most capable,
+// not a cheaper/faster tier) so edits are as reliable as possible. Bump
+// this one constant when a more capable model ships. An env override is
+// allowed for ops, but the default is always the top model.
 const DEFAULT_MODEL = 'claude-opus-4-8';
+function activeModel(): string {
+  return process.env.ANTHROPIC_MODEL || DEFAULT_MODEL;
+}
+// Friendly display names surfaced in the UI ("what model this is").
+const MODEL_LABELS: Record<string, string> = {
+  'claude-opus-4-8': 'Claude Opus 4.8',
+  'claude-opus-4-7': 'Claude Opus 4.7',
+  'claude-opus-4-6': 'Claude Opus 4.6',
+  'claude-sonnet-4-6': 'Claude Sonnet 4.6',
+  'claude-fable-5': 'Claude Fable 5',
+  'claude-haiku-4-5-20251001': 'Claude Haiku 4.5',
+};
+function modelLabel(id: string): string {
+  return MODEL_LABELS[id] || id;
+}
 const BASE_BRANCH = process.env.GITHUB_BASE_BRANCH || 'main';
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 
@@ -203,7 +222,7 @@ export async function POST(req: NextRequest) {
         method: 'POST',
         headers: { 'x-api-key': apiKey, 'anthropic-version': CLAUDE_VERSION, 'content-type': 'application/json' },
         body: JSON.stringify({
-          model: process.env.ANTHROPIC_MODEL || DEFAULT_MODEL,
+          model: activeModel(),
           max_tokens: 16000,
           system: SYSTEM_PROMPT,
           tools: [SEARCH_TOOL, READ_TOOL, EDIT_TOOL],
@@ -364,5 +383,6 @@ export async function GET(req: NextRequest) {
     ...r,
     status: states?.get(r.pr_number) ?? null,
   }));
-  return NextResponse.json({ items });
+  const model = activeModel();
+  return NextResponse.json({ items, model, modelLabel: modelLabel(model) });
 }

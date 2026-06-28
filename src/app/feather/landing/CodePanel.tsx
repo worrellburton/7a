@@ -101,6 +101,7 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
   const [busy, setBusy] = useState(false);
   const [cookIdx, setCookIdx] = useState(0);
   const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [modelLabel, setModelLabel] = useState<string | null>(null);
   const [revertingId, setRevertingId] = useState<string | null>(null);
   const [pushingPr, setPushingPr] = useState<number | null>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -117,6 +118,7 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
       const res = await fetch('/api/landing/code', { headers: authHeaders() });
       const json = await res.json().catch(() => ({}));
       if (res.ok && Array.isArray(json.items)) setHistory(json.items as HistoryItem[]);
+      if (res.ok && typeof json.modelLabel === 'string') setModelLabel(json.modelLabel as string);
     } catch { /* history is non-critical */ }
   }, [authHeaders]);
 
@@ -282,11 +284,19 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
         <header className="lc-in mb-6 flex items-start justify-between gap-4 flex-wrap" style={{ animationDelay: '40ms' }}>
           <div>
             <p className="text-[11px] uppercase tracking-[0.28em] text-sky-300/70 mb-1">Marketing &amp; Admissions · Mission Control</p>
-            <h1 className="text-3xl font-bold text-white" style={{ fontFamily: 'var(--font-display)' }}>
-              Website &middot; Code
-            </h1>
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <h1 className="text-3xl font-bold text-white" style={{ fontFamily: 'var(--font-display)' }}>
+                Website &middot; Code
+              </h1>
+              {/* Always the best (most capable) Claude — surfaced so it's
+                  obvious which model is doing the work. */}
+              <span className="lc-model-pill inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold text-sky-100" title="Always runs on the most capable Claude model available.">
+                <span className="lc-model-dot" aria-hidden />
+                {modelLabel ?? 'Claude'} &middot; best model
+              </span>
+            </div>
             <p className="mt-1.5 text-sm text-white/65 max-w-2xl">
-              Chat with Claude to change any public page. It finds the right file and edits the code &mdash; then
+              Chat with {modelLabel ?? 'Claude'} to change any public page. It finds the right file and edits the code &mdash; then
               you press <strong className="text-white/90">Push live</strong> to merge &amp; deploy it.
               Keep replying to refine. Every change is logged and one&#8209;click revertable.
             </p>
@@ -493,8 +503,22 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
         @keyframes lc-pop { 0% { transform: scale(0.4); opacity: 0; } 60% { transform: scale(1.2); } 100% { transform: scale(1); opacity: 1; } }
         .lc-fade { animation: lc-fadein 0.5s ease; }
         @keyframes lc-fadein { from { opacity: 0; } to { opacity: 1; } }
+        .lc-model-pill {
+          background: linear-gradient(135deg, rgba(109, 40, 217, 0.28), rgba(14, 165, 233, 0.22));
+          border: 1px solid rgba(125, 211, 252, 0.35);
+          box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.08), 0 8px 24px -14px rgba(56, 189, 248, 0.7);
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+        }
+        .lc-model-dot {
+          width: 7px; height: 7px; border-radius: 9999px;
+          background: #34d399;
+          box-shadow: 0 0 8px 1px rgba(52, 211, 153, 0.85);
+          animation: lc-modelpulse 2s ease-in-out infinite;
+        }
+        @keyframes lc-modelpulse { 0%, 100% { opacity: 0.65; transform: scale(0.9); } 50% { opacity: 1; transform: scale(1.15); } }
         @media (prefers-reduced-motion: reduce) {
-          .lc-in, .lc-card, .lc-thumb, .lc-rocket, .lc-cook, .lc-pop, .lc-launch, .lc-input.has-text { animation: none !important; }
+          .lc-in, .lc-card, .lc-thumb, .lc-rocket, .lc-cook, .lc-pop, .lc-launch, .lc-input.has-text, .lc-model-dot { animation: none !important; }
         }
       `}</style>
     </div>
