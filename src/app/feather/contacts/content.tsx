@@ -3940,7 +3940,7 @@ const ContactCell = memo(function ContactCell({
   switch (column.key) {
     case 'name':
       return (
-        <div className="group/name">
+        <div>
           <div className="flex items-center gap-1.5 min-w-0">
             <EditableTextCell
               value={contact.name}
@@ -3961,8 +3961,9 @@ const ContactCell = memo(function ContactCell({
                 <span aria-hidden>✕</span> Unsubscribed
               </span>
             )}
-            {/* Log-a-contact, revealed on name hover. Replaces the
-                always-on log button the engagement column used to carry. */}
+            {/* Log-a-contact, revealed whenever the row is highlighted
+                (hovered). Replaces the always-on log button the
+                engagement column used to carry. */}
             {onLogContact && (
               <button
                 type="button"
@@ -3970,9 +3971,9 @@ const ContactCell = memo(function ContactCell({
                 onClick={(e) => { e.stopPropagation(); onLogContact(contact); }}
                 aria-label="Log a contact"
                 title="Log a contact"
-                className="sa-log-button shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md bg-primary/10 text-primary text-[13px] leading-none border border-primary/20 opacity-0 group-hover/name:opacity-100 focus:opacity-100 hover:bg-primary/15 transition-opacity"
+                className="sa-log-button shrink-0 inline-flex items-center gap-1 h-6 px-1.5 rounded-md bg-primary/10 text-primary text-[10px] font-semibold uppercase tracking-wide leading-none border border-primary/20 opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-primary/15 transition-opacity"
               >
-                <span aria-hidden>🪵</span>
+                <span aria-hidden className="text-[12px]">🪵</span> Log
               </button>
             )}
           </div>
@@ -6508,8 +6509,11 @@ function LastContactSummaryCell({ contact }: { contact: Contact }) {
           {(contact.last_contact_by_name || '?').charAt(0).toUpperCase()}
         </span>
       )}
-      <span className="min-w-0 truncate text-[11.5px] font-semibold text-foreground">
-        {contact.last_contact_by_name || '—'}
+      {/* First name only — keeps the cell on one tidy line instead of
+          truncating "Bobby Burton" to "Bob…". Full name is on the avatar
+          title + the row's history. */}
+      <span className="shrink-0 whitespace-nowrap text-[11.5px] font-semibold text-foreground" title={contact.last_contact_by_name ?? undefined}>
+        {(contact.last_contact_by_name || '—').trim().split(/\s+/)[0]}
       </span>
       {contact.last_contact_method && (
         <span className={`shrink-0 whitespace-nowrap inline-block px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[contact.last_contact_method]}`}>
