@@ -1198,16 +1198,26 @@ export default function ContactsContent() {
 
 
       <div className="mb-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
-        <div className="relative w-full sm:flex-1 sm:min-w-[220px] sm:max-w-md">
+        <div className="group relative w-full sm:flex-1 sm:min-w-[240px] sm:max-w-md">
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-foreground/40 group-focus-within:text-primary transition-colors">
+            <SearchIcon />
+          </span>
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name, company, type, specialty, notes…"
-            className="w-full pl-9 pr-3 py-2.5 sm:py-2 rounded-lg border border-black/10 bg-white text-[13px] sm:text-[13px] focus:outline-none focus:ring-2 focus:ring-primary/40"
+            className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-black/[0.07] bg-white text-[13px] text-foreground placeholder:text-foreground/40 shadow-[0_1px_2px_rgba(60,48,42,0.04)] hover:border-black/15 focus:outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/10 transition-all"
           />
-          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/35">
-            <SearchIcon />
-          </span>
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              aria-label="Clear search"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-5 h-5 rounded-full text-foreground/40 hover:text-foreground hover:bg-warm-bg transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
+          )}
         </div>
         {/* Tier filters — one button per tier so admissions can
             slice the grid to e.g. Tier 1 prospects in two clicks
@@ -3352,45 +3362,34 @@ const ContactRow = memo(function ContactRow({
         </td>
         {columns.map((col) => {
           if (col.key === 'engagement') {
-            // The relocated last-contact panel: log-a-contact button + the
-            // last-contact summary (click to expand history) + a light
-            // chevron. A normal scrolling cell right after Name.
+            // Simplified last-contact cell: just the summary (click to
+            // expand history) + a light chevron. The log-a-contact button
+            // moved to the Name cell (hover-revealed).
             return (
               <td
                 key={col.key}
                 data-no-row-select
                 className={`px-3 py-2.5 align-middle transition-colors ${detailsExpanded ? 'bg-warm-bg/50' : ''}`}
               >
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => onContact(c)}
-                    aria-label="Log a contact"
-                    title="Log a contact"
-                    className="sa-log-button shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md bg-primary/10 text-primary text-[15px] leading-none border border-primary/20 hover:bg-primary/15 transition-colors"
+                <button
+                  type="button"
+                  onClick={() => onHistory(c)}
+                  className="w-full min-w-0 flex items-center justify-between gap-1.5 text-left rounded-md px-1 -mx-1 hover:bg-warm-bg/60 transition-colors"
+                  title={detailsExpanded ? 'Hide history' : 'Show contact history'}
+                  aria-expanded={detailsExpanded}
+                >
+                  <span className="min-w-0 flex-1">
+                    <LastContactSummaryCell contact={c} />
+                  </span>
+                  {/* Light chevron — no boxed border at rest; it just
+                      darkens + flips when the row's history is open. */}
+                  <span
+                    className={`shrink-0 inline-flex items-center justify-center w-5 h-5 transition-all ${detailsExpanded ? 'text-foreground rotate-180' : 'text-foreground/35 group-hover:text-foreground/60'}`}
+                    aria-hidden
                   >
-                    <span aria-hidden>🪵</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onHistory(c)}
-                    className="min-w-0 flex-1 flex items-center justify-between gap-1.5 text-left rounded-md px-1 -mx-1 hover:bg-warm-bg/60 transition-colors"
-                    title={detailsExpanded ? 'Hide history' : 'Show contact history'}
-                    aria-expanded={detailsExpanded}
-                  >
-                    <span className="min-w-0 flex-1">
-                      <LastContactSummaryCell contact={c} />
-                    </span>
-                    {/* Light chevron — no boxed border at rest; it just
-                        darkens + flips when the row's history is open. */}
-                    <span
-                      className={`shrink-0 inline-flex items-center justify-center w-5 h-5 transition-all ${detailsExpanded ? 'text-foreground rotate-180' : 'text-foreground/35 group-hover:text-foreground/60'}`}
-                      aria-hidden
-                    >
-                      <ChevronDownIcon />
-                    </span>
-                  </button>
-                </div>
+                    <ChevronDownIcon />
+                  </span>
+                </button>
               </td>
             );
           }
@@ -3415,7 +3414,7 @@ const ContactRow = memo(function ContactRow({
           }
           return (
             <td key={col.key} className={`px-3 py-2.5 ${col.align === 'right' ? 'text-right' : ''}`}>
-              <ContactCell column={col} contact={c} onSaveField={onSaveField} onSavePatch={onSavePatch} isNew={isNew} companyOptions={companyOptions} roleOptions={roleOptions} typeOptions={typeOptions} specialtyOptions={specialtyOptions} onBulkRenameOption={onBulkRenameOption} />
+              <ContactCell column={col} contact={c} onSaveField={onSaveField} onSavePatch={onSavePatch} isNew={isNew} companyOptions={companyOptions} roleOptions={roleOptions} typeOptions={typeOptions} specialtyOptions={specialtyOptions} onBulkRenameOption={onBulkRenameOption} onLogContact={onContact} />
             </td>
           );
         })}
@@ -3896,6 +3895,7 @@ const ContactCell = memo(function ContactCell({
   typeOptions = [],
   specialtyOptions = [],
   onBulkRenameOption,
+  onLogContact,
 }: {
   column: ColumnDef;
   contact: Contact;
@@ -3907,6 +3907,10 @@ const ContactCell = memo(function ContactCell({
   typeOptions?: string[];
   specialtyOptions?: string[];
   onBulkRenameOption?: (column: 'company' | 'role' | 'specialty' | 'type', from: string, to: string | null) => Promise<void>;
+  // Log-a-contact action. On the Name cell it appears as a small button
+  // next to the name, revealed on hover — the engagement column no longer
+  // carries its own log button.
+  onLogContact?: (c: Contact) => void;
 }) {
   const renameFor = (col: 'company' | 'role' | 'specialty' | 'type') => onBulkRenameOption
     ? (from: string, to: string) => onBulkRenameOption(col, from, to)
@@ -3919,7 +3923,7 @@ const ContactCell = memo(function ContactCell({
   switch (column.key) {
     case 'name':
       return (
-        <div>
+        <div className="group/name">
           <div className="flex items-center gap-1.5 min-w-0">
             <EditableTextCell
               value={contact.name}
@@ -3939,6 +3943,20 @@ const ContactCell = memo(function ContactCell({
               >
                 <span aria-hidden>✕</span> Unsubscribed
               </span>
+            )}
+            {/* Log-a-contact, revealed on name hover. Replaces the
+                always-on log button the engagement column used to carry. */}
+            {onLogContact && (
+              <button
+                type="button"
+                data-no-row-select
+                onClick={(e) => { e.stopPropagation(); onLogContact(contact); }}
+                aria-label="Log a contact"
+                title="Log a contact"
+                className="sa-log-button shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md bg-primary/10 text-primary text-[13px] leading-none border border-primary/20 opacity-0 group-hover/name:opacity-100 focus:opacity-100 hover:bg-primary/15 transition-opacity"
+              >
+                <span aria-hidden>🪵</span>
+              </button>
             )}
           </div>
           {contact.source === 'downgrade-from-partner' && (
@@ -6437,17 +6455,15 @@ function LastContactSummaryCell({ contact }: { contact: Contact }) {
   }, []);
 
   if (!contact.last_contact_at) {
+    // Single line: avatar placeholder + a muted "Never" pill.
     return (
-      <div className="flex items-center gap-2.5">
-        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-foreground/5 border border-foreground/10 text-foreground/30 text-[11px] shrink-0">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-foreground/5 border border-foreground/10 text-foreground/30 text-[11px] shrink-0">
           —
         </span>
-        <div className="min-w-0">
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border bg-foreground/5 text-foreground/45 border-foreground/10">
-            Never
-          </span>
-          <p className="text-foreground/35 text-[10px] italic mt-0.5">never contacted</p>
-        </div>
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[9px] font-semibold border bg-foreground/5 text-foreground/45 border-foreground/10 shrink-0">
+          Never
+        </span>
       </div>
     );
   }
@@ -6458,36 +6474,32 @@ function LastContactSummaryCell({ contact }: { contact: Contact }) {
     s === 'cooling' ? 'text-amber-700' :
     'text-rose-700';
 
+  // Everything on one line: avatar · name · method · relative time. The
+  // name truncates; badge + time stay pinned to the right. Absolute time
+  // lives in the title tooltip.
   return (
-    <div className="flex items-center gap-2.5 min-w-0">
+    <div className="flex items-center gap-2 min-w-0" title={fmtAbsolute(contact.last_contact_at) ?? ''}>
       {contact.last_contact_by_avatar_url ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={contact.last_contact_by_avatar_url}
           alt=""
-          className="w-7 h-7 rounded-full object-cover border border-black/10 shrink-0"
+          className="w-6 h-6 rounded-full object-cover border border-black/10 shrink-0"
         />
       ) : (
-        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-[10px] font-bold border border-primary/20 shrink-0">
+        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-[10px] font-bold border border-primary/20 shrink-0">
           {(contact.last_contact_by_name || '?').charAt(0).toUpperCase()}
         </span>
       )}
-      <div className="min-w-0 flex-1">
-        <p className="text-[11.5px] font-semibold text-foreground truncate leading-tight">
-          {contact.last_contact_by_name || '—'}
-        </p>
-        {/* Absolute timestamp stays in the title tooltip so the row
-            stays single-line — the colored relative time conveys
-            freshness, the pill conveys method. */}
-        <div className="mt-0.5 flex items-center gap-1.5 text-[10.5px] leading-tight min-w-0" title={fmtAbsolute(contact.last_contact_at) ?? ''}>
-          {contact.last_contact_method && (
-            <span className={`inline-block shrink-0 whitespace-nowrap px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[contact.last_contact_method]}`}>
-              {contact.last_contact_method}
-            </span>
-          )}
-          <span className={`shrink-0 whitespace-nowrap font-semibold ${textTone}`}>{fmtAgo(contact.last_contact_at)}</span>
-        </div>
-      </div>
+      <span className="min-w-0 truncate text-[11.5px] font-semibold text-foreground">
+        {contact.last_contact_by_name || '—'}
+      </span>
+      {contact.last_contact_method && (
+        <span className={`shrink-0 whitespace-nowrap inline-block px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[contact.last_contact_method]}`}>
+          {contact.last_contact_method}
+        </span>
+      )}
+      <span className={`shrink-0 whitespace-nowrap text-[10.5px] font-semibold ${textTone}`}>{fmtAgo(contact.last_contact_at)}</span>
     </div>
   );
 }
