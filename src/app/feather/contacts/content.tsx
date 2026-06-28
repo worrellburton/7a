@@ -900,6 +900,10 @@ export default function ContactsContent() {
   // Always computed against the unfiltered `rows` (not the filtered
   // view) because the tiles describe the whole pipeline, not what's
   // currently visible after a search/method/freshness filter.
+  // Header KPI pills. Decoupled from live row edits via useDeferredValue
+  // so a cell edit updates the grid immediately and the aggregates catch
+  // up in the background instead of recomputing on the critical path.
+  const deferredRows = useDeferredValue(rows);
   const insights = useMemo(() => {
     const now = Date.now();
     const weekMs = 7 * 24 * 60 * 60 * 1000;
@@ -909,7 +913,7 @@ export default function ContactsContent() {
     let total = 0;
     let never = 0;
     let missingEmail = 0;
-    for (const r of rows) {
+    for (const r of deferredRows) {
       if (!(r.email && r.email.trim())) missingEmail += 1;
       if (!r.last_contact_at) { never += 1; continue; }
       total += 1;
@@ -918,7 +922,7 @@ export default function ContactsContent() {
       if (age <= monthMs) month += 1;
     }
     return { week, month, total, never, missingEmail };
-  }, [rows]);
+  }, [deferredRows]);
 
   // Helper used by both the sort and the row renderer: a contact is
   // "new" to this user iff updated_at is strictly newer than the
