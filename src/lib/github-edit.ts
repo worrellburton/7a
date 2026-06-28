@@ -110,6 +110,26 @@ export async function createPullRequest(
   });
 }
 
+// Merge a PR into its base (squash) — used to auto-ship a change without a
+// manual GitHub review step. Throws if GitHub refuses (conflict / not
+// mergeable), so callers can report "opened but couldn't auto-merge".
+export async function mergePullRequest(cfg: GithubConfig, number: number, method: 'squash' | 'merge' | 'rebase' = 'squash'): Promise<void> {
+  await gh(cfg, `/repos/${cfg.owner}/${cfg.repo}/pulls/${number}/merge`, {
+    method: 'PUT',
+    body: JSON.stringify({ merge_method: method }),
+  });
+}
+
+// Create a merge commit bringing `head` into `base` (e.g. main → master).
+// This is how production is deployed: master only ever receives a merge
+// from main. 204 (nothing to merge) is fine; 409 (conflict) throws.
+export async function mergeIntoBranch(cfg: GithubConfig, base: string, head: string, message: string): Promise<void> {
+  await gh(cfg, `/repos/${cfg.owner}/${cfg.repo}/merges`, {
+    method: 'POST',
+    body: JSON.stringify({ base, head, commit_message: message }),
+  });
+}
+
 // Most-recent PRs (state=all) so the history panel can show whether each
 // tool-opened PR is still open, was merged, or was closed. One call,
 // best-effort — callers tolerate failure (no token / network).

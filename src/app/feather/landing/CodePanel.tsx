@@ -17,6 +17,8 @@ interface CodeResult {
   prNumber: number;
   branch: string;
   changedFiles: string[];
+  deployed?: boolean;
+  deployNote?: string | null;
 }
 interface HistoryItem {
   id: string;
@@ -169,7 +171,7 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error((json as { error?: string }).error ?? `Revert failed (${res.status})`);
-      setResult({ ok: true, summary: `Revert PR opened for "${item.title}".`, prUrl: json.prUrl, prNumber: json.prNumber, branch: json.branch, changedFiles: [] });
+      setResult({ ok: true, summary: json.deployed ? `Reverted "${item.title}".` : `Revert PR opened for "${item.title}".`, prUrl: json.prUrl, prNumber: json.prNumber, branch: json.branch, changedFiles: [], deployed: json.deployed, deployNote: json.deployNote });
       void loadHistory();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -191,8 +193,8 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
           </h1>
           <p className="mt-1.5 text-sm text-white/65 max-w-2xl">
             Describe a change to the public landing page in plain English &mdash; paste screenshots if it helps.
-            Claude rewrites the page&rsquo;s code and opens a <strong className="text-white/90">pull request</strong> for
-            you to review. Nothing goes live until you merge it.
+            Claude rewrites the page&rsquo;s code, then <strong className="text-white/90">merges &amp; deploys</strong> it
+            automatically. Every change is logged below, and you can revert any of them in one click.
           </p>
         </header>
 
@@ -272,12 +274,12 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
                 disabled={busy || !instruction.trim()}
                 className="lc-launch relative px-5 py-2.5 rounded-xl text-[13.5px] font-bold text-white disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
               >
-                {busy ? <><span className="lc-cook">🍳</span> Cooking…</> : <><span>🚀</span> Launch change</>}
+                {busy ? <><span className="lc-cook">🍳</span> Cooking…</> : <><span>🚀</span> Launch &amp; deploy</>}
               </button>
               {busy ? (
                 <span className="lc-fade text-[12px] text-sky-200/80">{COOKING_LINES[cookIdx]}</span>
               ) : (
-                <span className="text-[11px] text-white/45">Opens a PR — review before it ships.</span>
+                <span className="text-[11px] text-white/45">Merges + deploys automatically — revert anytime.</span>
               )}
             </div>
 
@@ -285,12 +287,17 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
 
             {result && (
               <div className="lc-in mt-4 rounded-xl border border-emerald-400/40 bg-emerald-500/15 px-4 py-3">
-                <p className="text-[13px] font-semibold text-emerald-100 inline-flex items-center gap-1.5"><span className="lc-pop">✨</span> Pull request #{result.prNumber} opened</p>
+                <p className="text-[13px] font-semibold text-emerald-100 inline-flex items-center gap-1.5">
+                  <span className="lc-pop">{result.deployed ? '🚀' : '✨'}</span>
+                  {result.deployed ? `Deployed! PR #${result.prNumber} merged` : `Pull request #${result.prNumber} opened`}
+                </p>
                 <p className="text-[12.5px] text-white/75 mt-0.5">{result.summary}</p>
+                {result.deployed && <p className="text-[11.5px] text-emerald-200/80 mt-0.5">Live on the site in ~1–2 minutes.</p>}
+                {result.deployNote && <p className="text-[11.5px] text-amber-200/90 mt-0.5">{result.deployNote}</p>}
                 {result.changedFiles.length > 0 && (
                   <p className="text-[11.5px] text-white/50 mt-1">Changed: {result.changedFiles.map((f) => landingFileLabel(f)).join(', ')}</p>
                 )}
-                <a href={result.prUrl} target="_blank" rel="noreferrer" className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-[#0b1020] text-[11.5px] font-bold hover:bg-sky-100 transition-colors">Review &amp; merge on GitHub →</a>
+                <a href={result.prUrl} target="_blank" rel="noreferrer" className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white text-[#0b1020] text-[11.5px] font-bold hover:bg-sky-100 transition-colors">{result.deployed ? 'View on GitHub →' : 'Review &amp; merge on GitHub →'}</a>
               </div>
             )}
           </section>
