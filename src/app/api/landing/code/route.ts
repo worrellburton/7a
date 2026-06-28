@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/api-gates';
+import { requireCodeAccess } from '@/lib/api-gates';
 import { isEditablePath, buildEditablePages, HOME_ROUTE } from '@/lib/editable-pages';
 import {
   loadGithubConfig,
@@ -145,7 +145,7 @@ const READ_TOOL = {
 } as const;
 
 export async function POST(req: NextRequest) {
-  const gate = await requireAdmin(req);
+  const gate = await requireCodeAccess(req);
   if (gate instanceof NextResponse) return gate;
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
@@ -362,7 +362,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const gate = await requireAdmin(req);
+  const gate = await requireCodeAccess(req);
   if (gate instanceof NextResponse) return gate;
 
   const { data, error } = await gate.admin

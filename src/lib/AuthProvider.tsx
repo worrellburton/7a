@@ -35,6 +35,12 @@ interface AuthContextType {
    * non-alumni rows reject.
    */
   isAlumniAdmin: boolean;
+  /**
+   * "Code" admin type. Orthogonal role bit: a Code admin may open the
+   * Landing → Code page (alongside super admins) but is NOT a general
+   * admin. Gating: show the Code surface when (isSuperAdmin || isCodeAdmin).
+   */
+  isCodeAdmin: boolean;
   departmentId: string | null;
   status: UserStatus;
   /**
@@ -86,6 +92,7 @@ const AuthContext = createContext<AuthContextType>({
   isAdmin: false,
   isSuperAdmin: false,
   isAlumniAdmin: false,
+  isCodeAdmin: false,
   departmentId: null,
   status: 'active',
   userKind: 'staff',
@@ -123,6 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isAlumniAdmin, setIsAlumniAdmin] = useState(false);
+  const [isCodeAdmin, setIsCodeAdmin] = useState(false);
   const [departmentId, setDepartmentId] = useState<string | null>(null);
   const [status, setStatus] = useState<UserStatus>('active');
   const [userKind, setUserKind] = useState<'staff' | 'guest' | 'alumni'>('staff');
@@ -179,6 +187,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       is_admin?: boolean;
       is_super_admin?: boolean;
       is_alumni_admin?: boolean;
+      is_code_admin?: boolean;
       department_id?: string | null;
       status?: UserStatus;
       user_kind?: 'staff' | 'guest' | 'alumni';
@@ -186,7 +195,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       sidebar_click_count?: number | null;
     };
     let row: ProfileRow | null = null;
-    const full = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin, is_super_admin, is_alumni_admin, department_id, status, user_kind, sidebar_recent_paths, sidebar_click_count' });
+    const full = await db({ action: 'select', table: 'users', match: { id: userId }, select: 'is_admin, is_super_admin, is_alumni_admin, is_code_admin, department_id, status, user_kind, sidebar_recent_paths, sidebar_click_count' });
     if (Array.isArray(full) && full[0]) {
       row = full[0] as ProfileRow;
     } else {
@@ -214,6 +223,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAdmin(row.is_admin === true);
     setIsSuperAdmin(row.is_super_admin === true);
     setIsAlumniAdmin(row.is_alumni_admin === true);
+    setIsCodeAdmin(row.is_code_admin === true);
     setDepartmentId(row.department_id ?? null);
     setUserKind(row.user_kind ?? 'staff');
     setSidebarRecentPaths(Array.isArray(row.sidebar_recent_paths) ? row.sidebar_recent_paths : []);
@@ -275,6 +285,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           setIsAdmin(false);
           setIsSuperAdmin(false);
+          setIsAlumniAdmin(false);
+          setIsCodeAdmin(false);
           setDepartmentId(null);
           setStatus('active');
           setCustomAvatarUrl(null);
@@ -404,6 +416,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAdmin,
         isSuperAdmin,
         isAlumniAdmin,
+        isCodeAdmin,
         departmentId,
         status,
         userKind,

@@ -48,6 +48,10 @@ export interface GateContext {
    *  caller is then responsible for narrowing reads/writes to
    *  user_kind='alumni' rows. */
   isAlumniAdmin: boolean;
+  /** Whether the user has is_code_admin = true. Orthogonal role bit:
+   *  a Code admin may access the Landing → Code page (alongside super
+   *  admins) but is NOT a general admin. See requireCodeAccess. */
+  isCodeAdmin: boolean;
   /** Account classification a super admin set on /feather/incoming-users:
    *  'staff' for org members, 'guest' / 'alumni' for outside sign-ins.
    *  Defaults to 'staff' for any pre-classification / degraded read. */
@@ -77,15 +81,15 @@ async function resolveContext(req?: NextRequest): Promise<{ ctx: GateContext } |
   }
 
   const admin = getAdminSupabase();
-  // is_alumni_admin landed late; degrade gracefully so a pre-migration
-  // deploy doesn't blank out admin state for everyone.
-  let row: { is_admin?: boolean; is_super_admin?: boolean; is_alumni_admin?: boolean; user_kind?: 'staff' | 'guest' | 'alumni'; department_id?: string | null } | null = null;
+  // is_alumni_admin / is_code_admin landed late; degrade gracefully so a
+  // pre-migration deploy doesn't blank out admin state for everyone.
+  let row: { is_admin?: boolean; is_super_admin?: boolean; is_alumni_admin?: boolean; is_code_admin?: boolean; user_kind?: 'staff' | 'guest' | 'alumni'; department_id?: string | null } | null = null;
   const full = await admin
     .from('users')
-    .select('is_admin, is_super_admin, is_alumni_admin, user_kind, department_id')
+    .select('is_admin, is_super_admin, is_alumni_admin, is_code_admin, user_kind, department_id')
     .eq('id', user.id)
     .maybeSingle();
-  if (full.error && /is_alumni_admin/i.test(full.error.message)) {
+  if (full.error && /is_alumni_admin|is_code_admin/i.test(full.error.message)) {
     const fb = await admin
       .from('users')
       .select('is_admin, is_super_admin, department_id')
@@ -104,6 +108,7 @@ async function resolveContext(req?: NextRequest): Promise<{ ctx: GateContext } |
       isAdmin: row?.is_admin === true,
       isSuperAdmin: row?.is_super_admin === true,
       isAlumniAdmin: row?.is_alumni_admin === true,
+      isCodeAdmin: row?.is_code_admin === true,
       // Default to 'staff' when the column is absent (degraded read) so a
       // transient error never locks real staff out; alumni / guests come
       // back explicitly classified from the DB, so they still gate correctly.
@@ -180,6 +185,21 @@ export async function requireSuperOrAlumniAdmin(
   const res = await resolveContext(req);
   if ('error' in res) return res.error;
   if (!res.ctx.isSuperAdmin && !res.ctx.isAlumniAdmin) {
+    return NextResponse.json({ error: forbiddenMessage }, { status: 403 });
+  }
+  return res.ctx;
+}
+
+/** Require access to the Landing → Code page: is_super_admin OR
+ *  is_code_admin. Deliberately does NOT accept plain is_admin — the
+ *  Code page is restricted to super admins and the "Code" admin type. */
+export async function requireCodeAccess(
+  req?: NextRequest,
+  forbiddenMessage = 'Only super admins and Code admins can use the Code editor.',
+): Promise<GateContext | NextResponse> {
+  const res = await resolveContext(req);
+  if ('error' in res) return res.error;
+  if (!res.ctx.isSuperAdmin && !res.ctx.isCodeAdmin) {
     return NextResponse.json({ error: forbiddenMessage }, { status: 403 });
   }
   return res.ctx;
