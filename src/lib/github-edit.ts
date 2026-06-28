@@ -71,6 +71,16 @@ export async function getFile(cfg: GithubConfig, path: string, ref: string): Pro
   return { content: decodeB64(data.content), sha: data.sha };
 }
 
+// Full recursive file list for a branch — used to build the sitemap of
+// editable public pages. Returns blob paths only.
+export async function getTreePaths(cfg: GithubConfig, branch: string): Promise<string[]> {
+  const data = await gh<{ tree: Array<{ path: string; type: string }> }>(
+    cfg,
+    `/repos/${cfg.owner}/${cfg.repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`,
+  );
+  return (data.tree ?? []).filter((t) => t.type === 'blob').map((t) => t.path);
+}
+
 export async function getBranchHeadSha(cfg: GithubConfig, branch: string): Promise<string> {
   const data = await gh<{ object: { sha: string } }>(
     cfg,

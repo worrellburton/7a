@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/api-gates';
-import { isLandingEditableFile } from '@/lib/landing-files';
+import { isEditablePath } from '@/lib/editable-pages';
 import {
   loadGithubConfig,
   GithubNotConfiguredError,
@@ -65,8 +65,8 @@ export async function POST(req: NextRequest) {
   try {
     const toCommit: Array<{ path: string; content: string; sha: string }> = [];
     for (const change of reversed) {
-      if (!isLandingEditableFile(change.path)) {
-        return NextResponse.json({ error: `Refusing to edit a non-landing file: ${change.path}` }, { status: 422 });
+      if (!isEditablePath(change.path)) {
+        return NextResponse.json({ error: `Refusing to edit a file outside the public website: ${change.path}` }, { status: 422 });
       }
       const current = await getFile(cfg, change.path, BASE_BRANCH);
       let next: string;

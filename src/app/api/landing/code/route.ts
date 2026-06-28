@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/api-gates';
-import { LANDING_EDITABLE_FILES, isLandingEditableFile } from '@/lib/landing-files';
+import { isEditablePath, buildEditablePages, LANDING_ROUTE } from '@/lib/editable-pages';
 import {
   loadGithubConfig,
   GithubNotConfiguredError,
   getFile,
+  getTreePaths,
   getBranchHeadSha,
   createBranch,
   putFile,
@@ -16,15 +17,15 @@ import {
   type FileChange,
 } from '@/lib/github-edit';
 
-// POST /api/landing/code — propose a landing-page change.
+// POST /api/landing/code — propose a public-website change.
 // GET  /api/landing/code — recent PRs opened through the tab (+ status).
 //
-// POST flow: admin describes a change (optionally with screenshots) →
-// Claude proposes surgical old_string/new_string edits to the public
-// landing source → we validate every path against LANDING_EDITABLE_FILES,
-// apply the edits, commit them to a fresh branch, open a PR into `main`,
-// and record the PR (+ requester + the edits, for revert) in
-// landing_code_requests. Nothing ships until the admin merges the PR.
+// POST flow: admin picks page(s) from the sitemap + describes a change
+// (optionally with screenshots) → Claude proposes surgical
+// old_string/new_string edits → we validate every path with isEditablePath
+// (public site only, never Feather), apply the edits, commit them to a
+// fresh branch, open a PR into `main`, auto-merge + deploy, and record the
+// PR (+ requester + the edits, for revert) in landing_code_requests.
 //
 // Required env: ANTHROPIC_API_KEY, GITHUB_TOKEN. Optional: GITHUB_REPO,
 // GITHUB_BASE_BRANCH (default main), ANTHROPIC_MODEL.
@@ -88,9 +89,9 @@ const EDIT_TOOL = {
   },
 } as const;
 
-const SYSTEM_PROMPT = `You are a senior frontend engineer editing the SOURCE CODE of Seven Arrows Recovery's public landing page (the residential-inpatient page), a Next.js + React + TypeScript + Tailwind app.
+const SYSTEM_PROMPT = `You are a senior frontend engineer editing the SOURCE CODE of Seven Arrows Recovery's public marketing website, a Next.js + React + TypeScript + Tailwind app.
 
-You will be given the current contents of the editable landing files, a plain-English change request from a non-technical admin, and optionally screenshots illustrating what they mean. Make the smallest change that satisfies the request.
+You will be given the current contents of one or more public page files, a plain-English change request from a non-technical admin, and optionally screenshots illustrating what they mean. Make the smallest change that satisfies the request.
 
 Rules:
 - Only edit the files you were given. Never invent new file paths.
@@ -125,7 +126,7 @@ export async function POST(req: NextRequest) {
 
   const body = (await req.json().catch(() => ({}))) as {
     instruction?: string;
-    paths?: string[];
+    pages?: string[];
     images?: Array<{ media_type?: string; data?: string }>;
   };
   const instruction = (body.instruction || '').trim();
@@ -135,11 +136,23 @@ export async function POST(req: NextRequest) {
     .filter((im) => im && typeof im.data === 'string' && im.media_type && ALLOWED_IMAGE_TYPES.has(im.media_type))
     .slice(0, 6) as Array<{ media_type: string; data: string }>;
 
-  const requested = Array.isArray(body.paths) ? body.paths.filter(isLandingEditableFile) : [];
-  const targetPaths = requested.length > 0 ? requested : [...LANDING_EDITABLE_FILES];
+  const selectedKeys = Array.isArray(body.pages) ? body.pages : [];
 
   try {
-    // 1. Read the current source of the candidate files from `main`.
+    // 1. Resolve which page(s) to edit → their source files. Build the
+    //    sitemap from the repo tree so keys map to real files; default to
+    //    the landing page when nothing was picked. Boundary-checked so we
+    //    only ever touch public-site files (never Feather).
+    const registry = await getTreePaths(cfg, BASE_BRANCH).then(buildEditablePages);
+    const chosen = selectedKeys.length > 0
+      ? registry.filter((p) => selectedKeys.includes(p.key))
+      : registry.filter((p) => p.key === LANDING_ROUTE);
+    const targetPaths = Array.from(new Set(chosen.flatMap((p) => p.files))).filter(isEditablePath);
+    if (targetPaths.length === 0) {
+      return NextResponse.json({ error: 'No editable pages were selected.' }, { status: 400 });
+    }
+
+    // 2. Read the current source of the candidate files from `main`.
     const files = await Promise.all(
       targetPaths.map(async (path) => ({ path, ...(await getFile(cfg, path, BASE_BRANCH)) })),
     );
@@ -191,8 +204,8 @@ export async function POST(req: NextRequest) {
     const toCommit: Array<{ path: string; content: string; sha: string }> = [];
     const appliedChanges: FileChange[] = [];
     for (const change of changes) {
-      if (!isLandingEditableFile(change.path)) {
-        return NextResponse.json({ error: `Refusing to edit a non-landing file: ${change.path}` }, { status: 422 });
+      if (!isEditablePath(change.path)) {
+        return NextResponse.json({ error: `Refusing to edit a file outside the public website: ${change.path}` }, { status: 422 });
       }
       const current = await getFile(cfg, change.path, BASE_BRANCH);
       let next: string;
