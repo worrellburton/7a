@@ -93,6 +93,23 @@ export default function LandingContent() {
   // "Code" tab (drives Claude to edit the public landing page's source
   // and open a PR — see CodePanel).
   const [topTab, setTopTab] = useState<'heroes' | 'code'>('heroes');
+  // Make the Code view linkable: /feather/landing?tab=code opens straight
+  // into the Code console, and switching tabs keeps the URL in sync so it
+  // can be bookmarked / shared. Gated on isAdmin (Code is admin-only).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (isAdmin && new URLSearchParams(window.location.search).get('tab') === 'code') {
+      setTopTab('code');
+    }
+  }, [isAdmin]);
+  const selectTab = useCallback((t: 'heroes' | 'code') => {
+    setTopTab(t);
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    if (t === 'code') url.searchParams.set('tab', 'code');
+    else url.searchParams.delete('tab');
+    window.history.replaceState(null, '', url.toString());
+  }, []);
   // Phase 7: the preview player is now inline. Tracks which clip
   // the player is currently on so we can advance through the
   // timeline.
@@ -462,7 +479,7 @@ export default function LandingContent() {
             type="button"
             role="tab"
             aria-selected={topTab === t}
-            onClick={() => setTopTab(t)}
+            onClick={() => selectTab(t)}
             className={`px-3.5 py-1.5 rounded-md text-[12px] font-semibold transition-colors ${topTab === t ? 'bg-foreground text-white' : 'text-foreground/60 hover:text-foreground'}`}
           >
             {t === 'heroes' ? 'Hero videos' : 'Code'}

@@ -17,6 +17,7 @@ interface ChangeResult {
   prNumber: number;
   changedFiles: string[];
   deployed?: boolean;
+  branch?: string;
 }
 interface ChatMsg {
   id: string;
@@ -33,6 +34,7 @@ interface HistoryItem {
   title: string;
   summary: string | null;
   changed_files: string[];
+  branch: string | null;
   requested_by_name: string | null;
   requested_by_email: string | null;
   reverts_pr_number: number | null;
@@ -104,6 +106,7 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
   const [modelLabel, setModelLabel] = useState<string | null>(null);
   const [revertingId, setRevertingId] = useState<string | null>(null);
   const [pushingPr, setPushingPr] = useState<number | null>(null);
+  const [previewingBranch, setPreviewingBranch] = useState<string | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
@@ -205,7 +208,7 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
       if (!res.ok) {
         setMessages((prev) => [...prev, { id: newId(), role: 'assistant', error: true, text: (json as { error?: string }).error ?? `Revert failed (${res.status})` }]);
       } else {
-        setMessages((prev) => [...prev, { id: newId(), role: 'assistant', change: { summary: `Revert staged for "${item.title}". Push it live to ship the undo.`, prUrl: json.prUrl, prNumber: json.prNumber, changedFiles: [], deployed: false } }]);
+        setMessages((prev) => [...prev, { id: newId(), role: 'assistant', change: { summary: `Revert staged for "${item.title}". Push it live to ship the undo.`, prUrl: json.prUrl, prNumber: json.prNumber, changedFiles: [], deployed: false, branch: json.branch } }]);
         void loadHistory();
       }
     } catch (e) {
@@ -243,6 +246,30 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
     }
   }
 
+  // Open a staged change on its Vercel preview deployment. The preview is
+  // tied to the change's branch; we ask the server for the URL (read back
+  // from GitHub's deployment statuses) and open it. If it's not ready yet
+  // (build still running), say so instead of opening a dead link.
+  async function openPreview(branch: string) {
+    if (previewingBranch) return;
+    setPreviewingBranch(branch);
+    try {
+      const res = await fetch(`/api/landing/code/preview?branch=${encodeURIComponent(branch)}`, { headers: authHeaders() });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMessages((prev) => [...prev, { id: newId(), role: 'assistant', error: true, text: (json as { error?: string }).error ?? `Preview lookup failed (${res.status})` }]);
+      } else if (json.url) {
+        window.open(json.url as string, '_blank', 'noopener,noreferrer');
+      } else {
+        setMessages((prev) => [...prev, { id: newId(), role: 'assistant', text: 'The preview deployment is still building (usually ~1–2 min after a change). Try Preview again in a moment.' }]);
+      }
+    } catch (e) {
+      setMessages((prev) => [...prev, { id: newId(), role: 'assistant', error: true, text: e instanceof Error ? e.message : String(e) }]);
+    } finally {
+      setPreviewingBranch(null);
+    }
+  }
+
   function ChangeCard({ c, msgId }: { c: ChangeResult; msgId: string }) {
     const pushing = pushingPr === c.prNumber;
     return (
@@ -267,6 +294,17 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
               className="lc-launch inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[11.5px] font-bold text-white disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {pushing ? <><span className="lc-cook">🍳</span> Pushing…</> : <><span>🚀</span> Push live</>}
+            </button>
+          )}
+          {c.branch && (
+            <button
+              type="button"
+              onClick={() => openPreview(c.branch!)}
+              disabled={previewingBranch === c.branch}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 border border-white/20 text-white text-[11.5px] font-bold hover:bg-white/15 transition-colors disabled:opacity-60"
+              title="Open this change on its preview deployment"
+            >
+              {previewingBranch === c.branch ? <><span className="lc-cook">🛰️</span> Finding…</> : <><span>👁️</span> Preview</>}
             </button>
           )}
           <a href={c.prUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/90 text-[#0b1020] text-[11.5px] font-bold hover:bg-white transition-colors">View on GitHub →</a>
@@ -436,6 +474,11 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
                     )}
                     <div className="mt-2 flex items-center gap-3">
                       <a href={item.pr_url} target="_blank" rel="noreferrer" className="text-[11px] font-semibold text-sky-300/80 hover:text-sky-200">Open PR →</a>
+                      {item.status === 'open' && item.branch && (
+                        <button type="button" onClick={() => openPreview(item.branch!)} disabled={previewingBranch === item.branch} className="text-[11px] font-semibold text-white/70 hover:text-white disabled:opacity-50 inline-flex items-center gap-1">
+                          {previewingBranch === item.branch ? <span className="lc-cook">🛰️</span> : '👁️'} Preview
+                        </button>
+                      )}
                       {item.status === 'open' && (
                         <button type="button" onClick={() => pushLive(item.pr_number)} disabled={pushingPr === item.pr_number} className="text-[11px] font-semibold text-emerald-300/90 hover:text-emerald-200 disabled:opacity-50 inline-flex items-center gap-1">
                           {pushingPr === item.pr_number ? <span className="lc-cook">🍳</span> : '🚀'} Push live
@@ -456,6 +499,10 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
       </div>
 
       <style jsx>{`
+        /* Render the whole console 15% smaller than 1:1 so more fits on
+           screen without crowding (zoom reflows layout, unlike transform
+           which would leave a gap). */
+        .lc-root { zoom: 0.85; }
         .lc-glass {
           background: rgba(255, 255, 255, 0.08);
           backdrop-filter: blur(16px);

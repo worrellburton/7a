@@ -1375,10 +1375,14 @@ body.universe-mode [data-rail-panel] input {
   background: rgba(255, 255, 255, 0.08) !important;
   color: #e2e9f7 !important;
 }
+/* Nav fully hidden on the Code page so it reads as a full-bleed console.
+   We hide the OUTER rail column (which reserves the w-16 layout space) so
+   the content reclaims the width — and the mobile top bar — on this page
+   only. Switching back to the Hero videos tab unmounts the Code panel,
+   removes universe-mode, and restores both. */
+body.universe-mode [data-sidebar-rail],
 body.universe-mode [data-mobile-topbar] {
-  background: rgba(8, 10, 24, 0.88) !important;
-  border-color: rgba(255, 255, 255, 0.10) !important;
-  --color-foreground: #e2e9f7;
+  display: none !important;
 }
 /* The Code tab's own tab bar (Hero videos | Code) now sits on the dark
    backdrop — keep the unselected label readable. */
