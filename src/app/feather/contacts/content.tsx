@@ -17,7 +17,7 @@
 import Link from '@/components/HoverPrefetchLink';
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
-import { Fragment, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from 'react';
 import { createPortal } from 'react-dom';
 import { DepartmentPageNav } from '../DepartmentPageNav';
 import { SearchSelectCell } from '@/components/SearchSelectCell';
@@ -30,6 +30,33 @@ import {
   METHOD_TONES as SHARED_METHOD_TONES,
   type ContactMethod as SharedContactMethod,
 } from '@/lib/contact-methods';
+
+// ─── Shared clock ───────────────────────────────────────────────
+// One interval for the whole grid instead of a setInterval per
+// Last-contact cell (~1100 timers). Cells subscribe via useNowTick();
+// the single timer bumps a version every 60s to refresh "x ago" labels.
+const nowListeners = new Set<() => void>();
+let nowTimer: ReturnType<typeof setInterval> | null = null;
+let nowVersion = 0;
+function subscribeNow(cb: () => void): () => void {
+  nowListeners.add(cb);
+  if (!nowTimer) {
+    nowTimer = setInterval(() => {
+      nowVersion += 1;
+      nowListeners.forEach((l) => l());
+    }, 60_000);
+  }
+  return () => {
+    nowListeners.delete(cb);
+    if (nowListeners.size === 0 && nowTimer) {
+      clearInterval(nowTimer);
+      nowTimer = null;
+    }
+  };
+}
+function useNowTick(): number {
+  return useSyncExternalStore(subscribeNow, () => nowVersion, () => 0);
+}
 
 // ─── Types ──────────────────────────────────────────────────────
 
@@ -406,6 +433,13 @@ export default function ContactsContent() {
   // narrows to rows where rating is null so the team can hunt down
   // contacts that still need a tier assigned.
   const [tierFilter, setTierFilter] = useState<'all' | ContactRating | 'unrated'>('all');
+  // Tier-filter changes recompute the whole list; mark them as a
+  // transition so the click + button state stay instant while the grid
+  // re-filters in the background.
+  const [, startFilterTransition] = useTransition();
+  const setTier = useCallback((t: 'all' | ContactRating | 'unrated') => {
+    startFilterTransition(() => setTierFilter(t));
+  }, []);
   // Table / Map / Insights view-mode toggle. Persisted in the URL via
   // ?view=map / ?view=insights so the choice survives refresh + lets
   // admissions bookmark each view directly. `table` is the default
@@ -776,17 +810,27 @@ export default function ContactsContent() {
 
   // ── Filtering ─────────────────────────────────────────────────
 
+  // Precompute one lowercased search blob per contact — built once when
+  // `rows` changes, not on every keystroke. Keyed by the contact object
+  // so an edit (new object) refreshes only that entry's blob on the next
+  // rebuild. Filtering then becomes a cheap Map lookup + substring test.
+  const searchIndex = useMemo(() => {
+    const m = new Map<Contact, string>();
+    for (const r of rows) {
+      m.set(r, [r.name, r.company, r.company_website, r.role, r.phone, r.phone_cell, r.phone_office, r.email, r.location, r.formatted_address, r.notes, r.specialty, ...(r.type ?? [])]
+        .filter(Boolean).join(' ').toLowerCase());
+    }
+    return m;
+  }, [rows]);
   const filtered = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
     return rows.filter((r) => {
       if (tierFilter === 'unrated') { if (r.rating != null) return false; }
       else if (tierFilter !== 'all' && r.rating !== tierFilter) return false;
       if (!q) return true;
-      const hay = [r.name, r.company, r.company_website, r.role, r.phone, r.phone_cell, r.phone_office, r.email, r.location, r.formatted_address, r.notes, r.specialty, ...(r.type ?? [])]
-        .filter(Boolean).join(' ').toLowerCase();
-      return hay.includes(q);
+      return (searchIndex.get(r) ?? '').includes(q);
     });
-  }, [rows, deferredSearch, tierFilter]);
+  }, [rows, searchIndex, deferredSearch, tierFilter]);
 
   // Sorted, deduplicated list of every company string currently in
   // the contacts table. Drives the SearchSelect dropdown on the
@@ -1244,7 +1288,7 @@ export default function ContactsContent() {
               <button
                 key={t.key}
                 type="button"
-                onClick={() => setTierFilter(t.key)}
+                onClick={() => setTier(t.key)}
                 aria-pressed={active}
                 className={`px-2.5 py-1.5 rounded-md text-[11.5px] font-semibold border transition-colors ${active ? tone : 'bg-white text-foreground/55 border-black/10 hover:bg-warm-bg/60'}`}
               >
@@ -6480,11 +6524,9 @@ function TimeSinceCell({ contact }: { contact: Contact }) {
 // ticks forward without a page refresh — same cheap counter bump the
 // old TimeSinceCell used.
 function LastContactSummaryCell({ contact }: { contact: Contact }) {
-  const [, force] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => force((n) => n + 1), 30_000);
-    return () => clearInterval(t);
-  }, []);
+  // Subscribe to the one shared clock so "x ago" stays fresh without a
+  // per-cell timer (see useNowTick).
+  useNowTick();
 
   if (!contact.last_contact_at) {
     // Single line: avatar placeholder + a muted "Never" pill.
