@@ -10,8 +10,6 @@ import {
   createBranch,
   putFile,
   createPullRequest,
-  mergePullRequest,
-  mergeIntoBranch,
   listRecentPullStates,
   searchCode,
   applyEdits,
@@ -21,12 +19,14 @@ import {
 // POST /api/landing/code — propose a public-website change.
 // GET  /api/landing/code — recent PRs opened through the tab (+ status).
 //
-// POST flow: admin picks page(s) from the sitemap + describes a change
-// (optionally with screenshots) → Claude proposes surgical
-// old_string/new_string edits → we validate every path with isEditablePath
-// (public site only, never Feather), apply the edits, commit them to a
-// fresh branch, open a PR into `main`, auto-merge + deploy, and record the
-// PR (+ requester + the edits, for revert) in landing_code_requests.
+// POST flow: admin describes a change (optionally with screenshots) →
+// Claude finds the right file across the whole public site and proposes
+// surgical old_string/new_string edits → we validate every path with
+// isEditablePath (public site only, never Feather), apply the edits,
+// commit them to a fresh branch, open a PR into `main`, and record the
+// PR (+ requester + the edits, for revert) in landing_code_requests. The
+// change is NOT deployed here — the admin ships it with the "Push live"
+// button (POST /api/landing/code/push), which merges main → master.
 //
 // Required env: ANTHROPIC_API_KEY, GITHUB_TOKEN. Optional: GITHUB_REPO,
 // GITHUB_BASE_BRANCH (default main), ANTHROPIC_MODEL.
@@ -305,20 +305,9 @@ export async function POST(req: NextRequest) {
       body: prBody,
     });
 
-    // 4b. Auto-merge + deploy: squash the PR into main, then merge main
-    // into master (the branch Vercel builds production from). The change
-    // goes live without a manual GitHub step; the flight log + revert are
-    // the audit trail / undo. If either merge is refused, we still return
-    // the open PR so the admin can finish it by hand.
-    let deployed = false;
-    let deployNote: string | null = null;
-    try {
-      await mergePullRequest(cfg, pr.number, 'squash');
-      await mergeIntoBranch(cfg, 'master', BASE_BRANCH, `Deploy: ${proposal.pr_title || 'Landing edit'} (#${pr.number})`);
-      deployed = true;
-    } catch (e) {
-      deployNote = `Opened PR #${pr.number} but couldn't auto-merge it (${e instanceof Error ? e.message : String(e)}). Merge it on GitHub to ship.`;
-    }
+    // 4b. The change is staged as a PR but NOT deployed — the admin pushes
+    // it live with the "Push live" button (POST /api/landing/code/push),
+    // which is what merges it into main and master.
 
     // 5. Record it for the history panel + future revert (best-effort).
     const changedFiles = toCommit.map((f) => f.path);
@@ -346,8 +335,7 @@ export async function POST(req: NextRequest) {
       prNumber: pr.number,
       branch,
       changedFiles,
-      deployed,
-      deployNote,
+      deployed: false,
     });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
