@@ -27,7 +27,7 @@ const personaCopy = {
         A place to come <em className="not-italic text-accent">back to yourself.</em>
       </>
     ),
-    body: "Residential addiction treatment in Arizona, built around a small-census program with every name known, a highly skilled and credentialed clinical team, trauma-informed clinical work, and a 160-acre ranch that gives your nervous system the room it has been asking for. Admissions answered 24/7.",
+    body: "Residential addiction treatment in Arizona, built around a small-census program with every name known, a highly skilled and credentialed clinical team, trauma-informed clinical work, and a 161-acre ranch that gives your nervous system the room it has been asking for. Admissions answered 24/7.",
   },
   loved_one: {
     eyebrow: 'You called us because no one else would be this honest',
