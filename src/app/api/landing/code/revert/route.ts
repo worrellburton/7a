@@ -9,6 +9,8 @@ import {
   createBranch,
   putFile,
   createPullRequest,
+  mergePullRequest,
+  mergeIntoBranch,
   applyEdits,
   reverseChanges,
   type FileChange,
@@ -102,6 +104,17 @@ export async function POST(req: NextRequest) {
       body: `Reverts the change from PR #${record.pr_number} (${record.title}).\n\nRequested via the Feather Landing → Code editor by ${requesterName || requesterEmail || gate.userId}.`,
     });
 
+    // Auto-merge + deploy the revert (same as a forward change).
+    let deployed = false;
+    let deployNote: string | null = null;
+    try {
+      await mergePullRequest(cfg, pr.number, 'squash');
+      await mergeIntoBranch(cfg, 'master', BASE_BRANCH, `Deploy: ${title} (#${pr.number})`);
+      deployed = true;
+    } catch (e) {
+      deployNote = `Opened revert PR #${pr.number} but couldn't auto-merge it (${e instanceof Error ? e.message : String(e)}). Merge it on GitHub to ship.`;
+    }
+
     try {
       await gate.admin.from('landing_code_requests').insert({
         pr_number: pr.number,
@@ -119,7 +132,7 @@ export async function POST(req: NextRequest) {
       });
     } catch { /* best-effort */ }
 
-    return NextResponse.json({ ok: true, prUrl: pr.html_url, prNumber: pr.number, branch });
+    return NextResponse.json({ ok: true, prUrl: pr.html_url, prNumber: pr.number, branch, deployed, deployNote });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
