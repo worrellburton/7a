@@ -913,19 +913,9 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   //   3. Ungrouped bucket at the very top of the sidebar.
   const visibleNavPages = navPages.filter(canSeePage);
 
-  // RECENCY_VISIBLE_COUNT caps the top of the nav. Anything past
-  // this falls into the "Other pages" dropdown. Sized to 7 because
-  // that's the size most reps eyeball-scan without paging — same
-  // intuition as why phone numbers are 7 digits.
-  //
-  // The earlier "alpha mode" gate (sidebar_click_count <
-  // ALPHA_THRESHOLD → flat alpha list with no Other Pages) was
-  // removed so the overflow disclosure is reachable by every user
-  // from their first session, not only those who've crossed a
-  // lifetime click threshold. New users with no click history
-  // still see a sensible top N because the leftover-padding falls
-  // back to alphabetical order.
-  const RECENCY_VISIBLE_COUNT = 7;
+  // The nav shows every page in one flat, recency-ordered list. (The
+  // old "Other pages" overflow disclosure — top-N pinned, the rest
+  // hidden under a collapsible — was removed per product.)
   // Both modes use a single recency stack: every page the user has
   // clicked, newest first, with never-clicked pages tail-padded in
   // alpha order. Clicking a page promotes it to position 1 and the
@@ -988,9 +978,9 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   // (~7 pages) that an Other-Pages disclosure adds confusion
   // without saving real space. Staff still get the top-N
   // + Other-Pages split for their larger surface.
-  const recencyTopPages = isAlumni
-    ? recencyOrderedPages
-    : recencyOrderedPages.slice(0, RECENCY_VISIBLE_COUNT);
+  // All pages render in one flat list now — the "Other pages" split was
+  // removed, so the top list is simply every page (for staff and alumni).
+  const recencyTopPages = recencyOrderedPages;
 
   // Apply the sidebar search query — when there's anything typed,
   // flatten the whole accessible-pages set to label/path matches
@@ -1026,9 +1016,9 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   // top of Other, matching the brief: "When a page goes to spot 8,
   // put it in the top of other pages." Alumni get no spillover —
   // their whole nav is flat (see recencyTopPages above).
-  const recencyOtherPages = isAlumni
-    ? ([] as typeof recencyOrderedPages)
-    : recencyOrderedPages.slice(RECENCY_VISIBLE_COUNT);
+  // Always empty — every page lives in the main list now, so the
+  // collapsible "Other pages" section below never renders.
+  const recencyOtherPages = [] as typeof recencyOrderedPages;
   // Track the disclosure state for the Other pages section. Per-user
   // persistence is overkill — a tab reload is cheap, and forgetting
   // the collapsed state after each session matches how reps actually
