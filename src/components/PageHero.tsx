@@ -39,6 +39,10 @@ interface PageHeroProps {
   /** Either a plain string, or an array of segments for accent-word styling. */
   title: string | TitleSegment[];
   description?: string;
+  /** Optional smaller, lighter credit/disclaimer line rendered directly
+   *  beneath the description (e.g. a model attribution) so it reads as a
+   *  footnote without competing with the headline. */
+  attribution?: string;
   image?: string;
   /** Optional backdrop video URL — takes precedence over `image`. */
   video?: string;
@@ -231,6 +235,7 @@ export default function PageHero({
   label,
   title,
   description,
+  attribution,
   image,
   video = DEFAULT_VIDEO,
   breadcrumbs,
@@ -450,6 +455,15 @@ export default function PageHero({
               style={{ fontFamily: 'var(--font-body)' }}
             >
               {description}
+            </p>
+          )}
+
+          {attribution && (
+            <p
+              className="text-white/55 leading-relaxed max-w-3xl text-xs lg:text-sm -mt-3 mb-6"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              {attribution}
             </p>
           )}
 
