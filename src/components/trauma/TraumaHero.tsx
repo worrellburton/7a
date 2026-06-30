@@ -145,6 +145,23 @@ export default function TraumaHero() {
             unlocking deeper and more lasting healing.
           </p>
 
+          <p
+            className="mt-6 text-white/65 leading-relaxed max-w-2xl text-xs lg:text-sm"
+            style={{
+              fontFamily: 'var(--font-body)',
+              opacity: mounted ? 1 : 0,
+              transform: mounted ? 'translateY(0)' : 'translateY(14px)',
+              transition: 'all 0.9s cubic-bezier(0.16,1,0.3,1) 0.55s',
+            }}
+          >
+            Forward-Facing Accelerated Recovery (FF-AR) is an adapted
+            application of the Forward-Facing Freedom<span className="align-super text-[9px]">®</span> model
+            developed by Dr. J. Eric Gentry. The FF-AR model was
+            collaboratively developed and is jointly owned by Dr. Eric
+            Gentry and Lindsay Rothschild for use in trauma and addiction
+            recovery settings.
+          </p>
+
           <div
             className="mt-10 flex flex-col sm:flex-row items-start sm:items-center gap-4 sm:gap-5"
             style={{
