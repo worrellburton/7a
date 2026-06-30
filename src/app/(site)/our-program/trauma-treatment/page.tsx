@@ -41,6 +41,7 @@ export default function TraumaTreatmentPage() {
           { label: 'Trauma Treatment' },
         ]}
         description="The Forward-Facing® Accelerated Recovery (FF-AR) model is an integrative, salutogenic approach to treating trauma and addiction simultaneously — grounded in the understanding that addiction is a post-traumatic adaptive capacity, not a pathology to be eliminated. FF-AR addresses both at once without overwhelming the nervous system: rather than intensive memory processing early in recovery, it emphasizes neuroception, interoceptive awareness, and the gradual expansion of capacity as the foundation of healing and relapse prevention."
+        attribution="Forward-Facing Accelerated Recovery (FF-AR) is an adapted application of the Forward-Facing Freedom® model developed by Dr. J. Eric Gentry. The FF-AR model was collaboratively developed and is jointly owned by Dr. Eric Gentry and Lindsay Rothschild for use in trauma and addiction recovery settings."
         ctas={[
           {
             kind: 'phone',
