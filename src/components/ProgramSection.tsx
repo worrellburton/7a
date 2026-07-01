@@ -93,7 +93,7 @@ export default function ProgramSection() {
         }}
       />
 
-      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 lg:py-32">
+      <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24">
         {/* Header thesis */}
         <div className="max-w-4xl mb-16 lg:mb-20">
           <p

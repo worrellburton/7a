@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Drug Rehab in Arizona | Seven Arrows Recovery',
+  title: 'Addiction & Trauma Treatment Center in Arizona | Seven Arrows Recovery',
   description:
-    'Premier drug and alcohol rehab in Arizona — residential treatment on a 161-acre ranch at the base of the Swisshelm Mountains. Call (866) 718-1665.',
+    'Residential addiction and trauma treatment on a 161-acre ranch at the base of the Swisshelm Mountains in Arizona. Call (866) 718-1665.',
 };
 
 // Re-render the homepage at most every 60s so a Set-live / timeline
@@ -16,7 +16,6 @@ export const revalidate = 60;
 import dynamic from "next/dynamic";
 import Hero from "@/components/Hero";
 import { fetchLiveHeroSources } from "@/lib/landing-hero";
-import TourStats from "@/components/tour/TourStats";
 import PlaceToHeal from "@/components/PlaceToHeal";
 import ProgramSection from "@/components/ProgramSection";
 import TreatmentServices from "@/components/TreatmentServices";
@@ -32,7 +31,6 @@ import DailyLifeSection from "@/components/DailyLifeSection";
 import AboutSection from "@/components/AboutSection";
 const FAQSection = dynamic(() => import("@/components/FAQSection"));
 import GoogleReviewsCinema from "@/components/GoogleReviewsCinema";
-import BlogPreview from "@/components/BlogPreview";
 import OutingsSection from "@/components/outings/OutingsSection";
 import { JsonLd } from "@/components/JsonLd";
 import {
@@ -97,7 +95,7 @@ const HOME_FAQ = [
   {
     question: "What makes Seven Arrows different from other rehab centers?",
     answer:
-      "Seven Arrows Recovery is a boutique facility with small group sizes, nestled at the base of the Swisshelm Mountains in Arizona. We offer a unique combination of evidence-based clinical treatment, holistic therapies, and our specialty Forward-Facing® Accelerated Recovery approach that addresses trauma and addiction simultaneously.",
+      "Seven Arrows Recovery is a treatment center with small group sizes, nestled at the base of the Swisshelm Mountains in Arizona. We offer a unique combination of evidence-based clinical treatment, holistic therapies, and our specialty Forward-Facing® Accelerated Recovery approach that addresses trauma and addiction simultaneously.",
   },
   {
     question: "Is my information kept confidential?",
@@ -132,16 +130,14 @@ export default async function Home() {
         ]}
       />
       <Hero sources={heroSources} />
-      <TourStats />
       <AboutSection />
+      <TreatmentServices />
       <PlaceToHeal />
       <ProgramSection />
-      <TreatmentServices />
       <CampusTour />
       <InsuranceCarousel />
       <GoogleReviewsCinema />
       <DailyLifeSection />
-      <BlogPreview />
       <FAQSection />
       <OutingsSection variant="landing" />
     </>

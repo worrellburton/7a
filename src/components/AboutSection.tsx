@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export default function AboutSection() {
   return (
-    <section className="py-20 lg:py-28 bg-warm-bg" aria-labelledby="about-heading">
+    <section className="py-14 lg:py-20 bg-warm-bg" aria-labelledby="about-heading">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid lg:grid-cols-2 gap-8 lg:gap-16 items-center">
           {/* Left: Video + sunset overlay */}
@@ -22,14 +22,6 @@ export default function AboutSection() {
                 className="w-full h-full object-cover"
               />
             </div>
-            <div className="absolute -bottom-6 right-4 lg:right-8 w-1/2 rounded-2xl overflow-hidden aspect-[4/3] shadow-xl border-4 border-white">
-              <img
-                src="/hero/group-sunset-desert.jpg"
-                alt="Group watching sunset in the desert"
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
-            </div>
           </div>
 
           {/* Right: Content */}
@@ -39,11 +31,11 @@ export default function AboutSection() {
               id="about-heading"
               className="text-3xl lg:text-4xl font-bold tracking-tight text-foreground leading-tight mb-6"
             >
-              A Boutique Drug Rehab Center in Arizona
+              A Privately Owned Treatment Ranch in Arizona
             </h2>
             <p className="text-foreground/60 leading-relaxed mb-8" style={{ fontFamily: 'var(--font-body)' }}>
               Seven Arrows cultivates a healthy balance between providing the structure you need for sustainable
-              recovery and working with you as a unique individual. As a leading drug rehab in Arizona, we
+              recovery and working with you as a unique individual. As a residential treatment center in Arizona, we
               understand that every person struggling with addiction arrives with their own story, and your
               interests and needs are integrated into your daily routine, harmonized with your existing
               treatment schedule.
