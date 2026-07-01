@@ -96,7 +96,7 @@ export default function CampusTour() {
       aria-labelledby="campus-heading"
     >
       {/* Header strip */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-20 lg:pt-28 pb-10 lg:pb-14">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-14 lg:pt-20 pb-10 lg:pb-14">
         <div className="max-w-3xl">
           <p
             className="section-label mb-5"
@@ -142,7 +142,7 @@ export default function CampusTour() {
           the section reads as a uniform scroller instead of a tall
           stacked column. Desktop keeps the original split — sticky-
           feel video column + 6-col × 4-row bento grid. */}
-      <div className="pb-20 lg:pb-28">
+      <div className="pb-14 lg:pb-20">
         {/* ---------- Mobile: equal-sized horizontal scroll ---------- */}
         <div className="lg:hidden relative">
           <div

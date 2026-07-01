@@ -12,7 +12,7 @@ import type { OutingWithImage } from '@/lib/outings-data';
 export default function Landing({ outings }: { outings: OutingWithImage[] }) {
   return (
     <section
-      className="relative isolate overflow-hidden py-20 lg:py-28"
+      className="relative isolate overflow-hidden py-14 lg:py-20"
       style={{
         background:
           'linear-gradient(180deg, #2a0f0a 0%, #1a1a1a 48%, #0e0e0e 100%)',

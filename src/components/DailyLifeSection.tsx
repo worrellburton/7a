@@ -71,7 +71,7 @@ const blocks = [
 
 export default function DailyLifeSection() {
   return (
-    <section className="py-20 lg:py-28 bg-white" aria-labelledby="admissions-path-heading">
+    <section className="py-14 lg:py-20 bg-white" aria-labelledby="admissions-path-heading">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center max-w-2xl mx-auto mb-14">
           <p className="section-label justify-center mb-4">The path to admission</p>
