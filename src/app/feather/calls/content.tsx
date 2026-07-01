@@ -9,6 +9,7 @@ import FloatingScrollbar from '@/components/FloatingScrollbar';
 import { supabase } from '@/lib/supabase';
 import { OperatorSchedule } from './OperatorSchedule';
 import { OperatorCheatSheet } from './OperatorCheatSheet';
+import { RatesCard } from './RatesCard';
 import { CallsHeatmap } from './CallsHeatmap';
 import MessagesPanel from './MessagesPanel';
 import {
@@ -768,6 +769,9 @@ export default function CallsContent() {
 
       {/* Admissions call-flow cheat sheet — collapsed row, drops down. */}
       <OperatorCheatSheet />
+
+      {/* Rates — pay structure reference, collapsed row, drops down. */}
+      <RatesCard />
 
       {/* Insight stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
