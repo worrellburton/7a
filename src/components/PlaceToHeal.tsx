@@ -37,7 +37,7 @@ export default function PlaceToHeal() {
   return (
     <section
       ref={ref}
-      className="relative py-20 lg:py-28 bg-white overflow-hidden"
+      className="relative py-14 lg:py-20 bg-white overflow-hidden"
       aria-labelledby="place-to-heal-heading"
     >
       <div
