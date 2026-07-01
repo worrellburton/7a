@@ -61,7 +61,7 @@ const services = [
 
 export default function TreatmentServices() {
   return (
-    <section className="py-14 lg:py-20 bg-warm-bg" aria-labelledby="treatment-heading">
+    <section className="py-14 lg:py-20 bg-white" aria-labelledby="treatment-heading">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-14 max-w-2xl mx-auto">
           <h2
