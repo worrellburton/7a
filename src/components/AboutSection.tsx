@@ -39,11 +39,11 @@ export default function AboutSection() {
               id="about-heading"
               className="text-3xl lg:text-4xl font-bold tracking-tight text-foreground leading-tight mb-6"
             >
-              A Boutique Drug Rehab Center in Arizona
+              A Treatment Center in Arizona
             </h2>
             <p className="text-foreground/60 leading-relaxed mb-8" style={{ fontFamily: 'var(--font-body)' }}>
               Seven Arrows cultivates a healthy balance between providing the structure you need for sustainable
-              recovery and working with you as a unique individual. As a leading drug rehab in Arizona, we
+              recovery and working with you as a unique individual. As a residential treatment center in Arizona, we
               understand that every person struggling with addiction arrives with their own story, and your
               interests and needs are integrated into your daily routine, harmonized with your existing
               treatment schedule.
