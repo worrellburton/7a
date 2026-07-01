@@ -430,7 +430,7 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
                   transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.1s',
                 }}
               >
-                A Drug Rehab Center in Arizona
+                A Treatment Center in Arizona
               </h1>
               <p
                 className="font-bold leading-[1.02] tracking-tight mb-6"
@@ -460,10 +460,10 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
                 lasting change.
               </p>
 
-              {/* Primary CTA — replacing the directory-style search input
-                  from Recovery.com with an honest, single-purpose button.
-                  A facility website only has one job here: move the visitor
-                  into insurance verification / admissions. */}
+              {/* Primary CTAs — a facility website's job here is to move
+                  the visitor into insurance verification / contact. Two
+                  clear next steps: Verify Insurance (primary) and Contact
+                  Us (outline). */}
               <div
                 className="mx-auto w-full max-w-xl flex flex-col sm:flex-row items-center justify-center gap-3"
                 style={{
@@ -473,19 +473,22 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
                 }}
               >
                 <Link
-                  href="/who-we-are"
+                  href="/admissions#verify"
                   className="inline-flex items-center justify-center gap-2 bg-primary hover:bg-primary-dark text-white rounded-full px-8 py-4 text-base font-semibold shadow-[0_20px_60px_-20px_rgba(0,0,0,0.7)] transition-all"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                    <circle cx="12" cy="8" r="4" />
-                    <path d="M4 21v-1a8 8 0 0 1 16 0v1" />
-                  </svg>
-                  About us
+                  Verify Insurance
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
                     <line x1="5" y1="12" x2="19" y2="12" />
                     <polyline points="12 5 19 12 12 19" />
                   </svg>
+                </Link>
+                <Link
+                  href="/contact"
+                  className="inline-flex items-center justify-center gap-2 border border-white/55 hover:bg-white/10 text-white rounded-full px-8 py-4 text-base font-semibold transition-all"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Contact Us
                 </Link>
               </div>
 
