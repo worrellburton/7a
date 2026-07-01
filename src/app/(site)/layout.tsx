@@ -5,7 +5,6 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import BeforeFooterCTA from '@/components/BeforeFooterCTA';
 import InsuranceVerification from '@/components/InsuranceVerification';
-import BottomTicker from '@/components/BottomTickerServer';
 import FloatingContactCTA from '@/components/FloatingContactCTA';
 import StickyMobileCTA from '@/components/StickyMobileCTA';
 import SmoothScroll from '@/components/SmoothScroll';
@@ -69,7 +68,6 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       <BeforeFooterCTA />
       <InsuranceVerification />
       <Footer />
-      <BottomTicker />
       <FloatingContactCTA />
       {/* Mobile-only sticky phone-call ribbon pinned to the
           bottom of every inner page. GoogleReviewsBadge was
