@@ -31,7 +31,6 @@ import DailyLifeSection from "@/components/DailyLifeSection";
 import AboutSection from "@/components/AboutSection";
 const FAQSection = dynamic(() => import("@/components/FAQSection"));
 import GoogleReviewsCinema from "@/components/GoogleReviewsCinema";
-import BlogPreview from "@/components/BlogPreview";
 import OutingsSection from "@/components/outings/OutingsSection";
 import { JsonLd } from "@/components/JsonLd";
 import {
@@ -139,7 +138,6 @@ export default async function Home() {
       <InsuranceCarousel />
       <GoogleReviewsCinema />
       <DailyLifeSection />
-      <BlogPreview />
       <FAQSection />
       <OutingsSection variant="landing" />
     </>
