@@ -22,14 +22,6 @@ export default function AboutSection() {
                 className="w-full h-full object-cover"
               />
             </div>
-            <div className="absolute -bottom-6 right-4 lg:right-8 w-1/2 rounded-2xl overflow-hidden aspect-[4/3] shadow-xl border-4 border-white">
-              <img
-                src="/hero/group-sunset-desert.jpg"
-                alt="Group watching sunset in the desert"
-                className="w-full h-full object-cover"
-                loading="lazy"
-              />
-            </div>
           </div>
 
           {/* Right: Content */}
@@ -39,7 +31,7 @@ export default function AboutSection() {
               id="about-heading"
               className="text-3xl lg:text-4xl font-bold tracking-tight text-foreground leading-tight mb-6"
             >
-              A Treatment Center in Arizona
+              A Privately Owned Treatment Ranch in Arizona
             </h2>
             <p className="text-foreground/60 leading-relaxed mb-8" style={{ fontFamily: 'var(--font-body)' }}>
               Seven Arrows cultivates a healthy balance between providing the structure you need for sustainable
