@@ -334,7 +334,7 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
               </span>
             </div>
             <p className="mt-1.5 text-sm text-white/65 max-w-2xl">
-              Chat with {modelLabel ?? 'Claude'} to change any public page. It finds the right file and edits the code &mdash; then
+              Chat with {modelLabel ?? 'Claude'} to change any public page &mdash; or build a whole new one. It finds the right file and edits the code &mdash; then
               you press <strong className="text-white/90">Push live</strong> to merge &amp; deploy it.
               Keep replying to refine. Every change is logged and one&#8209;click revertable.
             </p>
@@ -354,8 +354,8 @@ export default function LandingCodePanel({ token }: { token: string | null }) {
               {messages.length === 0 ? (
                 <div className="h-full min-h-[120px] flex flex-col items-center justify-center text-center px-4">
                   <p className="text-[28px] mb-1">🛰️</p>
-                  <p className="text-[13px] text-white/65 font-semibold">Tell me what to change on the site.</p>
-                  <p className="text-[12px] text-white/40 mt-1 max-w-sm">e.g. &ldquo;On the residential page, make the &lsquo;160 acres&rsquo; stat say 161&rdquo; — paste a screenshot if it helps.</p>
+                  <p className="text-[13px] text-white/65 font-semibold">Tell me what to change &mdash; or build a new page.</p>
+                  <p className="text-[12px] text-white/40 mt-1 max-w-sm">e.g. &ldquo;Make the &lsquo;160 acres&rsquo; stat say 161&rdquo; or &ldquo;Build a new landing page at /treatment/lp for a paid campaign&rdquo; — paste a screenshot if it helps.</p>
                 </div>
               ) : messages.map((m) => (
                 <div key={m.id} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
