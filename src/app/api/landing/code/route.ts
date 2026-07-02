@@ -9,6 +9,7 @@ import {
   getBranchHeadSha,
   createBranch,
   putFile,
+  fileExists,
   createPullRequest,
   listRecentPullStates,
   searchCode,
@@ -32,7 +33,9 @@ import {
 // GITHUB_BASE_BRANCH (default main), ANTHROPIC_MODEL.
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+// Generous ceiling — creating a whole new page is a big single generation
+// on top of the search/read loop, which was timing out at 60s (504).
+export const maxDuration = 300;
 
 const CLAUDE_API_URL = 'https://api.anthropic.com/v1/messages';
 const CLAUDE_VERSION = '2023-06-01';
@@ -64,6 +67,14 @@ interface ProposedEdit {
   pr_title: string;
   pr_body: string;
   changes: FileChange[];
+}
+
+interface PageCreation {
+  summary: string;
+  pr_title: string;
+  pr_body: string;
+  route: string;    // public URL path, no leading slash, e.g. "treatment/lp"
+  content: string;  // full source of the new page.tsx
 }
 
 const EDIT_TOOL = {
@@ -109,12 +120,43 @@ const EDIT_TOOL = {
   },
 } as const;
 
+const CREATE_TOOL = {
+  name: 'create_page',
+  description:
+    'Create a BRAND-NEW public website page at a new URL that does not exist yet. Provide the full source of ONE self-contained Next.js page file (it becomes src/app/(site)/<route>/page.tsx). Reuse EXISTING components only (e.g. PageHero, AdmissionsForm, StickyMobileCTA) — never import a component that does not exist. Use this only for a NEW route; to change an existing page, use propose_landing_edit instead.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      summary: { type: 'string', description: 'One short sentence describing the new page for a non-technical reviewer.' },
+      pr_title: { type: 'string', description: 'A concise pull-request title.' },
+      pr_body: { type: 'string', description: 'Markdown PR body explaining the new page.' },
+      route: {
+        type: 'string',
+        description: 'The public URL path for the new page, WITHOUT a leading slash — e.g. "treatment/lp" for /treatment/lp. Lowercase, words separated by hyphens. Becomes src/app/(site)/<route>/page.tsx.',
+      },
+      content: {
+        type: 'string',
+        description: 'The COMPLETE source of the new page.tsx file. A valid Next.js App Router page: a default-exported React component, optional `export const metadata`, and `export const revalidate = 3600`. Server component by default; it may import existing client components. Do not reference files that do not exist.',
+      },
+    },
+    required: ['summary', 'pr_title', 'pr_body', 'route', 'content'],
+    additionalProperties: false,
+  },
+} as const;
+
 const SYSTEM_PROMPT = `You are a coding agent editing the SOURCE CODE of Seven Arrows Recovery's public marketing website (Next.js + React + TypeScript + Tailwind). You work conversationally with a non-technical admin, like Claude Code.
 
 The admin focuses on a page; its current source is provided to you, sometimes with screenshots. To handle a request:
 - If the thing to change IS in the provided source, edit it directly with the propose_landing_edit tool.
 - If it is NOT there — the text, stat, or section lives on a different page or a shared component — use search_site to locate the file (search for distinctive on-page text or the component name), then read_page to read it, then propose_landing_edit.
+- If the admin asks for a BRAND-NEW page at a URL that does not exist yet, use create_page (see below) instead of trying to edit.
 - If you genuinely can't find the target or the request is ambiguous, reply with a short plain-English question or explanation (no tool call) instead of guessing.
+
+Creating a NEW page (create_page):
+- Use it ONLY for a new route. First confirm the route doesn't already exist (read_page on src/app/(site)/<route>/page.tsx — if it exists, edit it instead). To reuse a good structure, read an existing page like src/app/(site)/treatment/lp/page.tsx or src/app/(site)/treatment/residential-inpatient/page.tsx first.
+- Provide the COMPLETE page.tsx in one shot: a default-exported component, and normally 'export const metadata' + 'export const revalidate = 3600'. It becomes src/app/(site)/<route>/page.tsx.
+- Build it SELF-CONTAINED in that one file: write the sections inline with Tailwind and reuse ONLY components you have confirmed exist (e.g. PageHero from '@/components/PageHero', AdmissionsForm from '@/components/AdmissionsForm', StickyMobileCTA from '@/components/StickyMobileCTA'). NEVER import a component that doesn't exist — that breaks the build. When unsure a component exists, search_site for it first, or write the section inline.
+- Keep the JSX/TSX valid and typed. The site's global header/footer are added automatically by the (site) layout — don't add them.
 
 CRITICAL — edit only what the target page actually renders:
 - When the admin names a specific page or URL (e.g. /our-program/trauma-treatment), START from that route's file: read src/app/(site)/<route>/page.tsx (and its content.tsx if present) and trace which components it actually imports and renders. Only edit a file that is in THAT page's render tree — the route file itself, or a component it imports.
@@ -219,8 +261,9 @@ export async function POST(req: NextRequest) {
     ];
     messages.push({ role: 'user', content: userBlocks });
 
-    // Agentic loop: search_site → read_page → propose_landing_edit.
+    // Agentic loop: search_site → read_page → propose_landing_edit / create_page.
     let proposal: ProposedEdit | null = null;
+    let creation: PageCreation | null = null;
     let assistantText = '';
     for (let iter = 0; iter < 5; iter++) {
       const claudeRes = await fetch(CLAUDE_API_URL, {
@@ -230,7 +273,7 @@ export async function POST(req: NextRequest) {
           model: activeModel(),
           max_tokens: 16000,
           system: SYSTEM_PROMPT,
-          tools: [SEARCH_TOOL, READ_TOOL, EDIT_TOOL],
+          tools: [SEARCH_TOOL, READ_TOOL, EDIT_TOOL, CREATE_TOOL],
           messages,
         }),
       });
@@ -244,6 +287,8 @@ export async function POST(req: NextRequest) {
       const toolUses = content.filter((b) => b.type === 'tool_use');
       const edit = toolUses.find((b) => b.name === 'propose_landing_edit');
       if (edit?.input) { proposal = edit.input as ProposedEdit; break; }
+      const create = toolUses.find((b) => b.name === 'create_page');
+      if (create?.input) { creation = create.input as PageCreation; break; }
       if (toolUses.length === 0) {
         assistantText = content.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('\n').trim();
         break;
@@ -269,6 +314,75 @@ export async function POST(req: NextRequest) {
         toolResults.push({ type: 'tool_result', tool_use_id: tu.id ?? '', content: resultText });
       }
       messages.push({ role: 'user', content: toolResults });
+    }
+
+    // ── New-page creation path ──────────────────────────────────────
+    // create_page writes a brand-new src/app/(site)/<route>/page.tsx. Like
+    // an edit it's staged as a PR (not deployed) — the admin previews +
+    // pushes it live. Guarded so it can't clobber an existing route.
+    if (creation) {
+      const rawRoute = (creation.route || '').trim().replace(/^\/+|\/+$/g, '').toLowerCase();
+      const route = rawRoute.replace(/[^a-z0-9/-]/g, '').replace(/\/{2,}/g, '/');
+      const content = creation.content || '';
+      if (!route) return NextResponse.json({ error: 'The new page needs a URL path (e.g. "treatment/lp").' }, { status: 422 });
+      if (!content.trim()) return NextResponse.json({ error: 'The new page came back empty.' }, { status: 422 });
+      const path = `src/app/(site)/${route}/page.tsx`;
+      if (!isEditablePath(path)) {
+        return NextResponse.json({ error: `Refusing to create a page outside the public website: ${path}` }, { status: 422 });
+      }
+      if (await fileExists(cfg, path, BASE_BRANCH)) {
+        return NextResponse.json({ kind: 'message', text: `A page already exists at /${route}. Tell me what to change and I'll edit it instead of creating a new one.` });
+      }
+
+      const branch = `claude/landing-${Date.now()}`;
+      const baseSha = await getBranchHeadSha(cfg, BASE_BRANCH);
+      await createBranch(cfg, branch, baseSha);
+      // No sha → the Contents API CREATES the file.
+      await putFile(cfg, path, content, creation.pr_title || `Add /${route} page`, branch);
+
+      const cRequesterEmail = gate.user.email ?? null;
+      let cRequesterName: string | null = null;
+      try {
+        const u = await gate.admin.from('users').select('full_name').eq('id', gate.userId).maybeSingle();
+        cRequesterName = (u.data?.full_name as string | undefined) ?? null;
+      } catch { /* best-effort */ }
+      const cPrBody =
+        `${creation.pr_body || creation.summary || ''}\n\n---\n` +
+        `New page created via the Feather Landing → Code editor by ${cRequesterName || cRequesterEmail || gate.userId}.\n\n` +
+        `**Request:** ${instruction}`;
+      const cPr = await createPullRequest(cfg, {
+        title: creation.pr_title || `Add /${route} page`,
+        head: branch,
+        base: BASE_BRANCH,
+        body: cPrBody,
+      });
+
+      try {
+        await gate.admin.from('landing_code_requests').insert({
+          pr_number: cPr.number,
+          pr_url: cPr.html_url,
+          title: creation.pr_title || `Add /${route} page`,
+          summary: creation.summary || `New page at /${route}`,
+          instruction,
+          changed_files: [path],
+          changes: [],   // a create has no reversible edits — revert isn't offered
+          branch,
+          requested_by: gate.userId,
+          requested_by_email: cRequesterEmail,
+          requested_by_name: cRequesterName,
+        });
+      } catch { /* history is best-effort */ }
+
+      return NextResponse.json({
+        ok: true,
+        kind: 'change',
+        summary: creation.summary || `Created a new page at /${route}.`,
+        prUrl: cPr.html_url,
+        prNumber: cPr.number,
+        branch,
+        changedFiles: [path],
+        deployed: false,
+      });
     }
 
     if (!proposal) {
