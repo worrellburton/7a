@@ -102,12 +102,26 @@ export async function putFile(
   newContent: string,
   message: string,
   branch: string,
-  sha: string,
+  // Omit `sha` to CREATE a new file; pass the current blob sha to UPDATE
+  // an existing one (the Contents API distinguishes create vs update by
+  // the presence of sha).
+  sha?: string,
 ): Promise<void> {
   await gh(cfg, `/repos/${cfg.owner}/${cfg.repo}/contents/${encodeURIComponent(path).replace(/%2F/g, '/')}`, {
     method: 'PUT',
-    body: JSON.stringify({ message, content: encodeB64(newContent), branch, sha }),
+    body: JSON.stringify({ message, content: encodeB64(newContent), branch, ...(sha ? { sha } : {}) }),
   });
+}
+
+// Does a file exist on a branch? Used to stop a "create new page" from
+// silently clobbering an existing route.
+export async function fileExists(cfg: GithubConfig, path: string, ref: string): Promise<boolean> {
+  try {
+    await getFile(cfg, path, ref);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function createPullRequest(
