@@ -59,6 +59,36 @@ const MODEL_LABELS: Record<string, string> = {
 function modelLabel(id: string): string {
   return MODEL_LABELS[id] || id;
 }
+
+// Import specifiers in `content` that DON'T resolve to a file that exists
+// in the repo tree. create_page writes ONLY the one page.tsx, so any
+// relative import (./x, ../x) is missing by definition, and every '@/…'
+// import must map to an existing src/ file. Bare specifiers (react, next,
+// next/*, …) are assumed available. This is the hard guard that stops the
+// agent from shipping a page that imports a component it never created
+// (which fails the build — Turbopack "Module not found").
+function unresolvedImports(content: string, treeSet: Set<string>): string[] {
+  const bad: string[] = [];
+  const seen = new Set<string>();
+  const re = /\bfrom\s*['"]([^'"]+)['"]/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(content)) !== null) {
+    const spec = m[1];
+    if (seen.has(spec)) continue;
+    seen.add(spec);
+    if (spec.startsWith('.')) {
+      bad.push(spec); // sibling/relative module — create_page doesn't create it
+    } else if (spec.startsWith('@/')) {
+      const base = 'src/' + spec.slice(2);
+      const ok = [base, `${base}.tsx`, `${base}.ts`, `${base}/index.tsx`, `${base}/index.ts`].some((p) => treeSet.has(p));
+      if (!ok) bad.push(spec);
+    }
+    // bare imports (react, next, next/image, etc.) — assumed available.
+  }
+  return bad;
+}
+const IMPORT_FIX_HINT =
+  'create_page writes ONLY the one page.tsx, so you cannot import sibling/relative modules (./… or ../…) or components that do not exist. Build those sections INLINE in the page, or import only components you have confirmed exist under "@/components/…". Then call create_page again.';
 const BASE_BRANCH = process.env.GITHUB_BASE_BRANCH || 'main';
 const ALLOWED_IMAGE_TYPES = new Set(['image/png', 'image/jpeg', 'image/webp', 'image/gif']);
 
@@ -236,7 +266,9 @@ export async function POST(req: NextRequest) {
     // Resolve the focused page(s) → inline their source as a starting hint.
     // The agent can still SEARCH the rest of the site if the target lives
     // elsewhere. Defaults to Home. Boundary: public-site files only.
-    const registry = await getTreePaths(cfg, BASE_BRANCH).then(buildEditablePages);
+    const treePaths = await getTreePaths(cfg, BASE_BRANCH);
+    const treeSet = new Set(treePaths);
+    const registry = buildEditablePages(treePaths);
     const chosen = selectedKeys.length > 0
       ? registry.filter((p) => selectedKeys.includes(p.key))
       : registry.filter((p) => p.key === HOME_ROUTE);
@@ -288,7 +320,13 @@ export async function POST(req: NextRequest) {
       const edit = toolUses.find((b) => b.name === 'propose_landing_edit');
       if (edit?.input) { proposal = edit.input as ProposedEdit; break; }
       const create = toolUses.find((b) => b.name === 'create_page');
-      if (create?.input) { creation = create.input as PageCreation; break; }
+      // Only accept a new page whose imports all resolve — otherwise the
+      // create_page case in the tool loop below feeds the model the errors
+      // to fix, and it retries within the loop.
+      if (create?.input && unresolvedImports((create.input as PageCreation).content || '', treeSet).length === 0) {
+        creation = create.input as PageCreation;
+        break;
+      }
       if (toolUses.length === 0) {
         assistantText = content.filter((b) => b.type === 'text').map((b) => b.text ?? '').join('\n').trim();
         break;
@@ -296,6 +334,7 @@ export async function POST(req: NextRequest) {
       const toolResults: Block[] = [];
       for (const tu of toolUses) {
         let resultText = '';
+        let isError = false;
         try {
           const input = (tu.input ?? {}) as { query?: string; path?: string };
           if (tu.name === 'search_site') {
@@ -305,13 +344,20 @@ export async function POST(req: NextRequest) {
             const path = String(input.path ?? '');
             if (!isEditablePath(path)) resultText = 'That path is outside the editable public website.';
             else { const f = await getFile(cfg, path, BASE_BRANCH); resultText = f.content.slice(0, 80000); }
+          } else if (tu.name === 'create_page') {
+            // Reached only when the new page's imports don't resolve (the
+            // valid case breaks out above). Tell the model exactly which
+            // imports are broken so it fixes them and calls create_page again.
+            const bad = unresolvedImports(((tu.input ?? {}) as PageCreation).content || '', treeSet);
+            isError = true;
+            resultText = `Can't create the page yet — these imports don't resolve to files that exist: ${bad.join(', ')}. ${IMPORT_FIX_HINT}`;
           } else {
             resultText = 'Unknown tool.';
           }
         } catch (e) {
           resultText = `Tool error: ${e instanceof Error ? e.message : String(e)}`;
         }
-        toolResults.push({ type: 'tool_result', tool_use_id: tu.id ?? '', content: resultText });
+        toolResults.push({ type: 'tool_result', tool_use_id: tu.id ?? '', content: resultText, ...(isError ? { is_error: true } : {}) });
       }
       messages.push({ role: 'user', content: toolResults });
     }
@@ -326,6 +372,13 @@ export async function POST(req: NextRequest) {
       const content = creation.content || '';
       if (!route) return NextResponse.json({ error: 'The new page needs a URL path (e.g. "treatment/lp").' }, { status: 422 });
       if (!content.trim()) return NextResponse.json({ error: 'The new page came back empty.' }, { status: 422 });
+      // Defense in depth — never commit a page that imports files which
+      // don't exist (that's a hard build failure). The loop should have
+      // caught this, but re-check before writing anything to GitHub.
+      const stillBad = unresolvedImports(content, treeSet);
+      if (stillBad.length) {
+        return NextResponse.json({ kind: 'message', text: `I couldn't safely build that page — it referenced components that don't exist (${stillBad.join(', ')}). Ask me again and I'll build it self-contained.` });
+      }
       const path = `src/app/(site)/${route}/page.tsx`;
       if (!isEditablePath(path)) {
         return NextResponse.json({ error: `Refusing to create a page outside the public website: ${path}` }, { status: 422 });
