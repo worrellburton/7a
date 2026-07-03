@@ -28,7 +28,28 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function SiteLayout({ children }: { children: React.ReactNode }) {
+// Fully-gated landing routes: standalone conversion pages that must
+// NOT expose any navigation off the page. On these routes we suppress
+// the shared TopBar/Header nav, the pre-footer CTA stack, the Footer
+// (with all its site links), and the floating contact CTA. The page
+// itself supplies its own tel:/#verify CTAs and its own StickyMobileCTA,
+// so we skip the layout's duplicate mobile ribbon too.
+const GATED_ROUTES = new Set<string>(['/treatment/lp-ranch']);
+
+export default async function SiteLayout({ children }: { children: React.ReactNode }) {
+  const h = await headers();
+  const pathname = (h.get('x-pathname') || '/').replace(/\/$/, '') || '/';
+  const isGated = GATED_ROUTES.has(pathname);
+
+  if (isGated) {
+    return (
+      <>
+        <SmoothScroll />
+        <main id="main-content" className="flex-1">{children}</main>
+      </>
+    );
+  }
+
   return (
     <>
       {/* Site-wide smooth scrolling (Lenis). Client-only; no-ops under
