@@ -249,7 +249,7 @@ export default function RanchLandingPage() {
           aria-hidden
           style={{
             background:
-              'linear-gradient(120deg, rgba(39,23,16,0.94) 0%, rgba(25,16,10,0.86) 60%)',
+              'linear-gradient(120deg, rgba(39,23,16,0.78) 0%, rgba(25,16,10,0.45) 60%, rgba(25,16,10,0.30) 100%)',
           }}
         />
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-20">
