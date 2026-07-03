@@ -210,8 +210,33 @@ function StarRow() {
 export default function RanchLandingPage() {
   return (
     <>
+      {/* STICKY GATED TOP BAR — logo links only to this page (no off-page
+          nav), phone number always visible top-right, pinned to top. */}
+      <header className="sticky top-0 z-50 bg-white shadow-sm">
+        <nav className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" aria-label="Primary">
+          <div className="flex items-center justify-between h-16 lg:h-[68px]">
+            <a href="#top" aria-label="Seven Arrows Recovery" className="shrink-0">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/images/logo.png"
+                alt="Seven Arrows Recovery"
+                className="h-11 lg:h-12 w-auto"
+              />
+            </a>
+            <a
+              href={PHONE_HREF}
+              className="inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primary-dark text-white px-4 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-[15px] font-bold transition whitespace-nowrap"
+              style={{ fontFamily: 'var(--font-body)' }}
+              aria-label={`Call us at ${PHONE_DISPLAY}`}
+            >
+              ✆ {PHONE_DISPLAY}
+            </a>
+          </div>
+        </nav>
+      </header>
+
       {/* HERO */}
-      <section className="relative overflow-hidden bg-dark-section text-white">
+      <section id="top" className="relative overflow-hidden bg-dark-section text-white">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={HERO_IMG}
