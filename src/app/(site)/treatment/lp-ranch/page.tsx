@@ -28,8 +28,7 @@ const INDIVIDUAL_IMG = '/hero/individual-therapy-session.jpg';
 const READING_IMG = '/hero/resident-reading-window.jpg';
 const PAVILION_IMG = '/hero/group-gathering-pavilion.jpg';
 const SUNSET_IMG = '/hero/group-sunset-desert.jpg';
-const BEDROOM_IMG =
-  'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776855988197-mah7icy291-twin-beds-southwest-guest-room.jpg';
+const BEDROOM_IMG = '/hero/covered-porch-desert-view.jpg';
 
 const HERO_CHECKS = [
   '24/7 admissions · most clients arrive within 24–48 hours',
@@ -110,25 +109,21 @@ const CONDITIONS = [
 
 const TEAM = [
   {
-    img: SOUND_IMG,
     name: 'Lindsay Rothschild',
     role: 'LCSW · EMDRIA Certified — Clinical Director',
     body: 'Leads the clinical program with a trauma-focused, salutogenic approach grounded in EMDR and somatic work.',
   },
   {
-    img: INDIVIDUAL_IMG,
     name: 'Tracey Oppenheim',
     role: 'MD — Medical Director',
     body: 'Oversees medical and dual-diagnosis care with a focus on safety, stabilization, and long-term wellness.',
   },
   {
-    img: EQUINE_IMG,
     name: 'Melissa Simard',
     role: 'LAC · CCTS-A — Equine Services Director',
     body: "Directs the equine-assisted psychotherapy program and matches each horse's temperament to the client.",
   },
   {
-    img: CEREMONY_IMG,
     name: 'Brian Twomoons',
     role: 'Cultural Director',
     body: 'Of the Crow Nation, guides the ceremony and Indigenous-informed healing woven through the week.',
@@ -623,18 +618,15 @@ export default function RanchLandingPage() {
           </div>
           <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {TEAM.map((m) => (
-              <div key={m.name} className="rounded-2xl overflow-hidden border border-black/8 bg-white">
-                <div className="relative h-52">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={m.img} alt={m.name} loading="lazy" className="absolute inset-0 w-full h-full object-cover" />
+              <div key={m.name} className="rounded-2xl border border-black/8 bg-white p-6 flex flex-col">
+                <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center text-lg font-bold mb-4" style={{ fontFamily: 'var(--font-display)' }} aria-hidden>
+                  {m.name.split(' ').map((n) => n[0]).join('')}
                 </div>
-                <div className="p-5">
-                  <h3 className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
-                    {m.name}
-                  </h3>
-                  <p className="text-[12px] font-semibold text-primary my-2">{m.role}</p>
-                  <p className="text-[13px] text-foreground/70">{m.body}</p>
-                </div>
+                <h3 className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+                  {m.name}
+                </h3>
+                <p className="text-[12px] font-semibold text-primary my-2">{m.role}</p>
+                <p className="text-[13px] text-foreground/70">{m.body}</p>
               </div>
             ))}
           </div>
