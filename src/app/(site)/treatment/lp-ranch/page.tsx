@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import AdmissionsForm from '@/components/AdmissionsForm';
 import StickyMobileCTA from '@/components/StickyMobileCTA';
+import RanchStickyBanner from './RanchStickyBanner';
 
 export const revalidate = 3600;
 
@@ -837,6 +838,7 @@ export default function RanchLandingPage() {
       </section>
 
       <StickyMobileCTA />
+      <RanchStickyBanner />
     </>
   );
 }
