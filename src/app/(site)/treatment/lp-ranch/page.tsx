@@ -29,42 +29,34 @@ const HERO_CHECKS = [
 
 const DIFFERENTIATORS = [
   {
-    icon: '🤝',
     title: 'Trauma & addiction together',
     body: 'Both treated at once with our forward-facing TraumAddiction model, so you build on strengths instead of reliving the past.',
   },
   {
-    icon: '🌿',
     title: 'Health, not just illness',
     body: 'The whole program is built around helping your nervous system feel safe. That regulation is the ground everything stands on.',
   },
   {
-    icon: '🐎',
     title: "Equine therapy that's real therapy",
     body: 'Fifteen horses live here full-time, matched to you, in sessions led by licensed clinicians. Not horseback riding.',
   },
   {
-    icon: '🪶',
     title: 'Indigenous ceremony with lineage',
     body: 'Founder Brian Twomoons and family (Crow Nation) hold the rights to share these ceremonies. Not religious; all are welcome.',
   },
   {
-    icon: '🏔️',
     title: 'A ranch, not a clinic',
     body: 'Mountain-view rooms, time outdoors with the horses, fresh locally sourced meals, and dark-sky nights.',
   },
   {
-    icon: '🤍',
     title: 'Small by design',
     body: "Twenty beds and a high staff-to-client ratio. You're known here, not processed.",
   },
   {
-    icon: '♾️',
     title: "You don't disappear after",
     body: 'Alumni community, weekly virtual groups, an annual reunion, and a 10-week family program.',
   },
   {
-    icon: '🏅',
     title: 'Accredited & independently owned',
     body: 'JCAHO Gold Seal, LegitScript certified, HIPAA compliant. Not a private-equity chain.',
     highlight: true,
@@ -95,14 +87,14 @@ const CARE = [
 ];
 
 const CONDITIONS = [
-  { icon: '🍷', title: 'Alcohol Addiction', body: 'Drinking that affects relationships, work, and health.' },
-  { icon: '💊', title: 'Opioid Addiction', body: 'Dependence on painkillers, heroin, or fentanyl.' },
-  { icon: '🌀', title: 'Benzodiazepines', body: 'Misuse of medications like Xanax or Ativan.' },
-  { icon: '⚡', title: 'Cocaine & Stimulants', body: 'Cocaine, meth, or prescription stimulant use.' },
-  { icon: '🧊', title: 'Methamphetamine', body: 'Stimulant use that disrupts daily functioning.' },
-  { icon: '🌿', title: 'Marijuana', body: 'Cannabis use that interferes with motivation and focus.' },
-  { icon: '💉', title: 'Prescription Drugs', body: 'Nonmedical use of sleep, ADHD, or pain medications.' },
-  { icon: '🧠', title: 'Dual Diagnosis', body: 'Trauma, anxiety, depression, or PTSD alongside addiction.' },
+  { title: 'Alcohol Addiction', body: 'Drinking that affects relationships, work, and health.' },
+  { title: 'Opioid Addiction', body: 'Dependence on painkillers, heroin, or fentanyl.' },
+  { title: 'Benzodiazepines', body: 'Misuse of medications like Xanax or Ativan.' },
+  { title: 'Cocaine & Stimulants', body: 'Cocaine, meth, or prescription stimulant use.' },
+  { title: 'Methamphetamine', body: 'Stimulant use that disrupts daily functioning.' },
+  { title: 'Marijuana', body: 'Cannabis use that interferes with motivation and focus.' },
+  { title: 'Prescription Drugs', body: 'Nonmedical use of sleep, ADHD, or pain medications.' },
+  { title: 'Dual Diagnosis', body: 'Trauma, anxiety, depression, or PTSD alongside addiction.' },
 ];
 
 const TEAM = [
@@ -240,11 +232,11 @@ export default function RanchLandingPage() {
                 className="font-bold leading-[1.02] mb-4"
                 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.5rem, 6vw, 3.75rem)' }}
               >
-                Arizona&rsquo;s ranch for{' '}
+                Recovery starts with{' '}
                 <em className="not-italic" style={{ color: 'var(--color-accent)' }}>
-                  lasting
-                </em>{' '}
-                recovery.
+                  one call
+                </em>
+                .
               </h1>
               <div className="flex items-center gap-3 mb-4 text-sm text-white/85">
                 <StarRow /> 4.8/5 on Google · 28 verified reviews
@@ -313,7 +305,7 @@ export default function RanchLandingPage() {
               className="text-3xl sm:text-4xl font-bold text-foreground"
               style={{ fontFamily: 'var(--font-display)' }}
             >
-              160 acres built for rest, privacy, and healing.
+              Arizona&rsquo;s ranch for lasting recovery.
             </h2>
             <p className="mt-4 text-foreground/70 text-[17px]">
               Rustic-chic rooms with mountain views, a resident herd, ceremony space, and some of the
@@ -323,11 +315,12 @@ export default function RanchLandingPage() {
           <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-3 auto-rows-[180px]">
             {[
               { img: HERO_IMG, cap: 'The ranch at the base of the Swisshelm Mountains', big: true },
-              { img: HORSES_IMG, cap: 'The resident herd & arena' },
               { img: SOUND_IMG, cap: 'Sound · breath · body' },
+              { img: HORSES_IMG, cap: 'The resident herd & arena' },
+              { img: SOUND_IMG, cap: 'Comfortable indoor gathering spaces' },
               { img: CEREMONY_IMG, cap: 'Ceremony & connection' },
+              { img: SOUND_IMG, cap: 'Quiet spaces for reflection' },
               { img: NIGHT_IMG, cap: 'Trails & dark-sky nights' },
-              { img: HERO_IMG, cap: 'Comfortable common spaces' },
             ].map((t, i) => (
               <div
                 key={i}
@@ -389,7 +382,9 @@ export default function RanchLandingPage() {
                     : 'bg-white border-black/8'
                 }`}
               >
-                {!d.highlight && <div className="text-2xl mb-3">{d.icon}</div>}
+                {!d.highlight && (
+                  <span className="block w-8 h-1 rounded-full bg-primary mb-4" aria-hidden />
+                )}
                 <h3
                   className={`text-xl font-bold mb-2 ${d.highlight ? 'text-white' : 'text-foreground'}`}
                   style={{ fontFamily: 'var(--font-display)' }}
@@ -434,9 +429,10 @@ export default function RanchLandingPage() {
             .
           </h2>
           <p className="text-white/80 text-[16px] mb-3.5">
-            A lot of places offer horseback riding and call it healing. Here, fifteen horses live on
-            the ranch full-time, each matched to you by temperament and assessed daily, in sessions
-            led by licensed clinicians and built into your treatment plan.
+            Equine therapy is our signature draw &mdash; and one of the most immersive equine
+            experiences in the country. A lot of places offer horseback riding and call it healing.
+            Here, fifteen horses live on the ranch full-time, each matched to you by temperament and
+            assessed daily, in sessions led by licensed clinicians and built into your treatment plan.
           </p>
           <p className="text-white/80 text-[16px]">
             Horses respond to what you&rsquo;re really feeling underneath, and that honesty often
@@ -550,9 +546,7 @@ export default function RanchLandingPage() {
           <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
             {CONDITIONS.map((c) => (
               <div key={c.title} className="flex items-start gap-3.5 rounded-xl border border-black/8 bg-white p-5">
-                <span className="shrink-0 w-10 h-10 rounded-lg bg-warm-bg flex items-center justify-center text-lg">
-                  {c.icon}
-                </span>
+                <span className="shrink-0 mt-1.5 w-2.5 h-2.5 rounded-full bg-primary" aria-hidden />
                 <div>
                   <h3 className="text-[15px] font-semibold text-foreground mb-1">{c.title}</h3>
                   <p className="text-[12.5px] text-foreground/70">{c.body}</p>
