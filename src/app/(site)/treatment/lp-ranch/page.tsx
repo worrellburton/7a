@@ -16,9 +16,19 @@ const PHONE_HREF = 'tel:+18667181665';
 
 const HERO_IMG = '/hero/facility-exterior-mountains.jpg';
 const HORSES_IMG = '/hero/horses-grazing.jpg';
+const EQUINE_IMG = '/hero/equine-therapy-portrait.jpg';
 const SOUND_IMG = '/hero/sound-healing-session.jpg';
 const CEREMONY_IMG = '/images/campfire-ceremony-circle.webp';
 const NIGHT_IMG = '/hero/sign-night-sky-milky-way.jpg';
+const LIVING_IMG = '/hero/common-area-living-room.jpg';
+const PORCH_IMG = '/hero/covered-porch-desert-view.jpg';
+const GROUP_ROOM_IMG = '/hero/group-therapy-room.jpg';
+const INDIVIDUAL_IMG = '/hero/individual-therapy-session.jpg';
+const READING_IMG = '/hero/resident-reading-window.jpg';
+const PAVILION_IMG = '/hero/group-gathering-pavilion.jpg';
+const SUNSET_IMG = '/hero/group-sunset-desert.jpg';
+const BEDROOM_IMG =
+  'https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-gallery/1776855988197-mah7icy291-twin-beds-southwest-guest-room.jpg';
 
 const HERO_CHECKS = [
   '24/7 admissions · most clients arrive within 24–48 hours',
@@ -70,12 +80,12 @@ const CARE = [
     body: '30, 60, and 90+ day immersive treatment with 24/7 on-site care, a primary therapist from day one, and 20+ hours of group weekly.',
   },
   {
-    img: SOUND_IMG,
+    img: INDIVIDUAL_IMG,
     title: 'Trauma & Dual Diagnosis',
     body: 'Forward-Facing® Accelerated Recovery with EMDR, IFS, ART, somatic CBT/DBT for co-occurring anxiety, depression, and PTSD.',
   },
   {
-    img: HORSES_IMG,
+    img: PAVILION_IMG,
     title: 'Family Program',
     body: 'A 10-week virtual family education program plus monthly individual family sessions, so your people understand what you\u2019re walking through.',
   },
@@ -105,13 +115,13 @@ const TEAM = [
     body: 'Leads the clinical program with a trauma-focused, salutogenic approach grounded in EMDR and somatic work.',
   },
   {
-    img: HERO_IMG,
+    img: INDIVIDUAL_IMG,
     name: 'Tracey Oppenheim',
     role: 'MD — Medical Director',
     body: 'Oversees medical and dual-diagnosis care with a focus on safety, stabilization, and long-term wellness.',
   },
   {
-    img: HORSES_IMG,
+    img: EQUINE_IMG,
     name: 'Melissa Simard',
     role: 'LAC · CCTS-A — Equine Services Director',
     body: "Directs the equine-assisted psychotherapy program and matches each horse's temperament to the client.",
@@ -308,18 +318,21 @@ export default function RanchLandingPage() {
               Arizona&rsquo;s ranch for lasting recovery.
             </h2>
             <p className="mt-4 text-foreground/70 text-[17px]">
-              Rustic-chic rooms with mountain views, a resident herd, ceremony space, and some of the
-              clearest night skies in the country.
+              A private 160-acre ranch with rustic-chic rooms and mountain views, warm indoor
+              gathering spaces, a resident herd, ceremony space, and some of the clearest night skies
+              in the country.
             </p>
           </div>
           <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-3 auto-rows-[180px]">
             {[
-              { img: HERO_IMG, cap: 'The ranch at the base of the Swisshelm Mountains', big: true },
-              { img: SOUND_IMG, cap: 'Sound · breath · body' },
+              { img: HERO_IMG, cap: 'The 160-acre ranch at the base of the Swisshelm Mountains', big: true },
+              { img: BEDROOM_IMG, cap: 'Home-like private & shared rooms' },
+              { img: LIVING_IMG, cap: 'Comfortable indoor common areas' },
+              { img: GROUP_ROOM_IMG, cap: 'Light-filled group therapy space' },
+              { img: READING_IMG, cap: 'Quiet spaces for reflection' },
+              { img: PORCH_IMG, cap: 'Covered porches & desert views' },
               { img: HORSES_IMG, cap: 'The resident herd & arena' },
-              { img: SOUND_IMG, cap: 'Comfortable indoor gathering spaces' },
               { img: CEREMONY_IMG, cap: 'Ceremony & connection' },
-              { img: SOUND_IMG, cap: 'Quiet spaces for reflection' },
               { img: NIGHT_IMG, cap: 'Trails & dark-sky nights' },
             ].map((t, i) => (
               <div
@@ -412,7 +425,7 @@ export default function RanchLandingPage() {
       <section className="grid lg:grid-cols-2 bg-dark-section text-white">
         <div className="relative min-h-[360px] lg:min-h-[480px]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={HORSES_IMG} alt="The resident herd on the ranch" className="absolute inset-0 w-full h-full object-cover" />
+          <img src={EQUINE_IMG} alt="Clinician-led equine therapy on the ranch" className="absolute inset-0 w-full h-full object-cover" />
         </div>
         <div className="p-8 sm:p-12 lg:p-16">
           <span className="inline-block text-[11px] font-semibold uppercase tracking-[0.12em] text-dark-section bg-accent px-3 py-1.5 rounded-full mb-4">
@@ -565,6 +578,33 @@ export default function RanchLandingPage() {
         </div>
       </section>
 
+      {/* TESTIMONIALS */}
+      <section className="bg-warm-bg py-16 lg:py-20">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto">
+            <p className="text-[12px] font-semibold uppercase tracking-[0.2em] text-primary mb-3">
+              Real Stories of Recovery
+            </p>
+            <h2 className="text-3xl sm:text-4xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+              4.8 ★ from verified Google reviews.
+            </h2>
+          </div>
+          <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {TESTIMONIALS.map((t) => (
+              <div key={t.who} className="rounded-2xl border border-black/8 bg-white p-7">
+                <div className="mb-3">
+                  <StarRow />
+                </div>
+                <p className="text-lg leading-relaxed text-foreground mb-3.5" style={{ fontFamily: 'var(--font-display)' }}>
+                  &ldquo;{t.quote}&rdquo;
+                </p>
+                <p className="text-[12.5px] font-semibold text-foreground/60 tracking-wide">{t.who}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* TEAM */}
       <section className="bg-white py-16 lg:py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -675,33 +715,6 @@ export default function RanchLandingPage() {
         </div>
       </section>
 
-      {/* TESTIMONIALS */}
-      <section className="bg-warm-bg py-16 lg:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-2xl mx-auto">
-            <p className="text-[12px] font-semibold uppercase tracking-[0.2em] text-primary mb-3">
-              Real Stories of Recovery
-            </p>
-            <h2 className="text-3xl sm:text-4xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
-              4.8 ★ from verified Google reviews.
-            </h2>
-          </div>
-          <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {TESTIMONIALS.map((t) => (
-              <div key={t.who} className="rounded-2xl border border-black/8 bg-white p-7">
-                <div className="mb-3">
-                  <StarRow />
-                </div>
-                <p className="text-lg leading-relaxed text-foreground mb-3.5" style={{ fontFamily: 'var(--font-display)' }}>
-                  &ldquo;{t.quote}&rdquo;
-                </p>
-                <p className="text-[12.5px] font-semibold text-foreground/60 tracking-wide">{t.who}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* STATS */}
       <section className="py-16 lg:py-20 text-center text-white" style={{ background: 'linear-gradient(135deg, #2f1d12, #693f25)' }}>
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -789,14 +802,6 @@ export default function RanchLandingPage() {
                 <p className="mt-2.5 text-[14px] text-foreground/70">{f.a}</p>
               </div>
             ))}
-          </div>
-          <div className="mt-10 text-center">
-            <a
-              href={PHONE_HREF}
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-green-700 px-7 py-3.5 text-[15px] font-semibold text-white hover:brightness-110 transition"
-            >
-              ✆ Still have questions? Call us
-            </a>
           </div>
         </div>
       </section>
