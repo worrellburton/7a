@@ -32,6 +32,7 @@ function hourLabel(h: number): string {
 interface Props {
   token: string | null;
   from?: string;
+  to?: string;
   direction?: string;
   missed?: boolean;
   search?: string;
@@ -40,7 +41,7 @@ interface Props {
   rangeLabel?: string;
 }
 
-export function CallsHeatmap({ token, from, direction, missed, search, rangeLabel }: Props) {
+export function CallsHeatmap({ token, from, to, direction, missed, search, rangeLabel }: Props) {
   const [rows, setRows] = useState<AircallCallRow[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -54,6 +55,7 @@ export function CallsHeatmap({ token, from, direction, missed, search, rangeLabe
       for (let page = 1; page <= SAMPLE_PAGES; page++) {
         const p = new URLSearchParams();
         if (from) p.set('from', from);
+        if (to) p.set('to', to);
         if (direction && direction !== 'all') p.set('direction', direction);
         if (missed) p.set('missed', '1');
         if (search) p.set('search', search);
@@ -73,7 +75,7 @@ export function CallsHeatmap({ token, from, direction, missed, search, rangeLabe
       }
     })();
     return () => { cancelled = true; };
-  }, [token, from, direction, missed, search]);
+  }, [token, from, to, direction, missed, search]);
 
   const { grid, max, total } = useMemo(() => {
     const g = Array.from({ length: 7 }, () => new Array(24).fill(0) as number[]);
