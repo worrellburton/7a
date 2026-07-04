@@ -706,10 +706,17 @@ export default function HomeContent() {
     // context so they stay BEHIND home-content elements rather than
     // disappearing behind the body's background.
     <div data-home-no-scroll className="relative flex flex-col min-h-full overflow-x-clip isolation-auto" style={{ isolation: 'isolate' }}>
-      {/* Phase 3: ambient backdrop. Three soft warm orbs sit behind
+      {/* Phase 3: ambient backdrop. Soft warm orbs sit behind
           everything so the glass surfaces have something colorful to
-          refract. Pointer-events off so they never trap clicks. */}
+          refract. Pointer-events off so they never trap clicks.
+          The first three orbs anchor top-left, mid-right and bottom;
+          that left the TOP-CENTER of the page — directly behind the
+          orbit's uppermost avatars — with no warm coverage, so it
+          fell back to the near-white page base and read as a stray
+          "white band" at the top. The fourth orb washes warmth across
+          the top edge so the backdrop reads as uniformly warm. */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[820px] h-[440px] rounded-full bg-orange-200/30 blur-[130px]" />
         <div className="absolute -top-32 -left-24 w-[420px] h-[420px] rounded-full bg-orange-300/35 blur-[120px]" />
         <div className="absolute top-1/4 -right-20 w-[360px] h-[360px] rounded-full bg-rose-200/40 blur-[110px]" />
         <div className="absolute bottom-0 left-1/3 w-[480px] h-[480px] rounded-full bg-amber-200/35 blur-[130px]" />
