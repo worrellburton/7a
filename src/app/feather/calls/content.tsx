@@ -27,7 +27,7 @@ import { callerLocation } from './area-codes';
 
 const PER_PAGE = 50;
 
-type RangePreset = 'today' | '7d' | '30d' | 'all';
+type RangePreset = 'today' | 'yesterday' | '7d' | '30d' | 'all';
 type DirectionFilter = 'all' | 'inbound' | 'outbound';
 
 interface AgentUser { email: string; avatar_url: string | null; full_name: string | null; }
@@ -42,17 +42,27 @@ function phoenixMidnightUtc(daysAgo = 0): Date {
 function rangeFrom(preset: RangePreset): string | undefined {
   switch (preset) {
     case 'today': return phoenixMidnightUtc(0).toISOString();
+    case 'yesterday': return phoenixMidnightUtc(1).toISOString();
     case '7d': return phoenixMidnightUtc(6).toISOString();
     case '30d': return phoenixMidnightUtc(29).toISOString();
     case 'all': return undefined;
   }
 }
 
+// Upper bound on the range. Only "Yesterday" is a bounded window (midnight
+// yesterday → midnight today); every other preset runs from its start
+// through now, so it has no `to`.
+function rangeTo(preset: RangePreset): string | undefined {
+  return preset === 'yesterday' ? phoenixMidnightUtc(0).toISOString() : undefined;
+}
+
 // Human label for the active range — shown on the heatmap so it's clear the
-// chart is scoped to the same Today / 7-day / 30-day / All filter as the list.
+// chart is scoped to the same Today / Yesterday / 7-day / 30-day / All filter
+// as the list.
 function rangeLabel(preset: RangePreset): string {
   switch (preset) {
     case 'today': return 'Today';
+    case 'yesterday': return 'Yesterday';
     case '7d': return 'Last 7 days';
     case '30d': return 'Last 30 days';
     case 'all': return 'All time';
@@ -551,6 +561,8 @@ export default function CallsContent() {
     const p = new URLSearchParams();
     const from = rangeFrom(preset);
     if (from) p.set('from', from);
+    const to = rangeTo(preset);
+    if (to) p.set('to', to);
     if (direction !== 'all') p.set('direction', direction);
     if (missedOnly) p.set('missed', '1');
     if (debouncedSearch) p.set('search', debouncedSearch);
@@ -797,9 +809,9 @@ export default function CallsContent() {
           />
         </div>
         <div className="inline-flex rounded-full border border-white/70 bg-white/70 p-0.5 text-xs font-semibold">
-          {(['today', '7d', '30d', 'all'] as RangePreset[]).map((r) => (
+          {(['today', 'yesterday', '7d', '30d', 'all'] as RangePreset[]).map((r) => (
             <button key={r} onClick={() => setPreset(r)} className={`px-3 py-1.5 rounded-full transition-colors ${preset === r ? 'bg-primary text-white shadow-sm' : 'text-foreground/60 hover:text-foreground'}`}>
-              {r === 'today' ? 'Today' : r === 'all' ? 'All' : r === '7d' ? '7 days' : '30 days'}
+              {r === 'today' ? 'Today' : r === 'yesterday' ? 'Yesterday' : r === 'all' ? 'All' : r === '7d' ? '7 days' : '30 days'}
             </button>
           ))}
         </div>
@@ -835,6 +847,7 @@ export default function CallsContent() {
         <CallsHeatmap
           token={token}
           from={rangeFrom(preset)}
+          to={rangeTo(preset)}
           direction={direction}
           missed={missedOnly}
           search={debouncedSearch}
