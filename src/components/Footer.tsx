@@ -68,7 +68,7 @@ export default function Footer() {
 
             {/* Quick Links */}
             <div>
-              <h3 className="text-xs font-semibold tracking-wider uppercase mb-4 text-white/70">Quick Links</h3>
+              <h3 className="text-xs font-semibold tracking-wider uppercase mb-4 text-white/70" style={{ fontFamily: 'var(--font-body)' }}>Quick Links</h3>
               <ul className="space-y-2.5" role="list">
                 {[
                   { label: 'Who We Are', href: '/who-we-are' },
@@ -90,7 +90,7 @@ export default function Footer() {
 
             {/* What We Treat */}
             <div>
-              <h3 className="text-xs font-semibold tracking-wider uppercase mb-4 text-white/70">What We Treat</h3>
+              <h3 className="text-xs font-semibold tracking-wider uppercase mb-4 text-white/70" style={{ fontFamily: 'var(--font-body)' }}>What We Treat</h3>
               <ul className="space-y-2.5" role="list">
                 {['Alcohol Addiction', 'Opioid Addiction', 'Dual-Diagnosis', 'Heroin Addiction'].map((item) => (
                   <li key={item}>
@@ -100,7 +100,7 @@ export default function Footer() {
                   </li>
                 ))}
               </ul>
-              <h3 className="text-xs font-semibold tracking-wider uppercase mb-4 mt-6 text-white/70">Areas We Serve</h3>
+              <h3 className="text-xs font-semibold tracking-wider uppercase mb-4 mt-6 text-white/70" style={{ fontFamily: 'var(--font-body)' }}>Areas We Serve</h3>
               <ul className="space-y-2.5" role="list">
                 {[
                   { name: 'Phoenix', href: '/locations/phoenix' },
@@ -120,7 +120,7 @@ export default function Footer() {
                 (footer is rendered globally), boosting them above the
                 ≥3 inbound-link threshold the audit checks. */}
             <div>
-              <h3 className="text-xs font-semibold tracking-wider uppercase mb-4 text-white/70">Insurance</h3>
+              <h3 className="text-xs font-semibold tracking-wider uppercase mb-4 text-white/70" style={{ fontFamily: 'var(--font-body)' }}>Insurance</h3>
               <ul className="space-y-2.5" role="list">
                 {[
                   { label: 'Aetna', href: '/insurance/aetna' },
@@ -143,7 +143,7 @@ export default function Footer() {
                 so the footer doesn't repeat the same NAP three lines
                 apart. This column is just the social-icon row now. */}
             <div>
-              <h3 className="text-xs font-semibold tracking-wider uppercase mb-4 text-white/70">Follow</h3>
+              <h3 className="text-xs font-semibold tracking-wider uppercase mb-4 text-white/70" style={{ fontFamily: 'var(--font-body)' }}>Follow</h3>
               <div className="flex gap-4 text-white/40">
                 <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="hover:text-primary transition-colors">
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" /></svg>
