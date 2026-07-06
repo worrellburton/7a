@@ -330,7 +330,7 @@ export default async function RanchLandingPage() {
               </div>
               <p className="text-lg text-white/85 max-w-xl mb-6" style={{ fontFamily: 'var(--font-body)' }}>
                 Whether you or someone you love is struggling with addiction, help is available right
-                now. A privately owned, trauma-focused treatment ranch on 160 acres. You don&rsquo;t
+                now. A privately owned addiction treatment center on 160 acres. You don&rsquo;t
                 have to face this alone.
               </p>
               <ul className="space-y-2.5 mb-2">
