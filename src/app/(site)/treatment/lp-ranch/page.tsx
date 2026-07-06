@@ -361,12 +361,6 @@ export default async function RanchLandingPage() {
                   </svg>
                   Call {PHONE_DISPLAY}
                 </a>
-                <a
-                  href="#verify"
-                  className="inline-flex items-center justify-center gap-2 rounded-full border border-white/60 px-7 py-3.5 text-[15px] font-semibold text-white hover:bg-white/10 transition"
-                >
-                  Verify My Insurance
-                </a>
               </div>
               <p className="mt-6 text-[11px] tracking-[0.16em] uppercase text-white/45">
                 JCAHO Accredited &nbsp;•&nbsp; LegitScript Certified &nbsp;•&nbsp; HIPAA Compliant
@@ -619,14 +613,6 @@ export default async function RanchLandingPage() {
               </div>
             ))}
           </div>
-          <div className="mt-10 text-center">
-            <a
-              href="#verify"
-              className="inline-flex items-center justify-center gap-2 rounded-full border-2 border-foreground px-7 py-3.5 text-[15px] font-semibold text-foreground hover:bg-foreground hover:text-white transition"
-            >
-              Verify Your Insurance
-            </a>
-          </div>
         </div>
       </section>
 
@@ -756,15 +742,7 @@ export default async function RanchLandingPage() {
               </span>
             ))}
           </div>
-          <div className="mt-8">
-            <a
-              href="#verify"
-              className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-7 py-3.5 text-[15px] font-semibold text-white hover:brightness-110 transition"
-            >
-              Verify Insurance Coverage
-            </a>
-          </div>
-          <p className="mt-6 text-[13px] text-white/60">
+          <p className="mt-8 text-[13px] text-white/60">
             Out-of-network provider with single-case agreements available. We do not bill Medicare or
             Medicaid.
           </p>
@@ -921,12 +899,6 @@ export default async function RanchLandingPage() {
               className="inline-flex items-center justify-center gap-2 rounded-full bg-green-700 px-7 py-3.5 text-[15px] font-semibold text-white hover:brightness-110 transition"
             >
               ✆ Call Now — {PHONE_DISPLAY}
-            </a>
-            <a
-              href="#verify"
-              className="inline-flex items-center justify-center gap-2 rounded-full border border-white/40 px-7 py-3.5 text-[15px] font-semibold text-white hover:bg-white/10 transition"
-            >
-              Verify Insurance
             </a>
           </div>
         </div>
