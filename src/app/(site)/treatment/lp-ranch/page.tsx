@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import AdmissionsForm from '@/components/AdmissionsForm';
 import StickyMobileCTA from '@/components/StickyMobileCTA';
+import { fetchPublicTeam } from '@/lib/team';
 
 export const revalidate = 3600;
 
@@ -106,26 +107,35 @@ const CONDITIONS = [
   { title: 'Dual Diagnosis', body: 'Trauma, anxiety, depression, or PTSD alongside addiction.' },
 ];
 
+// Each member is matched against the live team (fetchPublicTeam) at
+// render time so the photo shown here always matches the real
+// /who-we-are/meet-our-team page. `match` is a loose test on the
+// member's full name; if no live match or no avatar exists we fall
+// back to the initials circle below.
 const TEAM = [
   {
     name: 'Lindsay Rothschild',
     role: 'LCSW · EMDRIA Certified — Clinical Director',
     body: 'Leads the clinical program with a trauma-focused, salutogenic approach grounded in EMDR and somatic work.',
+    match: (n: string) => /lindsay/i.test(n) && /roth/i.test(n),
   },
   {
     name: 'Tracey Oppenheim',
     role: 'MD — Medical Director',
     body: 'Oversees medical and dual-diagnosis care with a focus on safety, stabilization, and long-term wellness.',
+    match: (n: string) => /tracey/i.test(n) && /oppenheim/i.test(n),
   },
   {
     name: 'Melissa Simard',
     role: 'LAC · CCTS-A — Equine Services Director',
     body: "Directs the equine-assisted psychotherapy program and matches each horse's temperament to the client.",
+    match: (n: string) => /melissa/i.test(n) && /simard/i.test(n),
   },
   {
     name: 'Brian Twomoons',
     role: 'Cultural Director',
     body: 'Of the Crow Nation, guides the ceremony and Indigenous-informed healing woven through the week.',
+    match: (n: string) => /brian/i.test(n) && /two\s?moons/i.test(n),
   },
 ];
 
@@ -206,7 +216,14 @@ function StarRow() {
   );
 }
 
-export default function RanchLandingPage() {
+export default async function RanchLandingPage() {
+  // Pull the live team so the Team section below can show each
+  // member's real photo (same source as /who-we-are/meet-our-team).
+  const liveTeam = await fetchPublicTeam().catch(() => []);
+  const teamWithPhotos = TEAM.map((m) => ({
+    ...m,
+    avatar: liveTeam.find((t) => m.match(t.full_name))?.avatar_url ?? null,
+  }));
   return (
     <>
       {/* STICKY GATED TOP BAR — logo links only to this page (no off-page
@@ -681,11 +698,22 @@ export default function RanchLandingPage() {
             </p>
           </div>
           <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {TEAM.map((m) => (
+            {teamWithPhotos.map((m) => (
               <div key={m.name} className="rounded-2xl border border-black/8 bg-white p-6 flex flex-col">
-                <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center text-lg font-bold mb-4" style={{ fontFamily: 'var(--font-display)' }} aria-hidden>
-                  {m.name.split(' ').map((n) => n[0]).join('')}
-                </div>
+                {m.avatar ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={m.avatar}
+                    alt={m.name}
+                    referrerPolicy="no-referrer"
+                    loading="lazy"
+                    className="w-14 h-14 rounded-full object-cover mb-4"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-full bg-primary/10 text-primary flex items-center justify-center text-lg font-bold mb-4" style={{ fontFamily: 'var(--font-display)' }} aria-hidden>
+                    {m.name.split(' ').map((n) => n[0]).join('')}
+                  </div>
+                )}
                 <h3 className="text-xl font-bold text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
                   {m.name}
                 </h3>
