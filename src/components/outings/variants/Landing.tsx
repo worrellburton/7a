@@ -22,17 +22,13 @@ export default function Landing({ outings }: { outings: OutingWithImage[] }) {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 mb-10 lg:mb-12">
           <div className="max-w-2xl">
-            <p
-              className="text-[11px] font-semibold tracking-[0.22em] uppercase text-accent mb-4"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
+            <p className="section-label section-label--on-dark mb-4">
               You won&rsquo;t just be in a building.
             </p>
             <h2
               id="outings-heading-landing"
               className="text-white font-bold tracking-tight"
               style={{
-                fontFamily: 'var(--font-display)',
                 fontSize: 'clamp(2rem, 4.2vw, 3rem)',
                 lineHeight: 1.05,
               }}
@@ -122,7 +118,6 @@ export default function Landing({ outings }: { outings: OutingWithImage[] }) {
                       <h3
                         className="text-white font-bold tracking-tight"
                         style={{
-                          fontFamily: 'var(--font-display)',
                           fontSize: '1.35rem',
                           lineHeight: 1.15,
                         }}

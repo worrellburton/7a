@@ -117,10 +117,7 @@ export default function TreatmentServices() {
 
               {/* Content */}
               <div className="absolute inset-x-0 bottom-0 p-4 lg:p-5 text-white">
-                <h3
-                  className="relative inline-block text-base lg:text-lg font-bold leading-tight transition-transform duration-500 ease-out group-hover:-translate-y-1"
-                  style={{ fontFamily: 'var(--font-display)' }}
-                >
+                <h3 className="relative inline-block text-base lg:text-lg font-bold leading-tight transition-transform duration-500 ease-out group-hover:-translate-y-1">
                   {service.title}
                   {/* Underline sweep on hover. */}
                   <span

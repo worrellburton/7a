@@ -620,7 +620,7 @@ function MegaMenuDropdown({
                     );
                   })}
                 </div>
-                <p className="text-center text-[11px] tracking-[0.15em] uppercase pb-3" style={{ fontFamily: 'var(--font-body)', color: 'rgba(160,82,45,0.6)' }}>Here for every step of the way</p>
+                <p className="text-center text-[11px] tracking-[0.15em] uppercase pb-3" style={{ fontFamily: 'var(--font-body)', color: 'color-mix(in srgb, var(--color-primary) 60%, transparent)' }}>Here for every step of the way</p>
               </div>
             ) : item.label === 'Who We Are' ? (
               /* Who We Are: grouped columns (The Team · The Approach ·

@@ -97,7 +97,7 @@ export default function DailyLifeSection() {
           <div
             className="hidden lg:block absolute left-0 right-0 top-[46px] h-px"
             aria-hidden="true"
-            style={{ background: 'linear-gradient(90deg, transparent 0%, rgba(160,82,45,0.25) 15%, rgba(160,82,45,0.25) 85%, transparent 100%)' }}
+            style={{ background: 'linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--color-primary) 25%, transparent) 15%, color-mix(in srgb, var(--color-primary) 25%, transparent) 85%, transparent 100%)' }}
           />
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 lg:gap-6 relative">
             {blocks.map((block, i) => (

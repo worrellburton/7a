@@ -97,9 +97,8 @@ export default function ProgramSection() {
         {/* Header thesis */}
         <div className="max-w-4xl mb-16 lg:mb-20">
           <p
-            className="text-[11px] font-semibold tracking-[0.28em] uppercase text-accent mb-6"
+            className="section-label section-label--on-dark mb-6"
             style={{
-              fontFamily: 'var(--font-body)',
               opacity: visible ? 1 : 0,
               transform: visible ? 'translateY(0)' : 'translateY(10px)',
               transition: 'all 0.85s cubic-bezier(0.16,1,0.3,1) 0.05s',
@@ -111,7 +110,6 @@ export default function ProgramSection() {
             id="our-promise-heading"
             className="font-bold tracking-tight mb-7"
             style={{
-              fontFamily: 'var(--font-display)',
               fontSize: 'clamp(2.2rem, 5vw, 3.8rem)',
               lineHeight: 1.02,
               opacity: visible ? 1 : 0,
@@ -246,7 +244,6 @@ function PromisePillar({
         <h3
           className="font-bold leading-[1.12] mb-3"
           style={{
-            fontFamily: 'var(--font-display)',
             fontSize: 'clamp(1.25rem, 1.55vw, 1.55rem)',
           }}
         >

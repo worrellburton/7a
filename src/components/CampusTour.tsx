@@ -112,7 +112,6 @@ export default function CampusTour() {
             id="campus-heading"
             className="text-foreground font-bold tracking-tight mb-5"
             style={{
-              fontFamily: 'var(--font-display)',
               fontSize: 'clamp(2rem, 4.2vw, 3rem)',
               lineHeight: 1.04,
               opacity: visible ? 1 : 0,
@@ -306,7 +305,6 @@ export default function CampusTour() {
                 <h3
                   className="font-bold mb-4"
                   style={{
-                    fontFamily: 'var(--font-display)',
                     fontSize: 'clamp(1.75rem, 2.6vw, 2.3rem)',
                     lineHeight: 1.08,
                   }}

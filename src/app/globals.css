@@ -86,7 +86,23 @@ a[href] {
 }
 
 @layer base {
+  /* Marketing headings are Fraunces everywhere — previously the base
+     was Inter and roughly half the homepage sections overrode it
+     inline, so adjacent sections flipped serif↔sans. Components no
+     longer need per-heading fontFamily overrides. */
   h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display), Georgia, serif;
+  }
+
+  /* The admin platform keeps sans headings — dashboards read as UI,
+     not editorial. Scoped via the same [data-platform-main] hook the
+     tap-target rules use. */
+  [data-platform-main] h1,
+  [data-platform-main] h2,
+  [data-platform-main] h3,
+  [data-platform-main] h4,
+  [data-platform-main] h5,
+  [data-platform-main] h6 {
     font-family: var(--font-sans), system-ui, sans-serif;
   }
 
@@ -117,6 +133,17 @@ a[href] {
   width: 2.25rem;
   height: 1px;
   background: var(--color-primary);
+}
+
+/* Variant for dark/photographic sections — the copper primary reads
+   muddy on deep browns, so the lighter accent carries the same system
+   there. Compose: class="section-label section-label--on-dark". */
+.section-label--on-dark {
+  color: var(--color-accent);
+}
+
+.section-label--on-dark::before {
+  background: var(--color-accent);
 }
 
 /* Buttons — updated to a softer, more modern pill aesthetic inspired
