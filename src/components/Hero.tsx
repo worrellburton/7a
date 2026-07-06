@@ -455,7 +455,7 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
                 }}
               >
                 Seven Arrows Recovery is a residential addiction treatment
-                ranch at the base of the Swisshelm Mountains in Arizona, a
+                center at the base of the Swisshelm Mountains in Arizona, a
                 recovery facility built for people who are serious about
                 lasting change.
               </p>
