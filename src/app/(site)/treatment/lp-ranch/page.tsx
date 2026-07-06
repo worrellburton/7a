@@ -222,13 +222,53 @@ export default function RanchLandingPage() {
                 className="h-11 lg:h-12 w-auto"
               />
             </a>
+            {/* Phone CTA — matches the main site header: pill button with a
+                live "Available 24/7" dot, phone icon, and a two-line layout. */}
             <a
               href={PHONE_HREF}
-              className="inline-flex items-center gap-2 rounded-full bg-primary hover:bg-primary-dark text-white px-4 sm:px-5 py-2 sm:py-2.5 text-sm sm:text-[15px] font-bold transition whitespace-nowrap"
-              style={{ fontFamily: 'var(--font-body)' }}
-              aria-label={`Call us at ${PHONE_DISPLAY}`}
+              className="group inline-flex items-center gap-3 bg-primary hover:bg-primary-dark text-white pl-2.5 pr-4 sm:pr-5 py-1.5 sm:py-2 rounded-full transition-all whitespace-nowrap shrink-0"
+              style={{
+                fontFamily: 'var(--font-body)',
+                boxShadow:
+                  '0 12px 28px -10px rgba(107,42,20,0.55), inset 0 0 0 1px rgba(255,255,255,0.1)',
+              }}
+              aria-label={`Call us 24/7 at ${PHONE_DISPLAY}`}
             >
-              ✆ {PHONE_DISPLAY}
+              <span
+                className="relative inline-flex items-center justify-center w-8 h-8 rounded-full shrink-0"
+                style={{ backgroundColor: 'rgba(255,255,255,0.14)' }}
+              >
+                <svg
+                  className="w-3.5 h-3.5 transition-transform group-hover:-rotate-12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden
+                >
+                  <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
+                </svg>
+                {/* Availability dot — tiny pulse on a solid base */}
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#4ade80] ring-2 ring-primary group-hover:ring-primary-dark">
+                  <span className="absolute inset-0 rounded-full bg-[#4ade80] animate-ping opacity-70" />
+                </span>
+              </span>
+              <span className="flex flex-col items-start leading-tight text-left">
+                <span
+                  className="text-[9px] font-semibold tracking-[0.22em] uppercase text-white/75"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  Available 24/7
+                </span>
+                <span
+                  className="text-sm sm:text-[15px] font-bold tracking-wide"
+                  style={{ fontFamily: 'var(--font-body)' }}
+                >
+                  {PHONE_DISPLAY}
+                </span>
+              </span>
             </a>
           </div>
         </nav>
