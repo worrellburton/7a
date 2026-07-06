@@ -8,12 +8,12 @@ export const revalidate = 3600;
 export const metadata: Metadata = {
   title: "Arizona's Ranch for Lasting Recovery | Seven Arrows Recovery",
   description:
-    'Residential addiction & trauma treatment on a private 160-acre ranch in Arizona. Clinician-led equine therapy, 24/7 admissions, most major PPO plans. Call (866) 718-1665.',
+    'Residential addiction & trauma treatment on a private 160-acre ranch in Arizona. Clinician-led equine therapy, 24/7 admissions, most major PPO plans. Call 520-416-5423.',
   robots: { index: false, follow: false },
 };
 
-const PHONE_DISPLAY = '(866) 718-1665';
-const PHONE_HREF = 'tel:+18667181665';
+const PHONE_DISPLAY = '520-416-5423';
+const PHONE_HREF = 'tel:+15204165423';
 
 const HERO_IMG = '/hero/facility-exterior-mountains.jpg';
 const HORSES_IMG = '/hero/horses-grazing.jpg';
