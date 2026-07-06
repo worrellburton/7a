@@ -116,7 +116,7 @@ function ProviderItem({ provider }: { provider: (typeof insuranceProviders)[numb
 export default function InsuranceCarousel() {
   return (
     <section
-      className="py-14 lg:py-16 bg-warm-bg overflow-hidden"
+      className="py-14 lg:py-20 bg-warm-bg overflow-hidden"
       aria-labelledby="insurance-carousel-heading"
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
@@ -125,7 +125,6 @@ export default function InsuranceCarousel() {
           id="insurance-carousel-heading"
           className="font-bold tracking-tight text-foreground mb-14 mx-auto max-w-3xl"
           style={{
-            fontFamily: 'var(--font-display)',
             fontSize: 'clamp(2rem, 4.2vw, 3.25rem)',
             lineHeight: 1.08,
           }}

@@ -82,7 +82,7 @@ export default function FloatingContactCTA() {
           onClick={() => setExpanded(!expanded)}
           className="w-12 h-12 rounded-full bg-primary hover:bg-primary-dark text-white flex items-center justify-center shadow-lg hover:shadow-xl transition-all group"
           aria-label={expanded ? 'Close contact options' : 'Contact us'}
-          style={{ boxShadow: '0 4px 16px rgba(160, 82, 45, 0.35)' }}
+          style={{ boxShadow: '0 4px 16px color-mix(in srgb, var(--color-primary) 35%, transparent)' }}
         >
           {expanded ? (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

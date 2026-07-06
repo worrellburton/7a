@@ -150,17 +150,12 @@ export default async function GoogleReviewsCinema() {
         slides={slides}
         header={
           <div className="text-center text-white pointer-events-auto">
-            <p
-              className="inline-flex items-center gap-3 text-[11px] tracking-[0.22em] uppercase font-semibold text-white/80 mb-3"
-              style={{ fontFamily: 'var(--font-body)' }}
-            >
-              <span aria-hidden="true" className="block w-8 h-px bg-white/60" />
+            <p className="section-label section-label--on-dark justify-center mb-3">
               What Our Clients Say
             </p>
             <h2
               id="reviews-heading"
               className="text-3xl lg:text-5xl font-bold text-white mb-3 drop-shadow-[0_2px_10px_rgba(0,0,0,0.5)]"
-              style={{ fontFamily: 'var(--font-sans)' }}
             >
               Real Stories of Recovery
             </h2>
