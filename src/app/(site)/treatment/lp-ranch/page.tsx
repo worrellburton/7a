@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import AdmissionsForm from '@/components/AdmissionsForm';
-import StickyMobileCTA from '@/components/StickyMobileCTA';
 import { fetchPublicTeam } from '@/lib/team';
 
 export const revalidate = 3600;
@@ -921,7 +920,53 @@ export default async function RanchLandingPage() {
         </div>
       </section>
 
-      <StickyMobileCTA />
+      {/* Inline sticky mobile call bar — uses this page's own number
+          (520-416-5423) instead of the site-wide StickyMobileCTA, which
+          hardcodes the old toll-free number. */}
+      <div
+        className="fixed inset-x-0 bottom-0 z-50 lg:hidden bg-warm-bg/95 supports-[backdrop-filter]:bg-warm-bg/85 backdrop-blur border-t border-black/10 shadow-[0_-6px_18px_-4px_rgba(42,15,10,0.18)]"
+        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      >
+        <a
+          href={PHONE_HREF}
+          aria-label={`Call ${PHONE_DISPLAY} — available 24/7`}
+          className="flex items-center justify-center gap-3 px-4 py-3 active:opacity-80 transition-opacity"
+        >
+          <span
+            className="relative inline-flex items-center justify-center w-9 h-9 rounded-full shrink-0 bg-primary/10"
+            aria-hidden="true"
+          >
+            <svg
+              className="w-4 h-4 text-primary"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.37 1.9.72 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.35 1.85.59 2.81.72A2 2 0 0 1 22 16.92z" />
+            </svg>
+            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-warm-bg">
+              <span className="absolute inset-0 rounded-full bg-emerald-500 animate-ping opacity-70" />
+            </span>
+          </span>
+          <span className="flex flex-col items-start leading-tight text-left">
+            <span
+              className="text-[9px] font-semibold tracking-[0.22em] uppercase text-foreground/55"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Available 24/7
+            </span>
+            <span
+              className="text-[15px] font-bold tracking-wide text-primary"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              {PHONE_DISPLAY}
+            </span>
+          </span>
+        </a>
+      </div>
     </>
   );
 }
