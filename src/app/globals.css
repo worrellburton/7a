@@ -73,16 +73,27 @@ a[href] {
   cursor: pointer;
 }
 
-/* Admin portal scaling — previously this rule applied `zoom: 0.82` on
-   viewports ≥ 1024px to fit a tighter type scale without per-component
-   work. The side-effect was that big monitors + iPad-class viewports
-   rendered the whole shell visibly shrunken, and any pre-zoom mental
-   model from a previous session felt jarring on re-open. Removing the
-   transform so the platform renders at 100% on every breakpoint. The
-   `.app-shell { min-height: 100vh }` declaration stays so the shell
-   still fills the viewport. */
+/* Admin portal scaling — the whole feather shell renders at 80%
+   (scaled down 20%) on viewports ≥ 1024px, giving a tighter type +
+   density scale without per-component work. Mobile (< 1024px) stays at
+   100% because the drawer layout is already compact and shrinking tap
+   targets there hurts usability.
+
+   COUPLING: `zoom` scales viewport units too, so any `100vh`/`100svh`
+   descendant that must fill the *real* viewport has to divide by the
+   zoom factor at lg+ (e.g. `lg:h-[calc(100vh/0.8)]`) — otherwise it
+   only covers 80% of the screen. The compensating call sites are
+   PlatformShell's sticky sidebar column, HomeContent's one-viewport
+   wrapper, and the calendar body. Keep the 0.8 divisor in sync with
+   the zoom below if this value ever changes. */
 .app-shell {
   min-height: 100vh;
+}
+
+@media (min-width: 1024px) {
+  .app-shell {
+    zoom: 0.8;
+  }
 }
 
 @layer base {

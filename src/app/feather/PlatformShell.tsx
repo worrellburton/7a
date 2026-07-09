@@ -1221,15 +1221,15 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           page on group-hover, restoring labels + section headers
           via an opacity fade. Click-away or unhover collapses back. */}
       <aside data-sidebar-rail className="group/sidebar w-16 shrink-0 hidden lg:block relative z-30">
-        {/* Sticky sized to the real viewport. The `100vh/0.82`
-            divisor here was compensating for `.app-shell { zoom: 0.82 }`
-            at lg+, but that transform was removed (see globals.css —
-            "removing the transform so the platform renders at 100%
-            on every breakpoint"). With no zoom, the divisor pushed
-            the sticky wrapper to ~122vh, dropping the bottom-pinned
-            user chip + popup menu below the visible viewport. Plain
-            `h-screen` matches the real viewport again. */}
-        <div className="sticky top-0 h-screen">
+        {/* Sticky sized to the real viewport. `.app-shell` carries
+            `zoom: 0.8` at lg+ (see globals.css), which scales `100vh`
+            down to 80% of the screen — so the sticky column divides by
+            the zoom to fill the true viewport height. Without the
+            divisor the column would only cover 80% and the
+            bottom-pinned user chip + popup menu would float above the
+            fold. The rail is `hidden lg:block`, so this only ever
+            renders where the zoom is active. */}
+        <div className="sticky top-0 h-[calc(100vh/0.8)]">
         {/* Inner glass panel — overlay layer that grows from w-16
             (collapsed) to w-64 (expanded) on hover. Glass treatment
             lives here now so the column-only collapsed state still

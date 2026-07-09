@@ -724,14 +724,13 @@ export default function HomeContent() {
 
       {/* Wrapper height = viewport height (1px subtracted to defeat
           a Chrome subpixel rounding quirk that otherwise produces a
-          1px stray scrollbar). The old lg: divisor of `/0.82` was
-          compensating for an `app-shell { zoom: 0.82 }` rule that
-          got dropped in 41bfd939 — without that zoom, dividing the
-          viewport by 0.82 produced a ~122vh container, and the
-          overflow-hidden then clipped the daily-logs chip + mission
-          tagline out of frame. Uniform 100svh across breakpoints
-          restores the one-viewport home page. */}
-      <div className="relative flex-1 flex flex-col h-[calc(100svh-1px)] max-h-[calc(100svh-1px)] overflow-hidden px-4 sm:px-6 lg:px-10 py-3 lg:py-6">
+          1px stray scrollbar). `.app-shell` carries `zoom: 0.8` at
+          lg+ (see globals.css), which scales `100svh` down to 80% of
+          the screen, so the lg: divisor of `/0.8` restores a true
+          one-viewport container — otherwise the wrapper would only
+          cover 80% and leave a blank band under the home content.
+          Mobile (< lg) has no zoom, so it stays at plain 100svh. */}
+      <div className="relative flex-1 flex flex-col h-[calc(100svh-1px)] max-h-[calc(100svh-1px)] lg:h-[calc((100svh-1px)/0.8)] lg:max-h-[calc((100svh-1px)/0.8)] overflow-hidden px-4 sm:px-6 lg:px-10 py-3 lg:py-6">
 
         {/* Phase 4: hero — no glass card; the avatar/greeting and the
             create-menu button float on the page background. The hero

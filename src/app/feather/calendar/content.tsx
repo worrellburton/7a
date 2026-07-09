@@ -1056,11 +1056,12 @@ export default function CalendarContent() {
 
   return (
     <DragCtx.Provider value={dragCtxValue}>
-    {/* h-screen gets visually squished to 82vh inside the admin shell's
-        zoom: 0.82 container. Scale up so the calendar body truly fills
-        the viewport and the scheduler doesn't leave a blank band at
-        the bottom of the page. */}
-    <div className="p-3 sm:p-4 lg:p-6 flex flex-col overflow-hidden h-[calc(100vh-3.5rem)] lg:h-[calc(100vh/0.82)]">
+    {/* h-screen gets visually squished to 80vh inside the admin shell's
+        `zoom: 0.8` container (lg+, see globals.css). Divide by the zoom
+        so the calendar body truly fills the viewport and the scheduler
+        doesn't leave a blank band at the bottom of the page. Mobile has
+        no zoom, so it uses the plain viewport-minus-header height. */}
+    <div className="p-3 sm:p-4 lg:p-6 flex flex-col overflow-hidden h-[calc(100vh-3.5rem)] lg:h-[calc(100vh/0.8)]">
       {/* Top-center Groups/Team toggle, with Month/Week/Day directly below. */}
       <div className="mb-3 flex flex-col items-center gap-2">
         <div className="flex items-center gap-1 bg-warm-bg rounded-lg p-1">
