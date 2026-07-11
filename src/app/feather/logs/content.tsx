@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/lib/AuthProvider';
+import { StandaloneQuickLog } from '../QuickLog';
 
 // Dedicated "Daily logs" surface, rewritten 2026-05-23 to fit a
 // 360-390px phone viewport without any element forcing horizontal
@@ -178,6 +179,7 @@ export default function DailyLogsContent() {
   const [data, setData] = useState<DailyLogsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const [showQuickLog, setShowQuickLog] = useState(false);
   const range = useMemo<RangeKey>(
     () => parseRange(searchParams?.get('range') ?? null),
     [searchParams],
@@ -338,6 +340,16 @@ export default function DailyLogsContent() {
             {countLabel}
           </p>
           <div className="mt-3 flex flex-wrap justify-center gap-2">
+            {/* Quick log right from the scoreboard — no detour to
+                Contacts. On save the page refreshes so the new 🪵
+                shows up in the feed immediately. */}
+            <button
+              type="button"
+              onClick={() => setShowQuickLog(true)}
+              className="inline-flex items-center gap-1.5 rounded-full bg-foreground px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white hover:bg-foreground/85 transition-colors"
+            >
+              <span aria-hidden>🪵</span> New log
+            </button>
             <Link
               href="/feather"
               className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground/75 hover:border-primary/40 hover:text-foreground transition-colors"
@@ -409,6 +421,10 @@ export default function DailyLogsContent() {
           <RecordsCard records={records ?? null} />
         </div>
       </div>
+
+      {/* Shared quick-log sheet — refresh() after save/undo so the
+          feed + counters reflect the change immediately. */}
+      <StandaloneQuickLog open={showQuickLog} onOpenChange={setShowQuickLog} onLogged={refresh} />
     </div>
   );
 }

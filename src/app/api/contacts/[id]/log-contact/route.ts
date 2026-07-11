@@ -145,5 +145,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     metadata: { method, duration_seconds, comments: comments ?? null },
   });
 
-  return NextResponse.json(data);
+  // log_id rides along with the contact row so the Quick Log toast
+  // can offer Undo (author-only DELETE on the history route) without
+  // a lookup. Existing consumers ignore unknown keys.
+  return NextResponse.json({ ...(data ?? {}), log_id: logRow.id });
 }
