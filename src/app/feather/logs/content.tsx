@@ -337,12 +337,21 @@ export default function DailyLogsContent() {
           <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-foreground/55">
             {countLabel}
           </p>
-          <Link
-            href="/feather"
-            className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground/75 hover:border-primary/40 hover:text-foreground transition-colors"
-          >
-            ← Back to home
-          </Link>
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            <Link
+              href="/feather"
+              className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-foreground/75 hover:border-primary/40 hover:text-foreground transition-colors"
+            >
+              ← Back to home
+            </Link>
+            {/* Annual type × month grid (/feather/logs/sheet). */}
+            <Link
+              href="/feather/logs/sheet"
+              className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-primary hover:bg-primary/20 transition-colors"
+            >
+              Log sheet →
+            </Link>
+          </div>
         </div>
 
         {/* Range pills — wraps onto multiple rows on mobile so the
