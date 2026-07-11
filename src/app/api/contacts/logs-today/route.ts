@@ -6,7 +6,8 @@ import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 // Powers /feather/logs and the HomeDailyLogsChip on /feather.
 //
 // Query param:
-//   range = today | this_week | last_week | this_month | last_month | all_time
+//   range = today | this_week | last_week | this_month | last_month |
+//           this_year | all_time
 //   (defaults to today)
 //
 // Returns:
@@ -30,7 +31,7 @@ import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
 
 export const dynamic = 'force-dynamic';
 
-type RangeKey = 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'all_time';
+type RangeKey = 'today' | 'yesterday' | 'this_week' | 'last_week' | 'this_month' | 'last_month' | 'this_year' | 'all_time';
 
 interface LogRow {
   id: string;
@@ -157,6 +158,16 @@ function rangeWindow(range: RangeKey): RangeWindow {
         label: 'last month',
       };
     }
+    case 'this_year': {
+      // Phoenix calendar year — powers the /feather/logs/sheet
+      // type × month grid, which buckets these rows client-side.
+      const yearStartKey = `${todayKey.slice(0, 4)}-01-01`;
+      return {
+        startIso: phoenixMidnight(yearStartKey).toISOString(),
+        endIso: null,
+        label: 'this year',
+      };
+    }
     case 'all_time': {
       return {
         startIso: '1970-01-01T00:00:00.000Z',
@@ -174,6 +185,7 @@ function parseRange(raw: string | null): RangeKey {
     case 'last_week':
     case 'this_month':
     case 'last_month':
+    case 'this_year':
     case 'all_time':
     case 'today':
       return raw;
