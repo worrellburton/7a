@@ -17,6 +17,7 @@ import JdSignatureNagModal from './JdSignatureNagModal';
 // import HomeClientsRow from './HomeClientsRow';
 import HomeOnlineOrbit, { type OrbitHorse } from './HomeOnlineOrbit';
 import HomeDailyLogsChip from './HomeDailyLogsChip';
+import { StandaloneQuickLog } from './QuickLog';
 import HomeHardwareChip from './HomeHardwareChip';
 import HomeMercuryBalanceChip from './HomeMercuryBalanceChip';
 import HomeChipCluster from './HomeChipCluster';
@@ -145,6 +146,9 @@ export default function HomeContent() {
   const [signedJds, setSignedJds] = useState<Array<{ id: string; title: string; pdfUrl: string | null }>>([]);
   const [loaded, setLoaded] = useState(false);
   const [featureRequestOpen, setFeatureRequestOpen] = useState(false);
+  // Quick-log sheet (shared with Contacts + /feather/logs) — opened
+  // from the create menus so a rep can land a 🪵 without leaving home.
+  const [quickLogOpen, setQuickLogOpen] = useState(false);
   // Combined "+" menu in the hero: holds the Feature request and
   // New facilities entry points. Single round button to reduce
   // hero-band visual weight.
@@ -916,6 +920,16 @@ export default function HomeContent() {
                 <>
                   <button
                     role="menuitem"
+                    onClick={() => setQuickLogOpen(true)}
+                    className="w-full flex items-center gap-2.5 px-1 py-2 text-left text-sm font-semibold text-foreground hover:bg-emerald-50 rounded-lg transition-colors"
+                  >
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-600 text-white shrink-0 text-sm leading-none">
+                      <span aria-hidden>🪵</span>
+                    </span>
+                    <span className="uppercase tracking-wider text-[11px]">New log</span>
+                  </button>
+                  <button
+                    role="menuitem"
                     onClick={() => router.push('/feather/whats-new')}
                     className="w-full flex items-center gap-2.5 px-1 py-2 text-left text-sm font-semibold text-foreground hover:bg-primary/10 rounded-lg transition-colors"
                   >
@@ -1001,6 +1015,17 @@ export default function HomeContent() {
                   className="absolute right-0 mt-2 w-56 rounded-2xl border border-white/70 bg-white/85 supports-[backdrop-filter]:bg-white/70 backdrop-blur-xl shadow-[0_18px_40px_-18px_rgba(60,48,42,0.35)] overflow-hidden z-40"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
+                  <button
+                    role="menuitem"
+                    onClick={() => { setAddMenuOpen(false); setQuickLogOpen(true); }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-left text-sm font-semibold text-foreground hover:bg-emerald-50 transition-colors"
+                  >
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-emerald-600 text-white shrink-0 text-sm leading-none">
+                      <span aria-hidden>🪵</span>
+                    </span>
+                    <span className="uppercase tracking-wider text-[11px]">New log</span>
+                  </button>
+                  <div aria-hidden="true" className="h-px bg-white/60" />
                   <button
                     role="menuitem"
                     onClick={() => { setAddMenuOpen(false); setFeatureRequestOpen(true); }}
@@ -1162,6 +1187,7 @@ export default function HomeContent() {
       </div>
 
       <FeatureRequestModal open={featureRequestOpen} onClose={() => setFeatureRequestOpen(false)} />
+      <StandaloneQuickLog open={quickLogOpen} onOpenChange={setQuickLogOpen} />
       <WhatsNewButton />
 
       {nagSignature && !nagDismissed && (
