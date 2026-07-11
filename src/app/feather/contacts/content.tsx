@@ -1450,24 +1450,20 @@ export default function ContactsContent() {
           When a contact's details panel is expanded the FAB hides —
           the card's own LOG button is already on screen, and three
           stacked logging affordances (card LOG + panel button + FAB)
-          read as clutter on a phone. It stays while the quick-log
-          modal is open because it doubles as the modal's Save. */}
-      {(showNewLog || expandedDetailsId === null) && (
+          read as clutter on a phone. It also hides while the
+          quick-log sheet is open: the sheet renders its OWN fixed
+          Save pill in the same spot (state-aware — disabled until a
+          name is typed, shows progress), so keeping this one around
+          produced two stacked save buttons. */}
+      {!showNewLog && expandedDetailsId === null && (
       <button
-        type={showNewLog ? 'submit' : 'button'}
-        form={showNewLog ? 'quick-log-form' : undefined}
-        onClick={showNewLog ? undefined : () => setShowNewLog(true)}
+        type="button"
+        onClick={() => setShowNewLog(true)}
         className="sm:hidden fixed inset-x-4 z-50 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-full bg-foreground text-white text-sm font-semibold uppercase tracking-wider shadow-[0_12px_28px_-8px_rgba(0,0,0,0.45)] active:scale-[0.98] transition-all duration-200"
         style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
       >
-        {showNewLog ? (
-          'Save'
-        ) : (
-          <>
-            <span aria-hidden className="text-base leading-none">🪵</span>
-            New log
-          </>
-        )}
+        <span aria-hidden className="text-base leading-none">🪵</span>
+        New log
       </button>
       )}
       {showSuggest && (
@@ -7736,15 +7732,28 @@ function LogContactModal({
   );
 }
 
-// Quick-log modal launched from the mobile "New log" FAB. Mirrors
-// LogContactModal's fields (method + duration + comments) but
-// front-loads a free-text name input so a rep can log a touchpoint
-// against a person whose contact row may or may not exist yet. A
-// datalist seeded from the loaded contact roster turns the input
-// into a soft autocomplete — names that already exist surface as
-// typeahead suggestions so we don't end up with duplicate rows
-// (e.g. "Lindsay" vs "Lindsay R") for the same human; novel names
-// drop through to the find-or-create branch on submit.
+// Quick-log modal launched from the mobile "New log" FAB and the
+// desktop "Add Log" pill. Mirrors LogContactModal's fields (method +
+// duration + comments) but front-loads a free-text name input so a
+// rep can log a touchpoint against a person whose contact row may or
+// may not exist yet.
+//
+// The name field is a CUSTOM combobox, not a <datalist> — iOS Safari
+// never renders datalist options as a tappable dropdown, so on the
+// phone the old "autocomplete" simply didn't exist. Suggestions are
+// filtered in-DOM and tappable, and a live match line under the
+// input tells the rep whether they're logging against an existing
+// contact or about to create a new row. The input deliberately
+// avoids name/contact keywords in its name/placeholder attributes so
+// iOS doesn't hijack the QuickType bar with its own "AutoFill
+// Contact" suggestion (it heuristically keys off those words).
+//
+// Mobile layout is budgeted to a single viewport: 6 primary method
+// mini-tiles (the 3 novelty methods sit behind a "More" toggle),
+// one-tap duration presets, a 2-row notes box, and a single fixed
+// Save pill in the same spot as the New log FAB it replaces — the
+// modal's own Cancel/Save footer only renders on sm+ where the FAB
+// doesn't exist.
 function NewLogModal({
   existingNames,
   onClose,
@@ -7765,82 +7774,192 @@ function NewLogModal({
     const m = parseInt(durationMin, 10);
     return Number.isFinite(m) && m > 0 ? m * 60 : 0;
   })();
-  const nameValid = name.trim().length > 0;
-  const submittable = nameValid;
+  const trimmed = name.trim();
+  const submittable = trimmed.length > 0;
   const [submitting, setSubmitting] = useState(false);
+
+  // ── Combobox state ─────────────────────────────────────────────
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [nameFocused, setNameFocused] = useState(false);
+  const [highlightIdx, setHighlightIdx] = useState(-1);
+  const uniqueNames = useMemo(() => Array.from(new Set(existingNames)), [existingNames]);
+  const lowerSet = useMemo(() => new Set(uniqueNames.map((n) => n.toLowerCase())), [uniqueNames]);
+  const exactMatch = trimmed.length > 0 && lowerSet.has(trimmed.toLowerCase());
+  const suggestions = useMemo(() => {
+    const q = trimmed.toLowerCase();
+    if (!q) return [];
+    const starts: string[] = [];
+    const contains: string[] = [];
+    for (const n of uniqueNames) {
+      const ln = n.toLowerCase();
+      if (ln === q) continue; // already typed in full — nothing to suggest
+      if (ln.startsWith(q)) starts.push(n);
+      else if (ln.includes(q)) contains.push(n);
+    }
+    return [...starts, ...contains].slice(0, 6);
+  }, [uniqueNames, trimmed]);
+  const comboboxOpen = nameFocused && suggestions.length > 0;
+  useEffect(() => { setHighlightIdx(-1); }, [trimmed]);
+
+  const pickSuggestion = (n: string) => {
+    setName(n);
+    setHighlightIdx(-1);
+    // Dismiss the keyboard — the next steps (method / duration /
+    // save) are taps, and dropping the keyboard reveals the whole
+    // form again on a phone.
+    inputRef.current?.blur();
+  };
+
   return (
     <ModalShell title="New log" eyebrow="Quick log" onClose={onClose}>
       <form
-        // Stable id so the mobile FAB ("Save") can submit this form
-        // from outside the modal via the standard `form=` attribute
-        // on its submit button — no global ref-passing needed.
         id="quick-log-form"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (!submittable) return;
+          if (!submittable || submitting) return;
           setSubmitting(true);
           try {
-            await onSubmit(name.trim(), method, comments.trim(), totalSeconds);
+            await onSubmit(trimmed, method, comments.trim(), totalSeconds);
           } finally {
             setSubmitting(false);
           }
         }}
       >
-        <div className="px-6 py-5 space-y-4">
-          <ModalField label="Name" required hint="Type a name. We'll log against the existing contact or create a new one.">
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-              autoFocus
-              list="new-log-name-suggestions"
-              // Suppress browser autofill so Chrome / Safari don't
-              // pre-populate the field with the signed-in user's own
-              // name from saved profile data — the input is for
-              // entering a CONTACT's name, not the marketer's. We
-              // still want our own <datalist> hints, which are
-              // independent of the browser's autocomplete behaviour.
-              autoComplete="off"
-              name="new-log-contact-name"
-              className="modal-input"
-              placeholder="Type the contact's name…"
-            />
-            <datalist id="new-log-name-suggestions">
-              {existingNames.slice(0, 200).map((n) => (
-                <option key={n} value={n} />
-              ))}
-            </datalist>
+        {/* Extra bottom padding on mobile clears the fixed Save pill. */}
+        <div className="px-4 sm:px-6 pt-4 sm:pt-5 pb-24 sm:pb-5 space-y-3.5 sm:space-y-4">
+          <ModalField label="Log for" required>
+            <div className="relative">
+              <input
+                ref={inputRef}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                onFocus={() => setNameFocused(true)}
+                onBlur={() => setNameFocused(false)}
+                onKeyDown={(e) => {
+                  if (e.key === 'ArrowDown' && comboboxOpen) {
+                    e.preventDefault();
+                    setHighlightIdx((i) => Math.min(i + 1, suggestions.length - 1));
+                  } else if (e.key === 'ArrowUp' && comboboxOpen) {
+                    e.preventDefault();
+                    setHighlightIdx((i) => Math.max(i - 1, -1));
+                  } else if (e.key === 'Enter') {
+                    // Enter never submits from this field — it either
+                    // takes the arrow-keyed suggestion or just drops
+                    // the keyboard. Prevents "typed 3 letters, hit
+                    // return, logged the wrong person" accidents.
+                    e.preventDefault();
+                    if (comboboxOpen && highlightIdx >= 0) pickSuggestion(suggestions[highlightIdx]);
+                    else inputRef.current?.blur();
+                  } else if (e.key === 'Escape' && comboboxOpen) {
+                    e.stopPropagation();
+                    inputRef.current?.blur();
+                  }
+                }}
+                required
+                autoFocus
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="words"
+                spellCheck={false}
+                enterKeyHint="done"
+                role="combobox"
+                aria-expanded={comboboxOpen}
+                aria-controls="quick-log-suggestions"
+                aria-autocomplete="list"
+                name="ql-lookup"
+                className="modal-input"
+                placeholder="Start typing to search…"
+              />
+              {comboboxOpen && (
+                <ul
+                  id="quick-log-suggestions"
+                  className="absolute left-0 right-0 top-full mt-1 z-20 max-h-44 overflow-y-auto rounded-xl border border-black/10 bg-white shadow-[0_16px_36px_-16px_rgba(40,30,25,0.35)] py-1"
+                >
+                  {suggestions.map((n, i) => (
+                    <li key={n}>
+                      <button
+                        type="button"
+                        // pointerdown beats the input's blur, so the tap
+                        // lands before the dropdown unmounts.
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          pickSuggestion(n);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-[13px] transition-colors ${
+                          i === highlightIdx ? 'bg-primary/10 text-foreground' : 'text-foreground/80 hover:bg-warm-bg/60'
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            {/* Live match feedback — doubles as the field hint. */}
+            {trimmed.length === 0 ? (
+              <p className="mt-1 text-[10px] text-foreground/45">
+                We&apos;ll match an existing contact or create a new one.
+              </p>
+            ) : exactMatch ? (
+              <p className="mt-1 text-[10px] font-semibold text-emerald-700">
+                ✓ Existing contact — this log joins their history.
+              </p>
+            ) : (
+              <p className="mt-1 text-[10px] font-semibold text-primary">
+                + New contact &ldquo;{trimmed}&rdquo; will be created.
+              </p>
+            )}
           </ModalField>
           <ModalField label="Method" required>
-            <ContactMethodPicker value={method} onChange={setMethod} />
+            <CompactMethodPicker value={method} onChange={setMethod} />
           </ModalField>
-          <ModalField label="Duration" hint="Optional. Leave blank for texts, emails, or left messages.">
-            <div className="flex items-center gap-2">
+          <ModalField label="Duration">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {[5, 10, 15, 30].map((m) => {
+                const active = durationMin === String(m);
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setDurationMin(active ? '' : String(m))}
+                    aria-pressed={active}
+                    className={`px-3 py-1.5 rounded-full border text-[11px] font-semibold tabular-nums transition-colors ${
+                      active
+                        ? 'bg-foreground text-white border-foreground'
+                        : 'bg-white text-foreground/70 border-black/10 hover:border-black/25'
+                    }`}
+                  >
+                    {m}m
+                  </button>
+                );
+              })}
               <input
                 type="number"
                 min={0}
                 max={720}
                 value={durationMin}
                 onChange={(e) => setDurationMin(e.target.value)}
-                placeholder="0"
-                className="modal-input w-24 text-center tabular-nums"
+                placeholder="min"
+                className="modal-input w-20 text-center tabular-nums"
                 aria-label="Minutes"
                 inputMode="numeric"
               />
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-foreground/55">min</span>
             </div>
           </ModalField>
-          <ModalField label="Comments / notes" hint="What did you talk about? Any next steps?">
+          <ModalField label="Comments / notes">
             <textarea
               value={comments}
               onChange={(e) => setComments(e.target.value)}
-              rows={4}
-              className="modal-input resize-none"
-              placeholder="They mentioned a referral coming next week — follow up on Tuesday."
+              rows={2}
+              className="modal-input resize-none sm:min-h-[96px]"
+              placeholder="What did you talk about? Any next steps?"
             />
           </ModalField>
         </div>
-        <div className="px-6 py-4 border-t border-black/5 bg-warm-bg/30 flex items-center justify-end gap-2">
+        {/* Desktop footer. On mobile the fixed Save pill below is the
+            single action — the header X / backdrop tap handle cancel. */}
+        <div className="hidden sm:flex px-6 py-4 border-t border-black/5 bg-warm-bg/30 items-center justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
@@ -7856,8 +7975,81 @@ function NewLogModal({
             {submitting ? 'Logging…' : 'Save log'}
           </button>
         </div>
+        {/* Mobile: one fixed Save pill, same position + styling as the
+            New log FAB it replaces while the sheet is open. Knows the
+            form state, so it can disable itself and show progress —
+            the old external FAB couldn't. */}
+        <div
+          className="sm:hidden fixed inset-x-4 z-[60]"
+          style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+        >
+          <button
+            type="submit"
+            disabled={!submittable || submitting}
+            className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-full text-sm font-semibold uppercase tracking-wider shadow-[0_12px_28px_-8px_rgba(0,0,0,0.45)] active:scale-[0.98] transition-all duration-200 ${
+              submittable && !submitting ? 'bg-foreground text-white' : 'bg-foreground/35 text-white/80'
+            }`}
+          >
+            {submitting ? 'Logging…' : submittable ? 'Save log' : 'Enter a name to save'}
+          </button>
+        </div>
       </form>
     </ModalShell>
+  );
+}
+
+// Compact method grid for the quick-log sheet. Three-across mini
+// tiles instead of ContactMethodPicker's big 2-col cards so all six
+// everyday methods fit in two short rows on a phone; the novelty
+// methods (Smoke Signals / Walkie Talkie / Tin Can Phone) collapse
+// behind a "More" toggle since they're jokes, not daily drivers.
+function CompactMethodPicker({
+  value,
+  onChange,
+}: {
+  value: ContactMethod;
+  onChange: (next: ContactMethod) => void;
+}) {
+  const PRIMARY_COUNT = 6;
+  const novelty = CONTACT_METHODS.slice(PRIMARY_COUNT);
+  // Start expanded if the current value lives in the hidden set so
+  // the selection is never invisible.
+  const [showAll, setShowAll] = useState(() => novelty.some((m) => m.value === value));
+  const visible = showAll ? CONTACT_METHODS : CONTACT_METHODS.slice(0, PRIMARY_COUNT);
+  return (
+    <div>
+      <div className="grid grid-cols-3 gap-1.5">
+        {visible.map(({ value: v, label, tone, Icon, helpText }) => {
+          const selected = v === value;
+          return (
+            <button
+              key={v}
+              type="button"
+              onClick={() => onChange(v)}
+              title={helpText}
+              aria-pressed={selected}
+              className={`flex flex-col items-center justify-center gap-0.5 rounded-lg border px-1 py-1.5 text-[10px] font-semibold leading-tight transition-all ${
+                selected
+                  ? `${tone} ring-2 ring-current/40 shadow-sm`
+                  : 'bg-white text-foreground/70 border-black/10 hover:border-black/25 hover:bg-warm-bg/40'
+              }`}
+            >
+              <span className={selected ? '' : 'text-foreground/50'}>
+                <Icon />
+              </span>
+              <span className="text-center">{label}</span>
+            </button>
+          );
+        })}
+      </div>
+      <button
+        type="button"
+        onClick={() => setShowAll((s) => !s)}
+        className="mt-1.5 text-[10px] font-semibold text-foreground/50 hover:text-foreground transition-colors"
+      >
+        {showAll ? '▴ Fewer methods' : `▾ More methods (${novelty.length})`}
+      </button>
+    </div>
   );
 }
 
