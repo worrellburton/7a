@@ -30,6 +30,7 @@ import {
   METHOD_TONES as SHARED_METHOD_TONES,
   type ContactMethod as SharedContactMethod,
 } from '@/lib/contact-methods';
+import { QuickLogHost, type QuickLogPerson, type QuickLogResult } from '../QuickLog';
 
 // ─── Shared clock ───────────────────────────────────────────────
 // One interval for the whole grid instead of a setInterval per
@@ -536,6 +537,39 @@ export default function ContactsContent() {
   // separate "Add contact" step.
   const [showNewLog, setShowNewLog] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  // Quick-log sheet inputs, derived from the live grid rows so the
+  // combobox / recents stay in sync with optimistic edits. Recents
+  // approximates "my latest touches" as contacts whose most recent
+  // log is mine — good enough without an extra fetch on a page that
+  // already holds every row.
+  const quickLogRoster = useMemo<QuickLogPerson[]>(
+    () =>
+      rows
+        .filter((r) => !!r.name)
+        .map((r) => ({
+          id: r.id,
+          name: r.name as string,
+          company: r.company ?? null,
+          lastAt: r.last_contact_at,
+          lastMethod: r.last_contact_method,
+        })),
+    [rows],
+  );
+  const quickLogRecents = useMemo<QuickLogPerson[]>(
+    () =>
+      rows
+        .filter((r) => !!r.name && !!r.last_contact_at && r.last_contact_by === user?.id)
+        .sort((a, b) => new Date(b.last_contact_at as string).getTime() - new Date(a.last_contact_at as string).getTime())
+        .slice(0, 5)
+        .map((r) => ({
+          id: r.id,
+          name: r.name as string,
+          company: r.company ?? null,
+          lastAt: r.last_contact_at,
+          lastMethod: r.last_contact_method,
+        })),
+    [rows, user?.id],
+  );
   // "Add with Claude" flow — opens a wizard modal that asks Claude
   // for candidate referrers/leads, lets admissions cherry-pick which
   // ones to keep, and bulk-inserts the selected rows.
@@ -1010,8 +1044,13 @@ export default function ContactsContent() {
     setShowAdd(false);
   }
 
-  async function handleLogContact(target: Contact, method: ContactMethod, comments: string, transcript: string, durationSeconds: number, followUpDays: number | null) {
-    if (!session?.access_token) return;
+  // followUpDays: a number schedules a follow-up, null explicitly
+  // clears it, undefined leaves the contact's follow-up untouched
+  // (the quick-log path — logging a touchpoint must not silently
+  // wipe a scheduled follow-up). Returns the created log's id so the
+  // quick-log toast can offer Undo.
+  async function handleLogContact(target: Contact, method: ContactMethod, comments: string, transcript: string, durationSeconds: number, followUpDays: number | null | undefined): Promise<{ ok: boolean; logId: string | null }> {
+    if (!session?.access_token) return { ok: false, logId: null };
     // Optimistic UI — bump the row before the request resolves so
     // the grid reflects the action immediately.
     const optimisticAt = new Date().toISOString();
@@ -1041,31 +1080,39 @@ export default function ContactsContent() {
     const res = await fetch(`/api/contacts/${target.id}/log-contact`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      // JSON.stringify drops an undefined follow_up_days entirely,
+      // which the route reads as "leave follow_up_at alone".
       body: JSON.stringify({ method, comments, transcript, duration_seconds: durationSeconds, follow_up_days: followUpDays }),
     });
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
       alert(`Couldn't log contact: ${json.error ?? res.status}`);
       // Realtime will reconcile state if the server rolled back.
+      return { ok: false, logId: null };
     }
+    const json = (await res.json().catch(() => null)) as { log_id?: string } | null;
+    return { ok: true, logId: json?.log_id ?? null };
   }
 
-  // Quick-log path from the mobile "New log" FAB. Finds-or-creates
-  // a contact by name (case-insensitive match against the loaded
-  // rows; falls back to POST /api/contacts if the name is brand
-  // new), then runs the same log-touchpoint flow handleLogContact
-  // uses for grid rows.
+  // Quick-log path from the mobile "New log" FAB / desktop Add-Log
+  // pill. Finds-or-creates a contact by name (case-insensitive match
+  // against the loaded rows; falls back to POST /api/contacts if the
+  // name is brand new), then runs the same log-touchpoint flow
+  // handleLogContact uses for grid rows. Returns the QuickLogResult
+  // the host needs for its Undo toast, or null on failure (which
+  // keeps the sheet open).
   async function handleQuickLog(
     name: string,
     method: ContactMethod,
     comments: string,
     durationSeconds: number,
-  ) {
-    if (!session?.access_token) return;
+  ): Promise<QuickLogResult | null> {
+    if (!session?.access_token) return null;
     const trimmed = name.trim();
-    if (!trimmed) return;
+    if (!trimmed) return null;
     const lowered = trimmed.toLowerCase();
     let target = rows.find((r) => (r.name ?? '').toLowerCase() === lowered);
+    let created = false;
     if (!target) {
       const res = await fetch('/api/contacts', {
         method: 'POST',
@@ -1075,15 +1122,48 @@ export default function ContactsContent() {
       if (!res.ok) {
         const json = await res.json().catch(() => ({}));
         alert(`Couldn't create contact: ${json.error ?? res.status}`);
-        return;
+        return null;
       }
       target = (await res.json()) as Contact;
+      created = true;
       // Push the new contact into local state so the realtime
       // subscription doesn't have to race the log call below.
       setRows((prev) => [target as Contact, ...prev]);
     }
-    setShowNewLog(false);
-    await handleLogContact(target, method, comments, '', durationSeconds, null);
+    // follow_up_days deliberately undefined — a quick log must not
+    // clear a follow-up someone scheduled on this contact.
+    const logRes = await handleLogContact(target, method, comments, '', durationSeconds, undefined);
+    if (!logRes.ok) return null;
+    return {
+      logId: logRes.logId,
+      contactId: target.id,
+      contactName: target.name ?? trimmed,
+      createdContact: created,
+      method,
+      durationSeconds,
+    };
+  }
+
+  // Undo for the quick-log toast: delete the log (author-only route;
+  // it also re-syncs contacts.last_contact_*, which realtime pushes
+  // back into the grid) and, if the quick log created the contact,
+  // remove the otherwise-empty row too.
+  async function handleQuickLogUndo(result: QuickLogResult) {
+    if (!session?.access_token) throw new Error('no session');
+    if (result.logId) {
+      const res = await fetch(`/api/contacts/${result.contactId}/history/${result.logId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (!res.ok) throw new Error('undo failed');
+    }
+    if (result.createdContact) {
+      await fetch(`/api/contacts/${result.contactId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      setRows((prev) => prev.filter((r) => r.id !== result.contactId));
+    }
   }
 
   async function handleUpgrade(target: Contact, partnerPayload: Record<string, unknown>) {
@@ -1434,13 +1514,14 @@ export default function ContactsContent() {
           existingContacts={rows}
         />
       )}
-      {showNewLog && (
-        <NewLogModal
-          existingNames={rows.map((r) => r.name).filter(Boolean) as string[]}
-          onClose={() => setShowNewLog(false)}
-          onSubmit={handleQuickLog}
-        />
-      )}
+      <QuickLogHost
+        open={showNewLog}
+        onOpenChange={setShowNewLog}
+        roster={quickLogRoster}
+        recents={quickLogRecents}
+        onSubmit={handleQuickLog}
+        onUndo={handleQuickLogUndo}
+      />
       {/* Mobile-only "New log" FAB. Lives outside the rest of the
           layout so it pins to the viewport bottom with safe-area
           padding instead of inflating the page's vertical rhythm.
@@ -1491,7 +1572,7 @@ export default function ContactsContent() {
         <LogContactModal
           contact={logTarget}
           onClose={() => setLogTarget(null)}
-          onSubmit={(method, comments, transcript, durationSeconds, followUpDays) => handleLogContact(logTarget, method, comments, transcript, durationSeconds, followUpDays)}
+          onSubmit={async (method, comments, transcript, durationSeconds, followUpDays) => { await handleLogContact(logTarget, method, comments, transcript, durationSeconds, followUpDays); }}
         />
       )}
       {upgradeTarget && (
@@ -7729,327 +7810,6 @@ function LogContactModal({
         />
       </form>
     </ModalShell>
-  );
-}
-
-// Quick-log modal launched from the mobile "New log" FAB and the
-// desktop "Add Log" pill. Mirrors LogContactModal's fields (method +
-// duration + comments) but front-loads a free-text name input so a
-// rep can log a touchpoint against a person whose contact row may or
-// may not exist yet.
-//
-// The name field is a CUSTOM combobox, not a <datalist> — iOS Safari
-// never renders datalist options as a tappable dropdown, so on the
-// phone the old "autocomplete" simply didn't exist. Suggestions are
-// filtered in-DOM and tappable, and a live match line under the
-// input tells the rep whether they're logging against an existing
-// contact or about to create a new row. The input deliberately
-// avoids name/contact keywords in its name/placeholder attributes so
-// iOS doesn't hijack the QuickType bar with its own "AutoFill
-// Contact" suggestion (it heuristically keys off those words).
-//
-// Mobile layout is budgeted to a single viewport: 6 primary method
-// mini-tiles (the 3 novelty methods sit behind a "More" toggle),
-// one-tap duration presets, a 2-row notes box, and a single fixed
-// Save pill in the same spot as the New log FAB it replaces — the
-// modal's own Cancel/Save footer only renders on sm+ where the FAB
-// doesn't exist.
-function NewLogModal({
-  existingNames,
-  onClose,
-  onSubmit,
-}: {
-  existingNames: string[];
-  onClose: () => void;
-  onSubmit: (name: string, method: ContactMethod, comments: string, durationSeconds: number) => Promise<void> | void;
-}) {
-  const [name, setName] = useState('');
-  const [method, setMethod] = useState<ContactMethod>('Phone');
-  const [comments, setComments] = useState('');
-  // Duration is optional — see the matching note on LogContactModal
-  // (above) for why. Leave blank for texts / emails / left messages;
-  // the server treats null and 0 identically.
-  const [durationMin, setDurationMin] = useState<string>('');
-  const totalSeconds = (() => {
-    const m = parseInt(durationMin, 10);
-    return Number.isFinite(m) && m > 0 ? m * 60 : 0;
-  })();
-  const trimmed = name.trim();
-  const submittable = trimmed.length > 0;
-  const [submitting, setSubmitting] = useState(false);
-
-  // ── Combobox state ─────────────────────────────────────────────
-  const inputRef = useRef<HTMLInputElement | null>(null);
-  const [nameFocused, setNameFocused] = useState(false);
-  const [highlightIdx, setHighlightIdx] = useState(-1);
-  const uniqueNames = useMemo(() => Array.from(new Set(existingNames)), [existingNames]);
-  const lowerSet = useMemo(() => new Set(uniqueNames.map((n) => n.toLowerCase())), [uniqueNames]);
-  const exactMatch = trimmed.length > 0 && lowerSet.has(trimmed.toLowerCase());
-  const suggestions = useMemo(() => {
-    const q = trimmed.toLowerCase();
-    if (!q) return [];
-    const starts: string[] = [];
-    const contains: string[] = [];
-    for (const n of uniqueNames) {
-      const ln = n.toLowerCase();
-      if (ln === q) continue; // already typed in full — nothing to suggest
-      if (ln.startsWith(q)) starts.push(n);
-      else if (ln.includes(q)) contains.push(n);
-    }
-    return [...starts, ...contains].slice(0, 6);
-  }, [uniqueNames, trimmed]);
-  const comboboxOpen = nameFocused && suggestions.length > 0;
-  useEffect(() => { setHighlightIdx(-1); }, [trimmed]);
-
-  const pickSuggestion = (n: string) => {
-    setName(n);
-    setHighlightIdx(-1);
-    // Dismiss the keyboard — the next steps (method / duration /
-    // save) are taps, and dropping the keyboard reveals the whole
-    // form again on a phone.
-    inputRef.current?.blur();
-  };
-
-  return (
-    <ModalShell title="New log" eyebrow="Quick log" onClose={onClose}>
-      <form
-        id="quick-log-form"
-        onSubmit={async (e) => {
-          e.preventDefault();
-          if (!submittable || submitting) return;
-          setSubmitting(true);
-          try {
-            await onSubmit(trimmed, method, comments.trim(), totalSeconds);
-          } finally {
-            setSubmitting(false);
-          }
-        }}
-      >
-        {/* Extra bottom padding on mobile clears the fixed Save pill. */}
-        <div className="px-4 sm:px-6 pt-4 sm:pt-5 pb-24 sm:pb-5 space-y-3.5 sm:space-y-4">
-          <ModalField label="Log for" required>
-            <div className="relative">
-              <input
-                ref={inputRef}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                onFocus={() => setNameFocused(true)}
-                onBlur={() => setNameFocused(false)}
-                onKeyDown={(e) => {
-                  if (e.key === 'ArrowDown' && comboboxOpen) {
-                    e.preventDefault();
-                    setHighlightIdx((i) => Math.min(i + 1, suggestions.length - 1));
-                  } else if (e.key === 'ArrowUp' && comboboxOpen) {
-                    e.preventDefault();
-                    setHighlightIdx((i) => Math.max(i - 1, -1));
-                  } else if (e.key === 'Enter') {
-                    // Enter never submits from this field — it either
-                    // takes the arrow-keyed suggestion or just drops
-                    // the keyboard. Prevents "typed 3 letters, hit
-                    // return, logged the wrong person" accidents.
-                    e.preventDefault();
-                    if (comboboxOpen && highlightIdx >= 0) pickSuggestion(suggestions[highlightIdx]);
-                    else inputRef.current?.blur();
-                  } else if (e.key === 'Escape' && comboboxOpen) {
-                    e.stopPropagation();
-                    inputRef.current?.blur();
-                  }
-                }}
-                required
-                autoFocus
-                autoComplete="off"
-                autoCorrect="off"
-                autoCapitalize="words"
-                spellCheck={false}
-                enterKeyHint="done"
-                role="combobox"
-                aria-expanded={comboboxOpen}
-                aria-controls="quick-log-suggestions"
-                aria-autocomplete="list"
-                name="ql-lookup"
-                className="modal-input"
-                placeholder="Start typing to search…"
-              />
-              {comboboxOpen && (
-                <ul
-                  id="quick-log-suggestions"
-                  className="absolute left-0 right-0 top-full mt-1 z-20 max-h-44 overflow-y-auto rounded-xl border border-black/10 bg-white shadow-[0_16px_36px_-16px_rgba(40,30,25,0.35)] py-1"
-                >
-                  {suggestions.map((n, i) => (
-                    <li key={n}>
-                      <button
-                        type="button"
-                        // pointerdown beats the input's blur, so the tap
-                        // lands before the dropdown unmounts.
-                        onPointerDown={(e) => {
-                          e.preventDefault();
-                          pickSuggestion(n);
-                        }}
-                        className={`w-full text-left px-3 py-2 text-[13px] transition-colors ${
-                          i === highlightIdx ? 'bg-primary/10 text-foreground' : 'text-foreground/80 hover:bg-warm-bg/60'
-                        }`}
-                      >
-                        {n}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-            {/* Live match feedback — doubles as the field hint. */}
-            {trimmed.length === 0 ? (
-              <p className="mt-1 text-[10px] text-foreground/45">
-                We&apos;ll match an existing contact or create a new one.
-              </p>
-            ) : exactMatch ? (
-              <p className="mt-1 text-[10px] font-semibold text-emerald-700">
-                ✓ Existing contact — this log joins their history.
-              </p>
-            ) : (
-              <p className="mt-1 text-[10px] font-semibold text-primary">
-                + New contact &ldquo;{trimmed}&rdquo; will be created.
-              </p>
-            )}
-          </ModalField>
-          <ModalField label="Method" required>
-            <CompactMethodPicker value={method} onChange={setMethod} />
-          </ModalField>
-          <ModalField label="Duration">
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {[5, 10, 15, 30].map((m) => {
-                const active = durationMin === String(m);
-                return (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setDurationMin(active ? '' : String(m))}
-                    aria-pressed={active}
-                    className={`px-3 py-1.5 rounded-full border text-[11px] font-semibold tabular-nums transition-colors ${
-                      active
-                        ? 'bg-foreground text-white border-foreground'
-                        : 'bg-white text-foreground/70 border-black/10 hover:border-black/25'
-                    }`}
-                  >
-                    {m}m
-                  </button>
-                );
-              })}
-              <input
-                type="number"
-                min={0}
-                max={720}
-                value={durationMin}
-                onChange={(e) => setDurationMin(e.target.value)}
-                placeholder="min"
-                className="modal-input w-20 text-center tabular-nums"
-                aria-label="Minutes"
-                inputMode="numeric"
-              />
-            </div>
-          </ModalField>
-          <ModalField label="Comments / notes">
-            <textarea
-              value={comments}
-              onChange={(e) => setComments(e.target.value)}
-              rows={2}
-              className="modal-input resize-none sm:min-h-[96px]"
-              placeholder="What did you talk about? Any next steps?"
-            />
-          </ModalField>
-        </div>
-        {/* Desktop footer. On mobile the fixed Save pill below is the
-            single action — the header X / backdrop tap handle cancel. */}
-        <div className="hidden sm:flex px-6 py-4 border-t border-black/5 bg-warm-bg/30 items-center justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-3 py-2 rounded-md text-xs font-semibold uppercase tracking-wider text-foreground/65 hover:bg-warm-bg/60 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={!submittable || submitting}
-            className={`px-4 py-2 rounded-md text-xs font-semibold uppercase tracking-wider transition-colors ${submittable && !submitting ? 'bg-foreground text-white hover:bg-foreground/85' : 'bg-foreground/30 text-white/75 cursor-not-allowed'}`}
-          >
-            {submitting ? 'Logging…' : 'Save log'}
-          </button>
-        </div>
-        {/* Mobile: one fixed Save pill, same position + styling as the
-            New log FAB it replaces while the sheet is open. Knows the
-            form state, so it can disable itself and show progress —
-            the old external FAB couldn't. */}
-        <div
-          className="sm:hidden fixed inset-x-4 z-[60]"
-          style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
-        >
-          <button
-            type="submit"
-            disabled={!submittable || submitting}
-            className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-full text-sm font-semibold uppercase tracking-wider shadow-[0_12px_28px_-8px_rgba(0,0,0,0.45)] active:scale-[0.98] transition-all duration-200 ${
-              submittable && !submitting ? 'bg-foreground text-white' : 'bg-foreground/35 text-white/80'
-            }`}
-          >
-            {submitting ? 'Logging…' : submittable ? 'Save log' : 'Enter a name to save'}
-          </button>
-        </div>
-      </form>
-    </ModalShell>
-  );
-}
-
-// Compact method grid for the quick-log sheet. Three-across mini
-// tiles instead of ContactMethodPicker's big 2-col cards so all six
-// everyday methods fit in two short rows on a phone; the novelty
-// methods (Smoke Signals / Walkie Talkie / Tin Can Phone) collapse
-// behind a "More" toggle since they're jokes, not daily drivers.
-function CompactMethodPicker({
-  value,
-  onChange,
-}: {
-  value: ContactMethod;
-  onChange: (next: ContactMethod) => void;
-}) {
-  const PRIMARY_COUNT = 6;
-  const novelty = CONTACT_METHODS.slice(PRIMARY_COUNT);
-  // Start expanded if the current value lives in the hidden set so
-  // the selection is never invisible.
-  const [showAll, setShowAll] = useState(() => novelty.some((m) => m.value === value));
-  const visible = showAll ? CONTACT_METHODS : CONTACT_METHODS.slice(0, PRIMARY_COUNT);
-  return (
-    <div>
-      <div className="grid grid-cols-3 gap-1.5">
-        {visible.map(({ value: v, label, tone, Icon, helpText }) => {
-          const selected = v === value;
-          return (
-            <button
-              key={v}
-              type="button"
-              onClick={() => onChange(v)}
-              title={helpText}
-              aria-pressed={selected}
-              className={`flex flex-col items-center justify-center gap-0.5 rounded-lg border px-1 py-1.5 text-[10px] font-semibold leading-tight transition-all ${
-                selected
-                  ? `${tone} ring-2 ring-current/40 shadow-sm`
-                  : 'bg-white text-foreground/70 border-black/10 hover:border-black/25 hover:bg-warm-bg/40'
-              }`}
-            >
-              <span className={selected ? '' : 'text-foreground/50'}>
-                <Icon />
-              </span>
-              <span className="text-center">{label}</span>
-            </button>
-          );
-        })}
-      </div>
-      <button
-        type="button"
-        onClick={() => setShowAll((s) => !s)}
-        className="mt-1.5 text-[10px] font-semibold text-foreground/50 hover:text-foreground transition-colors"
-      >
-        {showAll ? '▴ Fewer methods' : `▾ More methods (${novelty.length})`}
-      </button>
-    </div>
   );
 }
 
