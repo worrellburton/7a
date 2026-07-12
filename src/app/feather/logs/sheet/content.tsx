@@ -33,6 +33,9 @@ interface LogRow {
 
 interface SheetPayload {
   logs: LogRow[];
+  // Phoenix calendar day (YYYY-MM-DD) the server windowed to — the
+  // sheet's source of truth for the current year + month.
+  today?: string;
 }
 
 function phoenixDateKey(iso: string): string {
@@ -136,7 +139,10 @@ export default function LogSheetContent() {
 
   // Phoenix "now" anchors: which year the sheet covers and which
   // month is current (columns after it are future → blank cells).
-  const todayKey = phoenixDateKey(new Date().toISOString());
+  // Prefer the server's anchor date (data.today) so the client clock
+  // can't disagree on the current year/month — falls back to the
+  // browser clock only before the first payload arrives.
+  const todayKey = data?.today ?? phoenixDateKey(new Date().toISOString());
   const year = todayKey.slice(0, 4);
   const currentMonthIdx = Number(todayKey.slice(5, 7)) - 1;
 
@@ -146,9 +152,15 @@ export default function LogSheetContent() {
     const map = new Map<string, LogRow[][]>();
     for (const l of data?.logs ?? []) {
       const key = phoenixDateKey(l.contactedAt);
-      if (key.slice(0, 4) !== year) continue; // guard — API already windows to the year
+      if (key.slice(0, 4) !== year) continue; // outside the sheet's year
       const monthIdx = Number(key.slice(5, 7)) - 1;
       if (monthIdx < 0 || monthIdx > 11) continue;
+      // `this_year` is open-ended server-side, so a future-dated log
+      // (data-entry typo, scheduled touch) can arrive for a month
+      // after the current one. Drop it — those months render as blank
+      // "future" columns, and a stray count there would contradict
+      // that styling and inflate the totals.
+      if (monthIdx > currentMonthIdx) continue;
       const method = (l.method || 'Other').trim() || 'Other';
       let slots = map.get(method);
       if (!slots) {
@@ -158,7 +170,7 @@ export default function LogSheetContent() {
       slots[monthIdx].push(l);
     }
     return map;
-  }, [data, year]);
+  }, [data, year, currentMonthIdx]);
 
   // Rows sorted by annual total (desc), ties alphabetical — the
   // busiest log types read first, like a ranked spreadsheet.
