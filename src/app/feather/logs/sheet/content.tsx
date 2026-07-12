@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 
 // "Log sheet" — spreadsheet-style annual view of the daily logs.
@@ -31,15 +31,22 @@ interface LogRow {
   contactCompany: string | null;
 }
 
-interface SheetPayload {
-  logs: LogRow[];
-  // Phoenix calendar day (YYYY-MM-DD) the server windowed to — the
-  // sheet's source of truth for the current year + month.
-  today?: string;
+// Compact count matrix from /api/contacts/log-sheet — one row per
+// method, twelve month counts each. The heavy hydrated log rows are
+// NOT shipped here; they load per-cell from the /cell route only when
+// a cell is opened.
+interface SheetMatrixRow {
+  method: string;
+  counts: number[]; // 12 entries, Jan..Dec
+  total: number;
 }
-
-function phoenixDateKey(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Phoenix' });
+interface SheetPayload {
+  // Phoenix anchor from the server — the sheet's source of truth for
+  // the current year + month (no dependence on the browser clock).
+  today: string;
+  year: string;
+  currentMonthIdx: number;
+  rows: SheetMatrixRow[];
 }
 
 function fmtTimeOfDay(iso: string): string {
@@ -98,12 +105,6 @@ function methodTone(method: string | null): { bg: string; text: string; ring: st
   }
 }
 
-interface SheetRow {
-  method: string;
-  monthCounts: number[]; // 12 entries, Jan..Dec
-  total: number;
-}
-
 interface CellKey {
   method: string;
   monthIdx: number; // 0 = Jan
@@ -117,7 +118,11 @@ export default function LogSheetContent() {
   const refresh = useCallback(async () => {
     if (!session?.access_token) return;
     try {
-      const r = await fetch('/api/contacts/logs-today?range=this_year', { credentials: 'include' });
+      // Compact count matrix only — a dozen rows of small ints, no
+      // hydrated logs. Cell detail loads lazily from the /cell route.
+      const r = await fetch('/api/contacts/log-sheet', {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
       if (!r.ok) {
         setError(`HTTP ${r.status}`);
         return;
@@ -137,65 +142,60 @@ export default function LogSheetContent() {
     return () => window.removeEventListener('focus', onFocus);
   }, [refresh]);
 
-  // Phoenix "now" anchors: which year the sheet covers and which
-  // month is current (columns after it are future → blank cells).
-  // Prefer the server's anchor date (data.today) so the client clock
-  // can't disagree on the current year/month — falls back to the
-  // browser clock only before the first payload arrives.
-  const todayKey = data?.today ?? phoenixDateKey(new Date().toISOString());
-  const year = todayKey.slice(0, 4);
-  const currentMonthIdx = Number(todayKey.slice(5, 7)) - 1;
-
-  // Bucket every log into method × month. Buckets keep the full log
-  // rows so the drill-down panel needs no second fetch.
-  const buckets = useMemo(() => {
-    const map = new Map<string, LogRow[][]>();
-    for (const l of data?.logs ?? []) {
-      const key = phoenixDateKey(l.contactedAt);
-      if (key.slice(0, 4) !== year) continue; // outside the sheet's year
-      const monthIdx = Number(key.slice(5, 7)) - 1;
-      if (monthIdx < 0 || monthIdx > 11) continue;
-      // `this_year` is open-ended server-side, so a future-dated log
-      // (data-entry typo, scheduled touch) can arrive for a month
-      // after the current one. Drop it — those months render as blank
-      // "future" columns, and a stray count there would contradict
-      // that styling and inflate the totals.
-      if (monthIdx > currentMonthIdx) continue;
-      const method = (l.method || 'Other').trim() || 'Other';
-      let slots = map.get(method);
-      if (!slots) {
-        slots = Array.from({ length: 12 }, () => [] as LogRow[]);
-        map.set(method, slots);
-      }
-      slots[monthIdx].push(l);
-    }
-    return map;
-  }, [data, year, currentMonthIdx]);
-
-  // Rows sorted by annual total (desc), ties alphabetical — the
-  // busiest log types read first, like a ranked spreadsheet.
-  const rows = useMemo<SheetRow[]>(() => {
-    return Array.from(buckets.entries())
-      .map(([method, slots]) => {
-        const monthCounts = slots.map((s) => s.length);
-        return { method, monthCounts, total: monthCounts.reduce((a, b) => a + b, 0) };
-      })
-      .sort((a, b) => (a.total !== b.total ? b.total - a.total : a.method.localeCompare(b.method)));
-  }, [buckets]);
+  // Year + current-month cutoff come straight from the server anchor
+  // (falls back to the browser clock only before the first payload).
+  const year = data?.year ?? String(new Date().getFullYear());
+  const currentMonthIdx = data?.currentMonthIdx ?? new Date().getMonth();
+  const rows = data?.rows ?? [];
 
   const monthTotals = useMemo(
-    () => MONTH_LABELS.map((_, i) => rows.reduce((acc, r) => acc + r.monthCounts[i], 0)),
+    () => MONTH_LABELS.map((_, i) => rows.reduce((acc, r) => acc + (r.counts[i] ?? 0), 0)),
     [rows],
   );
   const grandTotal = useMemo(() => monthTotals.reduce((a, b) => a + b, 0), [monthTotals]);
 
+  // Lazy per-cell detail. Opening a cell fetches just that bucket's
+  // hydrated logs from the /cell route; results are cached by
+  // method|monthIdx so reopening is instant. `fetchedKeys` guards
+  // against duplicate in-flight requests without forcing the effect
+  // to depend on the cache itself.
   const [selected, setSelected] = useState<CellKey | null>(null);
-  const selectedLogs = useMemo(() => {
-    if (!selected) return [];
-    const slots = buckets.get(selected.method);
-    // Newest first inside the panel.
-    return (slots?.[selected.monthIdx] ?? []).slice().reverse();
-  }, [buckets, selected]);
+  const [cellCache, setCellCache] = useState<Record<string, LogRow[]>>({});
+  const fetchedKeys = useRef<Set<string>>(new Set());
+  const cellKey = selected ? `${selected.method}|${selected.monthIdx}` : null;
+  // undefined = still loading; array (possibly empty) = loaded.
+  const selectedLogs = cellKey ? cellCache[cellKey] : undefined;
+
+  useEffect(() => {
+    if (!selected || !session?.access_token) return;
+    const key = `${selected.method}|${selected.monthIdx}`;
+    if (fetchedKeys.current.has(key)) return;
+    fetchedKeys.current.add(key);
+    let cancelled = false;
+    (async () => {
+      try {
+        const params = new URLSearchParams({ method: selected.method, monthIdx: String(selected.monthIdx) });
+        const r = await fetch(`/api/contacts/log-sheet/cell?${params.toString()}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!r.ok) { fetchedKeys.current.delete(key); return; } // let a reopen retry
+        const j = (await r.json()) as { logs: LogRow[] };
+        // Newest first inside the panel.
+        if (!cancelled) setCellCache((prev) => ({ ...prev, [key]: (j.logs ?? []).slice().reverse() }));
+      } catch {
+        fetchedKeys.current.delete(key);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selected, session?.access_token]);
+
+  // When the matrix reloads (focus refresh), drop cached cell detail
+  // so an open cell re-fetches fresh touchpoints rather than showing
+  // a stale list from before the refresh.
+  useEffect(() => {
+    setCellCache({});
+    fetchedKeys.current.clear();
+  }, [data]);
 
   const toggleCell = useCallback((method: string, monthIdx: number) => {
     setSelected((prev) =>
@@ -330,7 +330,7 @@ export default function LogSheetContent() {
                               {row.method}
                             </span>
                           </th>
-                          {row.monthCounts.map((count, i) => {
+                          {row.counts.map((count, i) => {
                             const isFuture = i > currentMonthIdx;
                             const isSelected =
                               selected?.method === row.method && selected?.monthIdx === i;
@@ -405,7 +405,7 @@ export default function LogSheetContent() {
           <CellDetailCard
             method={selected.method}
             monthLabel={`${MONTH_LABELS[selected.monthIdx]} ${year}`}
-            logs={selectedLogs}
+            logs={selectedLogs ?? null}
             onClose={() => setSelected(null)}
           />
         )}
@@ -420,7 +420,8 @@ function CellDetailCard({
 }: {
   method: string;
   monthLabel: string;
-  logs: LogRow[];
+  // null while the cell's detail is still loading from the /cell route.
+  logs: LogRow[] | null;
   onClose: () => void;
 }) {
   const tone = methodTone(method);
@@ -428,6 +429,7 @@ function CellDetailCard({
   const [expandedId, setExpandedId] = useState<string | null>(null);
   // Collapse any open row when the selected cell changes.
   useEffect(() => { setExpandedId(null); }, [method, monthLabel]);
+  const loading = logs === null;
 
   return (
     <section className="mt-3 rounded-2xl border border-black/10 bg-white/95 backdrop-blur-sm shadow-[0_18px_40px_-24px_rgba(60,48,42,0.35)] overflow-hidden">
@@ -447,7 +449,7 @@ function CellDetailCard({
         </div>
         <div className="shrink-0 flex items-center gap-2">
           <span className="text-[10px] tabular-nums text-foreground/45 whitespace-nowrap">
-            {logs.length} {logs.length === 1 ? 'log' : 'logs'}
+            {loading ? '…' : `${logs!.length} ${logs!.length === 1 ? 'log' : 'logs'}`}
           </span>
           <button
             type="button"
@@ -460,13 +462,15 @@ function CellDetailCard({
           </button>
         </div>
       </header>
-      {logs.length === 0 ? (
+      {loading ? (
+        <p className="px-4 py-6 text-[12px] italic text-foreground/45 text-center">Loading…</p>
+      ) : logs!.length === 0 ? (
         <p className="px-4 py-6 text-[12px] italic text-foreground/45 text-center">
           No 🪵 in this cell.
         </p>
       ) : (
         <ol className="divide-y divide-black/5 max-h-[420px] overflow-y-auto">
-          {logs.map((log) => {
+          {logs!.map((log) => {
             const isOpen = expandedId === log.id;
             const fullStamp = new Date(log.contactedAt).toLocaleString(undefined, {
               weekday: 'short', month: 'short', day: 'numeric',

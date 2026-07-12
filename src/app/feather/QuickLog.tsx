@@ -56,6 +56,13 @@ export type QuickLogSubmit = (
   method: ContactMethod,
   comments: string,
   durationSeconds: number,
+  // The exact contact id when the rep PICKED a person from the
+  // suggestions / recents / "use them" affordance, so a name shared
+  // by two contacts logs against the one they actually chose rather
+  // than whichever the by-name lookup happens to return first. null
+  // when they free-typed a name — the host then resolves by name (or
+  // creates a new contact).
+  contactId: string | null,
 ) => Promise<QuickLogResult | null>;
 
 // ─── Constants ───────────────────────────────────────────────────
@@ -366,12 +373,24 @@ export function QuickLogSheet({
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [nameFocused, setNameFocused] = useState(false);
   const [highlightIdx, setHighlightIdx] = useState(-1);
+  // The contact the rep explicitly picked (suggestion / recent /
+  // "use them"). Held so a duplicate name logs against the exact
+  // person chosen. Cleared the moment they type, since free text no
+  // longer refers to that specific row.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const byLowerName = useMemo(() => {
     const m = new Map<string, QuickLogPerson>();
     for (const p of roster) m.set(p.name.toLowerCase(), p);
     return m;
   }, [roster]);
-  const matched = trimmed ? byLowerName.get(trimmed.toLowerCase()) ?? null : null;
+  const selectedPerson = useMemo(
+    () => (selectedId ? roster.find((p) => p.id === selectedId) ?? null : null),
+    [selectedId, roster],
+  );
+  // Prefer the explicitly-picked contact so the match line shows the
+  // right company / last-touch even when another contact shares the
+  // name; fall back to a by-name lookup for free-typed input.
+  const matched = selectedPerson ?? (trimmed ? byLowerName.get(trimmed.toLowerCase()) ?? null : null);
   const suggestions = useMemo(() => rankSuggestions(trimmed, roster), [trimmed, roster]);
   const closeMatch = useMemo(
     () => (matched ? null : findCloseMatch(trimmed, roster)),
@@ -380,8 +399,9 @@ export function QuickLogSheet({
   const comboboxOpen = nameFocused && suggestions.length > 0;
   useEffect(() => { setHighlightIdx(-1); }, [trimmed]);
 
-  const pickPerson = useCallback((personName: string) => {
-    setName(personName);
+  const pickPerson = useCallback((person: QuickLogPerson) => {
+    setName(person.name);
+    setSelectedId(person.id);
     setHighlightIdx(-1);
     // Drop the keyboard — the remaining steps are taps, and
     // dismissing it reveals the whole form again on a phone.
@@ -429,7 +449,7 @@ export function QuickLogSheet({
     if (!submittable || submitting) return;
     setSubmitting(true);
     try {
-      const result = await onSubmit(trimmed, method, comments.trim(), totalSeconds);
+      const result = await onSubmit(trimmed, method, comments.trim(), totalSeconds, selectedId);
       if (result) {
         try { window.localStorage.setItem(METHOD_MEMORY_KEY, method); } catch { /* private mode */ }
       }
@@ -498,7 +518,7 @@ export function QuickLogSheet({
                 <input
                   ref={inputRef}
                   value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  onChange={(e) => { setName(e.target.value); setSelectedId(null); }}
                   onFocus={() => setNameFocused(true)}
                   onBlur={() => setNameFocused(false)}
                   onKeyDown={(e) => {
@@ -512,7 +532,7 @@ export function QuickLogSheet({
                       // Enter never submits from this field — it takes
                       // the arrow-keyed suggestion or drops the keyboard.
                       e.preventDefault();
-                      if (comboboxOpen && highlightIdx >= 0) pickPerson(suggestions[highlightIdx].name);
+                      if (comboboxOpen && highlightIdx >= 0) pickPerson(suggestions[highlightIdx]);
                       else inputRef.current?.blur();
                     } else if (e.key === 'Escape' && comboboxOpen) {
                       e.stopPropagation();
@@ -547,7 +567,7 @@ export function QuickLogSheet({
                           // tap lands before the dropdown unmounts.
                           onPointerDown={(e) => {
                             e.preventDefault();
-                            pickPerson(p.name);
+                            pickPerson(p);
                           }}
                           className={`w-full text-left px-3 py-2 transition-colors ${
                             i === highlightIdx ? 'bg-primary/10' : 'hover:bg-warm-bg/60'
@@ -584,7 +604,7 @@ export function QuickLogSheet({
                   ⚠ Close to &ldquo;{closeMatch.name}&rdquo;.{' '}
                   <button
                     type="button"
-                    onClick={() => pickPerson(closeMatch.name)}
+                    onClick={() => pickPerson(closeMatch)}
                     className="underline underline-offset-2 hover:text-amber-900"
                   >
                     Use them
@@ -606,7 +626,7 @@ export function QuickLogSheet({
                       <button
                         key={p.id}
                         type="button"
-                        onClick={() => pickPerson(p.name)}
+                        onClick={() => pickPerson(p)}
                         className="max-w-full inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-full border border-black/10 bg-white text-[11px] font-semibold text-foreground/75 hover:border-primary/40 hover:text-foreground transition-colors"
                       >
                         <span className="truncate">{p.name}</span>
@@ -872,8 +892,8 @@ export function QuickLogHost({
           recents={recents}
           rosterLoading={rosterLoading}
           onClose={() => onOpenChange(false)}
-          onSubmit={async (name, method, comments, durationSeconds) => {
-            const result = await onSubmit(name, method, comments, durationSeconds);
+          onSubmit={async (name, method, comments, durationSeconds, contactId) => {
+            const result = await onSubmit(name, method, comments, durationSeconds, contactId);
             if (result) {
               onOpenChange(false);
               setToast(result);
@@ -944,10 +964,16 @@ export function StandaloneQuickLog({
     return () => { cancelled = true; };
   }, [open, token]);
 
-  const submit: QuickLogSubmit = async (name, method, comments, durationSeconds) => {
+  const submit: QuickLogSubmit = async (name, method, comments, durationSeconds, pickedId) => {
     if (!token) return null;
-    const lowered = name.toLowerCase();
-    const existing = ctx?.roster.find((p) => p.name.toLowerCase() === lowered) ?? null;
+    // Prefer the explicitly-picked contact; fall back to a by-name
+    // match; otherwise create. `pickedId` may be stale (roster
+    // refetched) — verify it still resolves, else drop to by-name.
+    let existing = pickedId ? ctx?.roster.find((p) => p.id === pickedId) ?? null : null;
+    if (!existing) {
+      const lowered = name.toLowerCase();
+      existing = ctx?.roster.find((p) => p.name.toLowerCase() === lowered) ?? null;
+    }
     let contactId = existing?.id ?? null;
     let created = false;
     if (!contactId) {

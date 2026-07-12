@@ -1106,12 +1106,17 @@ export default function ContactsContent() {
     method: ContactMethod,
     comments: string,
     durationSeconds: number,
+    pickedId: string | null,
   ): Promise<QuickLogResult | null> {
     if (!session?.access_token) return null;
     const trimmed = name.trim();
     if (!trimmed) return null;
     const lowered = trimmed.toLowerCase();
-    let target = rows.find((r) => (r.name ?? '').toLowerCase() === lowered);
+    // Prefer the exact contact the rep picked from the list (so a
+    // shared name logs against the right one); fall back to a by-name
+    // match; otherwise create. A stale picked id just drops to by-name.
+    let target = pickedId ? rows.find((r) => r.id === pickedId) : undefined;
+    if (!target) target = rows.find((r) => (r.name ?? '').toLowerCase() === lowered);
     let created = false;
     if (!target) {
       const res = await fetch('/api/contacts', {
