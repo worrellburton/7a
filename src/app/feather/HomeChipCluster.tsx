@@ -179,7 +179,14 @@ export default function HomeChipCluster({ children, menuExtras, indicator }: { c
           {menuExtras && (
             <>
               <div aria-hidden="true" className="h-px bg-foreground/10 my-1" />
-              {menuExtras}
+              {/* Every menu action either navigates or opens an
+                  overlay, so close the menu on any click inside this
+                  block. Without this the portaled panel (max-int
+                  z-index) stays open and floats OVER whatever overlay
+                  the action just opened — e.g. the quick-log sheet. */}
+              <div onClick={() => setOpen(false)} className="flex flex-col items-stretch gap-2">
+                {menuExtras}
+              </div>
             </>
           )}
         </div>,

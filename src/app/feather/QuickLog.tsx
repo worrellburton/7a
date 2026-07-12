@@ -857,6 +857,13 @@ export function QuickLogHost({
   onUndo: (result: QuickLogResult) => Promise<void>;
 }) {
   const [toast, setToast] = useState<QuickLogResult | null>(null);
+  // Clear any lingering toast whenever the sheet opens. Without this,
+  // opening the sheet again (FAB / "Log another") and then CANCELLING
+  // it would resurrect the previous save's toast — the toast only
+  // gates on `!open`, so re-hiding the sheet un-hides the stale toast.
+  useEffect(() => {
+    if (open) setToast(null);
+  }, [open]);
   return (
     <>
       {open && (

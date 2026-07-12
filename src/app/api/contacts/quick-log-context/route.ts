@@ -39,7 +39,11 @@ export async function GET(req: NextRequest) {
     const { data, error } = await admin
       .from('contacts')
       .select('id, name, company, last_contact_at, last_contact_method')
+      // `id` is the unique, immutable tiebreaker — `name` alone is
+      // nullable + non-unique, so offset pagination across pages
+      // could duplicate or drop rows once contacts exceed one page.
       .order('name', { ascending: true })
+      .order('id', { ascending: true })
       .range(offset, offset + PAGE - 1);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     const chunk = (data ?? []) as RosterRow[];

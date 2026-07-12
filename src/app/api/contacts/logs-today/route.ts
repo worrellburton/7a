@@ -397,6 +397,13 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     range,
     rangeLabel: win.label,
+    // The Phoenix calendar day the server anchored this window to
+    // (YYYY-MM-DD). The /feather/logs/sheet grid trusts this for its
+    // year + current-month cutoff instead of re-reading the browser
+    // clock, so client/server can't disagree on which year/month is
+    // "current" (device clock skew, or the tab left open across a
+    // New Year's boundary).
+    today: todayKey0,
     logs,
     leaderboard,
     total: windowLogs.length,
