@@ -2,7 +2,8 @@
 
 import Link from 'next/link';
 import { siteVideos } from '@/lib/siteVideos';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
+import { useRevealOnScroll } from '@/lib/useRevealOnScroll';
 
 /**
  * Homepage — "Our campus, from every angle."
@@ -65,8 +66,7 @@ const tiles: Tile[] = [
 
 export default function CampusTour() {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
+  const { ref, visible } = useRevealOnScroll<HTMLElement>(0.08);
 
   useEffect(() => {
     const el = videoRef.current;
@@ -76,17 +76,6 @@ export default function CampusTour() {
       typeof window !== 'undefined' &&
       window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     if (!reduce) el.play().catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      (es) => { for (const e of es) if (e.isIntersecting) { setVisible(true); io.disconnect(); } },
-      { threshold: 0.08 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
   }, []);
 
   return (

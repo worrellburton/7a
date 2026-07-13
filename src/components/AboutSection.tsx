@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import AmbientVideo from './AmbientVideo';
 
 export default function AboutSection() {
   return (
@@ -9,16 +10,13 @@ export default function AboutSection() {
           <div className="relative">
             <div className="rounded-2xl overflow-hidden aspect-[4/3] bg-dark-section shadow-sm">
               {/* Looping ranch video — replaces a broken still that
-                  used to live here. Muted+playsInline so it autoplays
-                  on iOS without breaking accessibility. */}
-              <video
+                  used to live here. AmbientVideo adds a poster (so
+                  Low Power Mode / data-saver phones see a still, not
+                  a black box) and skips playback under
+                  prefers-reduced-motion. */}
+              <AmbientVideo
                 src="https://xbirikzsrwmgqxlazglm.supabase.co/storage/v1/object/public/public-images/site-videos/06fd6821-a892-42bb-8fce-4eac19ee15d3.mp4"
-                autoPlay
-                loop
-                muted
-                playsInline
-                preload="metadata"
-                aria-hidden="true"
+                poster="/hero/covered-porch-desert-view.jpg"
                 className="w-full h-full object-cover"
               />
             </div>
