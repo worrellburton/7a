@@ -300,13 +300,7 @@ interface HeroProps {
 export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
   const sources = sourcesProp && sourcesProp.length > 0 ? sourcesProp : fallbackHeroSources;
   const isOnly = sources.length <= 1;
-  const [visible, setVisible] = useState(false);
   const [activeSlide, setActiveSlide] = useState(0);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setVisible(true), 100);
-    return () => clearTimeout(timer);
-  }, []);
 
   // Each slide drives the carousel forward via its `ended` event —
   // that way every clip plays start-to-finish exactly once before
@@ -422,36 +416,30 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
                   without burning the H1 slot on the tagline. */}
               <h1
                 id="hero-heading"
-                className="mb-3 text-[0.78rem] sm:text-sm font-semibold uppercase tracking-[0.18em] text-white/85"
+                className="hero-rise mb-3 text-[0.78rem] sm:text-sm font-semibold uppercase tracking-[0.18em] text-white/85"
                 style={{
                   fontFamily: 'var(--font-body)',
-                  opacity: visible ? 1 : 0,
-                  transform: visible ? 'translateY(0)' : 'translateY(20px)',
-                  transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.1s',
+                  animationDelay: '0.1s',
                 }}
               >
                 A Treatment Center in Arizona
               </h1>
               <p
-                className="font-bold leading-[1.02] tracking-tight mb-6"
+                className="hero-rise font-bold leading-[1.02] tracking-tight mb-6"
                 style={{
                   fontFamily: 'var(--font-display)',
                   fontSize: 'clamp(2.5rem, 6vw, 4.5rem)',
-                  opacity: visible ? 1 : 0,
-                  transform: visible ? 'translateY(0)' : 'translateY(30px)',
-                  transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.2s',
+                  animationDelay: '0.2s',
                 }}
               >
                 A place to <em className="not-italic font-bold" style={{ color: 'var(--color-accent)' }}>land</em>.
               </p>
 
               <p
-                className="mx-auto max-w-xl text-white/85 leading-relaxed mb-8 text-base sm:text-lg"
+                className="hero-rise mx-auto max-w-xl text-white/85 leading-relaxed mb-8 text-base sm:text-lg"
                 style={{
                   fontFamily: 'var(--font-body)',
-                  opacity: visible ? 1 : 0,
-                  transform: visible ? 'translateY(0)' : 'translateY(20px)',
-                  transition: 'all 0.9s cubic-bezier(0.16, 1, 0.3, 1) 0.35s',
+                  animationDelay: '0.35s',
                 }}
               >
                 Seven Arrows Recovery is a residential addiction treatment
@@ -462,36 +450,63 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
 
               {/* Primary CTAs — a facility website's job here is to move
                   the visitor into insurance verification / contact. Two
-                  clear next steps: Verify Insurance (primary) and Contact
-                  Us (outline). */}
+                  clear next steps with real hierarchy: Verify Insurance
+                  (solid primary) and Contact Us (outline). Full-width
+                  stacked on mobile so both stay one-thumb tappable. */}
               <div
-                className="mx-auto w-full max-w-xl flex flex-col sm:flex-row items-center justify-center gap-3"
-                style={{
-                  opacity: visible ? 1 : 0,
-                  transform: visible ? 'translateY(0)' : 'translateY(20px)',
-                  transition: 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.45s',
-                }}
+                className="hero-rise mx-auto w-full max-w-xl flex flex-col sm:flex-row items-center justify-center gap-3"
+                style={{ animationDelay: '0.45s' }}
               >
                 <Link
+                  href="/admissions#verify"
+                  className="btn-primary w-full sm:w-auto"
+                >
+                  Verify Insurance
+                </Link>
+                <Link
                   href="/contact"
-                  className="inline-flex items-center justify-center gap-2 border border-white/55 hover:bg-white/10 text-white rounded-full px-8 py-4 text-base font-semibold transition-all"
+                  className="inline-flex items-center justify-center gap-2 border border-white/55 hover:bg-white/10 text-white rounded-full px-8 py-4 text-sm font-semibold transition-all w-full sm:w-auto"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   Contact Us
                 </Link>
               </div>
 
-              {/* Payer trust strip — shows the visitor at a glance that we
-                  accept their plan, which is exactly the reassurance the
-                  removed search field was gesturing at. Hidden on mobile
-                  so the hero stays focused on headline + primary CTA. */}
+              {/* Quick links — on mobile this is the one-tap call path in
+                  the first viewport (the sticky bottom bar is dismissible),
+                  so it renders on every breakpoint. */}
               <div
-                className="mt-8 mx-auto max-w-3xl hidden lg:block"
+                className="hero-rise mt-6 lg:mt-7 flex flex-row flex-wrap items-center justify-center gap-3 sm:gap-5 text-sm text-white/85"
                 style={{
-                  opacity: visible ? 1 : 0,
-                  transform: visible ? 'translateY(0)' : 'translateY(20px)',
-                  transition: 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.55s',
+                  fontFamily: 'var(--font-body)',
+                  animationDelay: '0.55s',
                 }}
+              >
+                <Link
+                  href="/admissions"
+                  className="hover:text-white font-semibold transition-colors"
+                >
+                  Start Admissions →
+                </Link>
+                <span className="text-white/30">·</span>
+                <a
+                  href="tel:+18667181665"
+                  className="hover:text-white font-semibold transition-colors inline-flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
+                    <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
+                  </svg>
+                  Call (866) 718-1665
+                </a>
+              </div>
+
+              {/* Payer trust strip — shows the visitor at a glance that we
+                  accept their plan. Desktop only: six third-party logo
+                  fetches shouldn't compete with the LCP poster on mobile;
+                  the accreditation line below carries mobile credibility. */}
+              <div
+                className="hero-rise mt-8 mx-auto max-w-3xl hidden lg:block"
+                style={{ animationDelay: '0.65s' }}
               >
                 <p
                   className="text-white/55 text-[11px] tracking-[0.22em] uppercase mb-4"
@@ -506,39 +521,13 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
                 </div>
               </div>
 
-              <div
-                className="mt-7 hidden lg:flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-5 text-sm text-white/85"
-                style={{
-                  fontFamily: 'var(--font-body)',
-                  opacity: visible ? 1 : 0,
-                  transform: visible ? 'translateY(0)' : 'translateY(20px)',
-                  transition: 'all 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.6s',
-                }}
-              >
-                <Link
-                  href="/admissions"
-                  className="hover:text-white font-semibold transition-colors"
-                >
-                  Start Admissions →
-                </Link>
-                <span className="hidden sm:inline text-white/30">·</span>
-                <a
-                  href="tel:+18667181665"
-                  className="hover:text-white font-semibold transition-colors inline-flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24">
-                    <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
-                  </svg>
-                  Call (866) 718-1665
-                </a>
-              </div>
-
+              {/* Accreditation line — visible on every breakpoint so mobile
+                  visitors get credibility markers in the first viewport. */}
               <p
-                className="mt-10 text-white/55 text-[11px] tracking-[0.22em] uppercase hidden lg:block"
+                className="hero-rise mt-8 lg:mt-10 text-white/55 text-[10px] sm:text-[11px] tracking-[0.22em] uppercase leading-relaxed px-2"
                 style={{
                   fontFamily: 'var(--font-body)',
-                  opacity: visible ? 1 : 0,
-                  transition: 'opacity 0.8s ease 0.9s',
+                  animationDelay: '0.9s',
                 }}
               >
                 JCAHO Accredited &bull; LegitScript Certified &bull; HIPAA Compliant
@@ -547,18 +536,45 @@ export default function Hero({ sources: sourcesProp }: HeroProps = {}) {
           </div>
         </div>
 
-        {/* Slide dots */}
+        {/* Scroll cue — the hero fills the viewport, so signal there's a
+            page below it. Decorative only; bounce pauses for
+            prefers-reduced-motion users (hero-rise also no-ops there). */}
+        <div
+          aria-hidden="true"
+          className="hero-rise absolute bottom-8 inset-x-0 z-20 flex justify-center pointer-events-none"
+          style={{ animationDelay: '1.4s' }}
+        >
+          <svg
+            className="w-5 h-5 text-white/70 animate-bounce motion-reduce:animate-none"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            viewBox="0 0 24 24"
+          >
+            <path d="M19 9l-7 7-7-7" />
+          </svg>
+        </div>
+
+        {/* Slide dots — the visible bar stays slim, but each button
+            carries invisible padding so the touch target clears ~40px
+            instead of the bare 6px-tall pill. */}
         {sources.length > 1 && (
-          <div className="absolute bottom-6 right-6 z-30 flex gap-2">
+          <div className="absolute bottom-4 right-4 z-30 flex">
             {sources.map((_, i) => (
               <button
                 key={i}
                 onClick={() => setActiveSlide(i)}
-                className={`h-1.5 rounded-full transition-all duration-300 ${
-                  i === activeSlide ? 'w-8 bg-white' : 'w-1.5 bg-white/50 hover:bg-white/80'
-                }`}
+                className="group/dot p-2.5 flex items-center"
                 aria-label={`Go to slide ${i + 1}`}
-              />
+              >
+                <span
+                  className={`block h-1.5 rounded-full transition-all duration-300 ${
+                    i === activeSlide ? 'w-8 bg-white' : 'w-1.5 bg-white/50 group-hover/dot:bg-white/80'
+                  }`}
+                />
+              </button>
             ))}
           </div>
         )}

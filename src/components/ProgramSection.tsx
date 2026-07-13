@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { siteVideos } from '@/lib/siteVideos';
+import { useRevealOnScroll } from '@/lib/useRevealOnScroll';
 
 /**
  * Homepage — "Our Promise."
@@ -60,19 +61,7 @@ const pillars: Pillar[] = [
 ];
 
 export default function ProgramSection() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      (es) => { for (const e of es) if (e.isIntersecting) { setVisible(true); io.disconnect(); } },
-      { threshold: 0.12 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
+  const { ref, visible } = useRevealOnScroll<HTMLElement>(0.12);
 
   return (
     <section

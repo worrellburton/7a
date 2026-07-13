@@ -91,7 +91,10 @@ export default function DailyLifeSection() {
           </p>
         </div>
 
-        {/* Timeline */}
+        {/* Timeline. Mobile renders as a vertical timeline — left rail
+            connecting smaller icon nodes with left-aligned copy — so the
+            "path" metaphor survives the stack. md gets a 2-col grid of
+            the centered layout; lg the original 5-across horizontal rail. */}
         <div className="relative">
           {/* Horizontal rail — desktop only */}
           <div
@@ -99,34 +102,55 @@ export default function DailyLifeSection() {
             aria-hidden="true"
             style={{ background: 'linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--color-primary) 25%, transparent) 15%, color-mix(in srgb, var(--color-primary) 25%, transparent) 85%, transparent 100%)' }}
           />
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-8 lg:gap-6 relative">
+          <div className="flex flex-col gap-8 md:grid md:grid-cols-2 lg:grid-cols-5 md:gap-8 lg:gap-6 relative">
             {blocks.map((block, i) => (
-              <div key={block.title} className="flex flex-col items-center text-center">
-                <div
-                  className="w-[92px] h-[92px] rounded-full bg-warm-bg flex items-center justify-center text-primary relative z-10 shadow-sm border border-primary/10"
-                  aria-hidden="true"
-                >
-                  {block.icon}
-                  <span
-                    className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-primary text-white text-[11px] font-bold flex items-center justify-center"
+              <div
+                key={block.title}
+                className="flex flex-row items-stretch gap-4 text-left md:flex-col md:items-center md:text-center"
+              >
+                {/* Node column: icon disc + (mobile-only) connector segment
+                    down to the next node. The -mb-8 stretches the segment
+                    across the container's gap-8 so consecutive nodes read
+                    as one continuous path; the last step has no segment,
+                    so the rail ends exactly at step 5. */}
+                <div className="flex flex-col items-center shrink-0">
+                  <div
+                    className="w-14 h-14 md:w-[92px] md:h-[92px] shrink-0 rounded-full bg-warm-bg flex items-center justify-center text-primary relative z-10 shadow-sm border border-primary/10"
+                    aria-hidden="true"
+                  >
+                    <span className="[&>svg]:w-5 [&>svg]:h-5 md:[&>svg]:w-6 md:[&>svg]:h-6 flex items-center justify-center">
+                      {block.icon}
+                    </span>
+                    <span
+                      className="absolute -bottom-1 -right-1 w-6 h-6 md:w-7 md:h-7 rounded-full bg-primary text-white text-[11px] font-bold flex items-center justify-center"
+                      style={{ fontFamily: 'var(--font-body)' }}
+                    >
+                      {i + 1}
+                    </span>
+                  </div>
+                  {i < blocks.length - 1 && (
+                    <div
+                      className="md:hidden w-px flex-1 mt-2 -mb-8"
+                      aria-hidden="true"
+                      style={{ background: 'color-mix(in srgb, var(--color-primary) 25%, transparent)' }}
+                    />
+                  )}
+                </div>
+                <div className="pt-0.5 md:pt-0">
+                  <p
+                    className="md:mt-5 text-[11px] font-bold tracking-[0.18em] uppercase text-primary"
                     style={{ fontFamily: 'var(--font-body)' }}
                   >
-                    {i + 1}
-                  </span>
+                    {block.time}
+                  </p>
+                  <h3 className="mt-1 md:mt-2 text-base font-bold text-foreground">{block.title}</h3>
+                  <p
+                    className="mt-1.5 md:mt-2 text-sm text-foreground/60 leading-relaxed md:max-w-[220px]"
+                    style={{ fontFamily: 'var(--font-body)' }}
+                  >
+                    {block.description}
+                  </p>
                 </div>
-                <p
-                  className="mt-5 text-[11px] font-bold tracking-[0.18em] uppercase text-primary"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  {block.time}
-                </p>
-                <h3 className="mt-2 text-base font-bold text-foreground">{block.title}</h3>
-                <p
-                  className="mt-2 text-sm text-foreground/60 leading-relaxed max-w-[220px]"
-                  style={{ fontFamily: 'var(--font-body)' }}
-                >
-                  {block.description}
-                </p>
               </div>
             ))}
           </div>
