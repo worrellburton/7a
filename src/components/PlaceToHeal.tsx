@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useRevealOnScroll } from '@/lib/useRevealOnScroll';
 
 /**
  * Phase 11 — Homepage orientation block.
@@ -13,26 +13,7 @@ import { useEffect, useRef, useState } from 'react';
  * the page's primary head term was missing from any heading above H3.
  */
 export default function PlaceToHeal() {
-  const ref = useRef<HTMLDivElement>(null);
-  const [visible, setVisible] = useState(false);
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      (es) => {
-        for (const e of es) {
-          if (e.isIntersecting) {
-            setVisible(true);
-            io.disconnect();
-          }
-        }
-      },
-      { threshold: 0.25 },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
+  const { ref, visible } = useRevealOnScroll<HTMLElement>(0.25);
 
   return (
     <section

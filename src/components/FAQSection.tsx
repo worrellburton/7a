@@ -1,6 +1,7 @@
 'use client';
 
 
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
 const BRANDFETCH_CLIENT_ID = '1id3n10pdBTarCHI0db';
@@ -169,62 +170,107 @@ export default function FAQSection() {
         </div>
 
         <div className="space-y-3" role="list">
-          {visible.map((faq, index) => (
-            <div
-              key={`${persona}-${faq.question}`}
-              className="border border-gray-100 rounded-xl overflow-hidden bg-white"
-              role="listitem"
-            >
-              <button
-                className="w-full flex items-center justify-between px-6 py-5 text-left hover:bg-warm-bg/50 transition-colors"
-                onClick={() => setOpenIndex(openIndex === index ? null : index)}
-                aria-expanded={openIndex === index}
+          {visible.map((faq, index) => {
+            const isOpen = openIndex === index;
+            return (
+              <div
+                key={`${persona}-${faq.question}`}
+                className="border border-gray-100 rounded-xl overflow-hidden bg-white"
+                role="listitem"
               >
-                <span className="text-sm font-semibold text-foreground pr-4" style={{ fontFamily: 'var(--font-body)' }}>
-                  {faq.question}
-                </span>
-                <svg
-                  className={`w-5 h-5 text-primary shrink-0 transition-transform ${
-                    openIndex === index ? 'rotate-180' : ''
-                  }`}
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                  aria-hidden="true"
+                <button
+                  className="w-full flex items-center justify-between px-6 py-5 text-left hover:bg-warm-bg/50 transition-colors"
+                  onClick={() => setOpenIndex(isOpen ? null : index)}
+                  aria-expanded={isOpen}
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {openIndex === index && (
-                <div className="px-6 pb-5">
-                  <p className="text-sm text-foreground/70 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
-                    {faq.answer}
-                  </p>
-                  {faq.insurance && (
-                    <div className="flex flex-wrap items-center gap-6 mt-5 pt-5 border-t border-gray-100">
-                      {insuranceLogos.map((logo) => (
-                        <img
-                          key={logo.domain}
-                          src={`https://cdn.brandfetch.io/${logo.domain}/fallback/404/theme/dark/h/60/w/160/logo?c=${BRANDFETCH_CLIENT_ID}`}
-                          alt={logo.name}
-                          className="h-6 w-auto max-w-[120px] object-contain opacity-60 hover:opacity-100 transition-opacity"
-                          loading="lazy"
-                          onError={(e) => {
-                            const el = e.currentTarget;
-                            el.style.display = 'none';
-                            const span = document.createElement('span');
-                            span.textContent = logo.name;
-                            span.className = 'text-xs font-semibold text-foreground/50 whitespace-nowrap';
-                            el.parentElement?.appendChild(span);
-                          }}
-                        />
-                      ))}
+                  <span className="text-sm font-semibold text-foreground pr-4" style={{ fontFamily: 'var(--font-body)' }}>
+                    {faq.question}
+                  </span>
+                  <svg
+                    className={`w-5 h-5 text-primary shrink-0 transition-transform motion-reduce:transition-none ${
+                      isOpen ? 'rotate-180' : ''
+                    }`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    aria-hidden="true"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {/* Answers stay mounted (collapsed via the grid-rows trick)
+                    so the full Q&A text ships in the HTML — matching the
+                    FAQPage JSON-LD for crawlers and AI answer engines —
+                    and open/close animates instead of snapping. */}
+                <div
+                  className={`grid transition-[grid-template-rows] duration-300 ease-out motion-reduce:transition-none ${
+                    isOpen ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+                  }`}
+                  aria-hidden={!isOpen}
+                >
+                  <div className="overflow-hidden">
+                    <div className="px-6 pb-5">
+                      <p className="text-sm text-foreground/70 leading-relaxed" style={{ fontFamily: 'var(--font-body)' }}>
+                        {faq.answer}
+                      </p>
+                      {faq.insurance && (
+                        <div className="flex flex-wrap items-center gap-6 mt-5 pt-5 border-t border-gray-100">
+                          {insuranceLogos.map((logo) => (
+                            <img
+                              key={logo.domain}
+                              src={`https://cdn.brandfetch.io/${logo.domain}/fallback/404/theme/dark/h/60/w/160/logo?c=${BRANDFETCH_CLIENT_ID}`}
+                              alt={logo.name}
+                              className="h-6 w-auto max-w-[120px] object-contain opacity-60 hover:opacity-100 transition-opacity"
+                              loading="lazy"
+                              onError={(e) => {
+                                const el = e.currentTarget;
+                                el.style.display = 'none';
+                                const span = document.createElement('span');
+                                span.textContent = logo.name;
+                                span.className = 'text-xs font-semibold text-foreground/50 whitespace-nowrap';
+                                el.parentElement?.appendChild(span);
+                              }}
+                            />
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  )}
+                  </div>
                 </div>
-              )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Human handoff — the accordion shouldn't dead-end. One tap to
+            call on mobile, message form as the quieter alternative. */}
+        <div className="mt-8 rounded-xl border border-gray-100 bg-white px-6 py-5 flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+          <div>
+            <p className="text-sm font-semibold text-foreground" style={{ fontFamily: 'var(--font-body)' }}>
+              Still have questions?
+            </p>
+            <p className="text-sm text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>
+              A real person answers 24/7 — no pressure, no commitment.
+            </p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto shrink-0">
+            <a
+              href="tel:+18667181665"
+              className="btn-primary w-full sm:w-auto"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" />
+              </svg>
+              Call (866) 718-1665
+            </a>
+            <Link
+              href="/contact"
+              className="text-sm font-semibold text-primary hover:text-primary-dark transition-colors whitespace-nowrap"
+              style={{ fontFamily: 'var(--font-body)' }}
+            >
+              Send a message →
+            </Link>
+          </div>
         </div>
       </div>
     </section>

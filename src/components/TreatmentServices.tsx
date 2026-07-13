@@ -125,14 +125,18 @@ export default function TreatmentServices() {
                     aria-hidden="true"
                   />
                 </h3>
+                {/* Description is visible at rest below lg — there is no
+                    hover on touch screens, so the reveal-on-hover pattern
+                    hid this copy from every phone. Desktop keeps the
+                    original hover reveal. */}
                 <p
-                  className="text-[12px] lg:text-xs text-white/0 group-hover:text-white/85 max-h-0 group-hover:max-h-16 opacity-0 group-hover:opacity-100 mt-0 group-hover:mt-2 transition-all duration-500 ease-out leading-snug overflow-hidden"
+                  className="text-[12px] lg:text-xs text-white/85 lg:text-white/0 lg:group-hover:text-white/85 max-h-16 lg:max-h-0 lg:group-hover:max-h-16 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 mt-2 lg:mt-0 lg:group-hover:mt-2 transition-all duration-500 ease-out leading-snug overflow-hidden"
                   style={{ fontFamily: 'var(--font-body)' }}
                 >
                   {service.description}
                 </p>
                 <span
-                  className="inline-flex items-center gap-1 mt-2 text-[11px] font-semibold tracking-[0.18em] uppercase opacity-0 group-hover:opacity-100 translate-x-[-4px] group-hover:translate-x-0 transition-all duration-500 ease-out"
+                  className="hidden lg:inline-flex items-center gap-1 mt-2 text-[11px] font-semibold tracking-[0.18em] uppercase opacity-0 group-hover:opacity-100 translate-x-[-4px] group-hover:translate-x-0 transition-all duration-500 ease-out"
                   style={{ fontFamily: 'var(--font-body)' }}
                   aria-hidden="true"
                 >
