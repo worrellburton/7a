@@ -3,12 +3,16 @@
 // Billing — accounts receivable. Shows every INCOMING payment
 // (amount > 0) from the Mercury DB mirror (mercury_transactions,
 // synced hourly by /api/cron/mercury/sync and on demand from
-// /feather/mercury). Super admin only — the runtime guard mirrors
-// Mercury / Kaizen / Social Media: the page registers as adminOnly +
-// superAdminOnly in PagePermissions, this effect bounces non-super
-// admins who navigate in directly, and the backing
-// /api/billing/receivables route enforces requireSuperAdmin
-// server-side.
+// /feather/mercury).
+//
+// Access matches the sidebar + permissions modal exactly: admins,
+// plus anyone a super admin explicitly granted /feather/billing to
+// in /feather/admin/user-permissions (the eye toggle is the source
+// of truth — same pattern as the Content page). The server decides:
+// /api/billing/receivables gates via requirePageAccess, and a 403
+// here bounces the visitor back to /feather. No duplicate
+// client-side role check — that's what once let the modal say
+// "visible" while the page bounced the user anyway.
 //
 // Every row expands (click it) into a detail panel that renders the
 // FULL Mercury transaction object — bank description, GL
@@ -257,7 +261,7 @@ function ReceivableDetail({ r, accountLabel }: { r: ReceivableRow; accountLabel:
 }
 
 export default function BillingContent() {
-  const { session, isSuperAdmin, loading: authLoading } = useAuth();
+  const { session } = useAuth();
   const router = useRouter();
 
   const [accounts, setAccounts] = useState<AccountRow[]>([]);
@@ -271,13 +275,6 @@ export default function BillingContent() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // Super-admin gate.
-  useEffect(() => {
-    if (authLoading) return;
-    if (!session?.access_token) return;
-    if (!isSuperAdmin) router.replace('/feather');
-  }, [authLoading, session?.access_token, isSuperAdmin, router]);
 
   // Debounce the search box so we don't hit the API on every keystroke.
   useEffect(() => {
@@ -301,6 +298,12 @@ export default function BillingContent() {
         credentials: 'include',
         cache: 'no-store',
       });
+      if (res.status === 403) {
+        // Not granted — the server gate is the single source of
+        // truth for who sees this page. Send them home.
+        router.replace('/feather');
+        return;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const json = (await res.json()) as {
         accounts: AccountRow[];
@@ -317,19 +320,17 @@ export default function BillingContent() {
     } finally {
       setLoading(false);
     }
-  }, [session?.access_token, accountFilter, debouncedQuery, offset]);
+  }, [session?.access_token, accountFilter, debouncedQuery, offset, router]);
 
   // Reload when filters change (resets pagination).
   useEffect(() => {
-    if (!isSuperAdmin) return;
     refresh(true);
     // Intentionally omit refresh itself — including it would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSuperAdmin, accountFilter, debouncedQuery]);
+  }, [session?.access_token, accountFilter, debouncedQuery]);
 
   // Reload when page changes (no reset).
   useEffect(() => {
-    if (!isSuperAdmin) return;
     refresh(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [offset]);
@@ -364,7 +365,9 @@ export default function BillingContent() {
   const hasNextPage = offset + receivables.length < total;
   const hasPrevPage = offset > 0;
 
-  if (!isSuperAdmin) {
+  // First load (or access check) still in flight — hold a quiet
+  // loading state instead of flashing an empty dashboard.
+  if (loading && !summary) {
     return (
       <div className="p-8 text-sm text-foreground/60" style={{ fontFamily: 'var(--font-body)' }}>
         Loading…
