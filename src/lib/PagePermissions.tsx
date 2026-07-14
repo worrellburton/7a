@@ -72,13 +72,15 @@ export const defaultPages: PageConfig[] = [
   { path: '/feather/calendar', label: 'Calendar', adminOnly: false, section: 'nav', sort_order: 4, allowedDepartments: [], departmentId: null },
   { path: '/feather/equine', label: 'Horses', adminOnly: false, section: 'nav', sort_order: 5, allowedDepartments: [], departmentId: null },
   // Billing — accounts receivable mirrored from Mercury (every
-  // incoming transaction). Super-admin only, same gating pattern as
-  // Mercury: adminOnly keeps it out of non-admin sidebars, a runtime
-  // is_super_admin check inside content.tsx bounces admins who
-  // navigate in directly, and /api/billing/receivables enforces
-  // requireSuperAdmin server-side. The old Stedi claims surface that
-  // used to live here survives at /feather/rcm-pipeline.
-  { path: '/feather/billing', label: 'Billing', adminOnly: true, superAdminOnly: true, section: 'nav', sort_order: 6, allowedDepartments: [], departmentId: null },
+  // incoming transaction). adminOnly keeps it out of non-admin
+  // sidebars by default, but per-user grants from
+  // /feather/admin/user-permissions genuinely open it: the page defers to
+  // /api/billing/receivables, which gates via requirePageAccess
+  // (admins + explicit user_page_permissions rows — the Content-page
+  // pattern), so the modal's eye toggle is the real source of truth.
+  // The old Stedi claims surface that used to live here survives at
+  // /feather/rcm-pipeline.
+  { path: '/feather/billing', label: 'Billing', adminOnly: true, section: 'nav', sort_order: 6, allowedDepartments: [], departmentId: null },
   // Aircall — the live cloud-phone surface (call log, operator
   // schedule, recordings, AI transcripts). Takes the prime "Calls"
   // slot. The legacy CallTrackingMetrics page now lives at

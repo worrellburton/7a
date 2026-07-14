@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import BillingContent from './content';
 
 export const metadata: Metadata = {
-  title: 'Billing · Super admin',
+  title: 'Billing',
 };
 
 export default function BillingPage() {
