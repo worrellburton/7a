@@ -283,7 +283,8 @@ async function probeSearchConsole(): Promise<IntegrationStatus> {
 // -- Stedi --------------------------------------------------------------
 // No cheap probe — the only endpoint is a destructive professional-claim
 // POST. Configured = key present; we mark connected true if configured
-// and trust the call path. The billing page will surface real errors.
+// and trust the call path. The RCM pipeline page (which took over the
+// Stedi claims surface from /feather/billing) will surface real errors.
 async function probeStedi(): Promise<IntegrationStatus> {
   const key = process.env.STEDI_API_KEY;
   return {
@@ -296,7 +297,7 @@ async function probeStedi(): Promise<IntegrationStatus> {
     detail: key ? 'Key present (no live probe — send-only API)' : null,
     error: key ? null : 'Missing STEDI_API_KEY',
     docsUrl: 'https://www.stedi.com/app',
-    manageUrl: '/feather/billing',
+    manageUrl: '/feather/rcm-pipeline',
   };
 }
 
