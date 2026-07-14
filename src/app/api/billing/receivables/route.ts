@@ -1,14 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { requireSuperAdmin } from '@/lib/api-gates';
+import { requirePageAccess } from '@/lib/page-access';
+import { getAdminSupabase } from '@/lib/supabase-server';
 
 // GET /api/billing/receivables
 //
 // Reader for the /feather/billing page — accounts receivable, i.e.
 // every INCOMING (amount > 0) transaction in the Mercury DB mirror
 // (mercury_transactions, filled hourly by /api/cron/mercury/sync and
-// on demand from /feather/mercury). Super-admin only, same gate as
-// the rest of the Mercury surface.
+// on demand from /feather/mercury).
+//
+// Access mirrors what the sidebar + permissions modal show
+// (requirePageAccess): admins / super admins, plus anyone a super
+// admin explicitly granted /feather/billing to via
+// /feather/admin/user-permissions. The eye toggle in that modal is
+// the source of truth — if it says a user can see Billing, this
+// route lets their data through (this is the same pattern the
+// Content page uses).
 //
 // Query params:
 //   account_id — restrict to one Mercury account (default: all)
@@ -206,11 +214,11 @@ function buildCsv(rows: TxnRow[], accounts: AccountRow[]): string {
 }
 
 export async function GET(req: NextRequest) {
-  // Cookie-session gate (no req arg). Browser fetches send the
-  // Supabase auth cookie but not a Bearer header, so passing req
-  // here would route through getUserFromRequest and 401 every call.
-  const gate = await requireSuperAdmin();
-  if (gate instanceof NextResponse) return gate;
+  // Cookie-session gate — reads the Supabase auth cookie, then
+  // grants admins or explicit per-user page overrides.
+  const gate = await requirePageAccess('/feather/billing');
+  if (gate.error) return gate.error;
+  const admin = getAdminSupabase();
 
   const url = new URL(req.url);
   const accountId = url.searchParams.get('account_id') || null;
@@ -221,7 +229,7 @@ export async function GET(req: NextRequest) {
   const offsetRaw = Number(url.searchParams.get('offset') ?? '0');
   const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw)) : 0;
 
-  const { data: accounts, error: aErr } = await gate.admin
+  const { data: accounts, error: aErr } = await admin
     .from('mercury_accounts')
     .select('id, nickname, name, account_number_last4, currency, last_synced_at')
     .order('name', { ascending: true });
@@ -231,7 +239,7 @@ export async function GET(req: NextRequest) {
 
   // CSV export — every matching row, one file, filters honoured.
   if (format === 'csv') {
-    const all = await fetchAllIncoming(gate.admin, LIST_COLUMNS, accountId, q);
+    const all = await fetchAllIncoming(admin, LIST_COLUMNS, accountId, q);
     if ('error' in all) {
       return NextResponse.json({ error: `export: ${all.error}` }, { status: 500 });
     }
@@ -250,7 +258,7 @@ export async function GET(req: NextRequest) {
   // allocations, check number, estimated delivery, attachments, …) —
   // the page's expandable rows render everything in it, so ship it
   // whole rather than cherry-picking columns that would go stale.
-  const listQuery = incomingQuery(gate.admin, LIST_COLUMNS, accountId, q, { count: true })
+  const listQuery = incomingQuery(admin, LIST_COLUMNS, accountId, q, { count: true })
     // Pending receivables have no posted_at yet — surface them first
     // (they're the money still on its way), then posted, newest first.
     .order('posted_at', { ascending: false, nullsFirst: true })
@@ -263,7 +271,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Whole-set summary (account filter honoured, text search not).
-  const all = await fetchAllIncoming(gate.admin, 'amount, status, posted_at, created_at_mercury', accountId, '');
+  const all = await fetchAllIncoming(admin, 'amount, status, posted_at, created_at_mercury', accountId, '');
   if ('error' in all) {
     return NextResponse.json({ error: `summary: ${all.error}` }, { status: 500 });
   }
