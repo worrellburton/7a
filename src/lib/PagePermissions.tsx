@@ -71,7 +71,14 @@ export const defaultPages: PageConfig[] = [
   { path: '/feather/kingdom-requests', label: 'Kingdom Requests', adminOnly: false, section: 'popup', sort_order: 10, allowedDepartments: [], departmentId: null },
   { path: '/feather/calendar', label: 'Calendar', adminOnly: false, section: 'nav', sort_order: 4, allowedDepartments: [], departmentId: null },
   { path: '/feather/equine', label: 'Horses', adminOnly: false, section: 'nav', sort_order: 5, allowedDepartments: [], departmentId: null },
-  { path: '/feather/billing', label: 'Billing', adminOnly: false, section: 'nav', sort_order: 6, allowedDepartments: [], departmentId: null },
+  // Billing — accounts receivable mirrored from Mercury (every
+  // incoming transaction). Super-admin only, same gating pattern as
+  // Mercury: adminOnly keeps it out of non-admin sidebars, a runtime
+  // is_super_admin check inside content.tsx bounces admins who
+  // navigate in directly, and /api/billing/receivables enforces
+  // requireSuperAdmin server-side. The old Stedi claims surface that
+  // used to live here survives at /feather/rcm-pipeline.
+  { path: '/feather/billing', label: 'Billing', adminOnly: true, superAdminOnly: true, section: 'nav', sort_order: 6, allowedDepartments: [], departmentId: null },
   // Aircall — the live cloud-phone surface (call log, operator
   // schedule, recordings, AI transcripts). Takes the prime "Calls"
   // slot. The legacy CallTrackingMetrics page now lives at
