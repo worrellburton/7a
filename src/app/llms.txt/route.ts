@@ -34,7 +34,7 @@ const PHONE = '(866) 718-1665';
 // label and no description — the label carries enough signal there.
 
 const PAGE_DESCRIPTIONS: Record<string, string> = {
-  '/': 'Trauma-informed residential addiction and dual diagnosis treatment on a 70-acre ranch in Elfrida, Arizona — equine therapy, evidence-based clinical care, and indigenous healing traditions.',
+  '/': 'Trauma-informed residential addiction and dual diagnosis treatment on a 160-acre ranch in Elfrida, Arizona — equine therapy, evidence-based clinical care, and indigenous healing traditions.',
   '/admissions': 'How to begin treatment: the admissions process, what to bring, what to expect on day one, and the 24/7 admissions line.',
   '/treatment': 'Overview of the levels of care and the clinical model — residential/inpatient, interventions, and aftercare.',
   '/our-program': 'The full therapeutic program: evidence-based therapies, holistic and somatic work, equine-assisted therapy, indigenous approaches, family program, and trauma treatment.',
@@ -180,7 +180,7 @@ export async function GET(): Promise<Response> {
   lines.push(
     '# Seven Arrows Recovery',
     '',
-    `> Seven Arrows Recovery is a trauma-informed residential addiction and dual diagnosis treatment center on a 70-acre ranch in Elfrida, Arizona. Care combines evidence-based clinical therapy, equine-assisted therapy, somatic and holistic work, and indigenous healing traditions, with longer-than-average lengths of stay. Admissions are open 24/7 at ${PHONE}.`,
+    `> Seven Arrows Recovery is a trauma-informed residential addiction and dual diagnosis treatment center on a 160-acre ranch in Elfrida, Arizona. Care combines evidence-based clinical therapy, equine-assisted therapy, somatic and holistic work, and indigenous healing traditions, with longer-than-average lengths of stay. Admissions are open 24/7 at ${PHONE}.`,
     '',
     'Seven Arrows treats adults for substance use disorders and co-occurring mental-health conditions. The program is salutogenic and trauma-first: rather than only managing symptoms, it rebuilds self-leadership and treats the trauma underneath both the addiction and the mental-health condition. The pages below are the canonical, citable sources for our program, the conditions we treat, admissions and insurance, locations, and our editorial library.',
     '',
