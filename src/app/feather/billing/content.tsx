@@ -69,6 +69,11 @@ interface Summary {
   truncated: boolean;
 }
 
+interface ExcludedInfo {
+  names: string[];
+  included: boolean;
+}
+
 const PAGE_SIZE = 100;
 
 function fmtMoney(amount: number, currency: string | null): string {
@@ -271,6 +276,11 @@ export default function BillingContent() {
   const [accountFilter, setAccountFilter] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  // Internal / non-customer payers (Mercury cashback, inter-account
+  // transfers, owner capital) are hidden by default; this brings them
+  // back. Names come from the API so the tooltip stays in sync.
+  const [includeExcluded, setIncludeExcluded] = useState(false);
+  const [excludedNames, setExcludedNames] = useState<string[]>([]);
   const [offset, setOffset] = useState(0);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -290,6 +300,7 @@ export default function BillingContent() {
       const params = new URLSearchParams();
       if (accountFilter) params.set('account_id', accountFilter);
       if (debouncedQuery) params.set('q', debouncedQuery);
+      if (includeExcluded) params.set('include_excluded', '1');
       const nextOffset = resetOffset ? 0 : offset;
       params.set('limit', String(PAGE_SIZE));
       params.set('offset', String(nextOffset));
@@ -310,24 +321,26 @@ export default function BillingContent() {
         receivables: ReceivableRow[];
         total: number;
         summary: Summary;
+        excluded?: ExcludedInfo;
       };
       setAccounts(json.accounts);
       setReceivables(json.receivables);
       setTotal(json.total);
       setSummary(json.summary);
+      if (json.excluded?.names) setExcludedNames(json.excluded.names);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }, [session?.access_token, accountFilter, debouncedQuery, offset, router]);
+  }, [session?.access_token, accountFilter, debouncedQuery, includeExcluded, offset, router]);
 
   // Reload when filters change (resets pagination).
   useEffect(() => {
     refresh(true);
     // Intentionally omit refresh itself — including it would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.access_token, accountFilter, debouncedQuery]);
+  }, [session?.access_token, accountFilter, debouncedQuery, includeExcluded]);
 
   // Reload when page changes (no reset).
   useEffect(() => {
@@ -358,8 +371,9 @@ export default function BillingContent() {
     params.set('format', 'csv');
     if (accountFilter) params.set('account_id', accountFilter);
     if (debouncedQuery) params.set('q', debouncedQuery);
+    if (includeExcluded) params.set('include_excluded', '1');
     return `/api/billing/receivables?${params.toString()}`;
-  }, [accountFilter, debouncedQuery]);
+  }, [accountFilter, debouncedQuery, includeExcluded]);
 
   const currency = accounts[0]?.currency ?? 'USD';
   const hasNextPage = offset + receivables.length < total;
@@ -489,6 +503,41 @@ export default function BillingContent() {
             ))}
           </select>
         )}
+        {/* Toggle the internal / non-customer payers (Mercury
+            cashback, inter-account transfers, owner capital). Hidden
+            by default; the tiles and CSV follow this state too. */}
+        <button
+          type="button"
+          onClick={() => setIncludeExcluded((v) => !v)}
+          aria-pressed={includeExcluded}
+          title={
+            excludedNames.length > 0
+              ? `${includeExcluded ? 'Showing' : 'Hiding'} internal / non-customer payers:\n• ${excludedNames.join('\n• ')}`
+              : undefined
+          }
+          className={`inline-flex items-center gap-1.5 h-10 px-4 rounded-full border text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1 ${
+            includeExcluded
+              ? 'bg-foreground text-white border-foreground hover:bg-foreground/85'
+              : 'bg-white/70 supports-[backdrop-filter]:bg-white/55 backdrop-blur-md border-white/80 text-foreground/70 hover:border-primary/45'
+          }`}
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            {includeExcluded ? (
+              <>
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+                <circle cx="12" cy="12" r="3" />
+              </>
+            ) : (
+              <>
+                <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c6.5 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" />
+                <path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3.5 7 10 7a9.74 9.74 0 0 0 5.39-1.61" />
+                <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24" />
+                <path d="M2 2l20 20" />
+              </>
+            )}
+          </svg>
+          {includeExcluded ? 'Showing internal transfers' : 'Internal transfers hidden'}
+        </button>
         {(accountFilter || query) && (
           <button
             type="button"

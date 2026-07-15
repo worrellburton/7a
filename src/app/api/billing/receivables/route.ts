@@ -44,6 +44,30 @@ const MAX_FETCH_PAGES = 25;
 const LIST_COLUMNS =
   'id, account_id, posted_at, created_at_mercury, amount, currency, status, kind, counterparty_name, counterparty_id, note, external_memo, dashboard_link, fetched_at, raw';
 
+// Counterparties that aren't real customer receivables — Mercury
+// cashback, an inter-account transfer, and owner / related-entity
+// capital contributions. They inflate the AR tiles and clutter the
+// table, so they're hidden by default. The page's "Filtered payers"
+// toggle (and ?include_excluded=1) brings them back. Names are the
+// exact counterparty_name values Mercury stores.
+const EXCLUDED_COUNTERPARTIES = [
+  'Mercury IO Cashback',
+  'Mercury - Checking ••0043',
+  'Ledger Louise, LLC',
+  'BURTON FAMILY REVOCABLE TRUST DATED',
+];
+
+// Builds the PostgREST `or` clause that drops the excluded
+// counterparties while KEEPING rows with a null counterparty_name —
+// `col <> x` is NULL (not true) for nulls in Postgres, so a bare
+// negative filter would silently swallow every unlabelled receivable.
+function excludedOrFilter(): string {
+  const inList = EXCLUDED_COUNTERPARTIES
+    .map((n) => `"${n.replace(/"/g, '\\"')}"`)
+    .join(',');
+  return `counterparty_name.is.null,counterparty_name.not.in.(${inList})`;
+}
+
 interface TxnRow {
   id: string;
   account_id: string;
@@ -71,12 +95,15 @@ interface AccountRow {
   last_synced_at: string;
 }
 
-function incomingQuery(admin: SupabaseClient, columns: string, accountId: string | null, q: string, opts?: { count?: boolean }) {
+function incomingQuery(admin: SupabaseClient, columns: string, accountId: string | null, q: string, opts?: { count?: boolean; includeExcluded?: boolean }) {
   let query = admin
     .from('mercury_transactions')
     .select(columns, opts?.count ? { count: 'exact' } : undefined)
     .gt('amount', 0);
   if (accountId) query = query.eq('account_id', accountId);
+  // Hide internal / non-customer payers unless the caller opts in.
+  // ANDs with the text-search `or` below (two `or` clauses = AND).
+  if (!opts?.includeExcluded) query = query.or(excludedOrFilter());
   if (q) {
     // PostgREST OR-filter on three text columns.
     const safe = q.replace(/[%,]/g, ' ');
@@ -129,11 +156,12 @@ async function fetchAllIncoming(
   columns: string,
   accountId: string | null,
   q: string,
+  includeExcluded: boolean,
 ): Promise<{ rows: TxnRow[]; truncated: boolean } | { error: string }> {
   const rows: TxnRow[] = [];
   for (let page = 0; ; page++) {
     if (page >= MAX_FETCH_PAGES) return { rows, truncated: true };
-    const { data: batch, error } = await incomingQuery(admin, columns, accountId, q)
+    const { data: batch, error } = await incomingQuery(admin, columns, accountId, q, { includeExcluded })
       .order('posted_at', { ascending: false, nullsFirst: true })
       .order('created_at_mercury', { ascending: false })
       .range(page * FETCH_PAGE, (page + 1) * FETCH_PAGE - 1);
@@ -228,6 +256,9 @@ export async function GET(req: NextRequest) {
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw))) : 100;
   const offsetRaw = Number(url.searchParams.get('offset') ?? '0');
   const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw)) : 0;
+  const includeExcluded = ['1', 'true', 'yes'].includes(
+    (url.searchParams.get('include_excluded') || '').toLowerCase(),
+  );
 
   const { data: accounts, error: aErr } = await admin
     .from('mercury_accounts')
@@ -239,7 +270,7 @@ export async function GET(req: NextRequest) {
 
   // CSV export — every matching row, one file, filters honoured.
   if (format === 'csv') {
-    const all = await fetchAllIncoming(admin, LIST_COLUMNS, accountId, q);
+    const all = await fetchAllIncoming(admin, LIST_COLUMNS, accountId, q, includeExcluded);
     if ('error' in all) {
       return NextResponse.json({ error: `export: ${all.error}` }, { status: 500 });
     }
@@ -258,7 +289,7 @@ export async function GET(req: NextRequest) {
   // allocations, check number, estimated delivery, attachments, …) —
   // the page's expandable rows render everything in it, so ship it
   // whole rather than cherry-picking columns that would go stale.
-  const listQuery = incomingQuery(admin, LIST_COLUMNS, accountId, q, { count: true })
+  const listQuery = incomingQuery(admin, LIST_COLUMNS, accountId, q, { count: true, includeExcluded })
     // Pending receivables have no posted_at yet — surface them first
     // (they're the money still on its way), then posted, newest first.
     .order('posted_at', { ascending: false, nullsFirst: true })
@@ -270,8 +301,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: `receivables: ${rErr.message}` }, { status: 500 });
   }
 
-  // Whole-set summary (account filter honoured, text search not).
-  const all = await fetchAllIncoming(admin, 'amount, status, posted_at, created_at_mercury', accountId, '');
+  // Whole-set summary (account filter + exclusion honoured, text
+  // search not). The tiles must match the toggle state so hidden
+  // internal transfers don't count toward AR.
+  const all = await fetchAllIncoming(admin, 'amount, status, posted_at, created_at_mercury', accountId, '', includeExcluded);
   if ('error' in all) {
     return NextResponse.json({ error: `summary: ${all.error}` }, { status: 500 });
   }
@@ -312,6 +345,10 @@ export async function GET(req: NextRequest) {
       month_sum: monthSum,
       month_count: monthCount,
       truncated: all.truncated,
+    },
+    excluded: {
+      names: EXCLUDED_COUNTERPARTIES,
+      included: includeExcluded,
     },
   });
 }
