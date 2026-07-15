@@ -55,6 +55,8 @@ const EXCLUDED_COUNTERPARTIES = [
   'Mercury - Checking ••0043',
   'Ledger Louise, LLC',
   'BURTON FAMILY REVOCABLE TRUST DATED',
+  'elev8.io LLC',
+  'Maxwell Swann',
 ];
 
 // Builds the PostgREST `or` clause that drops the excluded
