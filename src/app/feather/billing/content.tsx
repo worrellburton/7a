@@ -265,6 +265,173 @@ function ReceivableDetail({ r, accountLabel }: { r: ReceivableRow; accountLabel:
   );
 }
 
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Payer × month matrix of incoming payments. Rows are payers (Mercury
+// counterparty), columns are the 12 calendar months of the selected
+// year; each cell sums the amount received. Row totals, a per-month
+// totals row, and a grand total close it out, alongside the payer and
+// active-month counts. Built from the loaded receivables, so it follows
+// the same account / search / internal-transfer filters as the table
+// below. When more payments exist than are loaded on the current page,
+// the footnote says so rather than pretending the matrix is complete.
+function PayerMonthMatrix({
+  rows,
+  currency,
+  loadedCount,
+  totalCount,
+}: {
+  rows: ReceivableRow[];
+  currency: string;
+  loadedCount: number;
+  totalCount: number;
+}) {
+  const [year, setYear] = useState<number | null>(null);
+
+  const model = useMemo(() => {
+    const years = new Set<number>();
+    type Cell = { months: number[]; total: number };
+    const perYear = new Map<number, Map<string, Cell>>();
+
+    for (const r of rows) {
+      const iso = r.posted_at ?? r.created_at_mercury;
+      if (!iso) continue;
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) continue;
+      const y = d.getFullYear();
+      const m = d.getMonth();
+      years.add(y);
+      const payer = (r.counterparty_name || '').trim() || 'Unknown payer';
+      let byPayer = perYear.get(y);
+      if (!byPayer) {
+        byPayer = new Map();
+        perYear.set(y, byPayer);
+      }
+      let cell = byPayer.get(payer);
+      if (!cell) {
+        cell = { months: new Array(12).fill(0), total: 0 };
+        byPayer.set(payer, cell);
+      }
+      cell.months[m] += r.amount;
+      cell.total += r.amount;
+    }
+
+    return { yearList: Array.from(years).sort((a, b) => b - a), perYear };
+  }, [rows]);
+
+  const activeYear = year ?? model.yearList[0] ?? null;
+
+  const table = useMemo(() => {
+    if (activeYear == null) return null;
+    const byPayer = model.perYear.get(activeYear);
+    if (!byPayer) return null;
+    const payers = Array.from(byPayer.entries())
+      .map(([name, cell]) => ({ name, months: cell.months, total: cell.total }))
+      .sort((a, b) => b.total - a.total);
+    const colTotals = new Array(12).fill(0);
+    let grand = 0;
+    for (const p of payers) {
+      for (let i = 0; i < 12; i++) colTotals[i] += p.months[i];
+      grand += p.total;
+    }
+    const activeMonths = colTotals.filter((v) => v > 0).length;
+    return { payers, colTotals, grand, activeMonths };
+  }, [model, activeYear]);
+
+  if (!table || table.payers.length === 0) return null;
+
+  const money = (v: number, muted = false) =>
+    v > 0 ? (
+      <span className={muted ? 'text-foreground' : 'text-emerald-700'}>{fmtMoney(v, currency)}</span>
+    ) : (
+      <span className="text-foreground/20">—</span>
+    );
+
+  return (
+    <div className="mb-6 rounded-xl bg-white/70 supports-[backdrop-filter]:bg-white/55 backdrop-blur-md border border-white/80 overflow-hidden">
+      <div className="flex flex-wrap items-end justify-between gap-3 px-4 py-3 border-b border-foreground/5">
+        <div>
+          <div className="text-[11px] uppercase tracking-[0.14em] text-foreground/50 font-semibold">
+            Payments by payer &amp; month
+          </div>
+          <div className="mt-0.5 text-[11px] text-foreground/55">
+            {table.payers.length} payer{table.payers.length === 1 ? '' : 's'} · {table.activeMonths}/12 months active ·{' '}
+            {fmtMoney(table.grand, currency)} in {activeYear}
+          </div>
+        </div>
+        {model.yearList.length > 1 && (
+          <select
+            value={String(activeYear)}
+            onChange={(e) => setYear(Number(e.target.value))}
+            className="h-8 pl-3 pr-7 rounded-full bg-white/70 border border-white/80 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
+          >
+            {model.yearList.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-[11px] tabular-nums">
+          <thead className="bg-foreground/5 text-foreground/55 text-[10px] uppercase tracking-[0.1em]">
+            <tr>
+              <th className="text-left font-semibold px-3 py-2">Payer</th>
+              {MONTHS_SHORT.map((m) => (
+                <th key={m} className="text-right font-semibold px-2.5 py-2">
+                  {m}
+                </th>
+              ))}
+              <th className="text-right font-semibold px-3 py-2 border-l border-foreground/10 text-foreground/70">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {table.payers.map((p) => (
+              <tr key={p.name} className="border-t border-foreground/5 hover:bg-foreground/[0.025]">
+                <td
+                  className="px-3 py-2 font-medium text-foreground whitespace-nowrap max-w-[200px] truncate"
+                  title={p.name}
+                >
+                  {p.name}
+                </td>
+                {p.months.map((v, i) => (
+                  <td key={i} className="px-2.5 py-2 text-right whitespace-nowrap">
+                    {money(v)}
+                  </td>
+                ))}
+                <td className="px-3 py-2 text-right font-semibold text-foreground whitespace-nowrap border-l border-foreground/10">
+                  {fmtMoney(p.total, currency)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr className="border-t-2 border-foreground/15 bg-foreground/[0.03] font-semibold">
+              <td className="px-3 py-2.5 text-left uppercase tracking-[0.1em] text-[10px] text-foreground/60 whitespace-nowrap">
+                Total · {table.payers.length}
+              </td>
+              {table.colTotals.map((v, i) => (
+                <td key={i} className="px-2.5 py-2.5 text-right whitespace-nowrap">
+                  {money(v, true)}
+                </td>
+              ))}
+              <td className="px-3 py-2.5 text-right text-emerald-700 whitespace-nowrap border-l border-foreground/10">
+                {fmtMoney(table.grand, currency)}
+              </td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div className="px-4 py-2 text-[10px] text-foreground/40 border-t border-foreground/5">
+        {loadedCount < totalCount
+          ? `Based on the ${loadedCount} loaded payment${loadedCount === 1 ? '' : 's'} of ${totalCount.toLocaleString()} — page through the table to include the rest.`
+          : `Follows the account, search, and internal-transfer filters below.`}
+      </div>
+    </div>
+  );
+}
+
 export default function BillingContent() {
   const { session } = useAuth();
   const router = useRouter();
@@ -480,6 +647,16 @@ export default function BillingContent() {
           </div>
         </div>
       )}
+
+      {/* Payer × month matrix — the "at the top" pivot: every payer as a
+          row, all 12 months as columns, with row / column / grand
+          totals. Sits above the search + full ledger below. */}
+      <PayerMonthMatrix
+        rows={receivables}
+        currency={currency}
+        loadedCount={receivables.length}
+        totalCount={total}
+      />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
         <input
