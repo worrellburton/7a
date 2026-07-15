@@ -4,4 +4,17 @@ Disallow: /api/
 Disallow: /build/
 Disallow: /_next/static/
 
+User-agent: GPTBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+# AI agents: see /llms.txt for a structured, citable summary of this site
 Sitemap: https://sevenarrowsrecoveryarizona.com/sitemap.xml
