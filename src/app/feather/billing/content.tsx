@@ -25,7 +25,7 @@
 // → pipeline) survives at /feather/rcm-pipeline; this page is now
 // purely the money-in view.
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/lib/AuthProvider';
@@ -275,6 +275,15 @@ const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'S
 // the same account / search / internal-transfer filters as the table
 // below. When more payments exist than are loaded on the current page,
 // the footnote says so rather than pretending the matrix is complete.
+interface HoverCell {
+  payer: string;
+  monthIndex: number;
+  rows: ReceivableRow[];
+  left: number;
+  top: number;
+  bottom: number;
+}
+
 function PayerMonthMatrix({
   rows,
   currency,
@@ -287,11 +296,15 @@ function PayerMonthMatrix({
   totalCount: number;
 }) {
   const [year, setYear] = useState<number | null>(null);
+  // The cell the pointer/focus is on, plus its on-screen box so the
+  // transaction popover can anchor to it. null = nothing hovered.
+  const [hover, setHover] = useState<HoverCell | null>(null);
 
   const model = useMemo(() => {
     const years = new Set<number>();
-    type Cell = { months: number[]; total: number };
-    const perYear = new Map<number, Map<string, Cell>>();
+    // year → payer → 12 buckets, each holding the actual rows so the
+    // hover popover can list the transactions behind a cell's total.
+    const perYear = new Map<number, Map<string, ReceivableRow[][]>>();
 
     for (const r of rows) {
       const iso = r.posted_at ?? r.created_at_mercury;
@@ -307,13 +320,12 @@ function PayerMonthMatrix({
         byPayer = new Map();
         perYear.set(y, byPayer);
       }
-      let cell = byPayer.get(payer);
-      if (!cell) {
-        cell = { months: new Array(12).fill(0), total: 0 };
-        byPayer.set(payer, cell);
+      let months = byPayer.get(payer);
+      if (!months) {
+        months = Array.from({ length: 12 }, () => [] as ReceivableRow[]);
+        byPayer.set(payer, months);
       }
-      cell.months[m] += r.amount;
-      cell.total += r.amount;
+      months[m].push(r);
     }
 
     return { yearList: Array.from(years).sort((a, b) => b - a), perYear };
@@ -326,12 +338,15 @@ function PayerMonthMatrix({
     const byPayer = model.perYear.get(activeYear);
     if (!byPayer) return null;
     const payers = Array.from(byPayer.entries())
-      .map(([name, cell]) => ({ name, months: cell.months, total: cell.total }))
+      .map(([name, months]) => {
+        const monthTotals = months.map((cellRows) => cellRows.reduce((s, r) => s + r.amount, 0));
+        return { name, months, monthTotals, total: monthTotals.reduce((a, b) => a + b, 0) };
+      })
       .sort((a, b) => b.total - a.total);
     const colTotals = new Array(12).fill(0);
     let grand = 0;
     for (const p of payers) {
-      for (let i = 0; i < 12; i++) colTotals[i] += p.months[i];
+      for (let i = 0; i < 12; i++) colTotals[i] += p.monthTotals[i];
       grand += p.total;
     }
     const activeMonths = colTotals.filter((v) => v > 0).length;
@@ -340,95 +355,170 @@ function PayerMonthMatrix({
 
   if (!table || table.payers.length === 0) return null;
 
-  const money = (v: number, muted = false) =>
-    v > 0 ? (
-      <span className={muted ? 'text-foreground' : 'text-emerald-700'}>{fmtMoney(v, currency)}</span>
-    ) : (
-      <span className="text-foreground/20">—</span>
-    );
+  const showHover = (payer: string, monthIndex: number, cellRows: ReceivableRow[], el: HTMLElement) => {
+    const r = el.getBoundingClientRect();
+    setHover({ payer, monthIndex, rows: cellRows, left: r.left, top: r.top, bottom: r.bottom });
+  };
+  const hideHover = () => setHover(null);
 
   return (
-    <div className="mb-6 rounded-xl bg-white/70 supports-[backdrop-filter]:bg-white/55 backdrop-blur-md border border-white/80 overflow-hidden">
-      <div className="flex flex-wrap items-end justify-between gap-3 px-4 py-3 border-b border-foreground/5">
-        <div>
-          <div className="text-[11px] uppercase tracking-[0.14em] text-foreground/50 font-semibold">
-            Payments by payer &amp; month
+    <>
+      <div className="mb-6 rounded-xl bg-white/70 supports-[backdrop-filter]:bg-white/55 backdrop-blur-md border border-white/80 overflow-hidden">
+        <div className="flex flex-wrap items-end justify-between gap-3 px-4 py-3 border-b border-foreground/5">
+          <div>
+            <div className="text-[11px] uppercase tracking-[0.14em] text-foreground/50 font-semibold">
+              Payments by payer &amp; month
+            </div>
+            <div className="mt-0.5 text-[11px] text-foreground/55">
+              {table.payers.length} payer{table.payers.length === 1 ? '' : 's'} · {table.activeMonths}/12 months active ·{' '}
+              {fmtMoney(table.grand, currency)} in {activeYear}
+            </div>
           </div>
-          <div className="mt-0.5 text-[11px] text-foreground/55">
-            {table.payers.length} payer{table.payers.length === 1 ? '' : 's'} · {table.activeMonths}/12 months active ·{' '}
-            {fmtMoney(table.grand, currency)} in {activeYear}
-          </div>
-        </div>
-        {model.yearList.length > 1 && (
-          <select
-            value={String(activeYear)}
-            onChange={(e) => setYear(Number(e.target.value))}
-            className="h-8 pl-3 pr-7 rounded-full bg-white/70 border border-white/80 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
-          >
-            {model.yearList.map((y) => (
-              <option key={y} value={y}>
-                {y}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-[11px] tabular-nums">
-          <thead className="bg-foreground/5 text-foreground/55 text-[10px] uppercase tracking-[0.1em]">
-            <tr>
-              <th className="text-left font-semibold px-3 py-2">Payer</th>
-              {MONTHS_SHORT.map((m) => (
-                <th key={m} className="text-right font-semibold px-2.5 py-2">
-                  {m}
-                </th>
+          {model.yearList.length > 1 && (
+            <select
+              value={String(activeYear)}
+              onChange={(e) => setYear(Number(e.target.value))}
+              className="h-8 pl-3 pr-7 rounded-full bg-white/70 border border-white/80 text-xs text-foreground focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer"
+            >
+              {model.yearList.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
               ))}
-              <th className="text-right font-semibold px-3 py-2 border-l border-foreground/10 text-foreground/70">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {table.payers.map((p) => (
-              <tr key={p.name} className="border-t border-foreground/5 hover:bg-foreground/[0.025]">
-                <td
-                  className="px-3 py-2 font-medium text-foreground whitespace-nowrap max-w-[200px] truncate"
-                  title={p.name}
-                >
-                  {p.name}
+            </select>
+          )}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-[11px] tabular-nums">
+            <thead className="bg-foreground/5 text-foreground/55 text-[10px] uppercase tracking-[0.1em]">
+              <tr>
+                <th className="text-left font-semibold px-3 py-2">Payer</th>
+                {MONTHS_SHORT.map((m) => (
+                  <th key={m} className="text-right font-semibold px-2.5 py-2">
+                    {m}
+                  </th>
+                ))}
+                <th className="text-right font-semibold px-3 py-2 border-l border-foreground/10 text-foreground/70">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {table.payers.map((p) => (
+                <tr key={p.name} className="border-t border-foreground/5 hover:bg-foreground/[0.025]">
+                  <td
+                    className="px-3 py-2 font-medium text-foreground whitespace-nowrap max-w-[200px] truncate"
+                    title={p.name}
+                  >
+                    {p.name}
+                  </td>
+                  {p.months.map((cellRows, i) => {
+                    const cellTotal = p.monthTotals[i];
+                    if (cellTotal <= 0) {
+                      return (
+                        <td key={i} className="px-2.5 py-2 text-right whitespace-nowrap text-foreground/20">
+                          —
+                        </td>
+                      );
+                    }
+                    return (
+                      <td
+                        key={i}
+                        tabIndex={0}
+                        onMouseEnter={(e) => showHover(p.name, i, cellRows, e.currentTarget)}
+                        onMouseLeave={hideHover}
+                        onFocus={(e) => showHover(p.name, i, cellRows, e.currentTarget)}
+                        onBlur={hideHover}
+                        className="px-2.5 py-2 text-right whitespace-nowrap text-emerald-700 cursor-help underline decoration-dotted decoration-foreground/25 underline-offset-4 outline-none focus:bg-primary/5 hover:bg-primary/5"
+                      >
+                        {fmtMoney(cellTotal, currency)}
+                      </td>
+                    );
+                  })}
+                  <td className="px-3 py-2 text-right font-semibold text-foreground whitespace-nowrap border-l border-foreground/10">
+                    {fmtMoney(p.total, currency)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-foreground/15 bg-foreground/[0.03] font-semibold">
+                <td className="px-3 py-2.5 text-left uppercase tracking-[0.1em] text-[10px] text-foreground/60 whitespace-nowrap">
+                  Total · {table.payers.length}
                 </td>
-                {p.months.map((v, i) => (
-                  <td key={i} className="px-2.5 py-2 text-right whitespace-nowrap">
-                    {money(v)}
+                {table.colTotals.map((v, i) => (
+                  <td key={i} className="px-2.5 py-2.5 text-right whitespace-nowrap">
+                    {v > 0 ? <span className="text-foreground">{fmtMoney(v, currency)}</span> : <span className="text-foreground/20">—</span>}
                   </td>
                 ))}
-                <td className="px-3 py-2 text-right font-semibold text-foreground whitespace-nowrap border-l border-foreground/10">
-                  {fmtMoney(p.total, currency)}
+                <td className="px-3 py-2.5 text-right text-emerald-700 whitespace-nowrap border-l border-foreground/10">
+                  {fmtMoney(table.grand, currency)}
                 </td>
               </tr>
-            ))}
-          </tbody>
-          <tfoot>
-            <tr className="border-t-2 border-foreground/15 bg-foreground/[0.03] font-semibold">
-              <td className="px-3 py-2.5 text-left uppercase tracking-[0.1em] text-[10px] text-foreground/60 whitespace-nowrap">
-                Total · {table.payers.length}
-              </td>
-              {table.colTotals.map((v, i) => (
-                <td key={i} className="px-2.5 py-2.5 text-right whitespace-nowrap">
-                  {money(v, true)}
-                </td>
-              ))}
-              <td className="px-3 py-2.5 text-right text-emerald-700 whitespace-nowrap border-l border-foreground/10">
-                {fmtMoney(table.grand, currency)}
-              </td>
-            </tr>
-          </tfoot>
-        </table>
+            </tfoot>
+          </table>
+        </div>
+        <div className="px-4 py-2 text-[10px] text-foreground/40 border-t border-foreground/5">
+          {loadedCount < totalCount
+            ? `Based on the ${loadedCount} loaded payment${loadedCount === 1 ? '' : 's'} of ${totalCount.toLocaleString()} — page through the table to include the rest. Hover a cell to see its transactions.`
+            : `Hover a cell to see its transactions. Follows the account, search, and internal-transfer filters below.`}
+        </div>
       </div>
-      <div className="px-4 py-2 text-[10px] text-foreground/40 border-t border-foreground/5">
-        {loadedCount < totalCount
-          ? `Based on the ${loadedCount} loaded payment${loadedCount === 1 ? '' : 's'} of ${totalCount.toLocaleString()} — page through the table to include the rest.`
-          : `Follows the account, search, and internal-transfer filters below.`}
-      </div>
-    </div>
+
+      {/* Transaction popover for the hovered cell. Rendered as a sibling
+          of the card (not a descendant) so the card's backdrop-blur —
+          which establishes a containing block and clips fixed children —
+          doesn't trap or crop it. pointer-events-none keeps it from
+          stealing the hover that spawned it. */}
+      {hover && (() => {
+        const PANEL_W = 300;
+        const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
+        const vh = typeof window !== 'undefined' ? window.innerHeight : 800;
+        const left = Math.max(8, Math.min(hover.left, vw - PANEL_W - 8));
+        const placeAbove = hover.bottom > vh * 0.6;
+        const style: CSSProperties = placeAbove
+          ? { left, bottom: vh - hover.top + 6, width: PANEL_W }
+          : { left, top: hover.bottom + 6, width: PANEL_W };
+        const subtotal = hover.rows.reduce((s, r) => s + r.amount, 0);
+        const sorted = [...hover.rows].sort((a, b) => {
+          const da = new Date(a.posted_at ?? a.created_at_mercury).getTime();
+          const db = new Date(b.posted_at ?? b.created_at_mercury).getTime();
+          return da - db;
+        });
+        return (
+          <div
+            className="fixed z-50 pointer-events-none rounded-xl border border-foreground/10 bg-white shadow-xl overflow-hidden"
+            style={style}
+          >
+            <div className="px-3 py-2 border-b border-foreground/5 bg-foreground/[0.03]">
+              <div className="text-[11px] font-semibold text-foreground truncate" title={hover.payer}>
+                {hover.payer}
+              </div>
+              <div className="text-[10px] text-foreground/55">
+                {MONTHS_SHORT[hover.monthIndex]} {activeYear} · {hover.rows.length} payment{hover.rows.length === 1 ? '' : 's'} ·{' '}
+                {fmtMoney(subtotal, currency)}
+              </div>
+            </div>
+            <div className="max-h-[240px] overflow-hidden">
+              {sorted.map((r) => {
+                const memo = r.note || r.external_memo || rawStr(r.raw, 'bankDescription');
+                return (
+                  <div key={r.id} className="flex items-baseline gap-2 px-3 py-1.5 border-b border-foreground/5 last:border-b-0">
+                    <span className="text-[10px] tabular-nums text-foreground/55 whitespace-nowrap w-[52px] shrink-0">
+                      {fmtDate(r.posted_at ?? r.created_at_mercury)}
+                    </span>
+                    <span className="text-[10px] text-foreground/60 truncate flex-1" title={memo ?? undefined}>
+                      {memo || r.status || '—'}
+                    </span>
+                    <span className="text-[11px] tabular-nums font-semibold text-emerald-700 whitespace-nowrap">
+                      {fmtMoney(r.amount, currency)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+    </>
   );
 }
 
