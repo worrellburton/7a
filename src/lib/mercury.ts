@@ -92,15 +92,26 @@ export interface MercuryTransaction {
   currencyExchangeInfo?: { currency?: string | null } | null;
 }
 
-const MAX_PAGES = 200; // safety stop — 200 × 500 = 100k transactions
-const PAGE_SIZE = 500;
+// GOTCHA: Mercury's transactions endpoint defaults `start` to 30 DAYS
+// AGO when it's omitted — so a fetch with no date range silently returns
+// only the last month, never the full ledger. That's why the DB mirror
+// only ever held a rolling recent window (it accumulated from the first
+// sync forward and could never reach older history). We now pass an
+// explicit far-back `start` so every sync backfills the account's entire
+// history. `end` defaults to today, which is exactly what we want.
+const MAX_PAGES = 200; // safety stop — 200 × 1000 = 200k transactions
+const PAGE_SIZE = 1000; // Mercury's documented max page size
+const HISTORY_START = '2015-01-01'; // predates Mercury → "from account open"
 
-export async function listAllTransactions(accountId: string): Promise<MercuryTransaction[]> {
+export async function listAllTransactions(
+  accountId: string,
+  start: string = HISTORY_START,
+): Promise<MercuryTransaction[]> {
   const out: MercuryTransaction[] = [];
   for (let page = 0; page < MAX_PAGES; page++) {
     const offset = page * PAGE_SIZE;
     const json = await mercuryFetch<{ transactions: MercuryTransaction[]; total?: number }>(
-      `/account/${encodeURIComponent(accountId)}/transactions?limit=${PAGE_SIZE}&offset=${offset}&order=desc`,
+      `/account/${encodeURIComponent(accountId)}/transactions?limit=${PAGE_SIZE}&offset=${offset}&order=desc&start=${encodeURIComponent(start)}`,
     );
     const batch = json.transactions ?? [];
     out.push(...batch);
