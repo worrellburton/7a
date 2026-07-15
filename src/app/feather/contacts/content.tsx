@@ -19,7 +19,6 @@ import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { Fragment, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from 'react';
 import { createPortal } from 'react-dom';
-import { DepartmentPageNav } from '../DepartmentPageNav';
 import { SearchSelectCell } from '@/components/SearchSelectCell';
 import { companySlug } from '@/lib/company';
 import { looksLikePersonName } from '@/lib/contact-suggest';
@@ -445,14 +444,6 @@ export default function ContactsContent() {
   // "show every tier including unrated rows"; 'unrated' specifically
   // narrows to rows where rating is null so the team can hunt down
   // contacts that still need a tier assigned.
-  const [tierFilter, setTierFilter] = useState<'all' | ContactRating | 'unrated'>('all');
-  // Tier-filter changes recompute the whole list; mark them as a
-  // transition so the click + button state stay instant while the grid
-  // re-filters in the background.
-  const [, startFilterTransition] = useTransition();
-  const setTier = useCallback((t: 'all' | ContactRating | 'unrated') => {
-    startFilterTransition(() => setTierFilter(t));
-  }, []);
   // Table / Map / Insights view-mode toggle. Persisted in the URL via
   // ?view=map / ?view=insights so the choice survives refresh + lets
   // admissions bookmark each view directly. `table` is the default
@@ -462,7 +453,6 @@ export default function ContactsContent() {
   // collapsible row list — avatar + name + who-last-touched + when;
   // 'table' brings back the full power-grid (sort / columns / bulk
   // edit / inline edit) for when that's needed.
-  const [listView, setListView] = useState<'simple' | 'table'>('simple');
   useEffect(() => {
     const v = new URLSearchParams(window.location.search).get('view');
     if (v === 'map') setViewMode('map');
@@ -876,12 +866,10 @@ export default function ContactsContent() {
   const filtered = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
     return rows.filter((r) => {
-      if (tierFilter === 'unrated') { if (r.rating != null) return false; }
-      else if (tierFilter !== 'all' && r.rating !== tierFilter) return false;
       if (!q) return true;
       return (searchIndex.get(r) ?? '').includes(q);
     });
-  }, [rows, searchIndex, deferredSearch, tierFilter]);
+  }, [rows, searchIndex, deferredSearch]);
 
   // Sorted, deduplicated list of every company string currently in
   // the contacts table. Drives the SearchSelect dropdown on the
@@ -1315,25 +1303,15 @@ export default function ContactsContent() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 w-full pb-[max(1rem,env(safe-area-inset-bottom))]" style={{ fontFamily: 'var(--font-body)' }}>
-      <div className="mb-4">
-        <DepartmentPageNav />
-      </div>
-      <header className="mb-4 sm:mb-6 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
-        <div className="lg:max-w-sm">
+      {/* Single header row: title + contact count on the left, the
+          three icon controls on the right — all on one line. */}
+      <header className="mb-4 sm:mb-6 flex flex-row items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-baseline gap-2">
           <h1 className="text-base font-semibold text-foreground tracking-tight">Contacts</h1>
           {rows.length > 0 && (
-            <p className="text-[13px] text-foreground/40 mt-0.5">
-              {rows.length.toLocaleString()} {rows.length === 1 ? 'contact' : 'contacts'}
-            </p>
+            <span className="text-[13px] text-foreground/40 tabular-nums">{rows.length.toLocaleString()}</span>
           )}
         </div>
-        {/* Pill tray — Total / Activity / Database Health / Map /
-            Insights / Add — anchored to the upper-right of the page
-            header so the page's "control panel" is the first thing
-            the eye lands on. Each pill is its own floating glass
-            chip (no wrapping tray) with a cascaded entry animation.
-            InsightsCard renders the pill row plus the expansion
-            panels that drop below it when a stat-pill is opened. */}
         <InsightsCard
           fallback={insights}
           viewMode={viewMode}
@@ -1365,77 +1343,6 @@ export default function ContactsContent() {
             >
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
             </button>
-          )}
-        </div>
-        {/* Tier filters — one button per tier so admissions can
-            slice the grid to e.g. Tier 1 prospects in two clicks
-            instead of opening Manage Columns + sorting. Active
-            button picks up its tier's RATING_TONES palette so the
-            chip language stays consistent with the in-row rating
-            chips. */}
-        <div className="flex items-center gap-1 flex-wrap">
-          {([
-            { key: 'all', label: 'All tiers' },
-            { key: 'Tier 1', label: 'Tier 1' },
-            { key: 'Tier 2', label: 'Tier 2' },
-            { key: 'Tier 3', label: 'Tier 3' },
-            { key: 'unrated', label: 'Unrated' },
-          ] as const).map((t) => {
-            const active = tierFilter === t.key;
-            const tone =
-              t.key === 'Tier 1' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-              : t.key === 'Tier 2' ? 'bg-amber-50 text-amber-700 border-amber-200'
-              : t.key === 'Tier 3' ? 'bg-foreground/5 text-foreground/70 border-foreground/15'
-              : t.key === 'unrated' ? 'bg-foreground/[0.04] text-foreground/60 border-foreground/15'
-              : 'bg-foreground text-white border-foreground';
-            return (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setTier(t.key)}
-                aria-pressed={active}
-                className={`px-2.5 py-1.5 rounded-md text-[11.5px] font-semibold border transition-colors ${active ? tone : 'bg-white text-foreground/55 border-black/10 hover:bg-warm-bg/60'}`}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-          {/* Map + Insights toggles used to live here — they're
-              now pills in the upper-right pill tray. */}
-        </div>
-        {/* List / Table presentation toggle. 'List' is the simple
-            collapsible rows; 'Table' brings back the full power-grid.
-            Manage Columns only matters for the table, so it's shown
-            only in that mode. */}
-        <div className="ml-auto flex items-center gap-2">
-          <div className="inline-flex items-center rounded-lg border border-black/10 bg-white p-0.5">
-            <button
-              type="button"
-              onClick={() => setListView('simple')}
-              aria-pressed={listView === 'simple'}
-              className={`px-2.5 py-1 rounded-md text-[11.5px] font-semibold transition-colors ${listView === 'simple' ? 'bg-foreground text-white' : 'text-foreground/55 hover:text-foreground'}`}
-            >
-              List
-            </button>
-            <button
-              type="button"
-              onClick={() => setListView('table')}
-              aria-pressed={listView === 'table'}
-              className={`px-2.5 py-1 rounded-md text-[11.5px] font-semibold transition-colors ${listView === 'table' ? 'bg-foreground text-white' : 'text-foreground/55 hover:text-foreground'}`}
-            >
-              Table
-            </button>
-          </div>
-          {listView === 'table' && (
-            <div className="hidden md:block">
-              <ManageColumnsButton
-                open={showCols}
-                onToggle={() => setShowCols((v) => !v)}
-                visibleCols={visibleCols ?? DEFAULT_VISIBLE}
-                onToggleColumn={toggleVisible}
-                onClose={() => setShowCols(false)}
-              />
-            </div>
           )}
         </div>
       </div>
@@ -1486,69 +1393,14 @@ export default function ContactsContent() {
         </div>
       )}
 
-      {listView === 'simple' ? (
-        <SimpleContactList
-          loading={loading}
-          rows={sorted}
-          expandedId={expandedDetailsId}
-          onToggle={(c) => setExpandedDetailsId((prev) => (prev === c.id ? null : c.id))}
-          accessToken={session?.access_token ?? null}
-          onOpenLog={(c) => setLogTarget(c)}
-        />
-      ) : (
-      <ContactsGrid
+      <SimpleContactList
         loading={loading}
         rows={sorted}
-        columns={visibleColumnsResolved}
-        sortKey={sortKey}
-        sortDir={sortDir}
-        onSort={toggleSort}
-        onColDragStart={onColDragStart}
-        onColDrop={onColDrop}
-        onContact={(c) => setLogTarget(c)}
-        onUpgrade={(c) => setUpgradeTarget(c)}
-        onHistory={(c) => setExpandedDetailsId((prev) => (prev === c.id ? null : c.id))}
-        expandedDetailsId={expandedDetailsId}
+        expandedId={expandedDetailsId}
+        onToggle={(c) => setExpandedDetailsId((prev) => (prev === c.id ? null : c.id))}
         accessToken={session?.access_token ?? null}
         onOpenLog={(c) => setLogTarget(c)}
-        isNewToUser={isNewToUser}
-        onDelete={(c) => handleDelete(c)}
-        onSaveNotes={handleSaveNotes}
-        onSaveField={handleSaveField}
-        onSavePatch={handleSavePatch}
-        companyOptions={companyOptions}
-        roleOptions={roleOptions}
-        typeOptions={typeOptions}
-        specialtyOptions={specialtyOptions}
-        actionMenuFor={actionMenuFor}
-        setActionMenuFor={setActionMenuFor}
-        columnWidths={columnWidths}
-        onResizeColumn={(key, w) => setColumnWidths((prev) => ({ ...prev, [key]: Math.round(w) }))}
-        onCommitColumnWidth={(key, w) => { void persistColumnWidth(key, w); }}
-        onResizeStart={() => { resizingRef.current = true; }}
-        onResizeEnd={() => { resizingRef.current = false; }}
-        selectedIds={selectedIds}
-        onToggleSelectOne={toggleSelectOne}
-        onToggleSelectMany={setSelectedFromList}
-        onBulkRenameOption={handleBulkRenameOption}
       />
-      )}
-      {selectedIds.size > 0 && (
-        <BatchEditBar
-          selectedIds={selectedIds}
-          token={session?.access_token ?? null}
-          rows={rows}
-          companyOptions={companyOptions}
-          typeOptions={typeOptions}
-          specialtyOptions={specialtyOptions}
-          onClear={clearSelection}
-          onApplied={(patch) => {
-            // Optimistic: stamp the patched fields locally so the grid
-            // reflects the change before the realtime echo arrives.
-            setRows((prev) => prev.map((r) => (selectedIds.has(r.id) ? { ...r, ...patch } : r)));
-          }}
-        />
-      )}
 
       {showAdd && (
         <AddContactModal
@@ -3115,18 +2967,11 @@ function ContactsMapView({
   );
 }
 
-// Initials for a contact's placeholder avatar — contacts carry no
-// photo of their own, so we render up to two initials from the name.
-function contactInitials(name: string): string {
-  return name.split(/\s+/).map((s) => s[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
-}
-
 // ── Simple contact list ───────────────────────────────────────
-// The default presentation: one lightweight row per contact —
-// avatar, name, and who last touched them + how long ago. Clicking a
-// row expands the full ContactDetailsDrawer (all fields + contact
-// history + log button) inline beneath it. The dense power-grid
-// (ContactsGrid) is one toggle away for sorting / columns / bulk edit.
+// Each contact is its own card: the contact's name on the left and,
+// on the right, the picture of whoever last logged a touch (no name /
+// timestamp text — the avatar carries it, with the detail on hover).
+// Clicking the card expands the full ContactDetailsDrawer inline.
 function SimpleContactRow({
   contact: c,
   expanded,
@@ -3140,50 +2985,40 @@ function SimpleContactRow({
   onToggle: () => void;
   onOpenLog: () => void;
 }) {
+  const lastByTip = c.last_contact_at
+    ? `Last contacted by ${c.last_contact_by_name || 'Unknown'} · ${fmtAgo(c.last_contact_at)}`
+    : undefined;
   return (
     <div
-      style={{ contentVisibility: 'auto', containIntrinsicSize: '0 57px' }}
-      className={expanded ? 'bg-warm-bg/30' : 'bg-white hover:bg-warm-bg/40 transition-colors'}
+      style={{ contentVisibility: 'auto', containIntrinsicSize: '0 60px' }}
+      className={`rounded-xl border bg-white transition-colors ${expanded ? 'border-primary/30 ring-1 ring-primary/15' : 'border-black/10 hover:border-black/20'}`}
     >
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
-        className="w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left"
+        className="w-full flex items-center gap-3 px-4 py-3 text-left"
       >
-        {/* Profile picture (initials placeholder) */}
-        <span className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-full bg-primary/10 text-primary text-[12px] font-bold border border-primary/15">
-          {contactInitials(c.name)}
-        </span>
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13.5px] font-semibold text-foreground leading-tight">{c.name}</span>
-          {/* Who last contacted them + how long ago */}
-          <span className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-foreground/55 leading-tight">
-            {c.last_contact_at ? (
-              <>
-                {c.last_contact_by_avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={c.last_contact_by_avatar_url} alt="" className="w-4 h-4 rounded-full object-cover bg-warm-bg shrink-0" />
-                ) : (
-                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-warm-bg text-[8px] font-semibold text-foreground/55 shrink-0">
-                    {(c.last_contact_by_name || '?').charAt(0).toUpperCase()}
-                  </span>
-                )}
-                <span className="truncate">
-                  {c.last_contact_by_name || 'Unknown'} · {fmtAgo(c.last_contact_at)}
-                </span>
-              </>
-            ) : (
-              <span className="italic text-foreground/40">Never contacted</span>
-            )}
-          </span>
-        </span>
-        <svg
-          className={`shrink-0 w-4 h-4 text-foreground/30 transition-transform ${expanded ? 'rotate-180' : ''}`}
-          fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
-        >
-          <path d="M6 9l6 6 6-6" />
-        </svg>
+        <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-foreground">{c.name}</span>
+        {/* Picture of whoever last logged a touch — right-aligned. */}
+        {c.last_contact_at && (
+          c.last_contact_by_avatar_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={c.last_contact_by_avatar_url}
+              alt={c.last_contact_by_name ?? ''}
+              title={lastByTip}
+              className="shrink-0 w-8 h-8 rounded-full object-cover bg-warm-bg"
+            />
+          ) : (
+            <span
+              title={lastByTip}
+              className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-full bg-warm-bg text-[11px] font-semibold text-foreground/55"
+            >
+              {(c.last_contact_by_name || '?').charAt(0).toUpperCase()}
+            </span>
+          )
+        )}
       </button>
       {expanded && (
         <div className="border-t border-black/5">
@@ -3216,14 +3051,11 @@ function SimpleContactList({
 }) {
   if (loading) {
     return (
-      <div className="rounded-xl border border-black/10 bg-white divide-y divide-black/5 overflow-hidden">
+      <div className="flex flex-col gap-2">
         {Array.from({ length: 10 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-3 px-4 py-3">
-            <span className="w-9 h-9 rounded-full bg-foreground/8 animate-pulse shrink-0" />
-            <span className="flex-1 space-y-1.5">
-              <span className="block h-3 w-1/3 rounded bg-foreground/8 animate-pulse" />
-              <span className="block h-2.5 w-1/4 rounded bg-foreground/8 animate-pulse" />
-            </span>
+          <div key={i} className="flex items-center gap-3 rounded-xl border border-black/10 bg-white px-4 py-3">
+            <span className="flex-1 h-3.5 w-1/3 rounded bg-foreground/8 animate-pulse" />
+            <span className="w-8 h-8 rounded-full bg-foreground/8 animate-pulse shrink-0" />
           </div>
         ))}
       </div>
@@ -3237,7 +3069,7 @@ function SimpleContactList({
     );
   }
   return (
-    <div className="rounded-xl border border-black/10 bg-white divide-y divide-black/5 overflow-hidden">
+    <div className="flex flex-col gap-2">
       {rows.map((c) => (
         <SimpleContactRow
           key={c.id}
@@ -5264,7 +5096,7 @@ function InsightsCard({
   const governanceLoaded = data?.governance != null;
 
   return (
-    <div className="mb-4">
+    <div>
       {/* Three icon-only controls docked upper-right: Insights ·
           Database health · Add contact. */}
       <ContactsPillTray
