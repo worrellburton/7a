@@ -30,6 +30,7 @@ import {
   type ContactMethod as SharedContactMethod,
 } from '@/lib/contact-methods';
 import { QuickLogHost, type QuickLogPerson, type QuickLogResult } from '../QuickLog';
+import { GLASS_SEARCH_INPUT } from '../glassSearch';
 
 // ─── Shared clock ───────────────────────────────────────────────
 // One interval for the whole grid instead of a setInterval per
@@ -1332,7 +1333,7 @@ export default function ContactsContent() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name, company, type, specialty, notes…"
-            className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-black/[0.07] bg-white text-[13px] text-foreground placeholder:text-foreground/40 shadow-[0_1px_2px_rgba(60,48,42,0.04)] hover:border-black/15 focus:outline-none focus:border-primary/40 focus:ring-4 focus:ring-primary/10 transition-all"
+            className={`${GLASS_SEARCH_INPUT} pl-10 pr-9 py-2.5`}
           />
           {search && (
             <button
@@ -1409,38 +1410,20 @@ export default function ContactsContent() {
           existingContacts={rows}
         />
       )}
-      <QuickLogHost
-        open={showNewLog}
-        onOpenChange={setShowNewLog}
-        roster={quickLogRoster}
-        recents={quickLogRecents}
-        onSubmit={handleQuickLog}
-        onUndo={handleQuickLogUndo}
-      />
-      {/* Mobile-only "New log" FAB. Lives outside the rest of the
-          layout so it pins to the viewport bottom with safe-area
-          padding instead of inflating the page's vertical rhythm.
-          Hidden on sm+ because admissions on desktop has the full
-          row of header actions (Add Contact / Upload CSV / etc.)
-          and doesn't need a thumb-reachable quick action.
-          When a contact's details panel is expanded the FAB hides —
-          the card's own LOG button is already on screen, and three
-          stacked logging affordances (card LOG + panel button + FAB)
-          read as clutter on a phone. It also hides while the
-          quick-log sheet is open: the sheet renders its OWN fixed
-          Save pill in the same spot (state-aware — disabled until a
-          name is typed, shows progress), so keeping this one around
-          produced two stacked save buttons. */}
-      {!showNewLog && expandedDetailsId === null && (
-      <button
-        type="button"
-        onClick={() => setShowNewLog(true)}
-        className="sm:hidden fixed inset-x-4 z-50 inline-flex items-center justify-center gap-2 px-4 py-3 rounded-full bg-foreground text-white text-sm font-semibold uppercase tracking-wider shadow-[0_12px_28px_-8px_rgba(0,0,0,0.45)] active:scale-[0.98] transition-all duration-200"
+      {/* Mobile-only "New log" button, pinned to the viewport bottom
+          with safe-area padding. It no longer opens a popup — it
+          navigates to the dedicated /feather/log flow. Glowing pill so
+          it reads as the page's primary action. Hidden when a contact's
+          details panel is expanded (the drawer has its own Log button). */}
+      {expandedDetailsId === null && (
+      <Link
+        href="/feather/log"
+        className="sm:hidden fixed inset-x-4 z-50 inline-flex items-center justify-center gap-2 px-4 py-3.5 rounded-full bg-primary text-white text-sm font-semibold uppercase tracking-wider shadow-[0_0_32px_-2px_rgba(160,82,45,0.75),0_12px_28px_-10px_rgba(0,0,0,0.4)] active:scale-[0.98] transition-all duration-200"
         style={{ bottom: 'max(1rem, env(safe-area-inset-bottom))' }}
       >
         <span aria-hidden className="text-base leading-none">🪵</span>
         New log
-      </button>
+      </Link>
       )}
       {showSuggest && (
         <SuggestWithClaudeModal
