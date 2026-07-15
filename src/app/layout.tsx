@@ -86,6 +86,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             during HTML parse instead of after React mounts <video>. */}
         <link rel="preconnect" href="https://customer-1sijhr9xl3yqixxu.cloudflarestream.com" crossOrigin="anonymous" />
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
+        {/* AI-crawler discovery: point answer engines at the structured,
+            citable /llms.txt summary. Placed here in the raw <head>
+            rather than via metadata.alternates.types because
+            (site)/layout.tsx sets alternates.canonical in
+            generateMetadata, and Next shallow-merges alternates as a
+            whole — a root-level alternates.types would be overwritten
+            (dropped) on every public-site page. A direct <link> renders
+            unconditionally on every route. */}
+        <link rel="alternate" type="text/plain" href="https://sevenarrowsrecoveryarizona.com/llms.txt" />
         <link
           rel="stylesheet"
           href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@300;400;500;600;700&display=swap"
