@@ -94,6 +94,17 @@ function fmtDate(iso: string | null): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+// Compact month + day, e.g. "Jun 25" — used in the matrix hover
+// popover where every row shares the cell's month/year (shown in the
+// popover header), so the year would be redundant and, at a fixed
+// width, would overflow into the memo beside it.
+function fmtDayMonth(iso: string | null): string {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 function fmtDateTime(iso: string | null): string | null {
   if (!iso) return null;
   const d = new Date(iso);
@@ -427,7 +438,7 @@ function PayerMonthMatrix({
                         onMouseLeave={hideHover}
                         onFocus={(e) => showHover(p.name, i, cellRows, e.currentTarget)}
                         onBlur={hideHover}
-                        className="px-2.5 py-2 text-right whitespace-nowrap text-emerald-700 cursor-help underline decoration-dotted decoration-foreground/25 underline-offset-4 outline-none focus:bg-primary/5 hover:bg-primary/5"
+                        className="px-2.5 py-2 text-right whitespace-nowrap text-emerald-700 cursor-help decoration-dotted decoration-foreground/30 underline-offset-2 outline-none hover:underline focus:underline focus:bg-primary/5 hover:bg-primary/5"
                       >
                         {fmtMoney(cellTotal, currency)}
                       </td>
@@ -502,8 +513,8 @@ function PayerMonthMatrix({
                 const memo = r.note || r.external_memo || rawStr(r.raw, 'bankDescription');
                 return (
                   <div key={r.id} className="flex items-baseline gap-2 px-3 py-1.5 border-b border-foreground/5 last:border-b-0">
-                    <span className="text-[10px] tabular-nums text-foreground/55 whitespace-nowrap w-[52px] shrink-0">
-                      {fmtDate(r.posted_at ?? r.created_at_mercury)}
+                    <span className="text-[10px] tabular-nums text-foreground/55 whitespace-nowrap shrink-0">
+                      {fmtDayMonth(r.posted_at ?? r.created_at_mercury)}
                     </span>
                     <span className="text-[10px] text-foreground/60 truncate flex-1" title={memo ?? undefined}>
                       {memo || r.status || '—'}
