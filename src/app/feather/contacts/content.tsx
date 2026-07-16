@@ -1352,48 +1352,6 @@ export default function ContactsContent() {
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{error}</div>
       )}
 
-      {(viewMode === 'map' || viewMode === 'insights') && (
-        <div
-          className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center bg-black/50 p-0 sm:p-6"
-          onClick={() => setViewMode('table')}
-        >
-          <div
-            className="relative w-full max-w-6xl h-full sm:h-auto sm:max-h-[90vh] bg-white rounded-none sm:rounded-2xl shadow-xl overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-5 py-3 border-b border-black/10 shrink-0">
-              <h2 className="text-base font-semibold text-foreground">
-                {viewMode === 'map' ? 'Marketing map' : 'Marketing insights'}
-              </h2>
-              <button
-                type="button"
-                onClick={() => setViewMode('table')}
-                className="text-foreground/50 hover:text-foreground transition-colors"
-                aria-label="Close"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5">
-              {viewMode === 'map' ? (
-                <ContactsMapView
-                  contacts={sorted}
-                  onLogContact={(c) => setLogTarget(c)}
-                  onOpenDetails={(c) => {
-                    setViewMode('table');
-                    setExpandedDetailsId(c.id);
-                  }}
-                />
-              ) : (
-                <ContactsInsightsView contacts={sorted} loading={loading} />
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       <SimpleContactList
         loading={loading}
         rows={sorted}
@@ -4794,14 +4752,13 @@ function ContactsPillTray({
       : '';
   const pills: Array<{ key: string; node: React.ReactNode }> = [
     {
-      key: 'insights',
+      key: 'logs',
       node: (
         <StatPill
           iconOnly
-          label="Insights"
+          label="Logs"
           value=""
-          active={viewMode === 'insights'}
-          onClick={() => onSetViewMode(viewMode === 'insights' ? 'table' : 'insights')}
+          href="/feather/logs"
           iconBg="bg-amber-100"
           iconColor="text-amber-600"
           icon={
@@ -4917,6 +4874,7 @@ function StatPill({
   iconColor,
   active = false,
   onClick,
+  href,
   iconOnly = false,
 }: {
   label: string;
@@ -4926,27 +4884,24 @@ function StatPill({
   iconColor: string;
   active?: boolean;
   onClick?: () => void;
+  // When set, the pill navigates (rendered as a Link) instead of
+  // firing onClick.
+  href?: string;
   // When true the pill renders just the icon graphic (no text label /
   // value). `label`/`value` still feed the accessible name + tooltip.
   iconOnly?: boolean;
 }) {
-  const Tag = onClick ? 'button' : 'div';
   const accessibleName = value ? `${label}: ${value}` : label;
-  return (
-    <Tag
-      type={onClick ? 'button' : undefined}
-      onClick={onClick}
-      aria-pressed={onClick ? active : undefined}
-      aria-label={iconOnly ? accessibleName : undefined}
-      title={iconOnly ? accessibleName : undefined}
-      className={`inline-flex items-center gap-2 rounded-full transition-all ${iconOnly ? 'p-1.5' : 'pl-1.5 pr-3.5 py-1.5'} ${onClick ? 'cursor-pointer' : ''} ${
-        active
-          ? 'bg-white shadow-[0_8px_20px_-8px_rgba(40,30,25,0.32),0_2px_6px_-2px_rgba(40,30,25,0.15)] ring-1 ring-foreground/15'
-          : onClick
-          ? 'bg-white/90 supports-[backdrop-filter]:bg-white/75 supports-[backdrop-filter]:backdrop-blur-md hover:bg-white shadow-[0_6px_16px_-8px_rgba(40,30,25,0.24),0_1px_4px_-2px_rgba(40,30,25,0.10)] hover:shadow-[0_8px_22px_-8px_rgba(40,30,25,0.30)] ring-1 ring-black/5 hover:ring-black/10'
-          : 'bg-white/90 supports-[backdrop-filter]:bg-white/75 supports-[backdrop-filter]:backdrop-blur-md shadow-[0_6px_16px_-8px_rgba(40,30,25,0.24),0_1px_4px_-2px_rgba(40,30,25,0.10)] ring-1 ring-black/5'
-      }`}
-    >
+  const interactive = Boolean(onClick || href);
+  const className = `inline-flex items-center gap-2 rounded-full transition-all ${iconOnly ? 'p-1.5' : 'pl-1.5 pr-3.5 py-1.5'} ${interactive ? 'cursor-pointer' : ''} ${
+    active
+      ? 'bg-white shadow-[0_8px_20px_-8px_rgba(40,30,25,0.32),0_2px_6px_-2px_rgba(40,30,25,0.15)] ring-1 ring-foreground/15'
+      : interactive
+      ? 'bg-white/90 supports-[backdrop-filter]:bg-white/75 supports-[backdrop-filter]:backdrop-blur-md hover:bg-white shadow-[0_6px_16px_-8px_rgba(40,30,25,0.24),0_1px_4px_-2px_rgba(40,30,25,0.10)] hover:shadow-[0_8px_22px_-8px_rgba(40,30,25,0.30)] ring-1 ring-black/5 hover:ring-black/10'
+      : 'bg-white/90 supports-[backdrop-filter]:bg-white/75 supports-[backdrop-filter]:backdrop-blur-md shadow-[0_6px_16px_-8px_rgba(40,30,25,0.24),0_1px_4px_-2px_rgba(40,30,25,0.10)] ring-1 ring-black/5'
+  }`;
+  const inner = (
+    <>
       <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full shrink-0 ${iconBg} ${iconColor}`}>
         {icon}
       </span>
@@ -4956,6 +4911,26 @@ function StatPill({
           <span className="block text-[12.5px] font-bold leading-tight text-foreground">{value}</span>
         </span>
       )}
+    </>
+  );
+  if (href) {
+    return (
+      <Link href={href} aria-label={iconOnly ? accessibleName : undefined} title={iconOnly ? accessibleName : undefined} className={className}>
+        {inner}
+      </Link>
+    );
+  }
+  const Tag = onClick ? 'button' : 'div';
+  return (
+    <Tag
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      aria-pressed={onClick ? active : undefined}
+      aria-label={iconOnly ? accessibleName : undefined}
+      title={iconOnly ? accessibleName : undefined}
+      className={className}
+    >
+      {inner}
     </Tag>
   );
 }
