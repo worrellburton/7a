@@ -22,6 +22,7 @@ import HomeHardwareChip from './HomeHardwareChip';
 import HomeMercuryBalanceChip from './HomeMercuryBalanceChip';
 import HomeChipCluster from './HomeChipCluster';
 import HomeConnect4Nudge from './HomeConnect4Nudge';
+import HomePageSearch from './HomePageSearch';
 
 interface RecentUser {
   id: string;
@@ -1057,6 +1058,13 @@ export default function HomeContent() {
             </div> {/* end toggle + create cluster */}
 
             </div> {/* end TOP ROW */}
+
+            {/* Page search — moved here from the sidebar rail. Glass
+                input + autocomplete over every page the viewer can
+                see; Enter / click navigates. */}
+            <div className="mt-3 flex justify-center">
+              <HomePageSearch />
+            </div>
 
           </div>
         </header>
