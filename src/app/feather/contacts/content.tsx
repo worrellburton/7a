@@ -445,17 +445,6 @@ export default function ContactsContent() {
   // "show every tier including unrated rows"; 'unrated' specifically
   // narrows to rows where rating is null so the team can hunt down
   // contacts that still need a tier assigned.
-  // Tier filter — desktop table only. Kept off the mobile card list,
-  // which is intentionally minimal.
-  const [tierFilter, setTierFilter] = useState<'all' | ContactRating | 'unrated'>('all');
-  const [, startFilterTransition] = useTransition();
-  const setTier = useCallback((t: 'all' | ContactRating | 'unrated') => {
-    startFilterTransition(() => setTierFilter(t));
-  }, []);
-  // Desktop (md+) renders the full power-table; mobile renders the
-  // minimal collapsible card list. Never both (avoids double-mounting
-  // ~1200 row subtrees).
-  const isDesktopList = useMediaQuery('(min-width: 768px)');
   // Table / Map / Insights view-mode toggle. Persisted in the URL via
   // ?view=map / ?view=insights so the choice survives refresh + lets
   // admissions bookmark each view directly. `table` is the default
@@ -878,12 +867,10 @@ export default function ContactsContent() {
   const filtered = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
     return rows.filter((r) => {
-      if (tierFilter === 'unrated') { if (r.rating != null) return false; }
-      else if (tierFilter !== 'all' && r.rating !== tierFilter) return false;
       if (!q) return true;
       return (searchIndex.get(r) ?? '').includes(q);
     });
-  }, [rows, searchIndex, deferredSearch, tierFilter]);
+  }, [rows, searchIndex, deferredSearch]);
 
   // Sorted, deduplicated list of every company string currently in
   // the contacts table. Drives the SearchSelect dropdown on the
@@ -1359,46 +1346,6 @@ export default function ContactsContent() {
             </button>
           )}
         </div>
-        {/* Tier filters — desktop table only (the mobile card list is
-            intentionally minimal). */}
-        <div className="hidden md:flex items-center gap-1 flex-wrap">
-          {([
-            { key: 'all', label: 'All tiers' },
-            { key: 'Tier 1', label: 'Tier 1' },
-            { key: 'Tier 2', label: 'Tier 2' },
-            { key: 'Tier 3', label: 'Tier 3' },
-            { key: 'unrated', label: 'Unrated' },
-          ] as const).map((t) => {
-            const active = tierFilter === t.key;
-            const tone =
-              t.key === 'Tier 1' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-              : t.key === 'Tier 2' ? 'bg-amber-50 text-amber-700 border-amber-200'
-              : t.key === 'Tier 3' ? 'bg-foreground/5 text-foreground/70 border-foreground/15'
-              : t.key === 'unrated' ? 'bg-foreground/[0.04] text-foreground/60 border-foreground/15'
-              : 'bg-foreground text-white border-foreground';
-            return (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setTier(t.key)}
-                aria-pressed={active}
-                className={`px-2.5 py-1.5 rounded-md text-[11.5px] font-semibold border transition-colors ${active ? tone : 'bg-white text-foreground/55 border-black/10 hover:bg-warm-bg/60'}`}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-        {/* Manage Columns — desktop table only. */}
-        <div className="hidden md:block ml-auto">
-          <ManageColumnsButton
-            open={showCols}
-            onToggle={() => setShowCols((v) => !v)}
-            visibleCols={visibleCols ?? DEFAULT_VISIBLE}
-            onToggleColumn={toggleVisible}
-            onClose={() => setShowCols(false)}
-          />
-        </div>
       </div>
 
       {error && (
@@ -1447,72 +1394,14 @@ export default function ContactsContent() {
         </div>
       )}
 
-      {/* Mobile: the minimal collapsible card list. Desktop: the full
-          power-table (sorting / columns / resize / bulk edit / inline
-          edit). The card redesign was a mobile-only change. */}
-      {!isDesktopList ? (
-        <SimpleContactList
-          loading={loading}
-          rows={sorted}
-          expandedId={expandedDetailsId}
-          onToggle={(c) => setExpandedDetailsId((prev) => (prev === c.id ? null : c.id))}
-          accessToken={session?.access_token ?? null}
-          onOpenLog={(c) => setLogTarget(c)}
-        />
-      ) : (
-        <ContactsGrid
-          loading={loading}
-          rows={sorted}
-          columns={visibleColumnsResolved}
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={toggleSort}
-          onColDragStart={onColDragStart}
-          onColDrop={onColDrop}
-          onContact={(c) => setLogTarget(c)}
-          onUpgrade={(c) => setUpgradeTarget(c)}
-          onHistory={(c) => setExpandedDetailsId((prev) => (prev === c.id ? null : c.id))}
-          expandedDetailsId={expandedDetailsId}
-          accessToken={session?.access_token ?? null}
-          onOpenLog={(c) => setLogTarget(c)}
-          isNewToUser={isNewToUser}
-          onDelete={(c) => handleDelete(c)}
-          onSaveNotes={handleSaveNotes}
-          onSaveField={handleSaveField}
-          onSavePatch={handleSavePatch}
-          companyOptions={companyOptions}
-          roleOptions={roleOptions}
-          typeOptions={typeOptions}
-          specialtyOptions={specialtyOptions}
-          actionMenuFor={actionMenuFor}
-          setActionMenuFor={setActionMenuFor}
-          columnWidths={columnWidths}
-          onResizeColumn={(key, w) => setColumnWidths((prev) => ({ ...prev, [key]: Math.round(w) }))}
-          onCommitColumnWidth={(key, w) => { void persistColumnWidth(key, w); }}
-          onResizeStart={() => { resizingRef.current = true; }}
-          onResizeEnd={() => { resizingRef.current = false; }}
-          selectedIds={selectedIds}
-          onToggleSelectOne={toggleSelectOne}
-          onToggleSelectMany={setSelectedFromList}
-          onBulkRenameOption={handleBulkRenameOption}
-        />
-      )}
-      {isDesktopList && selectedIds.size > 0 && (
-        <BatchEditBar
-          selectedIds={selectedIds}
-          token={session?.access_token ?? null}
-          rows={rows}
-          companyOptions={companyOptions}
-          typeOptions={typeOptions}
-          specialtyOptions={specialtyOptions}
-          onClear={clearSelection}
-          onApplied={(patch) => {
-            // Optimistic: stamp the patched fields locally so the grid
-            // reflects the change before the realtime echo arrives.
-            setRows((prev) => prev.map((r) => (selectedIds.has(r.id) ? { ...r, ...patch } : r)));
-          }}
-        />
-      )}
+      <SimpleContactList
+        loading={loading}
+        rows={sorted}
+        expandedId={expandedDetailsId}
+        onToggle={(c) => setExpandedDetailsId((prev) => (prev === c.id ? null : c.id))}
+        accessToken={session?.access_token ?? null}
+        onOpenLog={(c) => setLogTarget(c)}
+      />
 
       {showAdd && (
         <AddContactModal
