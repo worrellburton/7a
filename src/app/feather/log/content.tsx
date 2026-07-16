@@ -267,17 +267,6 @@ export default function LogFlowContent() {
               {/* Autocomplete list */}
               {(suggestions.length > 0 || (query.trim() && !exactMatch)) && (
                 <ul className="mt-2 rounded-2xl border border-white/70 bg-white/70 supports-[backdrop-filter]:bg-white/60 supports-[backdrop-filter]:backdrop-blur-xl shadow-[0_10px_30px_-14px_rgba(160,82,45,0.4)] overflow-hidden divide-y divide-black/5">
-                  {query.trim() && !exactMatch && (
-                    <li>
-                      <button type="button" onClick={() => addPerson({ id: null, name: query.trim(), company: null })} className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-primary/5 transition-colors">
-                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary text-white text-[13px] font-bold shrink-0">+</span>
-                        <span className="min-w-0">
-                          <span className="block text-[13px] font-semibold text-foreground truncate">Create “{query.trim()}”</span>
-                          <span className="block text-[11px] text-foreground/45">New contact</span>
-                        </span>
-                      </button>
-                    </li>
-                  )}
                   {suggestions.map((p) => (
                     <li key={p.id}>
                       <button type="button" onClick={() => addPerson({ id: p.id, name: p.name, company: p.company })} className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-primary/5 transition-colors">
@@ -293,6 +282,17 @@ export default function LogFlowContent() {
                       </button>
                     </li>
                   ))}
+                  {query.trim() && !exactMatch && (
+                    <li>
+                      <button type="button" onClick={() => addPerson({ id: null, name: query.trim(), company: null })} className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-primary/5 transition-colors">
+                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary text-white text-[13px] font-bold shrink-0">+</span>
+                        <span className="min-w-0">
+                          <span className="block text-[13px] font-semibold text-foreground truncate">Create “{query.trim()}”</span>
+                          <span className="block text-[11px] text-foreground/45">New contact</span>
+                        </span>
+                      </button>
+                    </li>
+                  )}
                 </ul>
               )}
             </section>
