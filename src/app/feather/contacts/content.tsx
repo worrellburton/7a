@@ -2983,7 +2983,10 @@ function SimpleContactRow({
         className="w-full flex items-center gap-3 px-4 py-3 text-left"
       >
         <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-foreground">{c.name}</span>
-        {/* Picture of whoever last logged a touch — right-aligned. */}
+        {/* Last time of contact + the picture of whoever logged it. */}
+        {c.last_contact_at && (
+          <span className="shrink-0 text-[11px] text-foreground/45 tabular-nums whitespace-nowrap">{fmtAgo(c.last_contact_at)}</span>
+        )}
         {c.last_contact_at && (
           c.last_contact_by_avatar_url ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -3002,6 +3005,13 @@ function SimpleContactRow({
             </span>
           )
         )}
+        {/* Expand affordance — chevron flips when the card is open. */}
+        <svg
+          className={`shrink-0 w-4 h-4 text-foreground/30 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+          fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
       </button>
       {expanded && (
         <div className="border-t border-black/5">
