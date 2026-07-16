@@ -73,16 +73,19 @@ a[href] {
   cursor: pointer;
 }
 
-/* Admin portal scaling — previously this rule applied `zoom: 0.82` on
-   viewports ≥ 1024px to fit a tighter type scale without per-component
-   work. The side-effect was that big monitors + iPad-class viewports
-   rendered the whole shell visibly shrunken, and any pre-zoom mental
-   model from a previous session felt jarring on re-open. Removing the
-   transform so the platform renders at 100% on every breakpoint. The
-   `.app-shell { min-height: 100vh }` declaration stays so the shell
-   still fills the viewport. */
+/* Admin portal scaling — render the whole /feather shell at 90% on
+   desktop (≥1024px) so more fits on screen without per-component
+   resizing. `zoom` (not a transform) so layout still reflows normally
+   and sticky positioning keeps working; the sidebar's sticky wrapper
+   compensates its height with calc(100vh / 0.9). Left at 100% below
+   1024px so mobile touch targets / type stay full-size. */
 .app-shell {
   min-height: 100vh;
+}
+@media (min-width: 1024px) {
+  .app-shell {
+    zoom: 0.9;
+  }
 }
 
 @layer base {
