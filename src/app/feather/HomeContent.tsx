@@ -1139,12 +1139,7 @@ export default function HomeContent() {
         {recentUsers.length > 0 && (
           <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed sm:absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
             <div className="pointer-events-auto flex flex-col items-center gap-3">
-              {orbitMode === '3d' ? (
-                <HomeOrbit3D users={recentUsers} alumni={recentAlumni} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
-              ) : (
-                <HomeOnlineOrbit users={recentUsers} alumni={recentAlumni} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
-              )}
-              {/* 2D / 3D presentation toggle — small, under the orbit. */}
+              {/* 2D / 3D presentation toggle — small, above the orbit. */}
               <div className="inline-flex items-center rounded-full border border-black/10 bg-white/70 supports-[backdrop-filter]:backdrop-blur-md p-0.5">
                 {(['3d', '2d'] as const).map((m) => (
                   <button
@@ -1158,6 +1153,11 @@ export default function HomeContent() {
                   </button>
                 ))}
               </div>
+              {orbitMode === '3d' ? (
+                <HomeOrbit3D users={recentUsers} alumni={recentAlumni} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
+              ) : (
+                <HomeOnlineOrbit users={recentUsers} alumni={recentAlumni} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
+              )}
               {/* The mobile daily-logs chip used to sit inside this
                   fixed orbit section, right below the ring. That
                   pulled the section's centre down (so the 7A medallion
