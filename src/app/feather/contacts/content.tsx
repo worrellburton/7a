@@ -1362,6 +1362,7 @@ export default function ContactsContent() {
           onToggle={(c) => setExpandedDetailsId((prev) => (prev === c.id ? null : c.id))}
           accessToken={session?.access_token ?? null}
           onOpenLog={(c) => setLogTarget(c)}
+          onSaveField={handleSaveField}
           sortKey={sortKey}
           sortDir={sortDir}
           onSort={toggleSort}
@@ -1374,6 +1375,7 @@ export default function ContactsContent() {
           onToggle={(c) => setExpandedDetailsId((prev) => (prev === c.id ? null : c.id))}
           accessToken={session?.access_token ?? null}
           onOpenLog={(c) => setLogTarget(c)}
+          onSaveField={handleSaveField}
         />
       )}
 
@@ -2976,6 +2978,7 @@ function DesktopContactTable({
   onToggle,
   accessToken,
   onOpenLog,
+  onSaveField,
   sortKey,
   sortDir,
   onSort,
@@ -2986,6 +2989,7 @@ function DesktopContactTable({
   onToggle: (c: Contact) => void;
   accessToken: string | null;
   onOpenLog: (c: Contact) => void;
+  onSaveField: (id: string, field: 'name' | 'company' | 'role' | 'phone' | 'phone_cell' | 'phone_office' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
   sortKey: string;
   sortDir: 'asc' | 'desc';
   onSort: (key: string) => void;
@@ -3033,7 +3037,7 @@ function DesktopContactTable({
                 <Fragment key={c.id}>
                   <tr
                     onClick={() => onToggle(c)}
-                    className={`cursor-pointer align-middle transition-colors ${expanded ? 'bg-warm-bg/40' : 'hover:bg-warm-bg/30'}`}
+                    className={`group/row cursor-pointer align-middle transition-colors ${expanded ? 'bg-warm-bg/40' : 'hover:bg-warm-bg/30'}`}
                   >
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -3105,7 +3109,16 @@ function DesktopContactTable({
                         <span className="text-foreground/40 text-[12.5px]">Never contacted</span>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 text-right">
+                    <td className="px-3 py-2.5 whitespace-nowrap text-right">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); onOpenLog(c); }}
+                        title="Log a contact"
+                        className="mr-1 inline-flex items-center gap-1 px-2 py-1 rounded-md bg-primary/10 text-primary text-[11px] font-semibold hover:bg-primary/20 opacity-0 group-hover/row:opacity-100 focus:opacity-100 transition-all"
+                      >
+                        <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" /></svg>
+                        Log
+                      </button>
                       <svg
                         className={`inline w-4 h-4 text-foreground/30 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
                         fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
@@ -3122,6 +3135,7 @@ function DesktopContactTable({
                           accessToken={accessToken}
                           onLogContact={() => onOpenLog(c)}
                           onClose={() => onToggle(c)}
+                          onSaveField={onSaveField}
                         />
                       </td>
                     </tr>
@@ -3146,12 +3160,14 @@ function SimpleContactRow({
   accessToken,
   onToggle,
   onOpenLog,
+  onSaveField,
 }: {
   contact: Contact;
   expanded: boolean;
   accessToken: string | null;
   onToggle: () => void;
   onOpenLog: () => void;
+  onSaveField: (id: string, field: 'name' | 'company' | 'role' | 'phone' | 'phone_cell' | 'phone_office' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
 }) {
   const lastByTip = c.last_contact_at
     ? `Last contacted by ${c.last_contact_by_name || 'Unknown'} · ${fmtAgo(c.last_contact_at)}`
@@ -3205,6 +3221,7 @@ function SimpleContactRow({
             accessToken={accessToken}
             onLogContact={onOpenLog}
             onClose={onToggle}
+            onSaveField={onSaveField}
           />
         </div>
       )}
@@ -3219,6 +3236,7 @@ function SimpleContactList({
   onToggle,
   accessToken,
   onOpenLog,
+  onSaveField,
 }: {
   loading: boolean;
   rows: Contact[];
@@ -3226,6 +3244,7 @@ function SimpleContactList({
   onToggle: (c: Contact) => void;
   accessToken: string | null;
   onOpenLog: (c: Contact) => void;
+  onSaveField: (id: string, field: 'name' | 'company' | 'role' | 'phone' | 'phone_cell' | 'phone_office' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
 }) {
   if (loading) {
     return (
@@ -3256,6 +3275,7 @@ function SimpleContactList({
           accessToken={accessToken}
           onToggle={() => onToggle(c)}
           onOpenLog={() => onOpenLog(c)}
+          onSaveField={onSaveField}
         />
       ))}
     </div>
@@ -5009,6 +5029,24 @@ function ContactsPillTray({
           icon={<HealthRingIcon score={governanceScore} tone={governanceTone} />}
           iconBg="bg-transparent"
           iconColor=""
+        />
+      ),
+    },
+    {
+      key: 'newlog',
+      node: (
+        <StatPill
+          iconOnly
+          label="New log"
+          value=""
+          href="/feather/log"
+          iconBg="bg-primary/10"
+          iconColor="text-primary"
+          icon={
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+            </svg>
+          }
         />
       ),
     },
@@ -7764,17 +7802,80 @@ function fmtDuration(seconds: number | null | undefined): string | null {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+// Inline-editable metadata value used in the details drawer. Tapping /
+// clicking the value turns it into an input (works on both desktop —
+// where a pencil fades in on hover — and mobile, where the tap is the
+// affordance). Saves on Enter / blur, cancels on Escape.
+function EditableDetailValue({
+  value,
+  placeholder,
+  multiline = false,
+  onSave,
+}: {
+  value: string;
+  placeholder: string;
+  multiline?: boolean;
+  onSave: (next: string) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => { if (!editing) setDraft(value); }, [value, editing]);
+
+  const commit = async () => {
+    const next = draft.trim();
+    if (next === (value ?? '')) { setEditing(false); return; }
+    setSaving(true);
+    try { await onSave(next); } finally { setSaving(false); setEditing(false); }
+  };
+
+  if (editing) {
+    const shared = 'w-full rounded-md border border-primary/40 bg-white px-2 py-1 text-[12px] text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20';
+    return multiline ? (
+      <textarea
+        autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit}
+        onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setEditing(false); } if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); void commit(); } }}
+        rows={3} className={`${shared} resize-y leading-relaxed`}
+      />
+    ) : (
+      <input
+        autoFocus value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={commit}
+        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void commit(); } if (e.key === 'Escape') { e.preventDefault(); setEditing(false); } }}
+        className={shared}
+      />
+    );
+  }
+  return (
+    <button
+      type="button"
+      onClick={() => setEditing(true)}
+      className="group/edit inline-flex items-start gap-1 w-full text-left rounded -mx-1 px-1 py-0.5 hover:bg-warm-bg/60 transition-colors"
+    >
+      <span className={value ? 'text-foreground/80 break-words whitespace-pre-wrap' : 'text-foreground/35 italic'}>
+        {saving ? 'Saving…' : value || placeholder}
+      </span>
+      <svg className="w-3 h-3 mt-0.5 shrink-0 text-foreground/30 opacity-0 group-hover/edit:opacity-100 transition-opacity" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M12 20h9" /><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+      </svg>
+    </button>
+  );
+}
+
 function ContactDetailsDrawer({
   contact,
   accessToken,
   onLogContact,
   onClose,
+  onSaveField,
   historyOnly = false,
 }: {
   contact: Contact;
   accessToken: string | null;
   onLogContact: () => void;
   onClose: () => void;
+  // Optional inline-edit hook. When provided, the left metadata fields
+  // become editable in place. Omitted in history-only mode.
+  onSaveField?: (id: string, field: 'name' | 'company' | 'role' | 'phone' | 'phone_cell' | 'phone_office' | 'email' | 'location' | 'notes', value: string) => Promise<void>;
   // When true, the left "Contact details" pane is hidden and the
   // history timeline gets the full width. The sticky-right
   // "Contact history" cell on the desktop grid passes this — reps
@@ -7831,12 +7932,13 @@ function ContactDetailsDrawer({
     return oldest?.contacted_by_name ?? null;
   }, [logs]);
 
-  const detailRows: { label: string; value: string | null | undefined }[] = [
-    { label: 'Company', value: contact.company },
-    { label: 'Role / Relation', value: contact.role },
-    { label: 'Phone', value: contact.phone },
-    { label: 'Email', value: contact.email },
-    { label: 'Location', value: contact.location },
+  type EditField = 'company' | 'role' | 'phone' | 'email' | 'location';
+  const detailRows: { label: string; value: string | null | undefined; field?: EditField }[] = [
+    { label: 'Company', value: contact.company, field: 'company' },
+    { label: 'Role / Relation', value: contact.role, field: 'role' },
+    { label: 'Phone', value: contact.phone, field: 'phone' },
+    { label: 'Email', value: contact.email, field: 'email' },
+    { label: 'Location', value: contact.location, field: 'location' },
     {
       label: addedByName ? 'Added by' : 'Source',
       value: addedByName ?? (contact.source === 'downgrade-from-partner' ? 'Downgraded from partner' : contact.source),
@@ -7883,15 +7985,32 @@ function ContactDetailsDrawer({
               {detailRows.map((r) => (
                 <Fragment key={r.label}>
                   <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 self-start mt-1">{r.label}</dt>
-                  <dd className="text-foreground/80 break-words">{r.value || <span className="text-foreground/30 italic">—</span>}</dd>
+                  <dd className="text-foreground/80 break-words">
+                    {r.field && onSaveField ? (
+                      <EditableDetailValue
+                        value={r.value ?? ''}
+                        placeholder={`Add ${r.label.toLowerCase()}…`}
+                        onSave={(v) => onSaveField(contact.id, r.field!, v)}
+                      />
+                    ) : (
+                      r.value || <span className="text-foreground/30 italic">—</span>
+                    )}
+                  </dd>
                 </Fragment>
               ))}
-              {contact.notes && (
-                <>
-                  <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 self-start mt-1">Notes</dt>
-                  <dd className="text-foreground/80 whitespace-pre-wrap leading-relaxed">{contact.notes}</dd>
-                </>
-              )}
+              <dt className="text-[9px] font-bold tracking-[0.16em] uppercase text-foreground/45 self-start mt-1">Notes</dt>
+              <dd className="text-foreground/80 leading-relaxed">
+                {onSaveField ? (
+                  <EditableDetailValue
+                    value={contact.notes ?? ''}
+                    placeholder="Add notes…"
+                    multiline
+                    onSave={(v) => onSaveField(contact.id, 'notes', v)}
+                  />
+                ) : (
+                  contact.notes ? <span className="whitespace-pre-wrap">{contact.notes}</span> : <span className="text-foreground/30 italic">—</span>
+                )}
+              </dd>
             </dl>
           </div>
         )}
