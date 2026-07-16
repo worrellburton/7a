@@ -1059,13 +1059,6 @@ export default function HomeContent() {
 
             </div> {/* end TOP ROW */}
 
-            {/* Page search — moved here from the sidebar rail. Glass
-                input + autocomplete over every page the viewer can
-                see; Enter / click navigates. */}
-            <div className="mt-3 flex justify-center">
-              <HomePageSearch />
-            </div>
-
           </div>
         </header>
 
@@ -1166,8 +1159,12 @@ export default function HomeContent() {
             overlapped, so the tagline is hidden below lg. */}
         <section
           aria-label="Mission tagline"
-          className="flex w-full max-w-4xl mx-auto pt-1 lg:pt-2 pb-16 sm:pb-24 px-4 flex-col items-center text-center"
+          className="flex w-full max-w-4xl mx-auto pt-1 lg:pt-2 pb-16 sm:pb-24 px-4 flex-col items-center text-center gap-4"
         >
+          {/* Page search — moved from the sidebar rail to the bottom of
+              the home page. The dropdown opens UPWARD from here so
+              suggestions never run off the bottom of the viewport. */}
+          <HomePageSearch dropUp />
           <p
             className="text-[9px] sm:text-[10px] font-semibold tracking-[0.28em] uppercase text-foreground/45 mb-1"
             style={{ fontFamily: 'var(--font-body)' }}
@@ -1175,7 +1172,10 @@ export default function HomeContent() {
             Seven Arrows
           </p>
           <h2
-            className="text-sm sm:text-lg lg:text-2xl font-semibold text-foreground/80 leading-tight"
+            // max-w on mobile keeps the wave text clear of the fixed
+            // "What's new" pill in the bottom-right corner (it was
+            // clipping the last word on phones).
+            className="text-sm sm:text-lg lg:text-2xl font-semibold text-foreground/80 leading-tight max-w-[14rem] sm:max-w-none"
             style={{ fontFamily: 'var(--font-display)' }}
             aria-label="Moving the mission forward"
           >
