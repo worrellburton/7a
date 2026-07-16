@@ -209,12 +209,17 @@ export default function HomeMercuryBalanceChip() {
       {/* Hover popover. CSS-only so it appears instantly on hover —
           no native title-tooltip delay. Anchored to the right edge
           of the chip so it doesn't get clipped off-screen when the
-          chip is itself near the right edge of the header. */}
+          chip is itself near the right edge of the header.
+          `invisible` (not just opacity-0) while closed so the Open
+          Mercury link inside can't be clicked/tabbed/hovered through
+          an invisible box; pt-2 (instead of an mt-2 gap) keeps hover
+          alive while the pointer travels from chip to popover. */}
       <span
         role="tooltip"
-        className="pointer-events-none absolute top-full right-0 mt-2 w-[320px] z-50 opacity-0 translate-y-1 group-hover/sa-balance:opacity-100 group-hover/sa-balance:translate-y-0 transition-[opacity,transform] duration-150 ease-out rounded-xl bg-foreground/95 text-white shadow-xl backdrop-blur p-3 text-left"
+        className="invisible absolute top-full right-0 pt-2 w-[320px] z-50 opacity-0 translate-y-1 group-hover/sa-balance:visible group-hover/sa-balance:opacity-100 group-hover/sa-balance:translate-y-0 transition-[opacity,transform] duration-150 ease-out text-left"
         style={{ fontFamily: 'var(--font-body)' }}
       >
+       <span className="block rounded-xl bg-foreground/95 text-white shadow-xl backdrop-blur p-3">
         <div className="flex items-center gap-2 mb-2">
           <span aria-hidden="true" className="inline-flex items-center text-amber-300">
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
@@ -273,18 +278,17 @@ export default function HomeMercuryBalanceChip() {
           )}
         </div>
 
-        {/* The chip's click now toggles hide, so navigation moved here.
-            pointer-events re-enabled just for the link (the popover
-            wrapper is pointer-events-none). */}
+        {/* The chip's click now toggles hide, so navigation moved here. */}
         <div className="mt-2.5 pt-2 border-t border-white/15 flex items-center justify-between">
           <span className="text-[10px] text-white/40">Click the chip to hide it</span>
           <Link
             href="/feather/mercury"
-            className="pointer-events-auto text-[11px] font-semibold text-amber-200 hover:text-amber-100 transition-colors"
+            className="text-[11px] font-semibold text-amber-200 hover:text-amber-100 transition-colors"
           >
             Open Mercury →
           </Link>
         </div>
+       </span>
       </span>
     </span>
   );

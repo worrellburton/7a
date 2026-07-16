@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
-import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
+import { NextResponse, type NextRequest } from 'next/server';
+import { getAdminSupabase } from '@/lib/supabase-server';
+import { requireStaff } from '@/lib/api-gates';
 
 // GET /api/contacts/attempts?range=this_month|last_month|last_90|this_year|all
 //
@@ -74,10 +75,12 @@ function rangeEndMs(range: RangeKey, nowMs: number): number {
   return nowMs;
 }
 
-export async function GET(req: Request) {
-  const supabase = await getServerSupabase();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+export async function GET(req: NextRequest) {
+  // Staff-only, same boundary as quick-log-context: this aggregates
+  // org-wide outreach volume plus each logger's name/email/avatar, so
+  // alumni/guest accounts must not be able to enumerate it.
+  const gate = await requireStaff(req);
+  if (gate instanceof NextResponse) return gate;
 
   const url = new URL(req.url);
   const rangeRaw = (url.searchParams.get('range') || 'last_90') as RangeKey;

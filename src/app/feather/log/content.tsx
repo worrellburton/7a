@@ -139,6 +139,7 @@ export default function LogFlowContent() {
     const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
     let ok = 0;
     let firstError: string | null = null;
+    const failedNames: string[] = [];
     for (const p of picked) {
       try {
         let contactId = p.id;
@@ -151,10 +152,16 @@ export default function LogFlowContent() {
           if (!res.ok) {
             const j = await res.json().catch(() => ({}));
             firstError = firstError ?? ((j as { error?: string }).error ?? `Couldn't create ${p.name}`);
+            failedNames.push(p.name);
             continue;
           }
           const row = (await res.json()) as { id: string };
           contactId = row.id;
+          // Remember the created id on the picked entry — if the log
+          // call below fails and the user hits Save again, re-creating
+          // the contact would duplicate the row (POST /api/contacts is
+          // a blind insert, not find-or-create).
+          p.id = contactId;
         }
         const res = await fetch(`/api/contacts/${contactId}/log-contact`, {
           method: 'POST',
@@ -165,15 +172,25 @@ export default function LogFlowContent() {
         else {
           const j = await res.json().catch(() => ({}));
           firstError = firstError ?? ((j as { error?: string }).error ?? `Couldn't log ${p.name}`);
+          failedNames.push(p.name);
         }
       } catch (e) {
         firstError = firstError ?? (e instanceof Error ? e.message : String(e));
+        failedNames.push(p.name);
       }
     }
     setSaving(false);
     setSavedCount(ok);
     if (ok === 0) {
       setError(firstError ?? 'Nothing was logged.');
+      return;
+    }
+    if (failedNames.length > 0) {
+      // Partial success: stay on the note step with the failures named
+      // so the user can retry (successes won't double-log — only the
+      // failed people are still un-logged, and created ids are kept).
+      setPicked((prev) => prev.filter((p) => failedNames.includes(p.name)));
+      setError(`Logged ${ok}, but failed for ${failedNames.join(', ')}${firstError ? ` — ${firstError}` : ''}. Tap save to retry them.`);
       return;
     }
     setStep('done');
