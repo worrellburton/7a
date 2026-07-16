@@ -157,7 +157,10 @@ export default function HomeContent() {
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const addMenuRef = useRef<HTMLDivElement>(null);
   // Orbit presentation — '3d' (gyroscope, default) or '2d' (the flat
-  // rings). Persisted per browser so the choice sticks.
+  // rings). Canonical store is user_prefs (key 'orbit_mode') so the
+  // choice follows the user across devices; localStorage doubles as an
+  // instant-paint cache so the DB round-trip never flashes the wrong
+  // mode on load.
   const [orbitMode, setOrbitMode] = useState<'3d' | '2d'>('3d');
   useEffect(() => {
     try {
@@ -165,9 +168,36 @@ export default function HomeContent() {
       if (saved === '2d' || saved === '3d') setOrbitMode(saved);
     } catch { /* ignore */ }
   }, []);
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const rows = await db({
+        action: 'select',
+        table: 'user_prefs',
+        match: { user_id: user.id, key: 'orbit_mode' },
+        select: 'value',
+      });
+      if (cancelled || !Array.isArray(rows) || !rows[0]) return;
+      const v = (rows[0] as { value: unknown }).value;
+      if (v === '2d' || v === '3d') {
+        setOrbitMode(v);
+        try { window.localStorage.setItem('feather:orbit-mode', v); } catch { /* ignore */ }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
   const switchOrbitMode = (m: '3d' | '2d') => {
     setOrbitMode(m);
     try { window.localStorage.setItem('feather:orbit-mode', m); } catch { /* ignore */ }
+    if (user?.id) {
+      void db({
+        action: 'upsert',
+        table: 'user_prefs',
+        data: { user_id: user.id, key: 'orbit_mode', value: m, updated_at: new Date().toISOString() },
+        onConflict: 'user_id,key',
+      });
+    }
   };
 
   // "What's new" now lives inside the ⋯ menu (mobile) / + menu
