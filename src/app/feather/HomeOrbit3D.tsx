@@ -97,6 +97,12 @@ export default function HomeOrbit3D({
   const reducedMotion =
     typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
+  // Phone-width scenes get a tighter fit: the 0.92 normalization plus
+  // perspective overshoot pushes edge sprites past the viewport when
+  // the scene square is edge-to-edge, so rings and avatars shrink a
+  // notch below 480px.
+  const compact = sceneSize > 0 && sceneSize < 480;
+
   // ── Scene model ─────────────────────────────────────────────
   const { sprites, rings } = useMemo(() => {
     // Ring radius grows with the roster: base + per-member increment,
@@ -106,7 +112,7 @@ export default function HomeOrbit3D({
     const horseR = 0.42 + Math.min(0.2, horses.length * 0.008);
     const alumniR = ringFor(alumni.length) + 0.16;
     const maxR = Math.max(staffR, horseR, alumni.length > 0 ? alumniR : 0, 0.001);
-    const norm = 0.92 / maxR;
+    const norm = (compact ? 0.78 : 0.92) / maxR;
 
     // Gyroscope: three visibly distinct axes.
     const ringDefs: RingDef[] = [
@@ -129,7 +135,7 @@ export default function HomeOrbit3D({
     users.forEach((u, i) =>
       push('staff', 0, i, users.length, {
         key: `u:${u.id}`,
-        size: 46,
+        size: compact ? 40 : 46,
         name: u.full_name || 'Teammate',
         sub: u.job_title,
         img: u.avatar_thumb || toAvatarThumb(u.avatar_url) || u.avatar_url,
@@ -143,7 +149,7 @@ export default function HomeOrbit3D({
     horses.forEach((h, i) =>
       push('horse', 1, i, horses.length, {
         key: `h:${h.id}`,
-        size: 38,
+        size: compact ? 33 : 38,
         name: h.name,
         sub: h.works_in ? `Works in ${h.works_in}` : 'Ranch horse',
         img: h.image_url,
@@ -157,7 +163,7 @@ export default function HomeOrbit3D({
     alumni.forEach((a, i) =>
       push('alumni', 2, i, alumni.length, {
         key: `a:${a.id}`,
-        size: 42,
+        size: compact ? 36 : 42,
         name: a.full_name || 'Alum',
         sub: a.sobriety_label ?? 'Alumni',
         img: a.avatar_thumb || toAvatarThumb(a.avatar_url) || a.avatar_url,
@@ -169,7 +175,7 @@ export default function HomeOrbit3D({
       }),
     );
     return { sprites: defs, rings: ringDefs };
-  }, [users, horses, alumni, highlightUserId, staffNav, pathLabelFor]);
+  }, [users, horses, alumni, highlightUserId, staffNav, pathLabelFor, compact]);
 
   const spriteByKey = useMemo(() => new Map(sprites.map((s) => [s.key, s])), [sprites]);
 
