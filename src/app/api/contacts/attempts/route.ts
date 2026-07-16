@@ -24,6 +24,7 @@ type RangeKey = 'this_month' | 'last_month' | 'last_90' | 'this_year' | 'all';
 interface LogSlim {
   contacted_at: string;
   method: string | null;
+  contacted_by: string | null;
 }
 
 /** Date-only key ('YYYY-MM-DD') of a UTC ms timestamp in Phoenix time. */
@@ -96,7 +97,7 @@ export async function GET(req: Request) {
   for (let offset = 0; ; offset += PAGE) {
     let q = admin
       .from('contact_logs')
-      .select('contacted_at, method')
+      .select('contacted_at, method, contacted_by')
       .lt('contacted_at', new Date(endMs).toISOString())
       .order('contacted_at', { ascending: true })
       .range(offset, offset + PAGE - 1);
@@ -114,9 +115,11 @@ export async function GET(req: Request) {
   const spanDays = Math.max(1, Math.ceil((endMs - effectiveStartMs) / DAY_MS));
   const bucket: 'day' | 'week' = spanDays > WEEK_BUCKET_THRESHOLD_DAYS ? 'week' : 'day';
 
-  // Aggregate per bucket per method.
+  // Aggregate per bucket per method, plus per person (with per-method
+  // splits so the client's method chips filter the leaderboard too).
   const byBucket = new Map<string, { total: number; byMethod: Record<string, number> }>();
   const methodTotals = new Map<string, number>();
+  const byPerson = new Map<string, Record<string, number>>();
   for (const l of logs) {
     const t = new Date(l.contacted_at).getTime();
     if (Number.isNaN(t)) continue;
@@ -128,7 +131,38 @@ export async function GET(req: Request) {
     slot.byMethod[method] = (slot.byMethod[method] ?? 0) + 1;
     byBucket.set(key, slot);
     methodTotals.set(method, (methodTotals.get(method) ?? 0) + 1);
+    if (l.contacted_by) {
+      const p = byPerson.get(l.contacted_by) ?? {};
+      p[method] = (p[method] ?? 0) + 1;
+      byPerson.set(l.contacted_by, p);
+    }
   }
+
+  // Names + avatars for the by-person leaderboard.
+  const personIds = [...byPerson.keys()];
+  const userById = new Map<string, { full_name: string | null; email: string | null; avatar_url: string | null }>();
+  if (personIds.length > 0) {
+    const { data: users } = await admin
+      .from('users')
+      .select('id, full_name, email, avatar_url')
+      .in('id', personIds);
+    for (const u of (users ?? []) as Array<{ id: string; full_name: string | null; email: string | null; avatar_url: string | null }>) {
+      userById.set(u.id, u);
+    }
+  }
+  const people = [...byPerson.entries()]
+    .map(([id, byMethod]) => {
+      const u = userById.get(id);
+      return {
+        id,
+        name: u?.full_name?.trim() || u?.email || 'Unknown',
+        avatarUrl: u?.avatar_url ?? null,
+        byMethod,
+      };
+    })
+    .sort((a, b) =>
+      Object.values(b.byMethod).reduce((s, n) => s + n, 0)
+      - Object.values(a.byMethod).reduce((s, n) => s + n, 0));
 
   // Zero-fill the window so the line covers quiet days too.
   const startKeyDay = phoenixDayKey(effectiveStartMs);
@@ -159,5 +193,6 @@ export async function GET(req: Request) {
     total: logs.length,
     methods,
     days,
+    people,
   });
 }
