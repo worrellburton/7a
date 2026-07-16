@@ -1215,12 +1215,12 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           window level so it's available from any /app/* surface. */}
       <CommandPalette />
       {/* Left Sidebar — collapsed-by-default rail that expands on
-          hover. The aside reserves a narrow `w-16` column so the
-          main content's layout never reflows; the inner panel is
-          absolutely positioned and slides out to `w-64` over the
-          page on group-hover, restoring labels + section headers
-          via an opacity fade. Click-away or unhover collapses back. */}
-      <aside data-sidebar-rail className="group/sidebar w-16 shrink-0 hidden lg:block relative z-30">
+          hover. The aside ITSELF animates w-16 → w-64 now (it used to
+          stay w-16 with an absolutely-positioned panel sliding out OVER
+          the page): as a flex sibling of the main column, growing the
+          aside pushes/shrinks the console content instead of the nav
+          overlapping it. The inner panel just fills the aside. */}
+      <aside data-sidebar-rail className="group/sidebar w-16 hover:w-64 rail-open:w-64 transition-[width] duration-200 ease-out shrink-0 hidden lg:block relative z-30">
         {/* Sticky sized to the real viewport. The `100vh/0.82`
             divisor here was compensating for `.app-shell { zoom: 0.82 }`
             at lg+, but that transform was removed (see globals.css —
@@ -1237,7 +1237,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             (collapsed) to w-64 (expanded) on hover. Glass treatment
             lives here now so the column-only collapsed state still
             shows the frosted background behind the icons. */}
-        <div data-rail-panel className="absolute inset-y-0 left-0 w-16 group-hover/sidebar:w-64 rail-open:w-64 transition-[width] duration-200 ease-out overflow-hidden bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-2xl border-r border-white/60 flex flex-col shadow-[0_0_0_0_rgba(0,0,0,0)] group-hover/sidebar:shadow-[0_18px_48px_-22px_rgba(60,48,42,0.32)] rail-open:shadow-[0_18px_48px_-22px_rgba(60,48,42,0.32)]">
+        <div data-rail-panel className="absolute inset-y-0 left-0 w-full overflow-hidden bg-white/55 supports-[backdrop-filter]:bg-white/40 backdrop-blur-2xl border-r border-white/60 flex flex-col shadow-[0_0_0_0_rgba(0,0,0,0)] group-hover/sidebar:shadow-[0_18px_48px_-22px_rgba(60,48,42,0.32)] rail-open:shadow-[0_18px_48px_-22px_rgba(60,48,42,0.32)]">
         {/* Glass treatment — semi-transparent white, heavy backdrop
             blur, an inner specular sheen line at the top and a
             subtle vertical gradient that fades down so the panel

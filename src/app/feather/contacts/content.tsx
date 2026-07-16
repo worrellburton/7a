@@ -31,6 +31,7 @@ import {
 } from '@/lib/contact-methods';
 import { QuickLogHost, type QuickLogPerson, type QuickLogResult } from '../QuickLog';
 import { GLASS_SEARCH_INPUT } from '../glassSearch';
+import { AttemptsChart } from './AttemptsChart';
 
 // ─── Shared clock ───────────────────────────────────────────────
 // One interval for the whole grid instead of a setInterval per
@@ -1325,6 +1326,9 @@ export default function ContactsContent() {
         />
       </header>
 
+      {/* Full-width attempts-over-time insights — expanded by default
+          on desktop, tucked behind its header on phones. */}
+      <AttemptsChart defaultOpen={isDesktopList} />
 
       <div className="mb-4 flex flex-col sm:flex-row sm:flex-wrap sm:items-center gap-2">
         <div className="group relative w-full sm:flex-1 sm:min-w-[240px] sm:max-w-md">
