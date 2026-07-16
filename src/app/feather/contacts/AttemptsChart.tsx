@@ -192,7 +192,10 @@ export function AttemptsChart({ defaultOpen }: { defaultOpen: boolean }) {
     [series.length, innerW, width, PAD.left],
   );
 
-  const hover = hoverIdx != null ? series[hoverIdx] : null;
+  // hoverIdx can go stale when the range changes under a resting
+  // cursor (the new series may be shorter), so bound-check everywhere
+  // instead of trusting it — a stale index must never dereference.
+  const hover = hoverIdx != null ? series[hoverIdx] ?? null : null;
   const hoverBreakdown = useMemo(() => {
     if (!hover) return [];
     return Object.entries(hover.byMethod)
@@ -321,10 +324,10 @@ export function AttemptsChart({ defaultOpen }: { defaultOpen: boolean }) {
                   )}
 
                   {/* Crosshair + hover marker */}
-                  {hoverIdx != null && (
+                  {hoverIdx != null && hover && (
                     <g>
                       <line x1={xAt(hoverIdx)} x2={xAt(hoverIdx)} y1={PAD.top} y2={PAD.top + innerH} stroke="rgba(44,24,16,0.18)" />
-                      <circle cx={xAt(hoverIdx)} cy={yAt(series[hoverIdx].total)} r="4.5" fill={LINE} stroke="#fff" strokeWidth="2" />
+                      <circle cx={xAt(hoverIdx)} cy={yAt(hover.total)} r="4.5" fill={LINE} stroke="#fff" strokeWidth="2" />
                     </g>
                   )}
                 </svg>

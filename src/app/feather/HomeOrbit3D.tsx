@@ -204,8 +204,19 @@ export default function HomeOrbit3D({
     if (sceneSize <= 0 || sprites.length === 0) return;
     let raf = 0;
     let prev = performance.now();
-    startedAt.current = prev;
+    // Set the intro clock ONCE per mount. This effect re-runs whenever
+    // sprites/rings/sceneSize change identity — which happens several
+    // times right after load (activity-count and phones enrichment each
+    // produce a new users array) and on every resize step — and
+    // resetting startedAt here used to visibly replay the 3.8s intro
+    // and snap ring drift back to phase 0 each time.
+    if (!startedAt.current) startedAt.current = prev;
     const half = sceneSize / 2;
+    // Members per ring — rings with no members skip their guide line
+    // (an empty alumni ring otherwise draws an oversized stray arc,
+    // since maxR normalization ignores empty populations).
+    const ringCounts = [0, 0, 0];
+    for (const spr of sprites) ringCounts[spr.ring] += 1;
 
     const frame = (now: number) => {
       const dt = Math.min(0.05, (now - prev) / 1000);
@@ -273,6 +284,7 @@ export default function HomeOrbit3D({
       for (let ri = 0; ri < rings.length; ri++) {
         const pathEl = ringPathEls.current.get(ri);
         if (!pathEl) continue;
+        if (!ringCounts[ri]) { pathEl.setAttribute('d', ''); continue; }
         const ring = rings[ri];
         const phase = phaseFor(ring);
         let d = '';
@@ -291,17 +303,30 @@ export default function HomeOrbit3D({
   }, [sceneSize, sprites, rings, reducedMotion]);
 
   // ── Drag / inertia ──────────────────────────────────────────
+  // Drag starts only after the pointer moves past a small threshold.
+  // Capturing on pointerdown retargeted pointerup (and the derived
+  // click) to the scene div, which meant sprite onClick never fired —
+  // taps on faces did nothing on touch, where click is the only way to
+  // raise the card. Deferring capture until an actual drag keeps taps
+  // as taps and drags as drags.
+  const pendingDrag = useRef(false);
   const onPointerDown = (e: React.PointerEvent) => {
-    dragging.current = true;
-    interacted.current = true;
+    pendingDrag.current = true;
+    dragging.current = false;
     last.current = { x: e.clientX, y: e.clientY, t: performance.now() };
     vel.current = { x: 0, y: 0 };
-    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
   };
   const onPointerMove = (e: React.PointerEvent) => {
-    if (!dragging.current) return;
+    if (!pendingDrag.current && !dragging.current) return;
     const dx = e.clientX - last.current.x;
     const dy = e.clientY - last.current.y;
+    if (!dragging.current) {
+      if (Math.abs(dx) + Math.abs(dy) < 5) return; // still a tap
+      dragging.current = true;
+      pendingDrag.current = false;
+      interacted.current = true;
+      (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+    }
     rot.current.y += dx * 0.006;
     rot.current.x = Math.max(-1.1, Math.min(1.1, rot.current.x - dy * 0.004));
     // Track flick velocity for release inertia.
@@ -309,6 +334,7 @@ export default function HomeOrbit3D({
     last.current = { x: e.clientX, y: e.clientY, t: performance.now() };
   };
   const onPointerUp = () => {
+    pendingDrag.current = false;
     dragging.current = false;
     if (reducedMotion) vel.current = { x: 0, y: 0 };
   };
