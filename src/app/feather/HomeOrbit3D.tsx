@@ -323,6 +323,24 @@ export default function HomeOrbit3D({
 
   return (
     <div className="relative w-full flex flex-col items-center select-none">
+      {/* Same "Online today" title the 2D orbit carries, kept in normal
+          flow above the scene so tilted rings can never clip into it. */}
+      <div className="hidden sm:block text-center pointer-events-none mb-1">
+        <h2
+          className="text-foreground font-bold tracking-tight"
+          style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 2.6vw, 1.85rem)' }}
+        >
+          Online <em className="not-italic text-primary">today</em>
+        </h2>
+        <p
+          className="mt-1 text-[12px] text-foreground/55"
+          style={{ fontFamily: 'var(--font-body)' }}
+        >
+          {online > 0
+            ? `${online} ${online === 1 ? 'person' : 'people'} on Seven Arrows right now`
+            : `${users.length} ${users.length === 1 ? 'teammate' : 'teammates'} active in the last 24 hours`}
+        </p>
+      </div>
       <div
         ref={sceneRef}
         onPointerDown={onPointerDown}
