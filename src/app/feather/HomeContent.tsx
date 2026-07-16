@@ -15,7 +15,7 @@ import JdSignatureNagModal from './JdSignatureNagModal';
 // Temporarily not rendered — see HomeContent.tsx note. Keeping the
 // import in source so the re-enable diff is one line.
 // import HomeClientsRow from './HomeClientsRow';
-import { type OrbitHorse } from './HomeOnlineOrbit';
+import HomeOnlineOrbit, { type OrbitHorse } from './HomeOnlineOrbit';
 import HomeOrbit3D from './HomeOrbit3D';
 import HomeDailyLogsChip from './HomeDailyLogsChip';
 import { StandaloneQuickLog } from './QuickLog';
@@ -156,6 +156,49 @@ export default function HomeContent() {
   // hero-band visual weight.
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const addMenuRef = useRef<HTMLDivElement>(null);
+  // Orbit presentation — '3d' (gyroscope, default) or '2d' (the flat
+  // rings). Canonical store is user_prefs (key 'orbit_mode') so the
+  // choice follows the user across devices; localStorage doubles as an
+  // instant-paint cache so the DB round-trip never flashes the wrong
+  // mode on load.
+  const [orbitMode, setOrbitMode] = useState<'3d' | '2d'>('3d');
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('feather:orbit-mode');
+      if (saved === '2d' || saved === '3d') setOrbitMode(saved);
+    } catch { /* ignore */ }
+  }, []);
+  useEffect(() => {
+    if (!user?.id) return;
+    let cancelled = false;
+    (async () => {
+      const rows = await db({
+        action: 'select',
+        table: 'user_prefs',
+        match: { user_id: user.id, key: 'orbit_mode' },
+        select: 'value',
+      });
+      if (cancelled || !Array.isArray(rows) || !rows[0]) return;
+      const v = (rows[0] as { value: unknown }).value;
+      if (v === '2d' || v === '3d') {
+        setOrbitMode(v);
+        try { window.localStorage.setItem('feather:orbit-mode', v); } catch { /* ignore */ }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id]);
+  const switchOrbitMode = (m: '3d' | '2d') => {
+    setOrbitMode(m);
+    try { window.localStorage.setItem('feather:orbit-mode', m); } catch { /* ignore */ }
+    if (user?.id) {
+      void db({
+        action: 'upsert',
+        table: 'user_prefs',
+        data: { user_id: user.id, key: 'orbit_mode', value: m, updated_at: new Date().toISOString() },
+        onConflict: 'user_id,key',
+      });
+    }
+  };
 
   // "What's new" now lives inside the ⋯ menu (mobile) / + menu
   // (desktop). Mirror the old floating button's unseen-update pulse so
@@ -737,7 +780,11 @@ export default function HomeContent() {
           overflow-hidden then clipped the daily-logs chip + mission
           tagline out of frame. Uniform 100svh across breakpoints
           restores the one-viewport home page. */}
-      <div className="relative flex-1 flex flex-col h-[calc(100svh-1px)] max-h-[calc(100svh-1px)] overflow-hidden px-4 sm:px-6 lg:px-10 py-3 lg:py-6">
+      {/* lg+ divides by the shell's zoom (0.9 in globals.css) — svh
+          units ignore CSS zoom, so an uncompensated 100svh renders
+          ~90% of the real viewport and everything centered against it
+          (the orbit) sits visibly high. Mobile has no zoom. */}
+      <div className="relative flex-1 flex flex-col h-[calc(100svh-1px)] max-h-[calc(100svh-1px)] lg:h-[calc(100svh/0.9-1px)] lg:max-h-[calc(100svh/0.9-1px)] overflow-hidden px-4 sm:px-6 lg:px-10 py-3 lg:py-6">
 
         {/* Phase 4: hero — no glass card; the avatar/greeting and the
             create-menu button float on the page background. The hero
@@ -1092,7 +1139,25 @@ export default function HomeContent() {
         {recentUsers.length > 0 && (
           <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed sm:absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
             <div className="pointer-events-auto flex flex-col items-center gap-3">
-              <HomeOrbit3D users={recentUsers} alumni={recentAlumni} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
+              {orbitMode === '3d' ? (
+                <HomeOrbit3D users={recentUsers} alumni={recentAlumni} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
+              ) : (
+                <HomeOnlineOrbit users={recentUsers} alumni={recentAlumni} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
+              )}
+              {/* 2D / 3D presentation toggle — small, under the orbit. */}
+              <div className="inline-flex items-center rounded-full border border-black/10 bg-white/70 supports-[backdrop-filter]:backdrop-blur-md p-0.5">
+                {(['3d', '2d'] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => switchOrbitMode(m)}
+                    aria-pressed={orbitMode === m}
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-[0.12em] transition-colors ${orbitMode === m ? 'bg-foreground text-white' : 'text-foreground/45 hover:text-foreground'}`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
               {/* The mobile daily-logs chip used to sit inside this
                   fixed orbit section, right below the ring. That
                   pulled the section's centre down (so the 7A medallion
