@@ -690,6 +690,9 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   // Home matches the rest of the app.) Chat mode still swaps the rail for
   // the conversation pane.
   const [navDepartments, setNavDepartments] = useState<NavDepartment[]>([]);
+  // Flips true once the departments fetch settles (success OR failure)
+  // so consumers can distinguish "still loading" from "none".
+  const [navDeptsLoaded, setNavDeptsLoaded] = useState(false);
   // Counts of "new" submissions per nav path. Currently only powers
   // the badge on /app/website-requests; the structure leaves room for
   // other inboxes later.
@@ -893,6 +896,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
           setNavDepartments(rows);
         }
       } catch { /* ignore */ }
+      setNavDeptsLoaded(true);
     }
     loadDepts();
   }, [session]);
@@ -1026,10 +1030,15 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   }, [isAlumni]);
   const navPanelData = useMemo(() => {
     const pinned = recencyTopPages.filter((p) => navPinnedPaths.has(p.path));
+    // Sections are built from navDepartments below, so a page whose
+    // department is hidden/deleted (or whose fetch failed) would land
+    // in a bucket no section reads and vanish from nav entirely.
+    // Anything not owned by a *visible* department goes to 'More'.
+    const visibleDeptIds = new Set(navDepartments.map((d) => d.id));
     const byDept = new Map<string, PageConfig[]>();
     for (const p of recencyTopPages) {
       if (navPinnedPaths.has(p.path)) continue;
-      const key = p.departmentId ?? '__more';
+      const key = p.departmentId && visibleDeptIds.has(p.departmentId) ? p.departmentId : '__more';
       const list = byDept.get(key) ?? [];
       list.push(p);
       byDept.set(key, list);
@@ -1046,9 +1055,12 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
     return { pinned, sections };
   }, [recencyTopPages, navDepartments, navPinnedPaths]);
   // First load: open the panel that owns the current route so the
-  // rail lands where the user already is.
+  // rail lands where the user already is. Waits for BOTH the pages
+  // and the departments fetch — pages usually resolve first, and
+  // running then would find no dept sections, no-op, and (with the
+  // one-shot ref) never retry once departments arrived.
   useEffect(() => {
-    if (navPanelInitRef.current || !useNavPanels || recencyTopPages.length === 0) return;
+    if (navPanelInitRef.current || !useNavPanels || recencyTopPages.length === 0 || !navDeptsLoaded) return;
     navPanelInitRef.current = true;
     const active = recencyTopPages.find(
       (p) => p.path === pathname || (p.path !== '/feather' && pathname?.startsWith(p.path + '/')),
@@ -1058,7 +1070,7 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
       if (section) setNavPanel(section.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recencyTopPages.length, useNavPanels]);
+  }, [recencyTopPages.length, useNavPanels, navDeptsLoaded]);
 
   // Apply the sidebar search query — when there's anything typed,
   // flatten the whole accessible-pages set to label/path matches

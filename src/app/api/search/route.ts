@@ -85,7 +85,14 @@ export async function GET(req: NextRequest) {
   if (!q || q.length < 2) {
     return NextResponse.json({ q, results: [] });
   }
-  const pattern = `%${q.replace(/[\\%_]/g, '\\$&')}%`;
+  // Escape LIKE wildcards so the term matches literally, then wrap the
+  // value in PostgREST double-quotes (escaping " and \ within) so the
+  // .or() grammar delimiters — commas, dots, parens — in user input
+  // stay part of the value instead of splitting the filter expression.
+  // Without the quoting, `q = a,id.gte.0` injects an extra predicate
+  // into every .or() below (which run on the service-role client).
+  const likeEscaped = q.replace(/[\\%_]/g, '\\$&');
+  const pattern = `"%${likeEscaped.replace(/(["\\])/g, '\\$1')}%"`;
 
   const visible = await allowedPaths(
     admin,
