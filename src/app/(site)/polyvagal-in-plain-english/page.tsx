@@ -4,12 +4,12 @@ import { findAuthorBySlug } from '@/lib/blogAuthors';
 import StaticBlogStructuredData from '@/components/blog/StaticBlogStructuredData';
 import PageContent from './content';
 
-const SLUG = 'salutogenic-not-pathological';
+const SLUG = 'polyvagal-in-plain-english';
 const ep = EPISODES.find((e) => e.slug === SLUG)!;
 const author = findAuthorBySlug(ep.authorSlug);
-const url = `https://sevenarrowsrecoveryarizona.com/who-we-are/blog/${SLUG}`;
+const url = `https://sevenarrowsrecoveryarizona.com/${SLUG}`;
 const description =
-  "The DSM says you are what's wrong with you — the salutogenic frame says you are what's underneath. Why self-leadership beats symptom management long-term.";
+  "The three nervous-system states you live in every day — ventral, sympathetic, dorsal — explained as a ladder, in language you can actually use in the middle of a craving.";
 
 // 1-hour ISR — marketing pages are otherwise fully static; this lets the
 // edge cache hold the rendered HTML so TTFB drops from ~250ms (cold SSR)
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   title: `${ep.title} | Seven Arrows Recovery`,
   description,
   keywords:
-    'salutogenic recovery, salutogenesis addiction, self-leadership recovery, post-rehab outcomes, Rhoton Gentry active ingredients, beyond symptom management, strengths-based addiction treatment, sense of coherence',
+    'polyvagal theory plain english, ventral vagal, sympathetic state, dorsal vagal, polyvagal ladder, what is dysregulated, nervous system states addiction, polyvagal craving, Stephen Porges, somatic recovery',
   alternates: { canonical: url },
   openGraph: {
     type: 'article',
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     siteName: 'Seven Arrows Recovery',
     publishedTime: ep.publishedAt,
     authors: author ? [author.name] : ['Seven Arrows Recovery Clinical Team'],
-    tags: ['Recovery Roadmap', 'Salutogenesis', 'Self-leadership', 'Strengths-based', 'Post-rehab'],
+    tags: ['Recovery Roadmap', 'Polyvagal', 'Ventral vagal', 'Dorsal vagal', 'Sympathetic', 'Nervous system'],
   },
   twitter: {
     card: 'summary_large_image',

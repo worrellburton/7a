@@ -490,7 +490,7 @@ export function buildBlogCreationPrompt({ keyword_text, idea, author }: BlogProm
   }
   lines.push('');
   lines.push('## Where it lives');
-  lines.push(`- Create the route folder: \`src/app/(site)/who-we-are/blog/${idea.slug}/\``);
+  lines.push(`- Create the route folder: \`src/app/(site)/${idea.slug}/\``);
   lines.push('- Add two files in that folder:');
   lines.push('  - `page.tsx`: server component, exports \`metadata\` with title + description (both containing the keyword), renders `<BlogPostJsonLd episode={ep} />` and `<PageContent />`. Import `BlogPostJsonLd` from `@/components/blog/BlogPostMeta` and `EPISODES` from `@/lib/episodes`. Look up `ep` via `EPISODES.find((e) => e.slug === \'<slug>\')!`.');
   lines.push('  - `content.tsx`: \'use client\' component with the actual article JSX. Render `<AuthorByline episode={episode} />` at the very top of the article body, before the opening paragraph. Import `AuthorByline` from `@/components/blog/BlogPostMeta` and resolve `episode` the same way as in page.tsx.');
@@ -512,8 +512,8 @@ export function buildBlogCreationPrompt({ keyword_text, idea, author }: BlogProm
   lines.push('- Close with a direct call to action to `/admissions` or `/contact` — warm, not sales-y.');
   lines.push('');
   lines.push('## Reference episodes to match style');
-  lines.push('- `src/app/(site)/who-we-are/blog/when-drinking-stops-working/` (page.tsx + content.tsx)');
-  lines.push('- `src/app/(site)/who-we-are/blog/what-happens-first-week/` (page.tsx + content.tsx)');
+  lines.push('- `src/app/(site)/when-drinking-stops-working/` (page.tsx + content.tsx)');
+  lines.push('- `src/app/(site)/what-happens-first-week/` (page.tsx + content.tsx)');
   lines.push('Skim both before drafting; copy their hero + metadata patterns verbatim, then replace the content.');
   lines.push('');
   lines.push('## Acceptance criteria');
