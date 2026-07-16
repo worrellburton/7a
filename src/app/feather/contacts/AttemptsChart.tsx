@@ -36,6 +36,7 @@ interface AttemptsPayload {
   total: number;
   methods: string[];
   days: Array<{ date: string; total: number; byMethod: Record<string, number> }>;
+  people: Array<{ id: string; name: string; avatarUrl: string | null; byMethod: Record<string, number> }>;
 }
 
 const LINE = '#a0522d'; // brand sienna — passes lightness/chroma/contrast checks
@@ -122,6 +123,21 @@ export function AttemptsChart({ defaultOpen }: { defaultOpen: boolean }) {
 
   const rangeTotal = useMemo(() => series.reduce((s, d) => s + d.total, 0), [series]);
 
+  // By-person leaderboard for the range, honouring the method chips.
+  const peopleCounts = useMemo(() => {
+    if (!data) return [];
+    return data.people
+      .map((p) => ({
+        ...p,
+        logs: Object.entries(p.byMethod).reduce(
+          (s, [m, n]) => (enabled.get(m) !== false ? s + n : s),
+          0,
+        ),
+      }))
+      .filter((p) => p.logs > 0)
+      .sort((a, b) => b.logs - a.logs);
+  }, [data, enabled]);
+
   // ── Geometry ────────────────────────────────────────────────
   const H = 220;
   const PAD = { top: 14, right: 14, bottom: 24, left: 38 };
@@ -160,14 +176,20 @@ export function AttemptsChart({ defaultOpen }: { defaultOpen: boolean }) {
 
   const onMove = useCallback(
     (e: React.MouseEvent) => {
-      if (series.length === 0 || innerW <= 0) return;
+      if (series.length === 0 || innerW <= 0 || width <= 0) return;
       const rect = plotRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const x = e.clientX - rect.left - PAD.left;
+      if (!rect || rect.width <= 0) return;
+      // clientX / rect are in VISUAL pixels, but the chart math is in
+      // layout pixels — under `.app-shell { zoom: 0.9 }` those differ
+      // by 10%, which read as the crosshair snapping ~an inch left of
+      // the cursor. Normalise by the effective scale (identity when
+      // no zoom applies).
+      const scale = rect.width / width;
+      const x = (e.clientX - rect.left) / scale - PAD.left;
       const idx = Math.round((x / innerW) * (series.length - 1));
       setHoverIdx(Math.max(0, Math.min(series.length - 1, idx)));
     },
-    [series.length, innerW, PAD.left],
+    [series.length, innerW, width, PAD.left],
   );
 
   const hover = hoverIdx != null ? series[hoverIdx] : null;
@@ -260,8 +282,11 @@ export function AttemptsChart({ defaultOpen }: { defaultOpen: boolean }) {
                       <stop offset="0%" stopColor={LINE} stopOpacity="0.16" />
                       <stop offset="100%" stopColor={LINE} stopOpacity="0" />
                     </linearGradient>
-                    <filter id="att-glow" x="-20%" y="-40%" width="140%" height="180%">
-                      <feGaussianBlur stdDeviation="4" />
+                    <filter id="att-glow" x="-20%" y="-60%" width="140%" height="220%">
+                      <feGaussianBlur stdDeviation="7" />
+                    </filter>
+                    <filter id="att-glow-tight" x="-20%" y="-60%" width="140%" height="220%">
+                      <feGaussianBlur stdDeviation="2.5" />
                     </filter>
                   </defs>
 
@@ -283,9 +308,11 @@ export function AttemptsChart({ defaultOpen }: { defaultOpen: boolean }) {
                     </text>
                   ))}
 
-                  {/* Area, glow underlay, then the 2px line itself */}
+                  {/* Area, then a two-layer glow (wide soft halo + tight
+                      bright bloom) under the crisp 2px line. */}
                   <path d={areaPath} fill="url(#att-fill)" />
-                  <path d={linePath} fill="none" stroke={LINE} strokeWidth="5" strokeLinejoin="round" strokeLinecap="round" opacity="0.35" filter="url(#att-glow)" />
+                  <path d={linePath} fill="none" stroke={LINE} strokeWidth="11" strokeLinejoin="round" strokeLinecap="round" opacity="0.22" filter="url(#att-glow)" />
+                  <path d={linePath} fill="none" stroke={LINE} strokeWidth="4.5" strokeLinejoin="round" strokeLinecap="round" opacity="0.5" filter="url(#att-glow-tight)" />
                   <path key={`${range}-${data?.bucket}-${rangeTotal}`} d={linePath} pathLength={1} fill="none" stroke={LINE} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" className="att-draw" />
 
                   {/* Emphasized endpoint */}
@@ -341,6 +368,34 @@ export function AttemptsChart({ defaultOpen }: { defaultOpen: boolean }) {
               }
             `}</style>
           </div>
+
+          {/* By person — everyone who logged in the window, count
+              honouring the method chips above. */}
+          {peopleCounts.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-black/5">
+              <p className="text-[9px] font-bold uppercase tracking-[0.18em] text-foreground/40 mb-2">By person</p>
+              <div className="flex flex-wrap gap-1.5">
+                {peopleCounts.map((p) => (
+                  <span
+                    key={p.id}
+                    className="inline-flex items-center gap-1.5 pl-1 pr-2.5 py-1 rounded-full bg-white/70 border border-black/5 shadow-[0_2px_8px_-6px_rgba(60,48,42,0.35)]"
+                    title={`${p.name} · ${p.logs.toLocaleString()} logs`}
+                  >
+                    {p.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.avatarUrl} alt="" className="w-5 h-5 rounded-full object-cover bg-warm-bg shrink-0" />
+                    ) : (
+                      <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[9px] font-bold shrink-0">
+                        {p.name.charAt(0).toUpperCase()}
+                      </span>
+                    )}
+                    <span className="text-[11px] font-medium text-foreground/70 max-w-[8rem] truncate">{p.name}</span>
+                    <span className="text-[11px] font-bold tabular-nums text-foreground">{p.logs.toLocaleString()}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </section>

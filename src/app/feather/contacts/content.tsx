@@ -1311,7 +1311,7 @@ export default function ContactsContent() {
           three icon controls on the right — all on one line. */}
       <header className="mb-4 sm:mb-6 flex flex-row items-center justify-between gap-3 flex-wrap">
         <div className="flex items-baseline gap-2">
-          <h1 className="text-base font-semibold text-foreground tracking-tight">Contacts</h1>
+          <h1 className="text-base font-semibold text-foreground tracking-tight">Outreach</h1>
           {rows.length > 0 && (
             <span className="text-[13px] text-foreground/40 tabular-nums">{rows.length.toLocaleString()}</span>
           )}
@@ -3055,24 +3055,31 @@ function DesktopContactTable({
                       {(() => {
                         const phone = c.phone || c.phone_cell || c.phone_office;
                         if (!phone && !c.email) return <span className="text-foreground/35">—</span>;
+                        // Icon-only contact affordances — the value
+                        // itself lives in the native tooltip + the
+                        // expanded drawer, keeping the column compact.
                         return (
-                          <div className="flex flex-col gap-0.5 text-[12px] leading-tight min-w-0 max-w-[13rem]">
+                          <div className="flex items-center gap-1">
                             {phone && (
                               <a
                                 href={`tel:${phone.replace(/[^+\d]/g, '')}`}
                                 onClick={(e) => e.stopPropagation()}
-                                className="text-foreground/75 hover:text-primary tabular-nums truncate"
+                                title={phone}
+                                aria-label={`Call ${c.name}: ${phone}`}
+                                className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-foreground/45 hover:text-primary hover:bg-primary/10 transition-colors"
                               >
-                                {phone}
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z" /></svg>
                               </a>
                             )}
                             {c.email && (
                               <a
                                 href={`mailto:${c.email}`}
                                 onClick={(e) => e.stopPropagation()}
-                                className="text-foreground/60 hover:text-primary truncate"
+                                title={c.email}
+                                aria-label={`Email ${c.name}: ${c.email}`}
+                                className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-foreground/45 hover:text-primary hover:bg-primary/10 transition-colors"
                               >
-                                {c.email}
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" /></svg>
                               </a>
                             )}
                           </div>
