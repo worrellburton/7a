@@ -12,7 +12,7 @@ import { GLASS_SEARCH_INPUT, GLASS_SEARCH_WRAP } from './glassSearch';
 import { useVisiblePages } from './VisiblePages';
 import type { PageConfig } from '@/lib/PagePermissions';
 
-export default function HomePageSearch() {
+export default function HomePageSearch({ dropUp = false }: { dropUp?: boolean }) {
   const router = useRouter();
   const pages = useVisiblePages();
   const [query, setQuery] = useState('');
@@ -79,7 +79,7 @@ export default function HomePageSearch() {
         <ul
           id="home-page-search-list"
           role="listbox"
-          className="absolute z-[70] mt-2 w-full rounded-2xl border border-white/70 bg-white/85 supports-[backdrop-filter]:bg-white/70 supports-[backdrop-filter]:backdrop-blur-xl shadow-[0_14px_40px_-16px_rgba(160,82,45,0.45)] overflow-hidden divide-y divide-black/5"
+          className={`absolute z-[70] w-full rounded-2xl border border-white/70 bg-white/85 supports-[backdrop-filter]:bg-white/70 supports-[backdrop-filter]:backdrop-blur-xl shadow-[0_14px_40px_-16px_rgba(160,82,45,0.45)] overflow-hidden divide-y divide-black/5 ${dropUp ? 'bottom-full mb-2' : 'mt-2'}`}
         >
           {hits.map((p, i) => (
             <li key={p.path} role="option" aria-selected={i === activeIdx}>
