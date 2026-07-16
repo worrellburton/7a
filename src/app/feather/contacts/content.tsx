@@ -450,6 +450,8 @@ export default function ContactsContent() {
   // admissions bookmark each view directly. `table` is the default
   // (no query param needed).
   const [viewMode, setViewMode] = useState<'table' | 'map' | 'insights'>('table');
+  // Desktop (md+) shows the denser spreadsheet; mobile shows the cards.
+  const isDesktopList = useMediaQuery('(min-width: 768px)');
   // Contact list presentation. 'simple' (default) is the lightweight
   // collapsible row list — avatar + name + who-last-touched + when;
   // 'table' brings back the full power-grid (sort / columns / bulk
@@ -1352,14 +1354,25 @@ export default function ContactsContent() {
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{error}</div>
       )}
 
-      <SimpleContactList
-        loading={loading}
-        rows={sorted}
-        expandedId={expandedDetailsId}
-        onToggle={(c) => setExpandedDetailsId((prev) => (prev === c.id ? null : c.id))}
-        accessToken={session?.access_token ?? null}
-        onOpenLog={(c) => setLogTarget(c)}
-      />
+      {isDesktopList ? (
+        <DesktopContactTable
+          loading={loading}
+          rows={sorted}
+          expandedId={expandedDetailsId}
+          onToggle={(c) => setExpandedDetailsId((prev) => (prev === c.id ? null : c.id))}
+          accessToken={session?.access_token ?? null}
+          onOpenLog={(c) => setLogTarget(c)}
+        />
+      ) : (
+        <SimpleContactList
+          loading={loading}
+          rows={sorted}
+          expandedId={expandedDetailsId}
+          onToggle={(c) => setExpandedDetailsId((prev) => (prev === c.id ? null : c.id))}
+          accessToken={session?.access_token ?? null}
+          onOpenLog={(c) => setLogTarget(c)}
+        />
+      )}
 
       {showAdd && (
         <AddContactModal
@@ -2908,11 +2921,151 @@ function ContactsMapView({
   );
 }
 
-// ── Simple contact list ───────────────────────────────────────
+// Up-to-two initials for a contact's placeholder avatar.
+function contactInitials(name: string): string {
+  return name.split(/\s+/).map((s) => s[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
+}
+
+// ── Desktop spreadsheet ───────────────────────────────────────
+// Denser than the mobile cards: a real table with columns (avatar +
+// name, title, company, location, and the last-contact person +
+// summary). Rows expand into the full details drawer on click.
+function DesktopContactTable({
+  loading,
+  rows,
+  expandedId,
+  onToggle,
+  accessToken,
+  onOpenLog,
+}: {
+  loading: boolean;
+  rows: Contact[];
+  expandedId: string | null;
+  onToggle: (c: Contact) => void;
+  accessToken: string | null;
+  onOpenLog: (c: Contact) => void;
+}) {
+  if (loading) {
+    return (
+      <div className="rounded-xl border border-black/10 bg-white overflow-hidden">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-black/5 last:border-0">
+            <span className="w-8 h-8 rounded-full bg-foreground/8 animate-pulse shrink-0" />
+            <span className="h-3.5 w-1/5 rounded bg-foreground/8 animate-pulse" />
+            <span className="h-3 w-1/6 rounded bg-foreground/8 animate-pulse" />
+            <span className="ml-auto h-3 w-40 rounded bg-foreground/8 animate-pulse" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (rows.length === 0) {
+    return (
+      <div className="rounded-xl border border-black/10 bg-white px-4 py-12 text-center text-[13px] text-foreground/45">
+        No contacts yet. Click <span className="font-semibold">Add contact</span> to start.
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-xl border border-black/10 bg-white overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-foreground/[0.03] text-foreground/50 text-[10.5px] uppercase tracking-[0.14em]">
+            <tr className="border-b border-black/5">
+              <th className="text-left font-semibold px-4 py-2.5">Name</th>
+              <th className="text-left font-semibold px-4 py-2.5 hidden lg:table-cell">Title</th>
+              <th className="text-left font-semibold px-4 py-2.5">Company</th>
+              <th className="text-left font-semibold px-4 py-2.5 hidden xl:table-cell">Location</th>
+              <th className="text-left font-semibold px-4 py-2.5">Last contact</th>
+              <th className="w-8" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-black/5">
+            {rows.map((c) => {
+              const expanded = expandedId === c.id;
+              return (
+                <Fragment key={c.id}>
+                  <tr
+                    onClick={() => onToggle(c)}
+                    className={`cursor-pointer align-middle transition-colors ${expanded ? 'bg-warm-bg/40' : 'hover:bg-warm-bg/30'}`}
+                  >
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="shrink-0 inline-flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary text-[11px] font-bold border border-primary/15">
+                          {contactInitials(c.name)}
+                        </span>
+                        <span className="font-semibold text-foreground truncate max-w-[16rem]">{c.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-foreground/70 hidden lg:table-cell">
+                      <span className="block truncate max-w-[10rem]">{c.role || '—'}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-foreground/70">
+                      <span className="block truncate max-w-[14rem]">{c.company || '—'}</span>
+                    </td>
+                    <td className="px-4 py-2.5 text-foreground/70 hidden xl:table-cell">
+                      <span className="block truncate max-w-[12rem]">{c.location || '—'}</span>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {c.last_contact_at ? (
+                        <div className="flex items-center gap-2 min-w-0">
+                          {c.last_contact_by_avatar_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={c.last_contact_by_avatar_url} alt="" className="shrink-0 w-7 h-7 rounded-full object-cover bg-warm-bg" />
+                          ) : (
+                            <span className="shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-full bg-warm-bg text-[10px] font-semibold text-foreground/55">
+                              {(c.last_contact_by_name || '?').charAt(0).toUpperCase()}
+                            </span>
+                          )}
+                          <div className="min-w-0">
+                            <div className="text-[12.5px] text-foreground/80 truncate max-w-[20rem]">
+                              <span className="font-medium text-foreground">{c.last_contact_by_name || 'Unknown'}</span>
+                              {c.last_contact_method ? ` · ${c.last_contact_method}` : ''} · {fmtAgo(c.last_contact_at)}
+                            </div>
+                            {c.last_contact_comments && (
+                              <div className="text-[11px] text-foreground/45 truncate max-w-[20rem]">{c.last_contact_comments}</div>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-foreground/40 text-[12.5px]">Never contacted</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-right">
+                      <svg
+                        className={`inline w-4 h-4 text-foreground/30 transition-transform duration-200 ${expanded ? 'rotate-180' : ''}`}
+                        fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+                      >
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </td>
+                  </tr>
+                  {expanded && (
+                    <tr className="bg-warm-bg/20">
+                      <td colSpan={6} className="p-0 border-t border-black/5">
+                        <ContactDetailsDrawer
+                          contact={c}
+                          accessToken={accessToken}
+                          onLogContact={() => onOpenLog(c)}
+                          onClose={() => onToggle(c)}
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── Simple contact list (mobile) ──────────────────────────────
 // Each contact is its own card: the contact's name on the left and,
-// on the right, the picture of whoever last logged a touch (no name /
-// timestamp text — the avatar carries it, with the detail on hover).
-// Clicking the card expands the full ContactDetailsDrawer inline.
+// on the right, the picture of whoever last logged a touch. Clicking
+// the card expands the full ContactDetailsDrawer inline.
 function SimpleContactRow({
   contact: c,
   expanded,
