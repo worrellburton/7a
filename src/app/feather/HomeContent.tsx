@@ -15,7 +15,8 @@ import JdSignatureNagModal from './JdSignatureNagModal';
 // Temporarily not rendered — see HomeContent.tsx note. Keeping the
 // import in source so the re-enable diff is one line.
 // import HomeClientsRow from './HomeClientsRow';
-import HomeOnlineOrbit, { type OrbitHorse } from './HomeOnlineOrbit';
+import { type OrbitHorse } from './HomeOnlineOrbit';
+import HomeOrbit3D from './HomeOrbit3D';
 import HomeDailyLogsChip from './HomeDailyLogsChip';
 import { StandaloneQuickLog } from './QuickLog';
 import HomeHardwareChip from './HomeHardwareChip';
@@ -1091,7 +1092,7 @@ export default function HomeContent() {
         {recentUsers.length > 0 && (
           <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed sm:absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
             <div className="pointer-events-auto flex flex-col items-center gap-3">
-              <HomeOnlineOrbit users={recentUsers} alumni={recentAlumni} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
+              <HomeOrbit3D users={recentUsers} alumni={recentAlumni} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
               {/* The mobile daily-logs chip used to sit inside this
                   fixed orbit section, right below the ring. That
                   pulled the section's centre down (so the 7A medallion
