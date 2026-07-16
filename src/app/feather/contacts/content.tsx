@@ -1362,6 +1362,9 @@ export default function ContactsContent() {
           onToggle={(c) => setExpandedDetailsId((prev) => (prev === c.id ? null : c.id))}
           accessToken={session?.access_token ?? null}
           onOpenLog={(c) => setLogTarget(c)}
+          sortKey={sortKey}
+          sortDir={sortDir}
+          onSort={toggleSort}
         />
       ) : (
         <SimpleContactList
@@ -2930,6 +2933,42 @@ function contactInitials(name: string): string {
 // Denser than the mobile cards: a real table with columns (avatar +
 // name, title, company, location, and the last-contact person +
 // summary). Rows expand into the full details drawer on click.
+function ContactSortTh({
+  label,
+  col,
+  sortKey,
+  sortDir,
+  onSort,
+  className = '',
+}: {
+  label: string;
+  col: string;
+  sortKey: string;
+  sortDir: 'asc' | 'desc';
+  onSort: (key: string) => void;
+  className?: string;
+}) {
+  const active = sortKey === col;
+  return (
+    <th className={`text-left font-semibold px-4 py-2.5 ${className}`}>
+      <button
+        type="button"
+        onClick={() => onSort(col)}
+        aria-label={`Sort by ${label}${active ? (sortDir === 'asc' ? ', ascending' : ', descending') : ''}`}
+        className={`inline-flex items-center gap-1 uppercase tracking-[0.14em] transition-colors ${active ? 'text-foreground' : 'text-foreground/50 hover:text-foreground'}`}
+      >
+        {label}
+        <svg
+          className={`w-3 h-3 shrink-0 transition-opacity ${active ? 'opacity-100' : 'opacity-25'}`}
+          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+        >
+          {active && sortDir === 'asc' ? <path d="M6 15l6-6 6 6" /> : <path d="M6 9l6 6 6-6" />}
+        </svg>
+      </button>
+    </th>
+  );
+}
+
 function DesktopContactTable({
   loading,
   rows,
@@ -2937,6 +2976,9 @@ function DesktopContactTable({
   onToggle,
   accessToken,
   onOpenLog,
+  sortKey,
+  sortDir,
+  onSort,
 }: {
   loading: boolean;
   rows: Contact[];
@@ -2944,6 +2986,9 @@ function DesktopContactTable({
   onToggle: (c: Contact) => void;
   accessToken: string | null;
   onOpenLog: (c: Contact) => void;
+  sortKey: string;
+  sortDir: 'asc' | 'desc';
+  onSort: (key: string) => void;
 }) {
   if (loading) {
     return (
@@ -2972,11 +3017,12 @@ function DesktopContactTable({
         <table className="w-full text-sm">
           <thead className="bg-foreground/[0.03] text-foreground/50 text-[10.5px] uppercase tracking-[0.14em]">
             <tr className="border-b border-black/5">
-              <th className="text-left font-semibold px-4 py-2.5">Name</th>
-              <th className="text-left font-semibold px-4 py-2.5 hidden lg:table-cell">Title</th>
-              <th className="text-left font-semibold px-4 py-2.5">Company</th>
-              <th className="text-left font-semibold px-4 py-2.5 hidden xl:table-cell">Location</th>
-              <th className="text-left font-semibold px-4 py-2.5">Last contact</th>
+              <ContactSortTh label="Name" col="name" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              <ContactSortTh label="Contact" col="contact" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              <ContactSortTh label="Title" col="role" sortKey={sortKey} sortDir={sortDir} onSort={onSort} className="hidden lg:table-cell" />
+              <ContactSortTh label="Company" col="company" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+              <ContactSortTh label="Location" col="location" sortKey={sortKey} sortDir={sortDir} onSort={onSort} className="hidden xl:table-cell" />
+              <ContactSortTh label="Last contact" col="last_contact_at" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
               <th className="w-8" />
             </tr>
           </thead>
@@ -2996,6 +3042,34 @@ function DesktopContactTable({
                         </span>
                         <span className="font-semibold text-foreground truncate max-w-[16rem]">{c.name}</span>
                       </div>
+                    </td>
+                    <td className="px-4 py-2.5">
+                      {(() => {
+                        const phone = c.phone || c.phone_cell || c.phone_office;
+                        if (!phone && !c.email) return <span className="text-foreground/35">—</span>;
+                        return (
+                          <div className="flex flex-col gap-0.5 text-[12px] leading-tight min-w-0 max-w-[13rem]">
+                            {phone && (
+                              <a
+                                href={`tel:${phone.replace(/[^+\d]/g, '')}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-foreground/75 hover:text-primary tabular-nums truncate"
+                              >
+                                {phone}
+                              </a>
+                            )}
+                            {c.email && (
+                              <a
+                                href={`mailto:${c.email}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-foreground/60 hover:text-primary truncate"
+                              >
+                                {c.email}
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-2.5 text-foreground/70 hidden lg:table-cell">
                       <span className="block truncate max-w-[10rem]">{c.role || '—'}</span>
@@ -3042,7 +3116,7 @@ function DesktopContactTable({
                   </tr>
                   {expanded && (
                     <tr className="bg-warm-bg/20">
-                      <td colSpan={6} className="p-0 border-t border-black/5">
+                      <td colSpan={7} className="p-0 border-t border-black/5">
                         <ContactDetailsDrawer
                           contact={c}
                           accessToken={accessToken}
@@ -7747,13 +7821,26 @@ function ContactDetailsDrawer({
     return () => { cancelled = true; };
   }, [accessToken, contact.id]);
 
+  // Who added the contact — the person on the oldest history entry
+  // (the "Contact added" event). Surfaced in the Source row.
+  const addedByName = useMemo(() => {
+    if (!logs || logs.length === 0) return null;
+    const oldest = [...logs].sort(
+      (a, b) => new Date(a.contacted_at).getTime() - new Date(b.contacted_at).getTime(),
+    )[0];
+    return oldest?.contacted_by_name ?? null;
+  }, [logs]);
+
   const detailRows: { label: string; value: string | null | undefined }[] = [
     { label: 'Company', value: contact.company },
     { label: 'Role / Relation', value: contact.role },
     { label: 'Phone', value: contact.phone },
     { label: 'Email', value: contact.email },
     { label: 'Location', value: contact.location },
-    { label: 'Source', value: contact.source === 'downgrade-from-partner' ? 'Downgraded from partner' : contact.source },
+    {
+      label: addedByName ? 'Added by' : 'Source',
+      value: addedByName ?? (contact.source === 'downgrade-from-partner' ? 'Downgraded from partner' : contact.source),
+    },
     { label: 'Added', value: fmtAbsolute(contact.created_at) },
     { label: 'Updated', value: fmtAbsolute(contact.updated_at) },
   ];
