@@ -834,6 +834,13 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   // on Escape and on every route change so the next visit starts
   // clean.
   const [navSearch, setNavSearch] = useState('');
+  // Two-level sliding nav (Bird-style). null = root panel (one row per
+  // department); a department id (or '__more' for ungrouped pages)
+  // = that department's page list, entered with a slide. Direction
+  // drives which side the incoming panel animates from.
+  const [navPanel, setNavPanel] = useState<string | null>(null);
+  const [navPanelDir, setNavPanelDir] = useState<'in' | 'out'>('in');
+  const navPanelInitRef = useRef(false);
   // Phase 1 of the sidebar travel-and-landing animation: a FLIP
   // position tracker. Each rendered nav row calls flip.register
   // with its DOM element; the hook measures positions after every
@@ -981,6 +988,54 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
   // All pages render in one flat list now — the "Other pages" split was
   // removed, so the top list is simply every page (for staff and alumni).
   const recencyTopPages = recencyOrderedPages;
+
+  // ── Two-level nav derivations ─────────────────────────────────
+  // Root panel = pinned rows (Home / alumni Profile) + one row per
+  // department that owns at least one visible page (+ 'More' for the
+  // still-ungrouped tail). Drilling into a row shows that
+  // department's pages. Alumni keep the flat list — their portal is
+  // ~7 pages and a folder level would only add taps.
+  const useNavPanels = !isAlumni;
+  const navPinnedPaths = useMemo(() => {
+    const HOME_PATH = isAlumni ? '/feather/alumni' : '/feather';
+    const PROFILE_PATH = isAlumni ? '/feather/alumni/profile' : null;
+    return new Set([HOME_PATH, ...(PROFILE_PATH ? [PROFILE_PATH] : [])]);
+  }, [isAlumni]);
+  const navPanelData = useMemo(() => {
+    const pinned = recencyTopPages.filter((p) => navPinnedPaths.has(p.path));
+    const byDept = new Map<string, PageConfig[]>();
+    for (const p of recencyTopPages) {
+      if (navPinnedPaths.has(p.path)) continue;
+      const key = p.departmentId ?? '__more';
+      const list = byDept.get(key) ?? [];
+      list.push(p);
+      byDept.set(key, list);
+    }
+    // Departments in admin-set order, only those with visible pages;
+    // ungrouped pages land in a trailing 'More'.
+    const sections: Array<{ id: string; name: string; color: string | null; pages: PageConfig[] }> = [];
+    for (const d of navDepartments) {
+      const pages = byDept.get(d.id);
+      if (pages && pages.length > 0) sections.push({ id: d.id, name: d.name, color: d.color, pages });
+    }
+    const more = byDept.get('__more');
+    if (more && more.length > 0) sections.push({ id: '__more', name: 'More', color: null, pages: more });
+    return { pinned, sections };
+  }, [recencyTopPages, navDepartments, navPinnedPaths]);
+  // First load: open the panel that owns the current route so the
+  // rail lands where the user already is.
+  useEffect(() => {
+    if (navPanelInitRef.current || !useNavPanels || recencyTopPages.length === 0) return;
+    navPanelInitRef.current = true;
+    const active = recencyTopPages.find(
+      (p) => p.path === pathname || (p.path !== '/feather' && pathname?.startsWith(p.path + '/')),
+    );
+    if (active && !navPinnedPaths.has(active.path)) {
+      const section = navPanelData.sections.find((s) => s.pages.some((p) => p.path === active.path));
+      if (section) setNavPanel(section.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recencyTopPages.length, useNavPanels]);
 
   // Apply the sidebar search query — when there's anything typed,
   // flatten the whole accessible-pages set to label/path matches
@@ -1608,6 +1663,83 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             // link, which used to hang off the dept group, now
             // renders unconditionally at the bottom of the nav
             // outside this switch — see the <a> below the </nav>.
+            // Two-level Bird-style nav: root panel lists departments,
+            // drilling in slides that department's pages into view.
+            // Alumni (and any state where panels are off) keep the
+            // flat recency list below.
+            if (useNavPanels) {
+              const activeSection = navPanel
+                ? navPanelData.sections.find((s) => s.id === navPanel) ?? null
+                : null;
+              return (
+                <div
+                  key={navPanel ?? '__root'}
+                  className={navPanelDir === 'in' ? 'sa-nav-slide-in' : 'sa-nav-slide-back'}
+                >
+                  <style>{`
+                    @keyframes sa-nav-in { from { opacity: 0; transform: translateX(26px); } to { opacity: 1; transform: translateX(0); } }
+                    @keyframes sa-nav-back { from { opacity: 0; transform: translateX(-26px); } to { opacity: 1; transform: translateX(0); } }
+                    .sa-nav-slide-in { animation: sa-nav-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+                    .sa-nav-slide-back { animation: sa-nav-back 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+                    @media (prefers-reduced-motion: reduce) {
+                      .sa-nav-slide-in, .sa-nav-slide-back { animation: none !important; }
+                    }
+                  `}</style>
+                  {activeSection == null ? (
+                    <>
+                      {navPanelData.pinned.map(renderLink)}
+                      {navPanelData.sections.map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => { setNavPanelDir('in'); setNavPanel(s.id); }}
+                          className="group/nav relative w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-foreground/60 hover:text-foreground overflow-hidden transition-all duration-300 ease-out hover:bg-warm-bg/60"
+                          style={{ fontFamily: 'var(--font-body)' }}
+                        >
+                          {/* Collapsed-rail glyph: dept-tinted initial chip */}
+                          <span
+                            className="inline-flex items-center justify-center w-6 h-6 rounded-lg text-[11px] font-bold shrink-0"
+                            style={{
+                              color: s.color ?? 'rgba(44,24,16,0.55)',
+                              background: s.color ? `${s.color}1f` : 'rgba(44,24,16,0.07)',
+                            }}
+                            aria-hidden="true"
+                          >
+                            {s.name.charAt(0).toUpperCase()}
+                          </span>
+                          <span className="flex-1 text-left whitespace-nowrap truncate transition-opacity duration-200 opacity-0 group-hover/sidebar:opacity-100 rail-open:opacity-100">
+                            {s.name}
+                          </span>
+                          <span className="text-[10px] tabular-nums text-foreground/35 opacity-0 group-hover/sidebar:opacity-100 rail-open:opacity-100 transition-opacity duration-200">{s.pages.length}</span>
+                          <svg className="w-3 h-3 text-foreground/35 opacity-0 group-hover/sidebar:opacity-100 rail-open:opacity-100 transition-opacity duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => { setNavPanelDir('out'); setNavPanel(null); }}
+                        className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold text-foreground/70 hover:text-foreground hover:bg-warm-bg/60 transition-colors"
+                        style={{ fontFamily: 'var(--font-body)' }}
+                        aria-label={`Back — leave ${activeSection.name}`}
+                      >
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-foreground/[0.06] shrink-0" aria-hidden="true">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+                        </span>
+                        <span className="flex-1 text-left whitespace-nowrap truncate transition-opacity duration-200 opacity-0 group-hover/sidebar:opacity-100 rail-open:opacity-100">
+                          {activeSection.name}
+                        </span>
+                      </button>
+                      <div className="my-1 border-t border-foreground/10" />
+                      {activeSection.pages.map(renderLink)}
+                    </>
+                  )}
+                </div>
+              );
+            }
             return (
               <>
                 {recencyTopPages.map(renderLink)}
