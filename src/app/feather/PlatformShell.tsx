@@ -1229,7 +1229,10 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
             the sticky wrapper to ~122vh, dropping the bottom-pinned
             user chip + popup menu below the visible viewport. Plain
             `h-screen` matches the real viewport again. */}
-        <div className="sticky top-0 h-screen">
+        {/* Height compensates for `.app-shell { zoom: 0.9 }` at lg+ so
+            the sticky rail still fills the real viewport (100vh renders
+            at 90% under zoom, leaving a gap without the divisor). */}
+        <div className="sticky top-0 h-[calc(100vh/0.9)]">
         {/* Inner glass panel — overlay layer that grows from w-16
             (collapsed) to w-64 (expanded) on hover. Glass treatment
             lives here now so the column-only collapsed state still
