@@ -109,7 +109,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   // index/listing so the title + last-updated stamp refresh too.
   if (data?.slug) {
     try {
-      revalidatePath(`/who-we-are/blog/${data.slug}`);
+      revalidatePath(`/${data.slug}`);
       revalidatePath('/who-we-are/blog');
     } catch {
       /* revalidate is best-effort */

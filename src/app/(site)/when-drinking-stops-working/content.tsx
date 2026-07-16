@@ -408,7 +408,7 @@ export default function PageContent() {
                 <strong className="text-foreground/70">This is Episode 1 of &ldquo;The Recovery Roadmap&rdquo;</strong> — an investigative series from Seven Arrows Recovery guiding you from recognition to lasting recovery.
               </p>
               <Link
-                href="/who-we-are/blog/what-happens-first-week"
+                href="/what-happens-first-week"
                 className="group flex items-stretch gap-4 p-4 rounded-xl border border-primary/25 hover:border-primary/55 hover:shadow-lg transition-all duration-300 bg-white"
               >
                 <div className="shrink-0 w-24 sm:w-32 aspect-[4/3] rounded-lg overflow-hidden bg-warm-bg">

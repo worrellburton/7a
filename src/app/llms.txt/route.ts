@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { getAllEpisodesNewestFirst, episodeHref, type Episode } from '@/lib/episodes';
+import { getAllEpisodesNewestFirst, episodeHref, isEditorialEpisode, type Episode } from '@/lib/episodes';
 
 // /llms.txt — a curated, machine-readable index of the site for large
 // language models and AI answer engines (ChatGPT, Claude, Perplexity,
@@ -165,7 +165,10 @@ export async function GET(): Promise<Response> {
   } catch {
     episodes = [];
   }
-  const isFeatured = (e: Episode) => !e.href || e.href.startsWith('/who-we-are/blog/');
+  // Editorial (Recovery Roadmap) posts are featured; the WordPress-era
+  // SEO archive stays in Optional. The old "has no href" signal died
+  // when every article moved to root-level URLs.
+  const isFeatured = (e: Episode) => isEditorialEpisode(e);
   const featured = episodes.filter(isFeatured);
   const archive = episodes.filter((e) => !isFeatured(e));
 

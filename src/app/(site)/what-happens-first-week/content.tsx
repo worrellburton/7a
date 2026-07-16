@@ -328,7 +328,7 @@ export default function PageContent() {
         <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* Back link */}
-          <Link href="/who-we-are/blog/when-drinking-stops-working" className="text-primary text-sm font-semibold hover:underline mb-8 inline-block" style={{ fontFamily: 'var(--font-body)' }}>
+          <Link href="/when-drinking-stops-working" className="text-primary text-sm font-semibold hover:underline mb-8 inline-block" style={{ fontFamily: 'var(--font-body)' }}>
             &larr; Episode 1: When Drinking Stops Working
           </Link>
 
@@ -469,7 +469,7 @@ export default function PageContent() {
           {/* Next/Prev Navigation */}
           <div className="flex flex-col sm:flex-row gap-4 justify-between items-center border-t border-gray-100 pt-8 mt-12">
             <Link
-              href="/who-we-are/blog/when-drinking-stops-working"
+              href="/when-drinking-stops-working"
               className="text-primary text-sm font-semibold hover:underline"
               style={{ fontFamily: 'var(--font-body)' }}
             >

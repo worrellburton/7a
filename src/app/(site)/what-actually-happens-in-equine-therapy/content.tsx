@@ -268,7 +268,7 @@ export default function PageContent() {
 
           {/* Back link */}
           <Link
-            href="/who-we-are/blog/what-happens-first-week"
+            href="/what-happens-first-week"
             className="text-primary text-sm font-semibold hover:underline mb-8 inline-block"
             style={{ fontFamily: 'var(--font-body)' }}
           >
@@ -467,7 +467,7 @@ export default function PageContent() {
             {/* Series navigation */}
             <div className="flex flex-col sm:flex-row gap-4 justify-between items-center border-t border-gray-100 pt-8 mt-12">
               <Link
-                href="/who-we-are/blog/what-happens-first-week"
+                href="/what-happens-first-week"
                 className="text-primary text-sm font-semibold hover:underline"
               >
                 &larr; Episode 2: What Happens Your First Week

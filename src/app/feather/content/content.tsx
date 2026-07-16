@@ -416,7 +416,7 @@ export default function ContentLanding() {
               ) : (
                 <ul className="divide-y divide-black/5">
                   {draftRows.map((r) => {
-                    const path = `/who-we-are/blog/${r.slug}`;
+                    const path = `/${r.slug}`;
                     const hidden = !!visibility[r.slug];
                     const expanded = analyticsFor === r.id;
                     return (
@@ -500,7 +500,7 @@ export default function ContentLanding() {
                   if (item.kind === 'ai') {
                     const r = item.row;
                     const epNum = item.epNum;
-                    const path = `/who-we-are/blog/${r.slug}`;
+                    const path = `/${r.slug}`;
                     const hidden = !!visibility[r.slug];
                     const expanded = analyticsFor === r.id;
                     return (
@@ -510,7 +510,7 @@ export default function ContentLanding() {
                           subtitle={`${r.slug} · updated ${new Date(r.updated_at).toLocaleDateString()}`}
                           episodeLabel={epNum ? `Episode ${epNum}` : null}
                           href={`/feather/content/${r.id}`}
-                          externalHref={`/who-we-are/blog/${r.slug}`}
+                          externalHref={`/${r.slug}`}
                           statusBadge={(
                             <span className={`shrink-0 inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold border ${STATUS_TONES[r.status]}`}>
                               {STATUS_LABELS[r.status]}

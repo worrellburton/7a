@@ -99,7 +99,7 @@ export async function GET(req: NextRequest) {
   }
   for (const r of dbRows ?? []) {
     catalogue.push({
-      path: `/who-we-are/blog/${r.slug}`,
+      path: `/${r.slug}`,
       title: (r.title as string | null) ?? '(Untitled)',
       slug: r.slug as string,
       source: 'ai',

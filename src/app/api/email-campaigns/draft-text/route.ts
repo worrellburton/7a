@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
   ctxLines.push(`INCLUDE PHONE NUMBER: ${includePhone ? `yes — ${ADMISSIONS_PHONE} (mention it once, naturally, in the body or postscript)` : 'no'}`);
   ctxLines.push(`INCLUDE QUOTE: ${includeQuote ? 'yes — a real Google review will be inserted as a separate pull-quote block between the body and the CTA at render time. Do NOT write a quote yourself, do not add quotation marks, and do not paraphrase a review in the body copy.' : 'no'}`);
   if (blog) {
-    ctxLines.push(`FEATURED BLOG:\n  title: ${blog.title}\n  url: ${blog.slug ? `${SITE_URL}who-we-are/blog/${blog.slug}` : '(no link)'}\n  summary: ${blogSummary}`);
+    ctxLines.push(`FEATURED BLOG:\n  title: ${blog.title}\n  url: ${blog.slug ? `${SITE_URL}${blog.slug}` : '(no link)'}\n  summary: ${blogSummary}`);
   } else if (featuredEpisodeSlug) {
     const ep = EPISODES.find((e) => e.slug === featuredEpisodeSlug);
     if (ep) {

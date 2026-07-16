@@ -54,7 +54,7 @@ export default function PageContent() {
 
           {/* Back link */}
           <Link
-            href="/who-we-are/blog/what-actually-happens-in-equine-therapy"
+            href="/what-actually-happens-in-equine-therapy"
             className="text-primary text-sm font-semibold hover:underline mb-8 inline-block"
             style={{ fontFamily: 'var(--font-body)' }}
           >

@@ -258,7 +258,7 @@ export async function POST(req: NextRequest) {
     ? `${SITE_URL.replace(/\/$/, '')}${featuredPage.path}`
     : null;
 
-  const blogUrl = blog?.slug ? `${SITE_URL}who-we-are/blog/${blog.slug}` : null;
+  const blogUrl = blog?.slug ? `${SITE_URL}${blog.slug}` : null;
   const empUrl = emp?.public_slug ? `${SITE_URL}who-we-are/meet-our-team/${emp.public_slug}` : null;
 
   // A small per-build seed nudges Claude toward visual variety:

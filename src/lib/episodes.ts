@@ -62,6 +62,7 @@ export const EPISODES: Episode[] = [
   {
     number: 1,
     slug: 'when-drinking-stops-working',
+    href: '/when-drinking-stops-working',
     title: 'When Drinking Stops Working: Recognizing the Signs of Addiction',
     blurb:
       'A compassionate guide to understanding when substance use has crossed from choice to compulsion.',
@@ -74,6 +75,7 @@ export const EPISODES: Episode[] = [
   {
     number: 2,
     slug: 'what-happens-first-week',
+    href: '/what-happens-first-week',
     title: 'What Happens When You Walk Through the Door: Your First Week in Treatment',
     blurb:
       'Your first week in treatment, demystified. A day-by-day guide for anyone afraid to make the call.',
@@ -86,6 +88,7 @@ export const EPISODES: Episode[] = [
   {
     number: 3,
     slug: 'what-actually-happens-in-equine-therapy',
+    href: '/what-actually-happens-in-equine-therapy',
     title: 'What Actually Happens in Equine Therapy',
     blurb:
       'The honest, minute-by-minute version of equine therapy — no marketing gloss, no horse-whispering mystique. Just what really happens in the arena and why it reaches places talk therapy sometimes cannot.',
@@ -98,6 +101,7 @@ export const EPISODES: Episode[] = [
   {
     number: 4,
     slug: 'your-therapists-nervous-system',
+    href: '/your-therapists-nervous-system',
     title: "The Miracle Intervention Is Your Therapist's Nervous System",
     blurb:
       "Co-regulation, regulated presence, and the science of why a clinician who's done their own work makes therapy actually land. Plus the warning signs of a therapist performing calm.",
@@ -110,6 +114,7 @@ export const EPISODES: Episode[] = [
   {
     number: 5,
     slug: 'salutogenic-not-pathological',
+    href: '/salutogenic-not-pathological',
     title: "Salutogenic, Not Pathological: Rebuilding What's Right Instead of Chasing What's Wrong",
     blurb:
       "The DSM mindset says you are what's wrong with you. The salutogenic frame — built on Rhoton & Gentry's work — says you are what's underneath, still intact, waiting to surface. Why self-leadership beats symptom management for 5-year outcomes.",
@@ -122,6 +127,7 @@ export const EPISODES: Episode[] = [
   {
     number: 6,
     slug: 'polyvagal-in-plain-english',
+    href: '/polyvagal-in-plain-english',
     title: "Polyvagal in Plain English: The Three States You Live In Every Day",
     blurb:
       "Ventral, sympathetic, dorsal — walked as a ladder, in language you can actually use mid-craving. Why addiction looks different in each state, and the two questions to ask yourself when you can't tell which one you're in.",
@@ -695,10 +701,24 @@ export const EPISODES_BY_NUMBER: Episode[] = [...EPISODES].sort(
   (a, b) => a.number - b.number,
 );
 
+/**
+ * Editorial (Recovery Roadmap) vs legacy-SEO archive. Used by the
+ * llms.txt featured split, which previously keyed off "has no href
+ * override" — dead as a signal now that EVERY article lives at root.
+ * Hand-written editorial episodes carry an authorSlug; DB-pipeline
+ * posts get numbers past the static max.
+ */
+export function isEditorialEpisode(e: Episode): boolean {
+  const maxStatic = EPISODES.reduce((m, x) => Math.max(m, x.number), 0);
+  return Boolean(e.authorSlug) || e.number > maxStatic;
+}
+
 export function episodeHref(slug: string): string {
   const ep = EPISODES.find((e) => e.slug === slug);
   if (ep?.href) return ep.href;
-  return `/who-we-are/blog/${slug}`;
+  // Root level is the site's article convention — the
+  // /who-we-are/blog/ prefix is retired (old URLs 301 to root).
+  return `/${slug}`;
 }
 
 // ── Image rotation ────────────────────────────────────────────
@@ -828,6 +848,11 @@ export async function getPublishedBlogEpisodes(): Promise<Episode[]> {
       publishedDisplay,
       image,
       imageAlt,
+      // Articles publish at ROOT level — the site's established
+      // convention (the /who-we-are/blog/ prefix was a mistake on a
+      // recent batch and is 301-redirected away; see the root
+      // (site)/[slug] route).
+      href: `/${row.slug as string}`,
     } satisfies Episode;
   });
 }

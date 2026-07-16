@@ -4,13 +4,12 @@ import { findAuthorBySlug } from '@/lib/blogAuthors';
 import StaticBlogStructuredData from '@/components/blog/StaticBlogStructuredData';
 import PageContent from './content';
 
-const SLUG = 'your-therapists-nervous-system';
+const SLUG = 'salutogenic-not-pathological';
 const ep = EPISODES.find((e) => e.slug === SLUG)!;
 const author = findAuthorBySlug(ep.authorSlug);
-const url = `https://sevenarrowsrecoveryarizona.com/who-we-are/blog/${SLUG}`;
-const title = `${ep.title} | Seven Arrows Recovery`;
+const url = `https://sevenarrowsrecoveryarizona.com/${SLUG}`;
 const description =
-  "Co-regulation, regulated presence, and why a clinician who's done their own work makes therapy actually land. Plus the warning signs of a therapist who's performing calm.";
+  "The DSM says you are what's wrong with you — the salutogenic frame says you are what's underneath. Why self-leadership beats symptom management long-term.";
 
 // 1-hour ISR — marketing pages are otherwise fully static; this lets the
 // edge cache hold the rendered HTML so TTFB drops from ~250ms (cold SSR)
@@ -20,10 +19,10 @@ const description =
 export const revalidate = 3600;
 
 export const metadata: Metadata = {
-  title,
+  title: `${ep.title} | Seven Arrows Recovery`,
   description,
   keywords:
-    'co-regulation therapy, regulated presence, polyvagal therapy, nervous system therapist, somatic therapist, therapist self-regulation, why therapy isn’t working, signs of a bad therapist, trauma-informed therapist',
+    'salutogenic recovery, salutogenesis addiction, self-leadership recovery, post-rehab outcomes, Rhoton Gentry active ingredients, beyond symptom management, strengths-based addiction treatment, sense of coherence',
   alternates: { canonical: url },
   openGraph: {
     type: 'article',
@@ -34,13 +33,7 @@ export const metadata: Metadata = {
     siteName: 'Seven Arrows Recovery',
     publishedTime: ep.publishedAt,
     authors: author ? [author.name] : ['Seven Arrows Recovery Clinical Team'],
-    tags: [
-      'Recovery Roadmap',
-      'Co-regulation',
-      'Polyvagal',
-      'Therapist regulation',
-      'Trauma therapy',
-    ],
+    tags: ['Recovery Roadmap', 'Salutogenesis', 'Self-leadership', 'Strengths-based', 'Post-rehab'],
   },
   twitter: {
     card: 'summary_large_image',
@@ -50,10 +43,6 @@ export const metadata: Metadata = {
   },
 };
 
-// BreadcrumbList stays inline (BlogPostJsonLd is Article-only).
-// The Article JSON-LD itself moves into BlogPostJsonLd so the
-// author Person + publisher Organization references match what's
-// rendered in the visible byline.
 const breadcrumbJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'BreadcrumbList',
@@ -69,10 +58,7 @@ export default function Page() {
   return (
     <>
       <StaticBlogStructuredData episode={ep} />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }}
-      />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbJsonLd) }} />
       <PageContent />
     </>
   );
