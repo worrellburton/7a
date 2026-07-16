@@ -2005,6 +2005,68 @@ export default function PlatformShell({ children }: { children: React.ReactNode 
                       </li>
                     );
                   };
+                  // Same two-level department nav as the desktop rail
+                  // (shared navPanel state, so the drawer and rail stay
+                  // in sync). Alumni keep the flat list.
+                  if (useNavPanels) {
+                    const activeSection = navPanel
+                      ? navPanelData.sections.find((s) => s.id === navPanel) ?? null
+                      : null;
+                    return (
+                      <li key={navPanel ?? '__root'} className={`list-none ${navPanelDir === 'in' ? 'sa-nav-slide-in' : 'sa-nav-slide-back'}`}>
+                        {activeSection == null ? (
+                          <ul className="space-y-0.5">
+                            {navPanelData.pinned.map(renderMobileLink)}
+                            {navPanelData.sections.map((s) => (
+                              <li key={s.id}>
+                                <button
+                                  type="button"
+                                  onClick={() => { setNavPanelDir('in'); setNavPanel(s.id); }}
+                                  className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium text-foreground/70 hover:bg-warm-bg hover:text-foreground transition-colors"
+                                  style={{ fontFamily: 'var(--font-body)' }}
+                                >
+                                  <span
+                                    className="inline-flex items-center justify-center w-6 h-6 rounded-lg text-[11px] font-bold shrink-0"
+                                    style={{
+                                      color: s.color ?? 'rgba(44,24,16,0.55)',
+                                      background: s.color ? `${s.color}1f` : 'rgba(44,24,16,0.07)',
+                                    }}
+                                    aria-hidden="true"
+                                  >
+                                    {departmentGlyph(s.name) ?? s.name.charAt(0).toUpperCase()}
+                                  </span>
+                                  <span className="flex-1 text-left truncate">{s.name}</span>
+                                  <span className="text-[10px] tabular-nums text-foreground/35">{s.pages.length}</span>
+                                  <svg className="w-3 h-3 text-foreground/35" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                    <path d="M9 5l7 7-7 7" />
+                                  </svg>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <ul className="space-y-0.5">
+                            <li>
+                              <button
+                                type="button"
+                                onClick={() => { setNavPanelDir('out'); setNavPanel(null); }}
+                                className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-semibold text-foreground/70 hover:bg-warm-bg hover:text-foreground transition-colors"
+                                style={{ fontFamily: 'var(--font-body)' }}
+                                aria-label={`Back — leave ${activeSection.name}`}
+                              >
+                                <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-foreground/[0.06] shrink-0" aria-hidden="true">
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6" /></svg>
+                                </span>
+                                <span className="flex-1 text-left truncate">{activeSection.name}</span>
+                              </button>
+                            </li>
+                            <li aria-hidden="true"><div className="my-1 border-t border-foreground/10" /></li>
+                            {activeSection.pages.map(renderMobileLink)}
+                          </ul>
+                        )}
+                      </li>
+                    );
+                  }
                   return (
                     <>
                       {recencyTopPages.map(renderMobileLink)}
