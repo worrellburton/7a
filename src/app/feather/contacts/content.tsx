@@ -445,17 +445,6 @@ export default function ContactsContent() {
   // "show every tier including unrated rows"; 'unrated' specifically
   // narrows to rows where rating is null so the team can hunt down
   // contacts that still need a tier assigned.
-  // Tier filter — desktop table only. Kept off the mobile card list,
-  // which is intentionally minimal.
-  const [tierFilter, setTierFilter] = useState<'all' | ContactRating | 'unrated'>('all');
-  const [, startFilterTransition] = useTransition();
-  const setTier = useCallback((t: 'all' | ContactRating | 'unrated') => {
-    startFilterTransition(() => setTierFilter(t));
-  }, []);
-  // Desktop (md+) renders the full power-table; mobile renders the
-  // minimal collapsible card list. Never both (avoids double-mounting
-  // ~1200 row subtrees).
-  const isDesktopList = useMediaQuery('(min-width: 768px)');
   // Table / Map / Insights view-mode toggle. Persisted in the URL via
   // ?view=map / ?view=insights so the choice survives refresh + lets
   // admissions bookmark each view directly. `table` is the default
@@ -878,12 +867,10 @@ export default function ContactsContent() {
   const filtered = useMemo(() => {
     const q = deferredSearch.trim().toLowerCase();
     return rows.filter((r) => {
-      if (tierFilter === 'unrated') { if (r.rating != null) return false; }
-      else if (tierFilter !== 'all' && r.rating !== tierFilter) return false;
       if (!q) return true;
       return (searchIndex.get(r) ?? '').includes(q);
     });
-  }, [rows, searchIndex, deferredSearch, tierFilter]);
+  }, [rows, searchIndex, deferredSearch]);
 
   // Sorted, deduplicated list of every company string currently in
   // the contacts table. Drives the SearchSelect dropdown on the
@@ -1359,160 +1346,20 @@ export default function ContactsContent() {
             </button>
           )}
         </div>
-        {/* Tier filters — desktop table only (the mobile card list is
-            intentionally minimal). */}
-        <div className="hidden md:flex items-center gap-1 flex-wrap">
-          {([
-            { key: 'all', label: 'All tiers' },
-            { key: 'Tier 1', label: 'Tier 1' },
-            { key: 'Tier 2', label: 'Tier 2' },
-            { key: 'Tier 3', label: 'Tier 3' },
-            { key: 'unrated', label: 'Unrated' },
-          ] as const).map((t) => {
-            const active = tierFilter === t.key;
-            const tone =
-              t.key === 'Tier 1' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-              : t.key === 'Tier 2' ? 'bg-amber-50 text-amber-700 border-amber-200'
-              : t.key === 'Tier 3' ? 'bg-foreground/5 text-foreground/70 border-foreground/15'
-              : t.key === 'unrated' ? 'bg-foreground/[0.04] text-foreground/60 border-foreground/15'
-              : 'bg-foreground text-white border-foreground';
-            return (
-              <button
-                key={t.key}
-                type="button"
-                onClick={() => setTier(t.key)}
-                aria-pressed={active}
-                className={`px-2.5 py-1.5 rounded-md text-[11.5px] font-semibold border transition-colors ${active ? tone : 'bg-white text-foreground/55 border-black/10 hover:bg-warm-bg/60'}`}
-              >
-                {t.label}
-              </button>
-            );
-          })}
-        </div>
-        {/* Manage Columns — desktop table only. */}
-        <div className="hidden md:block ml-auto">
-          <ManageColumnsButton
-            open={showCols}
-            onToggle={() => setShowCols((v) => !v)}
-            visibleCols={visibleCols ?? DEFAULT_VISIBLE}
-            onToggleColumn={toggleVisible}
-            onClose={() => setShowCols(false)}
-          />
-        </div>
       </div>
 
       {error && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-[13px] text-red-700">{error}</div>
       )}
 
-      {(viewMode === 'map' || viewMode === 'insights') && (
-        <div
-          className="fixed inset-0 z-50 flex items-stretch sm:items-center justify-center bg-black/50 p-0 sm:p-6"
-          onClick={() => setViewMode('table')}
-        >
-          <div
-            className="relative w-full max-w-6xl h-full sm:h-auto sm:max-h-[90vh] bg-white rounded-none sm:rounded-2xl shadow-xl overflow-hidden flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-5 py-3 border-b border-black/10 shrink-0">
-              <h2 className="text-base font-semibold text-foreground">
-                {viewMode === 'map' ? 'Marketing map' : 'Marketing insights'}
-              </h2>
-              <button
-                type="button"
-                onClick={() => setViewMode('table')}
-                className="text-foreground/50 hover:text-foreground transition-colors"
-                aria-label="Close"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M18 6 6 18M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-5">
-              {viewMode === 'map' ? (
-                <ContactsMapView
-                  contacts={sorted}
-                  onLogContact={(c) => setLogTarget(c)}
-                  onOpenDetails={(c) => {
-                    setViewMode('table');
-                    setExpandedDetailsId(c.id);
-                  }}
-                />
-              ) : (
-                <ContactsInsightsView contacts={sorted} loading={loading} />
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Mobile: the minimal collapsible card list. Desktop: the full
-          power-table (sorting / columns / resize / bulk edit / inline
-          edit). The card redesign was a mobile-only change. */}
-      {!isDesktopList ? (
-        <SimpleContactList
-          loading={loading}
-          rows={sorted}
-          expandedId={expandedDetailsId}
-          onToggle={(c) => setExpandedDetailsId((prev) => (prev === c.id ? null : c.id))}
-          accessToken={session?.access_token ?? null}
-          onOpenLog={(c) => setLogTarget(c)}
-        />
-      ) : (
-        <ContactsGrid
-          loading={loading}
-          rows={sorted}
-          columns={visibleColumnsResolved}
-          sortKey={sortKey}
-          sortDir={sortDir}
-          onSort={toggleSort}
-          onColDragStart={onColDragStart}
-          onColDrop={onColDrop}
-          onContact={(c) => setLogTarget(c)}
-          onUpgrade={(c) => setUpgradeTarget(c)}
-          onHistory={(c) => setExpandedDetailsId((prev) => (prev === c.id ? null : c.id))}
-          expandedDetailsId={expandedDetailsId}
-          accessToken={session?.access_token ?? null}
-          onOpenLog={(c) => setLogTarget(c)}
-          isNewToUser={isNewToUser}
-          onDelete={(c) => handleDelete(c)}
-          onSaveNotes={handleSaveNotes}
-          onSaveField={handleSaveField}
-          onSavePatch={handleSavePatch}
-          companyOptions={companyOptions}
-          roleOptions={roleOptions}
-          typeOptions={typeOptions}
-          specialtyOptions={specialtyOptions}
-          actionMenuFor={actionMenuFor}
-          setActionMenuFor={setActionMenuFor}
-          columnWidths={columnWidths}
-          onResizeColumn={(key, w) => setColumnWidths((prev) => ({ ...prev, [key]: Math.round(w) }))}
-          onCommitColumnWidth={(key, w) => { void persistColumnWidth(key, w); }}
-          onResizeStart={() => { resizingRef.current = true; }}
-          onResizeEnd={() => { resizingRef.current = false; }}
-          selectedIds={selectedIds}
-          onToggleSelectOne={toggleSelectOne}
-          onToggleSelectMany={setSelectedFromList}
-          onBulkRenameOption={handleBulkRenameOption}
-        />
-      )}
-      {isDesktopList && selectedIds.size > 0 && (
-        <BatchEditBar
-          selectedIds={selectedIds}
-          token={session?.access_token ?? null}
-          rows={rows}
-          companyOptions={companyOptions}
-          typeOptions={typeOptions}
-          specialtyOptions={specialtyOptions}
-          onClear={clearSelection}
-          onApplied={(patch) => {
-            // Optimistic: stamp the patched fields locally so the grid
-            // reflects the change before the realtime echo arrives.
-            setRows((prev) => prev.map((r) => (selectedIds.has(r.id) ? { ...r, ...patch } : r)));
-          }}
-        />
-      )}
+      <SimpleContactList
+        loading={loading}
+        rows={sorted}
+        expandedId={expandedDetailsId}
+        onToggle={(c) => setExpandedDetailsId((prev) => (prev === c.id ? null : c.id))}
+        accessToken={session?.access_token ?? null}
+        onOpenLog={(c) => setLogTarget(c)}
+      />
 
       {showAdd && (
         <AddContactModal
@@ -4905,14 +4752,13 @@ function ContactsPillTray({
       : '';
   const pills: Array<{ key: string; node: React.ReactNode }> = [
     {
-      key: 'insights',
+      key: 'logs',
       node: (
         <StatPill
           iconOnly
-          label="Insights"
+          label="Logs"
           value=""
-          active={viewMode === 'insights'}
-          onClick={() => onSetViewMode(viewMode === 'insights' ? 'table' : 'insights')}
+          href="/feather/logs"
           iconBg="bg-amber-100"
           iconColor="text-amber-600"
           icon={
@@ -5028,6 +4874,7 @@ function StatPill({
   iconColor,
   active = false,
   onClick,
+  href,
   iconOnly = false,
 }: {
   label: string;
@@ -5037,27 +4884,24 @@ function StatPill({
   iconColor: string;
   active?: boolean;
   onClick?: () => void;
+  // When set, the pill navigates (rendered as a Link) instead of
+  // firing onClick.
+  href?: string;
   // When true the pill renders just the icon graphic (no text label /
   // value). `label`/`value` still feed the accessible name + tooltip.
   iconOnly?: boolean;
 }) {
-  const Tag = onClick ? 'button' : 'div';
   const accessibleName = value ? `${label}: ${value}` : label;
-  return (
-    <Tag
-      type={onClick ? 'button' : undefined}
-      onClick={onClick}
-      aria-pressed={onClick ? active : undefined}
-      aria-label={iconOnly ? accessibleName : undefined}
-      title={iconOnly ? accessibleName : undefined}
-      className={`inline-flex items-center gap-2 rounded-full transition-all ${iconOnly ? 'p-1.5' : 'pl-1.5 pr-3.5 py-1.5'} ${onClick ? 'cursor-pointer' : ''} ${
-        active
-          ? 'bg-white shadow-[0_8px_20px_-8px_rgba(40,30,25,0.32),0_2px_6px_-2px_rgba(40,30,25,0.15)] ring-1 ring-foreground/15'
-          : onClick
-          ? 'bg-white/90 supports-[backdrop-filter]:bg-white/75 supports-[backdrop-filter]:backdrop-blur-md hover:bg-white shadow-[0_6px_16px_-8px_rgba(40,30,25,0.24),0_1px_4px_-2px_rgba(40,30,25,0.10)] hover:shadow-[0_8px_22px_-8px_rgba(40,30,25,0.30)] ring-1 ring-black/5 hover:ring-black/10'
-          : 'bg-white/90 supports-[backdrop-filter]:bg-white/75 supports-[backdrop-filter]:backdrop-blur-md shadow-[0_6px_16px_-8px_rgba(40,30,25,0.24),0_1px_4px_-2px_rgba(40,30,25,0.10)] ring-1 ring-black/5'
-      }`}
-    >
+  const interactive = Boolean(onClick || href);
+  const className = `inline-flex items-center gap-2 rounded-full transition-all ${iconOnly ? 'p-1.5' : 'pl-1.5 pr-3.5 py-1.5'} ${interactive ? 'cursor-pointer' : ''} ${
+    active
+      ? 'bg-white shadow-[0_8px_20px_-8px_rgba(40,30,25,0.32),0_2px_6px_-2px_rgba(40,30,25,0.15)] ring-1 ring-foreground/15'
+      : interactive
+      ? 'bg-white/90 supports-[backdrop-filter]:bg-white/75 supports-[backdrop-filter]:backdrop-blur-md hover:bg-white shadow-[0_6px_16px_-8px_rgba(40,30,25,0.24),0_1px_4px_-2px_rgba(40,30,25,0.10)] hover:shadow-[0_8px_22px_-8px_rgba(40,30,25,0.30)] ring-1 ring-black/5 hover:ring-black/10'
+      : 'bg-white/90 supports-[backdrop-filter]:bg-white/75 supports-[backdrop-filter]:backdrop-blur-md shadow-[0_6px_16px_-8px_rgba(40,30,25,0.24),0_1px_4px_-2px_rgba(40,30,25,0.10)] ring-1 ring-black/5'
+  }`;
+  const inner = (
+    <>
       <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full shrink-0 ${iconBg} ${iconColor}`}>
         {icon}
       </span>
@@ -5067,6 +4911,26 @@ function StatPill({
           <span className="block text-[12.5px] font-bold leading-tight text-foreground">{value}</span>
         </span>
       )}
+    </>
+  );
+  if (href) {
+    return (
+      <Link href={href} aria-label={iconOnly ? accessibleName : undefined} title={iconOnly ? accessibleName : undefined} className={className}>
+        {inner}
+      </Link>
+    );
+  }
+  const Tag = onClick ? 'button' : 'div';
+  return (
+    <Tag
+      type={onClick ? 'button' : undefined}
+      onClick={onClick}
+      aria-pressed={onClick ? active : undefined}
+      aria-label={iconOnly ? accessibleName : undefined}
+      title={iconOnly ? accessibleName : undefined}
+      className={className}
+    >
+      {inner}
     </Tag>
   );
 }
