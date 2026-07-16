@@ -110,7 +110,10 @@ export default function HomeOrbit3D({
     const ringFor = (count: number) => 0.52 + Math.min(0.46, count * 0.012);
     const staffR = ringFor(users.length);
     const horseR = 0.42 + Math.min(0.2, horses.length * 0.008);
-    const alumniR = ringFor(alumni.length) + 0.16;
+    // Alumni ring is anchored OUTSIDE the staff ring, not sized from
+    // its own headcount — with a large staff roster and few alumni the
+    // two radii used to converge and the bands visually collided.
+    const alumniR = staffR + 0.22 + Math.min(0.1, alumni.length * 0.006);
     const maxR = Math.max(staffR, horseR, alumni.length > 0 ? alumniR : 0, 0.001);
     const norm = (compact ? 0.78 : 0.92) / maxR;
 
