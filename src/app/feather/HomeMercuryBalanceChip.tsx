@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
+import { db } from '@/lib/db';
 
 // Home-screen 7A bank-balance pill. Super-admin only — the RLS on
 // mercury_accounts already locks the read to is_super_admin, so a
@@ -71,10 +72,52 @@ function fmtDate(iso: string | null): string {
 }
 
 export default function HomeMercuryBalanceChip() {
-  const { session, isSuperAdmin } = useAuth();
+  const { user, session, isSuperAdmin } = useAuth();
   const [account, setAccount] = useState<AccountRow | null>(null);
   const [txns, setTxns] = useState<TxnRow[]>([]);
   const [admins, setAdmins] = useState<SuperAdminRow[]>([]);
+  // Clicking the chip collapses the dollar figure into a plain bank
+  // icon (for over-the-shoulder privacy); clicking the icon brings it
+  // back. Canonical store is user_prefs (key 'balance_chip_hidden') so
+  // the choice follows the admin across devices; localStorage seeds the
+  // first paint so the balance never flashes while the DB read is in
+  // flight.
+  const [balanceHidden, setBalanceHidden] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    try { return window.localStorage.getItem('feather:balance-chip-hidden') === '1'; } catch { return false; }
+  });
+
+  useEffect(() => {
+    if (!user?.id || !isSuperAdmin) return;
+    let cancelled = false;
+    void (async () => {
+      const rows = await db({
+        action: 'select',
+        table: 'user_prefs',
+        match: { user_id: user.id, key: 'balance_chip_hidden' },
+        select: 'value',
+      });
+      if (cancelled || !Array.isArray(rows) || !rows[0]) return;
+      const v = (rows[0] as { value: unknown }).value === true;
+      setBalanceHidden(v);
+      try { window.localStorage.setItem('feather:balance-chip-hidden', v ? '1' : '0'); } catch { /* ignore */ }
+    })();
+    return () => { cancelled = true; };
+  }, [user?.id, isSuperAdmin]);
+
+  const toggleBalanceHidden = () => {
+    const next = !balanceHidden;
+    setBalanceHidden(next);
+    try { window.localStorage.setItem('feather:balance-chip-hidden', next ? '1' : '0'); } catch { /* ignore */ }
+    if (user?.id) {
+      void db({
+        action: 'upsert',
+        table: 'user_prefs',
+        data: { user_id: user.id, key: 'balance_chip_hidden', value: next, updated_at: new Date().toISOString() },
+        onConflict: 'user_id,key',
+      });
+    }
+  };
 
   useEffect(() => {
     if (!session?.access_token || !isSuperAdmin) return;
@@ -116,11 +159,33 @@ export default function HomeMercuryBalanceChip() {
   if (!isSuperAdmin) return null;
   if (!account || account.balance == null) return null;
 
+  // Collapsed state: just a little bank icon. Clicking it restores the
+  // full balance chip. No hover popover while hidden — the point is
+  // that nothing on screen reveals the number until it's toggled back.
+  if (balanceHidden) {
+    return (
+      <button
+        type="button"
+        onClick={toggleBalanceHidden}
+        aria-label="Show 7A bank balance"
+        className="inline-flex items-center justify-center w-9 h-9 lg:w-10 lg:h-10 rounded-full bg-white/70 supports-[backdrop-filter]:bg-white/55 backdrop-blur-md border border-white/80 text-foreground/60 hover:bg-white hover:text-foreground hover:border-primary/45 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+      >
+        <svg aria-hidden="true" className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 21h18" />
+          <path d="M5 18h14" />
+          <path d="M7 18v-7M12 18v-7M17 18v-7" />
+          <path d="M3.5 9.5 12 4l8.5 5.5z" />
+        </svg>
+      </button>
+    );
+  }
+
   return (
     <span className="relative inline-flex group/sa-balance">
-      <Link
-        href="/feather/mercury"
-        aria-label={`7A bank balance — ${fmtMoneyShort(account.balance, account.currency)} (super admins only)`}
+      <button
+        type="button"
+        onClick={toggleBalanceHidden}
+        aria-label={`Hide 7A bank balance — currently ${fmtMoneyShort(account.balance, account.currency)} (super admins only)`}
         className="inline-flex items-center gap-1.5 h-9 lg:h-10 pl-2.5 pr-3 rounded-full bg-white/70 supports-[backdrop-filter]:bg-white/55 backdrop-blur-md border border-white/80 text-foreground hover:bg-white hover:border-primary/45 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
         style={{ fontFamily: 'var(--font-body)' }}
       >
@@ -139,7 +204,7 @@ export default function HomeMercuryBalanceChip() {
         <span className="text-[13px] font-bold tabular-nums" style={{ fontFamily: 'var(--font-display)' }}>
           {fmtMoneyShort(account.balance, account.currency)}
         </span>
-      </Link>
+      </button>
 
       {/* Hover popover. CSS-only so it appears instantly on hover —
           no native title-tooltip delay. Anchored to the right edge
@@ -206,6 +271,19 @@ export default function HomeMercuryBalanceChip() {
               ))}
             </ul>
           )}
+        </div>
+
+        {/* The chip's click now toggles hide, so navigation moved here.
+            pointer-events re-enabled just for the link (the popover
+            wrapper is pointer-events-none). */}
+        <div className="mt-2.5 pt-2 border-t border-white/15 flex items-center justify-between">
+          <span className="text-[10px] text-white/40">Click the chip to hide it</span>
+          <Link
+            href="/feather/mercury"
+            className="pointer-events-auto text-[11px] font-semibold text-amber-200 hover:text-amber-100 transition-colors"
+          >
+            Open Mercury →
+          </Link>
         </div>
       </span>
     </span>
