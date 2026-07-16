@@ -78,7 +78,7 @@ export default async function StaticBlogStructuredData({ episode }: { episode: E
 
   const liveUrl = episode.href
     ? `https://sevenarrowsrecoveryarizona.com${episode.href.startsWith('/') ? episode.href : `/${episode.href}`}`
-    : `https://sevenarrowsrecoveryarizona.com/who-we-are/blog/${episode.slug}`;
+    : `https://sevenarrowsrecoveryarizona.com/${episode.slug}`;
 
   const faq = meta?.schema_json?.faq && meta.schema_json.faq.length > 0
     ? {

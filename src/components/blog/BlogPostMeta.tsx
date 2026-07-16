@@ -38,7 +38,7 @@ function absoluteUrl(maybeRelative: string): string {
 
 function postUrl(episode: Episode): string {
   if (episode.href) return absoluteUrl(episode.href);
-  return `${SITE_ORIGIN}/who-we-are/blog/${episode.slug}`;
+  return `${SITE_ORIGIN}/${episode.slug}`;
 }
 
 /* ── Person node ────────────────────────────────────────────────── */

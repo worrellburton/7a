@@ -2116,7 +2116,7 @@ function PublishPanel({ blog, token, onChange }: { blog: DbBlog; token: string |
       <p className="text-[12.5px] text-foreground/65 mb-3 leading-relaxed">
         {published
           ? 'This post is live on the public site. Unpublish to take it back to a built draft.'
-          : 'Flip the post live. It will appear at /who-we-are/blog/<slug> immediately.'}
+          : 'Flip the post live. It will appear at /<slug> immediately.'}
       </p>
       {err && <ErrorWithCopy message={err.message} details={err.details} />}
       {!published ? (
@@ -2159,7 +2159,7 @@ function GenerateSchemaButton({ blog }: { blog: DbBlog }) {
   const [copied, setCopied] = useState(false);
 
   function buildSchema() {
-    const url = `https://sevenarrowsrecoveryarizona.com/who-we-are/blog/${blog.slug}`;
+    const url = `https://sevenarrowsrecoveryarizona.com/${blog.slug}`;
     // Pull the first image from the layout if there is one — Google
     // requires an image on Article schema for rich-result eligibility.
     const firstImage = (() => {
@@ -2308,7 +2308,7 @@ function PublishedDashboard({
 
 function PublishedHeroCard({ blog }: { blog: DbBlog }) {
   const [copied, setCopied] = useState(false);
-  const liveUrl = `https://sevenarrowsrecoveryarizona.com/who-we-are/blog/${blog.slug}`;
+  const liveUrl = `https://sevenarrowsrecoveryarizona.com/${blog.slug}`;
   return (
     <section className="rounded-2xl border-2 border-emerald-200 bg-gradient-to-r from-emerald-50/60 via-warm-bg/30 to-white p-5 lg:p-6">
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -2341,7 +2341,7 @@ function PublishedHeroCard({ blog }: { blog: DbBlog }) {
               <rect x="5" y="5" width="9" height="9" rx="1.5" />
               <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" />
             </svg>
-            <span className="truncate max-w-[480px]">/who-we-are/blog/{blog.slug}</span>
+            <span className="truncate max-w-[480px]">/{blog.slug}</span>
             {copied && <span className="text-emerald-700">· copied</span>}
           </button>
         </div>
@@ -2384,7 +2384,7 @@ function PublishedActionBar({ blog, token, onChange }: { blog: DbBlog; token: st
     <section className="rounded-2xl border border-black/10 bg-white p-4">
       <div className="flex items-center gap-2 flex-wrap">
         <Link
-          href={`/who-we-are/blog/${blog.slug}?edit=1`}
+          href={`/${blog.slug}?edit=1`}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-primary text-white text-[12px] font-semibold uppercase tracking-wider hover:bg-primary/90 transition-colors shadow-[0_10px_28px_-10px_rgba(188,107,74,0.55)]"
@@ -2393,7 +2393,7 @@ function PublishedActionBar({ blog, token, onChange }: { blog: DbBlog; token: st
           <span aria-hidden>→</span>
         </Link>
         <Link
-          href={`/who-we-are/blog/${blog.slug}`}
+          href={`/${blog.slug}`}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg border border-foreground/15 bg-white text-foreground/75 text-[12px] font-semibold hover:bg-warm-bg/60 transition-colors"
@@ -2426,7 +2426,7 @@ function InlineLiveEditorCard({ blogId, layout }: { blogId: string; layout: Layo
           <h3 className="text-base font-semibold text-foreground">Click any paragraph to rewrite it</h3>
         </div>
         <Link
-          href={`/who-we-are/blog/${blogId}?edit=1`}
+          href={`/${blogId}?edit=1`}
           target="_blank"
           rel="noopener noreferrer"
           className="text-[11px] font-semibold text-primary hover:text-primary/85"
@@ -2464,7 +2464,7 @@ function ImagesGridCard({ blog, images }: { blog: DbBlog; images: DbImage[]; tok
           </h3>
         </div>
         <Link
-          href={`/who-we-are/blog/${blog.slug}?edit=1`}
+          href={`/${blog.slug}?edit=1`}
           target="_blank"
           rel="noopener noreferrer"
           className="text-[11px] font-semibold text-primary hover:text-primary/85"
@@ -2541,7 +2541,7 @@ function SchemaCard({ blogId, slug, token, onChange }: { blogId: string; slug: s
       // <script type="application/ld+json"> block. That way the
       // editor sees EXACTLY what Google sees, not what we think
       // we emit. Public page → no auth header needed.
-      const res = await fetch(`/who-we-are/blog/${slug}`, { cache: 'no-store' });
+      const res = await fetch(`/${slug}`, { cache: 'no-store' });
       const html = await res.text();
       const re = /<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi;
       const found: { type: string; json: unknown }[] = [];
@@ -2615,7 +2615,7 @@ function SchemaCard({ blogId, slug, token, onChange }: { blogId: string; slug: s
     });
   }
 
-  const liveUrl = `https://sevenarrowsrecoveryarizona.com/who-we-are/blog/${slug}`;
+  const liveUrl = `https://sevenarrowsrecoveryarizona.com/${slug}`;
   const richResultsUrl = `https://search.google.com/test/rich-results?url=${encodeURIComponent(liveUrl)}`;
 
   return (
@@ -2725,7 +2725,7 @@ function SchemaCard({ blogId, slug, token, onChange }: { blogId: string; slug: s
 
 function AnalyticsCard({ slug, token }: { slug: string; token: string | null }) {
   const [open, setOpen] = useState(false);
-  const path = `/who-we-are/blog/${slug}`;
+  const path = `/${slug}`;
   return (
     <section className="rounded-2xl border border-black/10 bg-white">
       <button

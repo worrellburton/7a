@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     'therapeutic alliance, therapeutic alliance addiction treatment, what makes rehab work, evidence-based addiction treatment, common factors therapy, relationship vs modality, choosing a rehab, rehab tour questions, residential treatment arizona',
   alternates: {
     canonical:
-      'https://sevenarrowsrecovery.com/who-we-are/blog/what-makes-treatment-actually-work',
+      'https://sevenarrowsrecovery.com/what-makes-treatment-actually-work',
   },
   openGraph: {
     type: 'article',
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
       'Modalities Support the Process. Relationship Drives the Outcome.',
     description:
       'The therapeutic alliance — not the modality mix — is the strongest predictor of recovery outcomes. Here is what the research shows, and how to tell on a tour whether a program has it.',
-    url: 'https://sevenarrowsrecovery.com/who-we-are/blog/what-makes-treatment-actually-work',
+    url: 'https://sevenarrowsrecovery.com/what-makes-treatment-actually-work',
     siteName: 'Seven Arrows Recovery',
     images: [
       {

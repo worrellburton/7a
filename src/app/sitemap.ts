@@ -126,7 +126,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const alreadyEmitted = new Set(routes);
     for (const ep of episodes) {
       if (hidden.has(ep.slug)) continue;
-      const routePath = `/who-we-are/blog/${ep.slug}`;
+      // Articles live at root level now (ep.href when set, which the
+      // DB mapping always sets) — never the retired /who-we-are/blog/
+      // prefix.
+      const routePath = ep.href ?? `/${ep.slug}`;
       if (alreadyEmitted.has(routePath)) continue;
       items.push({
         url: `${ORIGIN}${routePath}`,

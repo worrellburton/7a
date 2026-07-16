@@ -13,7 +13,7 @@ const STATIC_ITEMS: TickerItem[] = [
   {
     type: 'link',
     text: 'NEW: When Drinking Stops Working →',
-    href: '/who-we-are/blog/when-drinking-stops-working',
+    href: '/when-drinking-stops-working',
   },
   { type: 'stat', text: '90+ Day Programs Available' },
   { type: 'stat', text: '24/7 Admissions Support' },

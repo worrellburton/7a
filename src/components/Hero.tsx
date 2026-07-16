@@ -84,7 +84,7 @@ const tickerItems = [
   { type: 'divider' },
   { type: 'stat', text: 'Small Census · Every Name Known' },
   { type: 'divider' },
-  { type: 'link', text: 'Read: When Drinking Stops Working →', href: '/who-we-are/blog/when-drinking-stops-working' },
+  { type: 'link', text: 'Read: When Drinking Stops Working →', href: '/when-drinking-stops-working' },
   { type: 'divider' },
   { type: 'stat', text: '90+ Day Programs' },
   { type: 'divider' },

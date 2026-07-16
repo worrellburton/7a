@@ -1295,7 +1295,7 @@ function BlogIdeasSection({
               <p className="text-sm font-semibold text-foreground leading-snug">{idea.title}</p>
               <p className="text-[11px] text-foreground/60 mt-0.5 leading-snug">{idea.subtitle}</p>
               <p className="text-[10px] text-foreground/40 mt-1 font-mono">
-                /who-we-are/blog/{idea.slug}
+                /{idea.slug}
               </p>
             </div>
             <CopyPromptButton
