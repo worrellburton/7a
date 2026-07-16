@@ -258,6 +258,12 @@ export async function GET(req: NextRequest) {
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw))) : 100;
   const offsetRaw = Number(url.searchParams.get('offset') ?? '0');
   const offset = Number.isFinite(offsetRaw) ? Math.max(0, Math.floor(offsetRaw)) : 0;
+  // Column sort. Only DB-backed columns are sortable; the default is
+  // date, newest first (pending — no posted_at yet — still surface
+  // first on a date-desc sort).
+  const sortRaw = (url.searchParams.get('sort') || 'date').toLowerCase();
+  const sortKey = ['date', 'amount', 'from', 'status', 'account'].includes(sortRaw) ? sortRaw : 'date';
+  const sortAsc = (url.searchParams.get('dir') || 'desc').toLowerCase() === 'asc';
   const includeExcluded = ['1', 'true', 'yes'].includes(
     (url.searchParams.get('include_excluded') || '').toLowerCase(),
   );
@@ -291,12 +297,21 @@ export async function GET(req: NextRequest) {
   // allocations, check number, estimated delivery, attachments, …) —
   // the page's expandable rows render everything in it, so ship it
   // whole rather than cherry-picking columns that would go stale.
-  const listQuery = incomingQuery(admin, LIST_COLUMNS, accountId, q, { count: true, includeExcluded })
-    // Pending receivables have no posted_at yet — surface them first
-    // (they're the money still on its way), then posted, newest first.
-    .order('posted_at', { ascending: false, nullsFirst: true })
-    .order('created_at_mercury', { ascending: false })
-    .range(offset, offset + limit - 1);
+  const baseList = incomingQuery(admin, LIST_COLUMNS, accountId, q, { count: true, includeExcluded });
+  // Apply the requested column sort. Every branch falls back to a
+  // date tiebreak so equal keys stay stably newest-first.
+  const orderedList =
+    sortKey === 'amount'
+      ? baseList.order('amount', { ascending: sortAsc }).order('posted_at', { ascending: false, nullsFirst: true })
+      : sortKey === 'from'
+        ? baseList.order('counterparty_name', { ascending: sortAsc, nullsFirst: false }).order('posted_at', { ascending: false, nullsFirst: true })
+        : sortKey === 'status'
+          ? baseList.order('status', { ascending: sortAsc, nullsFirst: false }).order('posted_at', { ascending: false, nullsFirst: true })
+          : sortKey === 'account'
+            ? baseList.order('account_id', { ascending: sortAsc }).order('posted_at', { ascending: false, nullsFirst: true })
+            // date (default): pending (no posted_at) surface first on desc.
+            : baseList.order('posted_at', { ascending: sortAsc, nullsFirst: !sortAsc }).order('created_at_mercury', { ascending: sortAsc });
+  const listQuery = orderedList.range(offset, offset + limit - 1);
 
   const { data: rows, error: rErr, count } = await listQuery;
   if (rErr) {

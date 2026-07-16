@@ -533,6 +533,46 @@ function PayerMonthMatrix({
   );
 }
 
+// Clickable column header for the receivables table. Shows a faint
+// chevron when inactive, a solid up/down chevron for the active sort.
+function SortHeader({
+  label,
+  col,
+  sortKey,
+  sortDir,
+  onSort,
+  align = 'left',
+  className = '',
+}: {
+  label: string;
+  col: 'date' | 'from' | 'amount';
+  sortKey: 'date' | 'from' | 'amount';
+  sortDir: 'asc' | 'desc';
+  onSort: (c: 'date' | 'from' | 'amount') => void;
+  align?: 'left' | 'right';
+  className?: string;
+}) {
+  const active = sortKey === col;
+  return (
+    <th className={`${align === 'right' ? 'text-right' : 'text-left'} font-semibold px-4 py-3 ${className}`}>
+      <button
+        type="button"
+        onClick={() => onSort(col)}
+        aria-label={`Sort by ${label}${active ? (sortDir === 'asc' ? ', ascending' : ', descending') : ''}`}
+        className={`inline-flex items-center gap-1 uppercase tracking-[0.14em] transition-colors ${active ? 'text-foreground' : 'text-foreground/55 hover:text-foreground'}`}
+      >
+        {label}
+        <svg
+          className={`w-3 h-3 shrink-0 transition-opacity ${active ? 'opacity-100' : 'opacity-30'}`}
+          viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"
+        >
+          {active && sortDir === 'asc' ? <path d="M6 15l6-6 6 6" /> : <path d="M6 9l6 6 6-6" />}
+        </svg>
+      </button>
+    </th>
+  );
+}
+
 export default function BillingContent() {
   const { session } = useAuth();
   const router = useRouter();
@@ -550,6 +590,11 @@ export default function BillingContent() {
   const [includeExcluded, setIncludeExcluded] = useState(false);
   const [excludedNames, setExcludedNames] = useState<string[]>([]);
   const [offset, setOffset] = useState(0);
+  // Column sort — DB-backed, server-side (the list is 1,000+ rows, so
+  // client-side sorting would only order the current page). Default:
+  // date, newest first.
+  const [sortKey, setSortKey] = useState<'date' | 'from' | 'amount'>('date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -569,6 +614,8 @@ export default function BillingContent() {
       if (accountFilter) params.set('account_id', accountFilter);
       if (debouncedQuery) params.set('q', debouncedQuery);
       if (includeExcluded) params.set('include_excluded', '1');
+      params.set('sort', sortKey);
+      params.set('dir', sortDir);
       const nextOffset = resetOffset ? 0 : offset;
       params.set('limit', String(PAGE_SIZE));
       params.set('offset', String(nextOffset));
@@ -601,14 +648,21 @@ export default function BillingContent() {
     } finally {
       setLoading(false);
     }
-  }, [session?.access_token, accountFilter, debouncedQuery, includeExcluded, offset, router]);
+  }, [session?.access_token, accountFilter, debouncedQuery, includeExcluded, sortKey, sortDir, offset, router]);
 
-  // Reload when filters change (resets pagination).
+  // Cycle a column's sort: same column flips direction; a new column
+  // starts desc (asc for the text "From" column, which reads better A→Z).
+  const toggleSort = useCallback((key: 'date' | 'from' | 'amount') => {
+    if (sortKey === key) setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    else { setSortKey(key); setSortDir(key === 'from' ? 'asc' : 'desc'); }
+  }, [sortKey]);
+
+  // Reload when filters / sort change (resets pagination).
   useEffect(() => {
     refresh(true);
     // Intentionally omit refresh itself — including it would loop.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [session?.access_token, accountFilter, debouncedQuery, includeExcluded]);
+  }, [session?.access_token, accountFilter, debouncedQuery, includeExcluded, sortKey, sortDir]);
 
   // Reload when page changes (no reset).
   useEffect(() => {
@@ -832,12 +886,12 @@ export default function BillingContent() {
           <table className="w-full text-sm">
             <thead className="bg-foreground/5 text-foreground/55 text-[11px] uppercase tracking-[0.14em]">
               <tr>
-                <th className="text-left font-semibold px-4 py-3">Date</th>
-                <th className="text-left font-semibold px-4 py-3">From</th>
+                <SortHeader label="Date" col="date" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
+                <SortHeader label="From" col="from" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} />
                 <th className="text-left font-semibold px-4 py-3 hidden md:table-cell">Account</th>
                 <th className="text-left font-semibold px-4 py-3 hidden lg:table-cell">Category</th>
                 <th className="text-left font-semibold px-4 py-3 hidden xl:table-cell">Memo</th>
-                <th className="text-right font-semibold px-4 py-3">Amount</th>
+                <SortHeader label="Amount" col="amount" sortKey={sortKey} sortDir={sortDir} onSort={toggleSort} align="right" />
                 <th className="text-left font-semibold px-4 py-3">Status</th>
                 <th className="w-8" />
               </tr>
