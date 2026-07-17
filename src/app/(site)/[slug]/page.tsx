@@ -4,6 +4,9 @@ import { getAdminSupabase } from '@/lib/supabase-server';
 import type { Layout } from '@/lib/content-claude';
 import DbBlogRenderer from '@/components/DbBlogRenderer';
 import LiveBlogEditor from '@/components/LiveBlogEditor';
+import PageHero from '@/components/PageHero';
+import ArticleFooterCta from '@/components/ArticleFooterCta';
+import RelatedArticles from '@/components/RelatedArticles';
 import { AuthorByline, BlogPostJsonLd } from '@/components/blog/BlogPostMeta';
 import type { Episode } from '@/lib/episodes';
 import { isNoneSlug, resolveAuthorAsync, resolveReviewerAsync } from '@/lib/blogAuthors';
@@ -212,6 +215,20 @@ export default async function DbBlogPage({
   ]);
   const reconciledLayout = reconcileLayoutImages(row.layout, blogImages);
 
+  // Hero image + tagline for the PageHero — pulled from the layout's
+  // hero block, which the renderer then suppresses so the title and
+  // image don't render twice. Supabase-hosted heroes go through the
+  // image-transformation endpoint (same trick DbBlogRenderer uses) so
+  // a 1-2 MB PNG arrives as a ~50 KB WebP.
+  const pageHeroBlock = reconciledLayout.blocks.find((b) => b.type === 'hero') as
+    | { image?: { url?: string; alt?: string }; tagline?: string }
+    | undefined;
+  const rawHeroUrl = pageHeroBlock?.image?.url ?? null;
+  const heroImageUrl = rawHeroUrl && rawHeroUrl.includes('/storage/v1/object/public/')
+    ? `${rawHeroUrl.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/')}${rawHeroUrl.includes('?') ? '&' : '?'}width=1600&quality=75`
+    : rawHeroUrl;
+  const heroTagline = pageHeroBlock?.tagline ?? null;
+
   const url = `https://sevenarrowsrecoveryarizona.com/${row.slug}`;
   const faqJsonLd = row.schema_json?.faq && row.schema_json.faq.length > 0
     ? {
@@ -309,19 +326,47 @@ export default async function DbBlogPage({
           ) : undefined}
         />
       ) : (
-        <DbBlogRenderer
-          layout={reconciledLayout}
-          byline={showByline ? (
-            <AuthorByline
-              episode={episode}
-              author={visualAuthor ?? undefined}
-              reviewer={visualReviewer ?? undefined}
-              suppressAuthor={visualAuthor === null}
-              suppressReviewer={visualReviewer === null}
-              authorIsHorse={horseAuthorActive}
-            />
-          ) : undefined}
-        />
+        <>
+          {/* Same shell as the hand-coded root articles: PageHero
+              (breadcrumbs + label + title + description + image) →
+              900px article column → warm-bg admissions CTA → series
+              link → related articles. The layout's own hero block is
+              suppressed so the title/image don't render twice. */}
+          <PageHero
+            label="The Recovery Roadmap"
+            title={row.title ?? 'Untitled'}
+            breadcrumbs={[
+              { label: 'Home', href: '/' },
+              { label: 'Who We Are', href: '/who-we-are' },
+              { label: 'Recovery Roadmap', href: '/who-we-are/recovery-roadmap' },
+              { label: row.title ?? 'Untitled' },
+            ]}
+            description={heroTagline ?? episode.blurb ?? undefined}
+            image={heroImageUrl ?? undefined}
+            width="narrow"
+          />
+          <DbBlogRenderer
+            layout={reconciledLayout}
+            suppressHero
+            frame="site-article"
+            byline={showByline ? (
+              <AuthorByline
+                episode={episode}
+                author={visualAuthor ?? undefined}
+                reviewer={visualReviewer ?? undefined}
+                suppressAuthor={visualAuthor === null}
+                suppressReviewer={visualReviewer === null}
+                authorIsHorse={horseAuthorActive}
+              />
+            ) : undefined}
+          />
+          <div className="bg-white">
+            <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8 pb-16 lg:pb-24">
+              <ArticleFooterCta />
+            </div>
+          </div>
+          <RelatedArticles slug={row.slug} />
+        </>
       )}
     </>
   );

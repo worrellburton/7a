@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import PageHero from '@/components/PageHero';
 
+import RelatedArticles from '@/components/RelatedArticles';
 export default function PageContent() {
   return (
     <>
@@ -168,6 +169,8 @@ export default function PageContent() {
           </div>
         </div>
       </article>
+
+      <RelatedArticles slug="farm-to-table-to-healing-a-conversation-about-food-and-the-recovery-process-with-chef-sandra-bradley" />
     </>
   );
 }
