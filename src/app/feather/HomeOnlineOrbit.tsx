@@ -82,7 +82,7 @@ const ON_FIRE_THRESHOLD = 10;
 // component decoupled from any per-type label registry: a new
 // activity type added anywhere in the app shows up here without an
 // edit.
-function humanizeActivityType(type: string): string {
+export function humanizeActivityType(type: string): string {
   const tail = type.includes('.') ? type.slice(type.lastIndexOf('.') + 1) : type;
   const spaced = tail.replace(/_/g, ' ').trim();
   if (!spaced) return type;
