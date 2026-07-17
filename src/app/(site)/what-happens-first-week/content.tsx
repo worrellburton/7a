@@ -10,6 +10,7 @@ import PageHero from '@/components/PageHero';
 import { AuthorByline } from '@/components/blog/BlogPostMeta';
 import { EPISODES } from '@/lib/episodes';
 
+import RelatedArticles from '@/components/RelatedArticles';
 const episode = EPISODES.find((e) => e.slug === 'what-happens-first-week')!;
 
 /* ── Animated Timeline ────────────────────────────────────────────── */
@@ -324,8 +325,8 @@ export default function PageContent() {
         width="narrow"
       />
 
-      <article className="py-16 lg:py-24">
-        <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
+      <article className="py-16 lg:py-24 bg-white">
+        <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* Back link */}
           <Link href="/when-drinking-stops-working" className="text-primary text-sm font-semibold hover:underline mb-8 inline-block" style={{ fontFamily: 'var(--font-body)' }}>
@@ -367,7 +368,7 @@ export default function PageContent() {
           <TimelineInfographic />
         </div>
 
-        <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* Image break */}
           <div className="my-12 rounded-2xl overflow-hidden aspect-[16/7]">
@@ -539,6 +540,8 @@ export default function PageContent() {
           />
         </div>
       </article>
+
+      <RelatedArticles slug="what-happens-first-week" />
     </>
   );
 }

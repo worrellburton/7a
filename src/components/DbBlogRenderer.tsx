@@ -328,6 +328,8 @@ export function WebglScene({ scene, accent }: { scene: 'particles' | 'orbit' | '
 export default function DbBlogRenderer({
   layout,
   byline,
+  suppressHero = false,
+  frame = 'standalone',
 }: {
   layout: Layout;
   /** Optional byline block — when provided, it renders directly
@@ -336,16 +338,30 @@ export default function DbBlogRenderer({
    *  hero render the byline at the very top of the article so
    *  the author still surfaces above the prose. */
   byline?: React.ReactNode;
+  /** Drop the layout's hero block(s). Used when the page renders its
+   *  own PageHero above the article (the site's article convention),
+   *  which would otherwise duplicate the title + hero image. The
+   *  byline then renders at the very top of the article body. */
+  suppressHero?: boolean;
+  /** 'standalone' (default) keeps the original self-contained ~720px
+   *  column. 'site-article' matches the hand-coded root articles'
+   *  shell exactly — max-w-[900px], same padding, white background —
+   *  so DB posts are structurally identical to the static ones. */
+  frame?: 'standalone' | 'site-article';
 }) {
+  const blocks = suppressHero ? layout.blocks.filter((b) => b.type !== 'hero') : layout.blocks;
   // Locate the hero so we can splice the byline in right after.
   // A post can in principle carry multiple hero blocks; we only
   // inject the byline after the first one, then render the rest
   // of the layout untouched.
-  const heroIdx = byline ? layout.blocks.findIndex((b) => b.type === 'hero') : -1;
+  const heroIdx = byline ? blocks.findIndex((b) => b.type === 'hero') : -1;
+  const frameCx = frame === 'site-article'
+    ? 'max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8 pt-16 lg:pt-24 pb-4 bg-white'
+    : 'max-w-3xl mx-auto px-5 sm:px-6 py-12 sm:py-16';
   return (
-    <article className="max-w-3xl mx-auto px-5 sm:px-6 py-12 sm:py-16" style={{ fontFamily: 'var(--font-body)' }}>
+    <article className={frameCx} style={{ fontFamily: 'var(--font-body)' }}>
       {byline && heroIdx === -1 && <div className="mb-6">{byline}</div>}
-      {layout.blocks.map((block, i) => (
+      {blocks.map((block, i) => (
         <React.Fragment key={i}>
           <RenderBlock block={block} />
           {byline && i === heroIdx && <div className="-mt-4 mb-8">{byline}</div>}

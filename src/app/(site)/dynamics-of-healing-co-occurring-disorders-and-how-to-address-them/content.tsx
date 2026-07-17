@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import PageHero from '@/components/PageHero';
 
+import RelatedArticles from '@/components/RelatedArticles';
 export default function PageContent() {
   return (
     <>
@@ -202,6 +203,8 @@ export default function PageContent() {
           </div>
         </div>
       </article>
+
+      <RelatedArticles slug="dynamics-of-healing-co-occurring-disorders-and-how-to-address-them" />
     </>
   );
 }

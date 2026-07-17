@@ -6,6 +6,7 @@ import PageHero from '@/components/PageHero';
 import { AuthorByline } from '@/components/blog/BlogPostMeta';
 import { EPISODES } from '@/lib/episodes';
 
+import RelatedArticles from '@/components/RelatedArticles';
 const episode = EPISODES.find((e) => e.slug === 'what-actually-happens-in-equine-therapy')!;
 
 /* ── Why Horses: Reveal cards ─────────────────────────────────────── */
@@ -264,7 +265,7 @@ export default function PageContent() {
       />
 
       <article className="py-16 lg:py-24 bg-white">
-        <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* Back link */}
           <Link
@@ -489,6 +490,8 @@ export default function PageContent() {
           </div>
         </div>
       </article>
+
+      <RelatedArticles slug="what-actually-happens-in-equine-therapy" />
     </>
   );
 }
