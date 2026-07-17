@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import PageHero from '@/components/PageHero';
 
+import RelatedArticles from '@/components/RelatedArticles';
 export default function PageContent() {
   return (
     <>
@@ -172,6 +173,8 @@ export default function PageContent() {
           </div>
         </div>
       </article>
+
+      <RelatedArticles slug="force-someone-to-go-to-rehab" />
     </>
   );
 }

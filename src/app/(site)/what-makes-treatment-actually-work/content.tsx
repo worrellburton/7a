@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import PageHero from '@/components/PageHero';
 
+import RelatedArticles from '@/components/RelatedArticles';
 /* ── Episode 4 — The Recovery Roadmap ──────────────────────────────
  *
  * "Modalities Support the Process. Relationship Drives the Outcome."
@@ -50,7 +51,7 @@ export default function PageContent() {
       />
 
       <article className="py-16 lg:py-24 bg-white">
-        <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
 
           {/* Back link */}
           <Link
@@ -187,6 +188,8 @@ export default function PageContent() {
           </div>
         </div>
       </article>
+
+      <RelatedArticles slug="what-makes-treatment-actually-work" />
     </>
   );
 }

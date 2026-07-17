@@ -5,6 +5,7 @@ import PageHero from '@/components/PageHero';
 import { EPISODES, EPISODES_BY_NUMBER, episodeHref, episodeImage } from '@/lib/episodes';
 import { AuthorByline } from '@/components/blog/BlogPostMeta';
 
+import RelatedArticles from '@/components/RelatedArticles';
 const episode = EPISODES.find((e) => e.slug === 'your-therapists-nervous-system')!;
 
 const CURRENT_SLUG = 'your-therapists-nervous-system';
@@ -40,7 +41,7 @@ export default function PageContent() {
       />
 
       <article className="py-16 lg:py-24 bg-white">
-        <div className="max-w-[1000px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="max-w-[900px] mx-auto px-4 sm:px-6 lg:px-8">
           <AuthorByline episode={episode} />
           <p
             className="text-sm text-foreground/75 leading-relaxed"
@@ -833,6 +834,8 @@ export default function PageContent() {
           </div>
         </div>
       </article>
+
+      <RelatedArticles slug="your-therapists-nervous-system" />
     </>
   );
 }
