@@ -1170,8 +1170,11 @@ export default function HomeContent() {
           <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed sm:absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
             <div className="pointer-events-auto relative flex flex-col items-center gap-3">
               {/* Desktop 3D/2D toggle — above the orbit. Mobile renders
-                  its own copy in flow below the header (see above). */}
-              {renderOrbitToggle('hidden sm:inline-flex')}
+                  its own copy in flow below the header (see above).
+                  The sm gate lives on a wrapper div: putting `hidden`
+                  on the pill itself lost to its base `inline-flex` in
+                  the compiled CSS, so phones showed BOTH toggles. */}
+              <div className="hidden sm:block">{renderOrbitToggle('')}</div>
               {orbitMode === '3d' ? (
                 <HomeOrbit3D users={recentUsers} alumni={recentAlumni} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
               ) : (
