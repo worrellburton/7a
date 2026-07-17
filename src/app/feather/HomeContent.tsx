@@ -749,6 +749,25 @@ export default function HomeContent() {
   // Don't paint the staff orbit for an alumnus mid-redirect.
   if (isAlumni) return null;
 
+  // Shared 3D/2D orbit toggle — rendered twice (mobile in flow below the
+  // header, desktop above the orbit) so it never has to overlay either
+  // orbit's variable internal padding.
+  const renderOrbitToggle = (wrapClass: string) => (
+    <div className={`inline-flex items-center rounded-full border border-black/10 bg-white/80 supports-[backdrop-filter]:bg-white/65 supports-[backdrop-filter]:backdrop-blur-md p-0.5 ${wrapClass}`}>
+      {(['3d', '2d'] as const).map((m) => (
+        <button
+          key={m}
+          type="button"
+          onClick={() => switchOrbitMode(m)}
+          aria-pressed={orbitMode === m}
+          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-[0.12em] transition-colors ${orbitMode === m ? 'bg-foreground text-white' : 'text-foreground/45 hover:text-foreground'}`}
+        >
+          {m}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     // `isolation: isolate` scopes the negative z-index used by the
     // ambient backdrop + the mobile log-rain layer to this stacking
@@ -1110,6 +1129,17 @@ export default function HomeContent() {
           </div>
         </header>
 
+        {/* Mobile 3D/2D toggle — in normal flow just below the header
+            so it lands in the clear band above the globe. (Desktop
+            renders its own copy above the orbit; overlaying it on the
+            orbit on mobile fought each orbit's variable top padding and
+            kept crowding the "Welcome back" header.) */}
+        {recentUsers.length > 0 && (
+          <div className="sm:hidden relative z-[55] flex justify-center pt-1 pb-2">
+            {renderOrbitToggle('shadow-sm')}
+          </div>
+        )}
+
         {/* Super-admin nudge when the phones calendar has a coverage gap. */}
         {isSuperAdmin && <PhoneCoverageWarning />}
 
@@ -1139,26 +1169,9 @@ export default function HomeContent() {
         {recentUsers.length > 0 && (
           <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed sm:absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
             <div className="pointer-events-auto relative flex flex-col items-center gap-3">
-              {/* 2D / 3D presentation toggle. On desktop it sits in flow
-                  above the orbit. On mobile the orbit is vertically
-                  centred and fills the screen, so an in-flow pill above
-                  it gets pushed up into the "Welcome back" header — so
-                  there it's absolutely overlaid on the very top of the
-                  globe instead (clear of the header, and the orbit stays
-                  the sole flow child so the 7A medallion stays centred). */}
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 z-50 inline-flex items-center rounded-full border border-black/10 bg-white/80 supports-[backdrop-filter]:bg-white/65 supports-[backdrop-filter]:backdrop-blur-md p-0.5 shadow-sm sm:static sm:top-auto sm:left-auto sm:translate-x-0 sm:shadow-none">
-                {(['3d', '2d'] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => switchOrbitMode(m)}
-                    aria-pressed={orbitMode === m}
-                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-[0.12em] transition-colors ${orbitMode === m ? 'bg-foreground text-white' : 'text-foreground/45 hover:text-foreground'}`}
-                  >
-                    {m}
-                  </button>
-                ))}
-              </div>
+              {/* Desktop 3D/2D toggle — above the orbit. Mobile renders
+                  its own copy in flow below the header (see above). */}
+              {renderOrbitToggle('hidden sm:inline-flex')}
               {orbitMode === '3d' ? (
                 <HomeOrbit3D users={recentUsers} alumni={recentAlumni} horses={horses} pathLabelFor={pathLabel} highlightUserId={c4OpponentId} />
               ) : (
