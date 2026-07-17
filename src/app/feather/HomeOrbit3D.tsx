@@ -30,6 +30,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { toAvatarThumb } from '@/lib/avatarThumb';
+import { humanizeActivityType } from './HomeOnlineOrbit';
 import type { OrbitUser, OrbitHorse } from './HomeOnlineOrbit';
 
 interface Props {
@@ -55,6 +56,11 @@ interface SpriteDef {
   onFire: boolean;
   highlight: boolean;
   viewing: string | null;
+  // Activity-feed join (staff + alumni): today's action count and the
+  // most recent entries, surfaced in the hover/tap card. null when the
+  // enrichment hasn't landed (or for horses) — the card hides the block.
+  actionsToday: number | null;
+  recentActions: Array<{ type: string; target_label: string | null; created_at: string }>;
 }
 
 interface RingDef {
@@ -75,6 +81,15 @@ function isOnlineNow(lastSeen: string | null): boolean {
 
 function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
+
+function timeAgo(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
 }
 
 export default function HomeOrbit3D({
@@ -147,6 +162,8 @@ export default function HomeOrbit3D({
         onFire: (u.actions_today ?? 0) > 10,
         highlight: u.id === highlightUserId,
         viewing: staffNav ? pathLabelFor(u.last_path) : null,
+        actionsToday: u.actions_today ?? null,
+        recentActions: u.recent_actions ?? [],
       }),
     );
     horses.forEach((h, i) =>
@@ -161,6 +178,8 @@ export default function HomeOrbit3D({
         onFire: false,
         highlight: false,
         viewing: null,
+        actionsToday: null,
+        recentActions: [],
       }),
     );
     alumni.forEach((a, i) =>
@@ -175,6 +194,8 @@ export default function HomeOrbit3D({
         onFire: false,
         highlight: false,
         viewing: null,
+        actionsToday: a.actions_today ?? null,
+        recentActions: a.recent_actions ?? [],
       }),
     );
     return { sprites: defs, rings: ringDefs };
@@ -299,7 +320,25 @@ export default function HomeOrbit3D({
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
+    // Page Visibility API: hard-stop the loop while the tab is hidden.
+    // Browsers already suspend rAF in background tabs, but making the
+    // pause explicit is deterministic across browsers/webviews and
+    // resets `prev` on resume so the first visible frame doesn't
+    // integrate a stale timestamp.
+    const onVisibility = () => {
+      if (document.hidden) {
+        cancelAnimationFrame(raf);
+        raf = 0;
+      } else if (!raf) {
+        prev = performance.now();
+        raf = requestAnimationFrame(frame);
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      cancelAnimationFrame(raf);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [sceneSize, sprites, rings, reducedMotion]);
 
   // ── Drag / inertia ──────────────────────────────────────────
@@ -456,6 +495,29 @@ export default function HomeOrbit3D({
             <p className={`mt-1 text-[10.5px] font-semibold ${hoverSprite.online ? 'text-emerald-600' : 'text-foreground/40'}`}>
               {hoverSprite.kind === 'horse' ? 'On the ranch' : hoverSprite.online ? 'Online now' : 'Away'}
             </p>
+            {/* Today's activity — count plus the most recent entries.
+                Only staff/alumni carry the join; horses (and rows the
+                enrichment hasn't reached yet) skip the block. */}
+            {hoverSprite.actionsToday != null && (
+              <div className="mt-1.5 pt-1.5 border-t border-black/10">
+                <p className={`text-[10.5px] font-semibold ${hoverSprite.onFire ? 'text-amber-600' : hoverSprite.actionsToday > 0 ? 'text-foreground/65' : 'text-foreground/35'}`}>
+                  {hoverSprite.actionsToday > 0
+                    ? `${hoverSprite.onFire ? '🔥 ' : '⚡ '}${hoverSprite.actionsToday} action${hoverSprite.actionsToday === 1 ? '' : 's'} today`
+                    : 'No actions yet today'}
+                </p>
+                {hoverSprite.recentActions.length > 0 && (
+                  <ul className="mt-1 space-y-0.5">
+                    {hoverSprite.recentActions.slice(0, 3).map((a, idx) => (
+                      <li key={`${a.created_at}-${idx}`} className="text-[10px] text-foreground/55 leading-snug truncate">
+                        <span className="text-foreground/35">{timeAgo(a.created_at)} · </span>
+                        {humanizeActivityType(a.type)}
+                        {a.target_label ? `: ${a.target_label}` : ''}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
           </div>
         </div>,
         document.body,
