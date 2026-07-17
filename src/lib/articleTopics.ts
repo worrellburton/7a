@@ -158,15 +158,23 @@ export const ARTICLE_TOPICS: Record<string, string[]> = {
   'dynamics-of-healing-co-occurring-disorders-and-how-to-address-them': ['mental-health'],
 };
 
-// Articles whose URL is intercepted by an enabled redirects-table row
-// (retired/consolidated into a money page). They must never be dealt
-// out as a related card — the reader would click a card titled one
-// thing and 301 onto a page titled another.
-const RETIRED_SLUGS = new Set(['transition-from-suboxone-to-sublocade']);
+// Articles that must never be dealt out as a related card:
+//   - transition-from-suboxone-to-sublocade: its URL is intercepted by
+//     an enabled redirects-table row (301 → the opioid money page), so
+//     a card titled one thing would land on a page titled another.
+//   - forward-facing-recovery…: flagged hidden in blog_visibility —
+//     the listing pipeline hides it everywhere else, and this static
+//     pool must not resurface it.
+// (This is a static snapshot, like EXTRA_ARTICLES itself — if a post's
+// visibility or redirect state changes, update this set with it.)
+const EXCLUDED_SLUGS = new Set([
+  'transition-from-suboxone-to-sublocade',
+  'forward-facing-recovery-building-a-life-you-dont',
+]);
 
 // Full card pool: every EPISODES entry + the extras above.
 function allCards(): ArticleCard[] {
-  const cards: ArticleCard[] = EPISODES.filter((ep) => !RETIRED_SLUGS.has(ep.slug)).map((ep) => ({
+  const cards: ArticleCard[] = EPISODES.filter((ep) => !EXCLUDED_SLUGS.has(ep.slug)).map((ep) => ({
     slug: ep.slug,
     href: episodeHref(ep.slug),
     title: ep.title,
@@ -176,7 +184,7 @@ function allCards(): ArticleCard[] {
   }));
   const seen = new Set(cards.map((c) => c.slug));
   for (const extra of EXTRA_ARTICLES) {
-    if (!seen.has(extra.slug)) cards.push(extra);
+    if (!seen.has(extra.slug) && !EXCLUDED_SLUGS.has(extra.slug)) cards.push(extra);
   }
   return cards;
 }
