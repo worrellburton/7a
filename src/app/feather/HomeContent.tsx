@@ -813,7 +813,7 @@ export default function HomeContent() {
             document flow so the welcome stacks above the orbit
             instead of overlapping it. */}
         <header
-          className={`relative lg:absolute lg:top-6 lg:left-10 lg:right-10 z-[60] transition-all duration-500 ease-out ${
+          className={`relative lg:absolute lg:top-6 lg:left-10 lg:right-10 z-[60] lg:pointer-events-none transition-all duration-500 ease-out ${
             loaded ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2'
           }`}
         >
@@ -829,7 +829,14 @@ export default function HomeContent() {
                 w-16 → w-64, exactly that delta) — keeps the welcome
                 from being covered by the expanded sidebar overlay.
                 The shift CSS lives in globals.css. */}
-            <div data-shift-on-sidebar className="flex items-center gap-3 lg:gap-4 min-w-0">
+            {/* The header bar spans the full width at lg but only its
+                edges hold controls — the empty middle used to swallow
+                clicks meant for the orbit's 2D/3D toggle underneath
+                (the 2D orbit is tall enough to push the toggle up into
+                the header band, and the section's z-50 can't beat the
+                header's z-60). The header root is pointer-events-none
+                at lg; each control cluster opts back in. */}
+            <div data-shift-on-sidebar className="flex items-center gap-3 lg:gap-4 min-w-0 lg:pointer-events-auto">
               <button
                 type="button"
                 onClick={() => avatarInputRef.current?.click()}
@@ -954,7 +961,7 @@ export default function HomeContent() {
                   ? `Sign: ${pendingSignatures[0].title}`
                   : `${pendingSignatures.length} job descriptions waiting for your signature — open the first.`}
                 aria-label={`${pendingSignatures.length} pending signature${pendingSignatures.length === 1 ? '' : 's'} — open ${pendingSignatures[0].title}`}
-                className="inline-flex items-center gap-1.5 h-9 lg:h-10 pl-3 pr-3.5 rounded-full bg-amber-100/85 border border-amber-300 text-amber-900 hover:bg-amber-100 hover:border-amber-400 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 max-w-[14rem] sm:max-w-xs"
+                className="lg:pointer-events-auto inline-flex items-center gap-1.5 h-9 lg:h-10 pl-3 pr-3.5 rounded-full bg-amber-100/85 border border-amber-300 text-amber-900 hover:bg-amber-100 hover:border-amber-400 transition-colors shadow-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-offset-2 max-w-[14rem] sm:max-w-xs"
                 style={{ fontFamily: 'var(--font-body)' }}
               >
                 <svg className="w-4 h-4 text-amber-700 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -979,6 +986,7 @@ export default function HomeContent() {
                 with all the chips stacked. The chips themselves
                 only render once — the cluster swaps layout via
                 class toggles. */}
+            <div className="lg:pointer-events-auto min-w-0">
             <HomeChipCluster
               indicator={hasNewUpdate}
               // On mobile the create actions live inside this ⋯ menu
@@ -1055,7 +1063,8 @@ export default function HomeContent() {
                   count == 0. */}
               <HomeHardwareChip />
             </HomeChipCluster>
-            <div ref={addMenuRef} className="relative hidden sm:block">
+            </div>
+            <div ref={addMenuRef} className="relative hidden sm:block lg:pointer-events-auto">
               <button
                 type="button"
                 onClick={() => setAddMenuOpen((v) => !v)}
