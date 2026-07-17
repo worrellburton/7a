@@ -19,6 +19,7 @@ import { useAuth } from '@/lib/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { Fragment, memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore, useTransition } from 'react';
 import { createPortal } from 'react-dom';
+import { toAvatarThumb } from '@/lib/avatarThumb';
 import { SearchSelectCell } from '@/components/SearchSelectCell';
 import { companySlug } from '@/lib/company';
 import { looksLikePersonName } from '@/lib/contact-suggest';
@@ -4322,7 +4323,11 @@ const ContactCell = memo(function ContactCell({
     case 'name':
       return (
         <div>
-          <div className="flex items-center gap-1.5 min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            {/* Last-contact at a glance: the last contactor's avatar
+                with the "ago" bubble on its corner; instant hover card
+                carries the full context (who / method / when / note). */}
+            <LastContactDot contact={contact} />
             <EditableTextCell
               value={contact.name}
               onSave={save('name')}
@@ -6593,6 +6598,88 @@ function TimeSinceCell({ contact }: { contact: Contact }) {
   );
 }
 
+// Compact last-contact indicator for column A (the Name cell): the
+// last contactor's avatar (or initials) with the relative time in a
+// little bubble pinned to the avatar's bottom-right corner. Hovering
+// raises the full context — who, method, when, and the log note — in
+// a themed card. The card opens on mouseenter with NO delay and
+// portals to <body> at fixed coordinates so the table's overflow
+// container can never clip it.
+function LastContactDot({ contact }: { contact: Contact }) {
+  useNowTick();
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  if (!contact.last_contact_at) return null;
+  const s = staleness(contact.last_contact_at);
+  const bubbleTone =
+    s === 'fresh' ? 'text-emerald-700 border-emerald-200' :
+    s === 'cooling' ? 'text-amber-700 border-amber-200' :
+    'text-rose-700 border-rose-200';
+  const short = fmtAgo(contact.last_contact_at).replace(' ago', '');
+  const name = (contact.last_contact_by_name || '—').trim();
+  return (
+    <span
+      data-no-row-select
+      className="relative shrink-0 inline-flex"
+      onMouseEnter={(e) => {
+        const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+        setPos({ x: r.left + r.width / 2, y: r.bottom });
+      }}
+      onMouseLeave={() => setPos(null)}
+    >
+      {contact.last_contact_by_avatar_url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={toAvatarThumb(contact.last_contact_by_avatar_url, 200) ?? contact.last_contact_by_avatar_url}
+          alt=""
+          className="w-7 h-7 rounded-full object-cover border border-black/10"
+        />
+      ) : (
+        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-primary/10 text-primary text-[10px] font-bold border border-primary/20">
+          {name.charAt(0).toUpperCase()}
+        </span>
+      )}
+      <span className={`absolute -bottom-1 -right-1.5 px-1 rounded-full bg-white border shadow-sm text-[8px] font-bold leading-[1.35] tabular-nums whitespace-nowrap ${bubbleTone}`} aria-hidden>
+        {short}
+      </span>
+      {pos && createPortal(
+        <div
+          className="fixed z-[90] pointer-events-none -translate-x-1/2 pt-2"
+          style={{ left: pos.x, top: pos.y }}
+        >
+          <div className="min-w-[210px] max-w-[280px] rounded-2xl border border-white/70 bg-white/95 supports-[backdrop-filter]:bg-white/80 supports-[backdrop-filter]:backdrop-blur-xl shadow-[0_14px_36px_-14px_rgba(60,48,42,0.45)] px-3.5 py-2.5 text-left">
+            <div className="flex items-center gap-2 min-w-0">
+              {contact.last_contact_by_avatar_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={toAvatarThumb(contact.last_contact_by_avatar_url, 200) ?? contact.last_contact_by_avatar_url} alt="" className="w-6 h-6 rounded-full object-cover border border-black/10 shrink-0" />
+              ) : (
+                <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-[10px] font-bold border border-primary/20 shrink-0">
+                  {name.charAt(0).toUpperCase()}
+                </span>
+              )}
+              <p className="text-[12.5px] font-semibold text-foreground truncate">{name}</p>
+              {contact.last_contact_method && (
+                <span className={`ml-auto shrink-0 inline-block px-1.5 py-0.5 rounded-md text-[9px] font-semibold border ${METHOD_TONES[contact.last_contact_method]}`}>
+                  {contact.last_contact_method}
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-[10.5px] text-foreground/55">
+              <span className={`font-semibold ${s === 'fresh' ? 'text-emerald-700' : s === 'cooling' ? 'text-amber-700' : 'text-rose-700'}`}>{fmtAgo(contact.last_contact_at)}</span>
+              {fmtAbsolute(contact.last_contact_at) && <span className="text-foreground/40"> · {fmtAbsolute(contact.last_contact_at)}</span>}
+            </p>
+            {contact.last_contact_comments && (
+              <p className="mt-1.5 pt-1.5 border-t border-black/8 text-[11px] text-foreground/70 leading-snug line-clamp-4">
+                {contact.last_contact_comments}
+              </p>
+            )}
+          </div>
+        </div>,
+        document.body,
+      )}
+    </span>
+  );
+}
+
 // Single cell that rolls up the three old engagement columns (Last
 // Contacted By, Time Since, Last Contact) into one compact strip:
 // avatar + name + method chip on top, freshness pill + relative + absolute
@@ -7989,9 +8076,13 @@ function ContactDetailsDrawer({
         </div>
       </div>
 
+      {/* History leads (left on md+), contact info follows (right) —
+          the log timeline is what reps scan first. Order is flipped
+          with md:order so the DOM (info first) still reads sensibly
+          when the grid stacks on small screens. */}
       <div className={historyOnly ? '' : 'grid md:grid-cols-2 gap-x-6'}>
         {!historyOnly && (
-          <div className="px-5 py-4 md:border-r md:border-black/5">
+          <div className="px-5 py-4 md:order-2">
             <dl className="grid grid-cols-[8rem_1fr] gap-x-3 gap-y-2 text-[12px]">
               {detailRows.map((r) => (
                 <Fragment key={r.label}>
@@ -8026,7 +8117,7 @@ function ContactDetailsDrawer({
           </div>
         )}
 
-        <div className="px-5 py-4">
+        <div className={`px-5 py-4 ${historyOnly ? '' : 'md:order-1 md:border-r md:border-black/5'}`}>
           <div className="mb-2 flex items-center justify-between">
             {/* Inner label drops to "Touchpoints" in history-only
                 mode since the drawer's outer eyebrow already reads
