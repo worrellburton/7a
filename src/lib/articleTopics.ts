@@ -158,9 +158,15 @@ export const ARTICLE_TOPICS: Record<string, string[]> = {
   'dynamics-of-healing-co-occurring-disorders-and-how-to-address-them': ['mental-health'],
 };
 
+// Articles whose URL is intercepted by an enabled redirects-table row
+// (retired/consolidated into a money page). They must never be dealt
+// out as a related card — the reader would click a card titled one
+// thing and 301 onto a page titled another.
+const RETIRED_SLUGS = new Set(['transition-from-suboxone-to-sublocade']);
+
 // Full card pool: every EPISODES entry + the extras above.
 function allCards(): ArticleCard[] {
-  const cards: ArticleCard[] = EPISODES.map((ep) => ({
+  const cards: ArticleCard[] = EPISODES.filter((ep) => !RETIRED_SLUGS.has(ep.slug)).map((ep) => ({
     slug: ep.slug,
     href: episodeHref(ep.slug),
     title: ep.title,
