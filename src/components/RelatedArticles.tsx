@@ -1,6 +1,17 @@
 import Link from 'next/link';
 import { relatedFor } from '@/lib/articleTopics';
 
+// The DB-post cards carry full-size Supabase Storage PNGs (1-2 MB).
+// Route them through the image-transformation endpoint (same trick as
+// DbBlogRenderer) so a 112px thumbnail costs ~10 KB, not megabytes.
+// Non-Supabase URLs (the static /hero/*.jpg set) pass through as-is.
+const SUPABASE_PUBLIC = '/storage/v1/object/public/';
+function thumbSrc(url: string): string {
+  if (!url.includes(SUPABASE_PUBLIC)) return url;
+  const base = url.replace(SUPABASE_PUBLIC, '/storage/v1/render/image/public/');
+  return `${base}${base.includes('?') ? '&' : '?'}width=320&quality=70`;
+}
+
 // "Related Articles" module — 3-4 topically-related posts, rendered at
 // the bottom of every root-level article (static and DB-backed alike).
 // Relatedness comes from the tag map in lib/articleTopics.ts. Cards
@@ -41,7 +52,7 @@ export default function RelatedArticles({ slug }: { slug: string }) {
                 <div className="shrink-0 w-24 sm:w-28 aspect-[4/3] rounded-lg overflow-hidden bg-warm-bg">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src={card.image}
+                    src={thumbSrc(card.image)}
                     alt={card.imageAlt}
                     loading="lazy"
                     decoding="async"
