@@ -109,6 +109,29 @@ async function loadPublished(slug: string): Promise<BlogRow | null> {
   return (data as BlogRow | null) ?? null;
 }
 
+// First real prose line of the body, cleaned for display: skips
+// headings, images, lists, quotes, and emphasis-only subtitle lines,
+// strips inline markdown, and trims to a word boundary with an
+// ellipsis. Used for the PageHero description and meta description —
+// the raw first-line slice used to leak literal asterisks and hard
+// mid-word 220-char cuts into the hero.
+function extractBlurb(md: string | null): string {
+  if (!md) return '';
+  const line = md.split('\n').find((l) => {
+    const t = l.trim();
+    return t.length > 0 && !/^[#!>*-]/.test(t) && !/^\d+\.\s/.test(t);
+  });
+  if (!line) return '';
+  const plain = line
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[*_`]/g, '')
+    .trim();
+  if (plain.length <= 200) return plain;
+  const cut = plain.slice(0, 200);
+  const atWord = cut.lastIndexOf(' ');
+  return `${atWord > 80 ? cut.slice(0, atWord) : cut}…`;
+}
+
 // Adapt a DB blog row into the Episode shape BlogPostMeta consumes.
 // Author / reviewer slugs come straight from the DB columns;
 // resolveAuthor() / resolveReviewer() in blogAuthors fill in
@@ -122,7 +145,7 @@ function episodeFromBlog(row: BlogRow): Episode {
     number: 0,
     slug: row.slug,
     title: row.title ?? 'Untitled',
-    blurb: row.body_markdown?.split('\n').find((l) => l.trim() && !l.startsWith('#'))?.slice(0, 220) ?? '',
+    blurb: extractBlurb(row.body_markdown),
     publishedAt,
     publishedDisplay: new Date(publishedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
     image: heroImage?.url ?? '/images/og-default.jpg',
@@ -138,7 +161,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const row = await loadPublished(slug);
   if (!row) return { title: 'Not Found' };
   const url = `https://sevenarrowsrecoveryarizona.com/${row.slug}`;
-  const description = row.body_markdown?.split('\n').find((l) => l.trim() && !l.startsWith('#'))?.slice(0, 220);
+  const description = extractBlurb(row.body_markdown) || undefined;
   const heroImg = row.layout?.blocks?.find((b) => b.type === 'hero' && (b as { image?: { url?: string } }).image?.url);
   const ogImage = (heroImg as { image?: { url?: string } } | undefined)?.image?.url;
   return {
