@@ -1138,9 +1138,15 @@ export default function HomeContent() {
             anything below; the inner content opts back in to clicks. */}
         {recentUsers.length > 0 && (
           <section className="z-50 w-full max-w-4xl mx-auto py-2 fixed sm:absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none">
-            <div className="pointer-events-auto flex flex-col items-center gap-3">
-              {/* 2D / 3D presentation toggle — small, above the orbit. */}
-              <div className="inline-flex items-center rounded-full border border-black/10 bg-white/70 supports-[backdrop-filter]:backdrop-blur-md p-0.5">
+            <div className="pointer-events-auto relative flex flex-col items-center gap-3">
+              {/* 2D / 3D presentation toggle. On desktop it sits in flow
+                  above the orbit. On mobile the orbit is vertically
+                  centred and fills the screen, so an in-flow pill above
+                  it gets pushed up into the "Welcome back" header — so
+                  there it's absolutely overlaid on the very top of the
+                  globe instead (clear of the header, and the orbit stays
+                  the sole flow child so the 7A medallion stays centred). */}
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 z-50 inline-flex items-center rounded-full border border-black/10 bg-white/80 supports-[backdrop-filter]:bg-white/65 supports-[backdrop-filter]:backdrop-blur-md p-0.5 shadow-sm sm:static sm:top-auto sm:left-auto sm:translate-x-0 sm:shadow-none">
                 {(['3d', '2d'] as const).map((m) => (
                   <button
                     key={m}
