@@ -79,7 +79,12 @@ export async function GET(req: NextRequest) {
   // Staff-only, same boundary as quick-log-context: this aggregates
   // org-wide outreach volume plus each logger's name/email/avatar, so
   // alumni/guest accounts must not be able to enumerate it.
-  const gate = await requireStaff(req);
+  // NOTE: no `req` argument — the chart client authenticates via the
+  // session COOKIE (credentials: 'include'), and passing req makes
+  // resolveContext demand an Authorization header instead, 401ing
+  // every request and blanking the chart ("No attempts in this
+  // window"). The argless form reads the cookie session.
+  const gate = await requireStaff();
   if (gate instanceof NextResponse) return gate;
 
   const url = new URL(req.url);
