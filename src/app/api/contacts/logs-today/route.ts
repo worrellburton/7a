@@ -252,16 +252,31 @@ export async function GET(req: NextRequest) {
   for (const r of history) if (r.contacted_by) recordUserIds.add(r.contacted_by);
   const allUserIdList = Array.from(recordUserIds);
 
-  const [usersRes, contactsRes] = await Promise.all([
-    allUserIdList.length > 0
-      ? admin.from('users').select('id, full_name, email, avatar_url').in('id', allUserIdList)
-      : Promise.resolve({ data: [] as UserLite[], error: null }),
-    contactIds.length > 0
-      ? admin.from('contacts').select('id, name, company').in('id', contactIds)
-      : Promise.resolve({ data: [] as ContactLite[], error: null }),
+  // Hydrate in id-chunks. A single `.in('id', [~900 uuids])` builds a
+  // ~35 KB request URL that the PostgREST gateway rejects; the error
+  // then got swallowed by `?? []`, so the whole contacts map came back
+  // empty and EVERY row rendered "Unknown contact" on wide ranges
+  // (all-time / this-year, where the window references hundreds of
+  // contacts). 200 ids/chunk keeps every URL well under any limit.
+  const CHUNK = 200;
+  async function hydrateById<T extends { id: string }>(table: string, select: string, ids: string[]): Promise<Map<string, T>> {
+    const byId = new Map<string, T>();
+    for (let i = 0; i < ids.length; i += CHUNK) {
+      const slice = ids.slice(i, i + CHUNK);
+      const { data, error } = await admin.from(table).select(select).in('id', slice);
+      if (error) {
+        console.error(`[logs-today] ${table} hydrate chunk failed:`, error.message);
+        continue;
+      }
+      for (const row of (data ?? []) as unknown as T[]) byId.set(row.id, row);
+    }
+    return byId;
+  }
+
+  const [usersById, contactsById] = await Promise.all([
+    hydrateById<UserLite>('users', 'id, full_name, email, avatar_url', allUserIdList),
+    hydrateById<ContactLite>('contacts', 'id, name, company', contactIds),
   ]);
-  const usersById = new Map<string, UserLite>(((usersRes.data ?? []) as UserLite[]).map((u) => [u.id, u]));
-  const contactsById = new Map<string, ContactLite>(((contactsRes.data ?? []) as ContactLite[]).map((c) => [c.id, c]));
 
   // ── Logs array ───────────────────────────────────────────────
   const logs = windowLogs.map((l) => {

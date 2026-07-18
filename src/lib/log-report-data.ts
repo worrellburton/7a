@@ -178,19 +178,28 @@ export async function buildLogReportData(
 
   const contactIds = Array.from(new Set(logs.map((l) => l.contact_id).filter((v): v is string => !!v)));
 
-  const [usersRes, contactsRes] = await Promise.all([
-    admin
-      .from('users')
-      .select('id, full_name, avatar_url')
-      .eq('status', 'active'),
-    contactIds.length > 0
-      ? admin.from('contacts').select('id, name, company, formatted_address, location').in('id', contactIds)
-      : Promise.resolve({ data: [] as ContactLite[], error: null }),
-  ]);
+  // Contacts are hydrated in id-chunks: a single `.in('id', [~900
+  // uuids])` builds a request URL the PostgREST gateway rejects, which
+  // over a wide report range would throw here and kill the whole
+  // report. 200 ids/chunk keeps every URL well under any limit.
+  const CHUNK = 200;
+  const contactChunks: ContactLite[] = [];
+  for (let i = 0; i < contactIds.length; i += CHUNK) {
+    const slice = contactIds.slice(i, i + CHUNK);
+    const { data, error } = await admin
+      .from('contacts')
+      .select('id, name, company, formatted_address, location')
+      .in('id', slice);
+    if (error) throw new Error(error.message);
+    contactChunks.push(...((data ?? []) as ContactLite[]));
+  }
+  const usersRes = await admin
+    .from('users')
+    .select('id, full_name, avatar_url')
+    .eq('status', 'active');
   if (usersRes.error) throw new Error(usersRes.error.message);
-  if (contactsRes.error) throw new Error(contactsRes.error.message);
   const userById = new Map((usersRes.data ?? []).map((u) => [u.id, u as UserLite]));
-  const contactById = new Map((contactsRes.data ?? []).map((c) => [c.id, c as ContactLite]));
+  const contactById = new Map(contactChunks.map((c) => [c.id, c]));
 
   // ─── Aggregations ─────────────────────────────────────────────
 
