@@ -9,9 +9,27 @@ const RESEND_URL = 'https://api.resend.com/emails';
 // modal validates the dropdown options client-side and the server
 // re-validates below, so any value not in this map falls back to
 // the general inbox rather than silently dropping the lead.
-const SUBJECT_INBOX: Record<string, { to: string; label: string }> = {
-  general_inquiry: { to: 'info@sevenarrowsrecovery.com', label: 'General Inquiry' },
-  admissions: { to: 'admissions@sevenarrowsrecovery.com', label: 'Admissions' },
+// Every non-spam website form now emails a single inbox so nothing
+// lands in the Forms tab without a ping. (Was previously gated on the
+// Contact-Us modal's Subject dropdown, so footer / contact-page /
+// exit-intent / careers submissions were DB-only and silent.)
+const ALERT_INBOX = 'info@sevenarrowsrecovery.com';
+
+// Human-readable label for the Subject dropdown (Contact-Us modal
+// only). Still used to enrich the alert subject/body when present.
+const SUBJECT_LABELS: Record<string, string> = {
+  general_inquiry: 'General Inquiry',
+  admissions: 'Admissions',
+};
+
+// Which form the submission came from — surfaced in the alert so info@
+// can triage at a glance.
+const SOURCE_LABELS: Record<string, string> = {
+  contact_page: 'Contact Page',
+  footer: 'Footer Form',
+  exit_intent: 'Exit-Intent Popup',
+  careers: 'Careers Application',
+  other: 'Website Form',
 };
 
 function escapeHtml(s: string): string {
@@ -137,10 +155,9 @@ export async function POST(req: NextRequest) {
   const consent = payload.consent === true;
   // Subject is only set by the Contact Us modal (which exposes
   // the dropdown). Older forms — footer, exit-intent — don't send
-  // it, so we accept null. Any value not in SUBJECT_INBOX gets
-  // dropped to null rather than routed wrong.
+  // it, so we accept null. Any unrecognized value is dropped to null.
   const rawSubject = str(payload.subject, 40);
-  const subject = rawSubject in SUBJECT_INBOX ? rawSubject : null;
+  const subject = rawSubject in SUBJECT_LABELS ? rawSubject : null;
 
   // Only require enough signal to reach back — email or phone.
   if (!email && !telephone) {
@@ -202,18 +219,18 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // Route the email via Resend when the Contact Us modal supplied
-  // a Subject. Failures here never block the DB insert above (the
-  // visitor still sees success and the admin inbox still has the
-  // row) — Resend outage shouldn't lose us a lead. Skipped for
-  // auto-spam submissions so bot traffic doesn't hit the live
-  // inboxes.
-  if (subject && !autoSpam) {
+  // Alert info@ for EVERY non-spam submission, whatever form it came
+  // from. Failures here never block the DB insert above (the visitor
+  // still sees success and the admin inbox still has the row) — a
+  // Resend outage shouldn't lose us a lead. Auto-spam is skipped so
+  // bot traffic doesn't hit the live inbox.
+  if (!autoSpam) {
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) {
       console.warn('[contact] RESEND_API_KEY not configured — DB insert succeeded, email skipped');
     } else {
-      const inbox = SUBJECT_INBOX[subject];
+      const sourceLabel = SOURCE_LABELS[source] ?? 'Website Form';
+      const subjectLabel = subject ? SUBJECT_LABELS[subject] : null;
       const fullName = [firstName, lastName].filter(Boolean).join(' ').trim() || 'No name provided';
       const from = (process.env.RESEND_FROM || process.env.EMAIL_FROM
         || 'Seven Arrows Recovery <hello@sevenarrowsrecovery.com>').trim();
@@ -222,15 +239,16 @@ export async function POST(req: NextRequest) {
         `<p><strong>Name:</strong> ${escapeHtml(fullName)}</p>`,
         email ? `<p><strong>Email:</strong> ${escapeHtml(email)}</p>` : '',
         telephone ? `<p><strong>Phone:</strong> ${escapeHtml(telephone)}</p>` : '',
-        `<p><strong>Subject:</strong> ${escapeHtml(inbox.label)}</p>`,
+        paymentMethod ? `<p><strong>Payment:</strong> ${escapeHtml(paymentMethod)}</p>` : '',
+        `<p><strong>Form:</strong> ${escapeHtml(sourceLabel)}${subjectLabel ? ` · ${escapeHtml(subjectLabel)}` : ''}</p>`,
         message ? `<p><strong>Message:</strong><br>${escapeHtml(message).replace(/\n/g, '<br>')}</p>` : '',
         pageUrl ? `<p style="color:#666;font-size:12px;">From: ${escapeHtml(pageUrl)}</p>` : '',
       ].filter(Boolean).join('');
       try {
         const sendBody: Record<string, unknown> = {
           from,
-          to: [inbox.to],
-          subject: `New ${inbox.label} · ${fullName}`,
+          to: [ALERT_INBOX],
+          subject: `New ${subjectLabel ?? sourceLabel} · ${fullName}`,
           html: `<div style="font-family:Arial,sans-serif;line-height:1.5;color:#222;">${lines}</div>`,
         };
         if (replyTo) sendBody.reply_to = replyTo;
