@@ -111,13 +111,12 @@ export const defaultPages: PageConfig[] = [
   { path: '/feather/website-requests', label: 'Website Requests', adminOnly: false, section: 'nav', sort_order: 23, allowedDepartments: ['dfde0b96-c605-40dd-84e5-281af2f6d8e9'], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   { path: '/feather/landing', label: 'Landing', adminOnly: false, section: 'nav', sort_order: 24, allowedDepartments: ['dfde0b96-c605-40dd-84e5-281af2f6d8e9'], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   // Social Media is super-admin-only — posting attribution and the
-  // Ayrshare account are tied to the org, so the page itself is
-  // gated by adminOnly here AND a runtime is_super_admin check
-  // inside SocialMediaContent. Admins who aren't super admins see
-  // it in the sidebar but bounce to the app root if they navigate
-  // in directly. Every /api/social-media/* route enforces the same
-  // server-side via requireSuperAdmin.
-  { path: '/feather/social-media', label: 'Social Media', adminOnly: true, superAdminOnly: true, section: 'nav', sort_order: 25, allowedDepartments: [], departmentId: null },
+  // Marketing & Admissions page: anyone with access (dept membership
+  // or a per-user grant) can view, draft, and submit posts for review.
+  // PUBLISHING to the live Ayrshare/brand accounts stays super-admin —
+  // enforced by the isSuperAdmin branches in the UI and requireSuperAdmin
+  // on the publish/connect/config routes (reads use requireSocialViewAccess).
+  { path: '/feather/social-media', label: 'Social Media', adminOnly: false, section: 'nav', sort_order: 25, allowedDepartments: ['dfde0b96-c605-40dd-84e5-281af2f6d8e9'], departmentId: 'dfde0b96-c605-40dd-84e5-281af2f6d8e9' },
   // Content — super-admin-only AI blog pipeline. Same gating pattern
   // as Social Media: adminOnly here for the sidebar, runtime
   // is_super_admin check inside the page + every /api/content/*

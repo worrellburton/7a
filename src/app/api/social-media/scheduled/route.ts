@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
-import { requireSuperAdmin } from '@/lib/social-media-auth';
+import { getAdminSupabase } from '@/lib/supabase-server';
+import { requireSocialViewAccess } from '@/lib/social-media-auth';
 import { ayrshareGet } from '@/lib/ayrshare';
 
 // GET /api/social-media/scheduled
@@ -43,8 +43,7 @@ function sigOf(scheduleDate: string | null | undefined, caption: string | null |
 }
 
 export async function GET() {
-  const supabase = await getServerSupabase();
-  const auth = await requireSuperAdmin(supabase);
+  const auth = await requireSocialViewAccess();
   if (auth.response) return auth.response;
 
   const admin = getAdminSupabase();

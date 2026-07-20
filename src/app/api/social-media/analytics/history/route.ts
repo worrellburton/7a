@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase, getAdminSupabase } from '@/lib/supabase-server';
-import { requireSuperAdmin } from '@/lib/social-media-auth';
+import { getAdminSupabase } from '@/lib/supabase-server';
+import { requireSocialViewAccess } from '@/lib/social-media-auth';
 
 // GET /api/social-media/analytics/history
 //
@@ -25,8 +25,7 @@ interface SnapshotRow {
 }
 
 export async function GET(req: Request) {
-  const supabase = await getServerSupabase();
-  const auth = await requireSuperAdmin(supabase);
+  const auth = await requireSocialViewAccess();
   if (auth.response) return auth.response;
 
   const url = new URL(req.url);
