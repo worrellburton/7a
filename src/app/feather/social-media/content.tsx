@@ -111,7 +111,7 @@ interface HistoryPost {
 }
 
 export default function SocialMediaContent() {
-  const { user, isSuperAdmin } = useAuth();
+  const { user } = useAuth();
   const [accounts, setAccounts] = useState<AccountsResponse | null>(null);
   const [accountsErr, setAccountsErr] = useState<string | null>(null);
   const [accountsLoading, setAccountsLoading] = useState(true);
@@ -156,29 +156,13 @@ export default function SocialMediaContent() {
 
   if (!user) return null;
 
-  // Super-admin gate. The page is wired through PageGuard's
-  // adminOnly flag, but Social Media specifically requires super
-  // admin. A regular admin who lands here from a deep link sees
-  // the locked state instead of the composer; the API routes
-  // enforce the same on the server.
-  if (!isSuperAdmin) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center" style={{ fontFamily: 'var(--font-body)' }}>
-        <p className="text-xs uppercase tracking-[0.22em] text-foreground/45 mb-2">Marketing &amp; Admissions</p>
-        <h1 className="text-2xl font-bold text-foreground mb-3" style={{ fontFamily: 'var(--font-display)' }}>
-          Social Media
-        </h1>
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-6 text-sm text-amber-900 leading-relaxed">
-          <p className="font-semibold mb-1">Super-admin only.</p>
-          <p>
-            Posting on the Seven Arrows social accounts is restricted to
-            super admins. If you need access, ask one of them to grant
-            super-admin in <span className="font-mono text-[12px]">/app/admin/user-permissions</span>.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // No full-page super-admin lock anymore. Route access is gated by
+  // PageGuard (Marketing dept + per-user grants); anyone who reaches
+  // this page can view, draft, and submit posts for review. The
+  // super-admin-only actions (approve, mark ready, publish directly,
+  // connect accounts, toggle posting) are gated inline below via the
+  // isSuperAdmin branches, and the publish/connect/config API routes
+  // enforce the same server-side.
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8" style={{ fontFamily: 'var(--font-body)' }}>
@@ -243,8 +227,12 @@ const LAST_TAB_KEY = 'social_media_last_tab_v1';
 function SubNav() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { isSuperAdmin } = useAuth();
   const tabRaw = searchParams.get('tab');
   const active = readTab(tabRaw);
+  // "Post" is the direct-publish surface — super-admin only. Non-super
+  // admins draft + submit for review under "Compose" instead.
+  const bottomTabs = TABS.slice(1).filter((t) => t.id !== 'post' || isSuperAdmin);
 
   // Per spec, Overview is always the default landing tab — the
   // earlier last-used-tab restoration was producing situations
@@ -336,7 +324,7 @@ function SubNav() {
         {renderTab(TABS[0], 0)}
       </div>
       <div className="flex gap-1.5 rounded-2xl border border-black/10 bg-white p-1.5">
-        {TABS.slice(1).map((t) => renderTab(t, TABS.indexOf(t)))}
+        {bottomTabs.map((t) => renderTab(t, TABS.indexOf(t)))}
       </div>
     </div>
   );
@@ -355,11 +343,27 @@ interface TabBodyProps {
 
 function SocialTabBody(props: TabBodyProps) {
   const searchParams = useSearchParams();
+  const { isSuperAdmin } = useAuth();
   const active = readTab(searchParams.get('tab'));
   const {
     accounts, accountsLoading, accountsErr, refreshAccounts,
     history, historyLoading, historyErr, refreshHistory,
   } = props;
+
+  // Direct-publish pane is super-admin only. A non-super-admin who
+  // deep-links to ?tab=post gets a note pointing them at Compose.
+  if (active === 'post' && !isSuperAdmin) {
+    return (
+      <div role="tabpanel" id="tabpanel-post" className="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-6 text-sm text-amber-900 leading-relaxed">
+        <p className="font-semibold mb-1">Publishing is super-admin only.</p>
+        <p>
+          You can draft posts and submit them for review under{' '}
+          <span className="font-semibold">Compose</span>. A super admin
+          approves and publishes them to the live accounts.
+        </p>
+      </div>
+    );
+  }
 
   if (active === 'post') {
     return (
@@ -4410,15 +4414,20 @@ function HistoryList({
 // pause/resume actual posting from the page header. When off,
 // the server-side POST route returns 423 and refuses to send.
 function PostingToggle() {
+  const { isSuperAdmin } = useAuth();
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
   useEffect(() => {
+    if (!isSuperAdmin) return;
     let cancelled = false;
     void fetch('/api/social-media/posting-toggle', { cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((j) => { if (!cancelled && j) setEnabled(!!j.enabled); });
     return () => { cancelled = true; };
-  }, []);
+  }, [isSuperAdmin]);
+  // The kill switch only flips for super admins (the PUT route is
+  // super-admin gated); hide it entirely for everyone else.
+  if (!isSuperAdmin) return null;
   async function flip() {
     if (enabled === null || saving) return;
     setSaving(true);

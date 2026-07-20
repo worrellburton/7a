@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase } from '@/lib/supabase-server';
-import { requireSuperAdmin } from '@/lib/social-media-auth';
+
+import { requireSocialViewAccess } from '@/lib/social-media-auth';
 import { ayrsharePost, AyrshareNotConfigured, extractAyrshareError } from '@/lib/ayrshare';
 
 // POST /api/social-media/analytics
@@ -19,8 +19,7 @@ export const maxDuration = 60;
 type Body = { platforms?: unknown };
 
 export async function POST(req: Request) {
-  const supabase = await getServerSupabase();
-  const auth = await requireSuperAdmin(supabase);
+  const auth = await requireSocialViewAccess();
   if (auth.response) return auth.response;
 
   let body: Body;

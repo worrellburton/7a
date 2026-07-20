@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getServerSupabase } from '@/lib/supabase-server';
-import { requireSuperAdmin } from '@/lib/social-media-auth';
+
+import { requireSocialViewAccess } from '@/lib/social-media-auth';
 
 // POST /api/social-media/analytics/refresh
 //
@@ -18,8 +18,7 @@ import { requireSuperAdmin } from '@/lib/social-media-auth';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: Request) {
-  const supabase = await getServerSupabase();
-  const auth = await requireSuperAdmin(supabase);
+  const auth = await requireSocialViewAccess();
   if (auth.response) return auth.response;
 
   const secret = process.env.CRON_SECRET;
