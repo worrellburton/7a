@@ -56,11 +56,45 @@ export default function PlaceToHeal() {
               className="text-foreground/75 text-lg leading-relaxed mb-8 max-w-2xl"
               style={{ fontFamily: 'var(--font-body)' }}
             >
-              Find out why Seven Arrows Recovery is considered one of the best
-              drug rehabs in Arizona. We provide clinical and residential
-              treatment for alcohol addiction, substance abuse, and dependency
-              on illicit drugs, ensuring lasting recovery in a small group
-              setting, nestled at the base of the tranquil Swisshelm Mountains.
+              Seven Arrows sits in Elfrida, at the base of the Swisshelm
+              Mountains in Cochise County, and that&apos;s by design. Distance
+              from home, old routines, and familiar triggers is part of what
+              makes residential treatment work, whether someone is coming in
+              for alcohol use, opioids, or a combination of substances. Our
+              setting offers open desert land, real quiet, and none of the
+              noise of a city clinic. Yet we&apos;re easily reached from
+              anywhere in the state, whether you&apos;re coming from{' '}
+              <Link
+                href="/locations/phoenix"
+                className="text-primary font-semibold underline underline-offset-2 hover:text-accent"
+              >
+                Phoenix
+              </Link>
+              ,{' '}
+              <Link
+                href="/locations/tucson"
+                className="text-primary font-semibold underline underline-offset-2 hover:text-accent"
+              >
+                Tucson
+              </Link>
+              ,{' '}
+              <Link
+                href="/locations/mesa"
+                className="text-primary font-semibold underline underline-offset-2 hover:text-accent"
+              >
+                Mesa
+              </Link>
+              , or{' '}
+              <Link
+                href="/locations/scottsdale"
+                className="text-primary font-semibold underline underline-offset-2 hover:text-accent"
+              >
+                Scottsdale
+              </Link>
+              . As a licensed rehab in Arizona, we serve clients from across
+              the state, not just the local area. The result is a place built
+              for focus, not distraction, close enough to reach, far enough to
+              matter.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Link href="/admissions#verify" className="btn-primary">
